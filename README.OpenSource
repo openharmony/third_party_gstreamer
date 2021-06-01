@@ -1,0 +1,42 @@
+[
+    {
+        "Name": "gstreamer",
+        "License": "LGPL V2.0",
+        "License File": "gstreamer/COPYING",
+        "Version Number": "1.16.2",
+        "Upstream URL": "http://gstreamer.freedesktop.org/modules/",
+        "Description": "The core around which all other modules revolve. Base functionality and libraries, some essential elements, documentation, and testing."
+    },
+    {
+        "Name": "gst-plugins-good",
+        "License": "LGPL V2.1",
+        "License File": "gstplugins_good/COPYING",
+        "Version Number": "1.16.2",
+        "Upstream URL": "http://gstreamer.freedesktop.org/modules/",
+        "Description": "A collection of plug-ins you'd want to have right next to you on the battlefield."
+    },
+    {
+        "Name": "gst-plugins-base",
+        "License": "LGPL V2.0",
+        "License File": "gstplugins_base/COPYING",
+        "Version Number": "1.16.2",
+        "Upstream URL": "http://gstreamer.freedesktop.org/modules/",
+        "Description": "A well-groomed and well-maintained collection of GStreamer plug-ins and elements, spanning the range of possible types of elements one would want to write for GStreamer."
+    },
+    {
+        "Name": "gst-plugins-bad",
+        "License": "LGPL V2.0",
+        "License File": "gstplugins_bad/COPYING.LIB",
+        "Version Number": "1.16.2",
+        "Upstream URL": "http://gstreamer.freedesktop.org/modules/",
+        "Description": "No perfectly groomed moustache or any amount of fine clothing is going to cover up the truth - these plug-ins are Bad with a capital B."
+    },
+    {
+        "Name": "gst-libav",
+        "License": "LGPL V2.0",
+        "License File": "gst_libav/COPYING.LIB",
+        "Version Number": "1.16.2",
+        "Upstream URL": "http://gstreamer.freedesktop.org/modules/",
+        "Description": "This module contains a GStreamer plugin for FFmpeg, as well as an internal copy of the FFmpeg source code."
+    }
+]

@@ -1,0 +1,923 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>decklinkvideosink: GStreamer Bad Plugins 1.0 Plugins Reference Manual</title>
+<meta name="generator" content="DocBook XSL Stylesheets V1.79.1">
+<link rel="home" href="index.html" title="GStreamer Bad Plugins 1.0 Plugins Reference Manual">
+<link rel="up" href="ch01.html" title="gst-plugins-bad Elements">
+<link rel="prev" href="gst-plugins-bad-plugins-decklinkaudiosrc.html" title="decklinkaudiosrc">
+<link rel="next" href="gst-plugins-bad-plugins-decklinkvideosrc.html" title="decklinkvideosrc">
+<meta name="generator" content="GTK-Doc V1.28 (XML mode)">
+<link rel="stylesheet" href="style.css" type="text/css">
+</head>
+<body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF">
+<table class="navigation" id="top" width="100%" summary="Navigation header" cellpadding="2" cellspacing="5"><tr valign="middle">
+<td width="100%" align="left" class="shortcuts">
+<a href="#" class="shortcut">Top</a><span id="nav_description">  <span class="dim">|</span> 
+                  <a href="#gst-plugins-bad-plugins-decklinkvideosink.description" class="shortcut">Description</a></span><span id="nav_hierarchy">  <span class="dim">|</span> 
+                  <a href="#gst-plugins-bad-plugins-decklinkvideosink.object-hierarchy" class="shortcut">Object Hierarchy</a></span><span id="nav_properties">  <span class="dim">|</span> 
+                  <a href="#gst-plugins-bad-plugins-decklinkvideosink.properties" class="shortcut">Properties</a></span>
+</td>
+<td><a accesskey="h" href="index.html"><img src="home.png" width="16" height="16" border="0" alt="Home"></a></td>
+<td><a accesskey="u" href="ch01.html"><img src="up.png" width="16" height="16" border="0" alt="Up"></a></td>
+<td><a accesskey="p" href="gst-plugins-bad-plugins-decklinkaudiosrc.html"><img src="left.png" width="16" height="16" border="0" alt="Prev"></a></td>
+<td><a accesskey="n" href="gst-plugins-bad-plugins-decklinkvideosrc.html"><img src="right.png" width="16" height="16" border="0" alt="Next"></a></td>
+</tr></table>
+<div class="refentry">
+<a name="gst-plugins-bad-plugins-decklinkvideosink"></a><div class="titlepage"></div>
+<div class="refnamediv"><table width="100%"><tr>
+<td valign="top">
+<h2><span class="refentrytitle"><a name="gst-plugins-bad-plugins-decklinkvideosink.top_of_page"></a>decklinkvideosink</span></h2>
+<p>decklinkvideosink — Outputs Video to a BlackMagic DeckLink Device</p>
+</td>
+<td class="gallery_image" valign="top" align="right"></td>
+</tr></table></div>
+<div class="refsect1">
+<a name="gst-plugins-bad-plugins-decklinkvideosink.properties"></a><h2>Properties</h2>
+<div class="informaltable"><table class="informaltable" border="0">
+<colgroup>
+<col width="150px" class="properties_type">
+<col width="300px" class="properties_name">
+<col width="200px" class="properties_flags">
+</colgroup>
+<tbody>
+<tr>
+<td class="property_type"><a href="/usr/share/gtk-doc/html/glib/glib-Basic-Types.html#gint"><span class="type">gint</span></a></td>
+<td class="property_name"><a class="link" href="gst-plugins-bad-plugins-decklinkvideosink.html#GstDecklinkVideoSink--device-number" title="The “device-number” property">device-number</a></td>
+<td class="property_flags">Read / Write / Construct</td>
+</tr>
+<tr>
+<td class="property_type"><span class="type">GstDecklinkModes</span></td>
+<td class="property_name"><a class="link" href="gst-plugins-bad-plugins-decklinkvideosink.html#GstDecklinkVideoSink--mode" title="The “mode” property">mode</a></td>
+<td class="property_flags">Read / Write / Construct</td>
+</tr>
+<tr>
+<td class="property_type"><span class="type">GstDecklinkVideoFormat</span></td>
+<td class="property_name"><a class="link" href="gst-plugins-bad-plugins-decklinkvideosink.html#GstDecklinkVideoSink--video-format" title="The “video-format” property">video-format</a></td>
+<td class="property_flags">Read / Write / Construct</td>
+</tr>
+<tr>
+<td class="property_type"><span class="type">GstDecklinkTimecodeFormat</span></td>
+<td class="property_name"><a class="link" href="gst-plugins-bad-plugins-decklinkvideosink.html#GstDecklinkVideoSink--timecode-format" title="The “timecode-format” property">timecode-format</a></td>
+<td class="property_flags">Read / Write / Construct</td>
+</tr>
+<tr>
+<td class="property_type">
+<a href="/usr/share/gtk-doc/html/glib/glib-Basic-Types.html#gchar"><span class="type">gchar</span></a> *</td>
+<td class="property_name"><a class="link" href="gst-plugins-bad-plugins-decklinkvideosink.html#GstDecklinkVideoSink--hw-serial-number" title="The “hw-serial-number” property">hw-serial-number</a></td>
+<td class="property_flags">Read</td>
+</tr>
+<tr>
+<td class="property_type"><a href="/usr/share/gtk-doc/html/glib/glib-Basic-Types.html#gint"><span class="type">gint</span></a></td>
+<td class="property_name"><a class="link" href="gst-plugins-bad-plugins-decklinkvideosink.html#GstDecklinkVideoSink--keyer-level" title="The “keyer-level” property">keyer-level</a></td>
+<td class="property_flags">Read / Write / Construct</td>
+</tr>
+<tr>
+<td class="property_type"><span class="type">GstDecklinkKeyerMode</span></td>
+<td class="property_name"><a class="link" href="gst-plugins-bad-plugins-decklinkvideosink.html#GstDecklinkVideoSink--keyer-mode" title="The “keyer-mode” property">keyer-mode</a></td>
+<td class="property_flags">Read / Write / Construct</td>
+</tr>
+<tr>
+<td class="property_type"><a href="/usr/share/gtk-doc/html/glib/glib-Basic-Types.html#gint"><span class="type">gint</span></a></td>
+<td class="property_name"><a class="link" href="gst-plugins-bad-plugins-decklinkvideosink.html#GstDecklinkVideoSink--cc-line" title="The “cc-line” property">cc-line</a></td>
+<td class="property_flags">Read / Write / Construct</td>
+</tr>
+<tr>
+<td class="property_type"><span class="type">GstDecklinkDuplexMode</span></td>
+<td class="property_name"><a class="link" href="gst-plugins-bad-plugins-decklinkvideosink.html#GstDecklinkVideoSink--duplex-mode" title="The “duplex-mode” property">duplex-mode</a></td>
+<td class="property_flags">Read / Write / Construct</td>
+</tr>
+</tbody>
+</table></div>
+</div>
+<a name="GstDecklinkVideoSink"></a><div class="refsect1">
+<a name="gst-plugins-bad-plugins-decklinkvideosink.other"></a><h2>Types and Values</h2>
+<div class="informaltable"><table class="informaltable" width="100%" border="0">
+<colgroup>
+<col width="150px" class="name">
+<col class="description">
+</colgroup>
+<tbody><tr>
+<td class="datatype_keyword">struct</td>
+<td class="function_name"><a class="link" href="gst-plugins-bad-plugins-decklinkvideosink.html#GstDecklinkVideoSink-struct" title="struct GstDecklinkVideoSink">GstDecklinkVideoSink</a></td>
+</tr></tbody>
+</table></div>
+</div>
+<div class="refsect1">
+<a name="gst-plugins-bad-plugins-decklinkvideosink.object-hierarchy"></a><h2>Object Hierarchy</h2>
+<pre class="screen">    <a href="/usr/share/gtk-doc/html/gobject/gobject-The-Base-Object-Type.html#GObject-struct">GObject</a>
+    <span class="lineart">╰──</span> <a href="/usr/share/gtk-doc/html/gobject/gobject-The-Base-Object-Type.html#GInitiallyUnowned">GInitiallyUnowned</a>
+        <span class="lineart">╰──</span> <a href="/usr/share/gtk-doc/html/gstreamer-1.0/GstObject.html#GstObject-struct">GstObject</a>
+            <span class="lineart">╰──</span> <a href="/usr/share/gtk-doc/html/gstreamer-1.0/GstElement.html#GstElement-struct">GstElement</a>
+                <span class="lineart">╰──</span> <a href="/usr/share/gtk-doc/html/gstreamer-libs-1.0/GstBaseSink.html#GstBaseSink-struct">GstBaseSink</a>
+                    <span class="lineart">╰──</span> GstDecklinkVideoSink
+</pre>
+</div>
+<div class="refsect1">
+<a name="gst-plugins-bad-plugins-decklinkvideosink.description"></a><h2>Description</h2>
+<p>Playout Video to a BlackMagic DeckLink Device.</p>
+<div class="refsect3">
+<a name="id-1.2.56.7.3"></a><h4>Sample pipeline</h4>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3</pre></td>
+        <td class="listing_code"><pre class="programlisting">gst<span class="gtkdoc opt">-</span>launch<span class="gtkdoc opt">-</span><span class="number">1.0</span> \
+  videotestsrc <span class="gtkdoc opt">!</span> \
+  decklinkvideosink device<span class="gtkdoc opt">-</span>number<span class="gtkdoc opt">=</span><span class="number">0</span> mode<span class="gtkdoc opt">=</span><span class="number">1080</span>p25</pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+Playout a 1080p25 test-video to the SDI-Out of Card 0. Devices are numbered
+starting with 0.</p>
+</div>
+<div class="refsect2">
+<a name="id-1.2.56.7.4"></a><h3>Duplex-Mode:</h3>
+<p>Certain DechLink Cards like the Duo2 or the Quad2 contain two or four
+independant SDI units with two connectors each. These units can operate either
+in half- or in full-duplex mode.</p>
+<p>The Duplex-Mode of a Card can be configured using the <code class="literal">duplex-mode</code>-Property.
+Cards that to not support Duplex-Modes are not influenced by the property.</p>
+<div class="refsect3">
+<a name="id-1.2.56.7.4.4"></a><h4>Half-Duplex-Mode (default):</h4>
+<p>By default decklinkvideosink will configure them into half-duplex mode, so that
+each connector acts as if it were an independant DeckLink Card which can either
+be used as an Input or as an Output. In this mode the Duo2 can be used as as 4 SDI
+In-/Outputs and the Quad2 as 8 SDI In-/Outputs.</p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5</pre></td>
+        <td class="listing_code"><pre class="programlisting">gst<span class="gtkdoc opt">-</span>launch<span class="gtkdoc opt">-</span><span class="number">1.0</span> \
+  videotestsrc foreground<span class="gtkdoc opt">-</span>color<span class="gtkdoc opt">=</span><span class="number">0x00ff0000</span> <span class="gtkdoc opt">!</span> decklinkvideosink device<span class="gtkdoc opt">-</span>number<span class="gtkdoc opt">=</span><span class="number">0</span> mode<span class="gtkdoc opt">=</span><span class="number">1080</span>p25 \
+  videotestsrc foreground<span class="gtkdoc opt">-</span>color<span class="gtkdoc opt">=</span><span class="number">0x0000ff00</span> <span class="gtkdoc opt">!</span> decklinkvideosink device<span class="gtkdoc opt">-</span>number<span class="gtkdoc opt">=</span><span class="number">1</span> mode<span class="gtkdoc opt">=</span><span class="number">1080</span>p25 \
+  videotestsrc foreground<span class="gtkdoc opt">-</span>color<span class="gtkdoc opt">=</span><span class="number">0x000000ff</span> <span class="gtkdoc opt">!</span> decklinkvideosink device<span class="gtkdoc opt">-</span>number<span class="gtkdoc opt">=</span><span class="number">2</span> mode<span class="gtkdoc opt">=</span><span class="number">1080</span>p25 \
+  videotestsrc foreground<span class="gtkdoc opt">-</span>color<span class="gtkdoc opt">=</span><span class="number">0x00ffffff</span> <span class="gtkdoc opt">!</span> decklinkvideosink device<span class="gtkdoc opt">-</span>number<span class="gtkdoc opt">=</span><span class="number">3</span> mode<span class="gtkdoc opt">=</span><span class="number">1080</span>p25</pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+Playout four Test-Screen with colored Snow on the first four units in the System
+(ie. the Connectors 1-4 of a Duo2 unit).</p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4
+5</pre></td>
+        <td class="listing_code"><pre class="programlisting">gst<span class="gtkdoc opt">-</span>launch<span class="gtkdoc opt">-</span><span class="number">1.0</span> \
+  videotestsrc is<span class="gtkdoc opt">-</span>live<span class="gtkdoc opt">=</span><span class="keyword">true</span> foreground<span class="gtkdoc opt">-</span>color<span class="gtkdoc opt">=</span><span class="number">0x0000ff00</span> <span class="gtkdoc opt">!</span> decklinkvideosink device<span class="gtkdoc opt">-</span>number<span class="gtkdoc opt">=</span><span class="number">0</span> mode<span class="gtkdoc opt">=</span><span class="number">1080</span>p25 \
+  decklinkvideosrc device<span class="gtkdoc opt">-</span>number<span class="gtkdoc opt">=</span><span class="number">1</span> mode<span class="gtkdoc opt">=</span><span class="number">1080</span>p25 <span class="gtkdoc opt">!</span> autovideosink \
+  decklinkvideosrc device<span class="gtkdoc opt">-</span>number<span class="gtkdoc opt">=</span><span class="number">2</span> mode<span class="gtkdoc opt">=</span><span class="number">1080</span>p25 <span class="gtkdoc opt">!</span> autovideosink \
+  videotestsrc is<span class="gtkdoc opt">-</span>live<span class="gtkdoc opt">=</span><span class="keyword">true</span> foreground<span class="gtkdoc opt">-</span>color<span class="gtkdoc opt">=</span><span class="number">0x00ff0000</span> <span class="gtkdoc opt">!</span> decklinkvideosink device<span class="gtkdoc opt">-</span>number<span class="gtkdoc opt">=</span><span class="number">3</span> mode<span class="gtkdoc opt">=</span><span class="number">1080</span>p25</pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p>
+Capture 1080p25 from the second and third unit in the System,
+Playout a Test-Screen with colored Snow on the first and fourth unit
+(ie. the Connectors 1-4 of a Duo2 unit).</p>
+</div>
+<div class="refsect3">
+<a name="id-1.2.56.7.4.5"></a><h4>Device-Number-Mapping in Half-Duplex-Mode</h4>
+<p>The device-number to connector-mapping is as follows for the Duo2</p>
+<div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; ">
+<li class="listitem"><p><code class="literal">device-number=0</code> SDI1</p></li>
+<li class="listitem"><p><code class="literal">device-number=1</code> SDI3</p></li>
+<li class="listitem"><p><code class="literal">device-number=2</code> SDI2</p></li>
+<li class="listitem"><p><code class="literal">device-number=3</code> SDI4</p></li>
+</ul></div>
+<p>And for the Quad2</p>
+<div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; ">
+<li class="listitem"><p><code class="literal">device-number=0</code> SDI1</p></li>
+<li class="listitem"><p><code class="literal">device-number=1</code> SDI3</p></li>
+<li class="listitem"><p><code class="literal">device-number=2</code> SDI5</p></li>
+<li class="listitem"><p><code class="literal">device-number=3</code> SDI7</p></li>
+<li class="listitem"><p><code class="literal">device-number=4</code> SDI2</p></li>
+<li class="listitem"><p><code class="literal">device-number=5</code> SDI4</p></li>
+<li class="listitem"><p><code class="literal">device-number=6</code> SDI6</p></li>
+<li class="listitem"><p><code class="literal">device-number=7</code> SDI8</p></li>
+</ul></div>
+</div>
+<div class="refsect3">
+<a name="id-1.2.56.7.4.6"></a><h4>Full-Duplex-Mode:</h4>
+<p>When operating in full-duplex mode, two connectors of a unit are combined to
+a single device, performing keying with the second connection.</p>
+</div>
+<div class="refsect3">
+<a name="id-1.2.56.7.4.7"></a><h4>Device-Number-Mapping in Full-Duplex-Mode</h4>
+<p>The device-number to connector-mapping in full-duplex-mode is as follows for the Duo2</p>
+<div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; ">
+<li class="listitem"><p><code class="literal">device-number=0</code> SDI1 primary, SDI2 secondary</p></li>
+<li class="listitem"><p><code class="literal">device-number=1</code> SDI3 primaty, SDI4 secondary</p></li>
+</ul></div>
+<p>And for the Quad2</p>
+<div class="itemizedlist"><ul class="itemizedlist" style="list-style-type: disc; ">
+<li class="listitem"><p><code class="literal">device-number=0</code> SDI1 primary, SDI2 secondary</p></li>
+<li class="listitem"><p><code class="literal">device-number=1</code> SDI3 primaty, SDI4 secondary</p></li>
+<li class="listitem"><p><code class="literal">device-number=2</code> SDI5 primary, SDI6 secondary</p></li>
+<li class="listitem"><p><code class="literal">device-number=3</code> SDI7 primary, SDI8 secondary</p></li>
+</ul></div>
+</div>
+</div>
+<hr>
+<div class="refsect2">
+<a name="id-1.2.56.7.5"></a><h3>Keying</h3>
+<p>Keying is the process of overlaing Video with an Alpha-Channel on top of an
+existing Video-Stream. The Duo2 and Quad2-Cards can perform two different
+Keying-Modes when operated in full-duplex mode. Both modes expect Video with
+an Alpha-Channel.</p>
+<div class="refsect3">
+<a name="id-1.2.56.7.5.3"></a><h4>Internal Keyer:</h4>
+<p>In internal Keying-Mode the primary port becomes an Input and the secondary port
+an Output. The unit overlays Video played back from the Computer onto the Input
+and outputs the combined Video-Stream to the Output.</p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4</pre></td>
+        <td class="listing_code"><pre class="programlisting">gst<span class="gtkdoc opt">-</span>launch<span class="gtkdoc opt">-</span><span class="number">1.0</span> \
+ videotestsrc foreground<span class="gtkdoc opt">-</span>color<span class="gtkdoc opt">=</span><span class="number">0x00000000</span> background<span class="gtkdoc opt">-</span>color<span class="gtkdoc opt">=</span><span class="number">0x00000000</span> <span class="gtkdoc opt">!</span> \
+ video<span class="gtkdoc opt">/</span>x<span class="gtkdoc opt">-</span>raw<span class="gtkdoc opt">,</span>format<span class="gtkdoc opt">=</span>BGRA<span class="gtkdoc opt">,</span>width<span class="gtkdoc opt">=</span><span class="number">1920</span><span class="gtkdoc opt">,</span>height<span class="gtkdoc opt">=</span><span class="number">1080</span> <span class="gtkdoc opt">!</span> \
+ decklinkvideosink device<span class="gtkdoc opt">-</span>number<span class="gtkdoc opt">=</span><span class="number">0</span> duplex<span class="gtkdoc opt">-</span>mode<span class="gtkdoc opt">=</span>full keyer<span class="gtkdoc opt">-</span>mode<span class="gtkdoc opt">=</span>internal video<span class="gtkdoc opt">-</span>format<span class="gtkdoc opt">=</span><span class="number">8</span>bit<span class="gtkdoc opt">-</span>bgra mode<span class="gtkdoc opt">=</span><span class="number">1080</span>p25</pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p></p>
+</div>
+<div class="refsect3">
+<a name="id-1.2.56.7.5.4"></a><h4>External Keyer:</h4>
+<p>In external Keying-Mode the primary port outputs the alpha-chanel as the
+luma-value (key-channel). Transparent pixels are black, opaque pixels are white.
+The RGB-Component of the Video are output on the secondary channel.</p>
+<div class="informalexample">
+  <table class="listing_frame" border="0" cellpadding="0" cellspacing="0">
+    <tbody>
+      <tr>
+        <td class="listing_lines" align="right"><pre>1
+2
+3
+4</pre></td>
+        <td class="listing_code"><pre class="programlisting">gst<span class="gtkdoc opt">-</span>launch<span class="gtkdoc opt">-</span><span class="number">1.0</span> \
+ videotestsrc foreground<span class="gtkdoc opt">-</span>color<span class="gtkdoc opt">=</span><span class="number">0x00000000</span> background<span class="gtkdoc opt">-</span>color<span class="gtkdoc opt">=</span><span class="number">0x00000000</span> <span class="gtkdoc opt">!</span> \
+ video<span class="gtkdoc opt">/</span>x<span class="gtkdoc opt">-</span>raw<span class="gtkdoc opt">,</span>format<span class="gtkdoc opt">=</span>BGRA<span class="gtkdoc opt">,</span>width<span class="gtkdoc opt">=</span><span class="number">1920</span><span class="gtkdoc opt">,</span>height<span class="gtkdoc opt">=</span><span class="number">1080</span> <span class="gtkdoc opt">!</span> \
+ decklinkvideosink device<span class="gtkdoc opt">-</span>number<span class="gtkdoc opt">=</span><span class="number">0</span> duplex<span class="gtkdoc opt">-</span>mode<span class="gtkdoc opt">=</span>full keyer<span class="gtkdoc opt">-</span>mode<span class="gtkdoc opt">=</span>external video<span class="gtkdoc opt">-</span>format<span class="gtkdoc opt">=</span><span class="number">8</span>bit<span class="gtkdoc opt">-</span>bgra mode<span class="gtkdoc opt">=</span><span class="number">1080</span>p25</pre></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<p></p>
+</div>
+</div>
+<div class="refsynopsisdiv">
+<h2>Synopsis</h2>
+<div class="refsect2">
+<a name="id-1.2.56.7.6.1"></a><h3>Element Information</h3>
+<div class="variablelist"><table border="0" class="variablelist">
+<colgroup>
+<col align="left" valign="top">
+<col>
+</colgroup>
+<tbody>
+<tr>
+<td><p><span class="term">plugin</span></p></td>
+<td>
+            <a class="link" href="gst-plugins-bad-plugins-plugin-decklink.html#plugin-decklink">decklink</a>
+          </td>
+</tr>
+<tr>
+<td><p><span class="term">author</span></p></td>
+<td>David Schleef &lt;ds@entropywave.com&gt;, Sebastian Dröge &lt;sebastian@centricular.com&gt;</td>
+</tr>
+<tr>
+<td><p><span class="term">class</span></p></td>
+<td>Video/Sink/Hardware</td>
+</tr>
+</tbody>
+</table></div>
+</div>
+<hr>
+<div class="refsect2">
+<a name="id-1.2.56.7.6.2"></a><h3>Element Pads</h3>
+<div class="variablelist"><table border="0" class="variablelist">
+<colgroup>
+<col align="left" valign="top">
+<col>
+</colgroup>
+<tbody>
+<tr>
+<td><p><span class="term">name</span></p></td>
+<td>sink</td>
+</tr>
+<tr>
+<td><p><span class="term">direction</span></p></td>
+<td>sink</td>
+</tr>
+<tr>
+<td><p><span class="term">presence</span></p></td>
+<td>always</td>
+</tr>
+<tr>
+<td><p><span class="term">details</span></p></td>
+<td>video/x-raw, width=(int)720, height=(int)486, pixel-aspect-ratio=(fraction)10/11, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt601, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)720, height=(int)486, pixel-aspect-ratio=(fraction)10/11, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)720, height=(int)486, pixel-aspect-ratio=(fraction)10/11, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)720, height=(int)486, pixel-aspect-ratio=(fraction)10/11, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)720, height=(int)486, pixel-aspect-ratio=(fraction)10/11, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt601, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)720, height=(int)486, pixel-aspect-ratio=(fraction)10/11, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)720, height=(int)486, pixel-aspect-ratio=(fraction)10/11, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)720, height=(int)486, pixel-aspect-ratio=(fraction)10/11, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)720, height=(int)576, pixel-aspect-ratio=(fraction)12/11, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt601, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)720, height=(int)576, pixel-aspect-ratio=(fraction)12/11, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)720, height=(int)576, pixel-aspect-ratio=(fraction)12/11, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)720, height=(int)576, pixel-aspect-ratio=(fraction)12/11, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)720, height=(int)486, pixel-aspect-ratio=(fraction)10/11, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt601, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)720, height=(int)486, pixel-aspect-ratio=(fraction)10/11, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)720, height=(int)486, pixel-aspect-ratio=(fraction)10/11, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)720, height=(int)486, pixel-aspect-ratio=(fraction)10/11, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)720, height=(int)576, pixel-aspect-ratio=(fraction)12/11, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt601, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)720, height=(int)576, pixel-aspect-ratio=(fraction)12/11, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)720, height=(int)576, pixel-aspect-ratio=(fraction)12/11, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)720, height=(int)576, pixel-aspect-ratio=(fraction)12/11, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt709, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt709, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt709, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt709, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt709, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt709, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt709, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt709, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)interleaved, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt709, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt709, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt709, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1920, height=(int)1080, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1280, height=(int)720, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt709, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1280, height=(int)720, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1280, height=(int)720, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1280, height=(int)720, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1280, height=(int)720, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt709, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1280, height=(int)720, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1280, height=(int)720, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1280, height=(int)720, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1280, height=(int)720, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt709, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1280, height=(int)720, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1280, height=(int)720, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)1280, height=(int)720, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)2048, height=(int)1556, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt709, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)2048, height=(int)1556, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)2048, height=(int)1556, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)2048, height=(int)1556, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)2048, height=(int)1556, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt709, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)2048, height=(int)1556, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)2048, height=(int)1556, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)2048, height=(int)1556, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)2048, height=(int)1556, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt709, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)2048, height=(int)1556, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)2048, height=(int)1556, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)2048, height=(int)1556, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt2020, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt2020, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt2020, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt2020, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt2020, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt2020, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt2020, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)UYVY, colorimetry=(string)bt2020, chroma-site=(string)mpeg2</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)v210</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)ARGB</td>
+</tr>
+<tr>
+<td><p><span class="term"></span></p></td>
+<td> video/x-raw, width=(int)3840, height=(int)2160, pixel-aspect-ratio=(fraction)1/1, interlace-mode=(string)progressive, framerate=(fraction)[ 0/1, 2147483647/1 ], format=(string)BGRA</td>
+</tr>
+</tbody>
+</table></div>
+</div>
+</div>
+</div>
+<div class="refsect1">
+<a name="gst-plugins-bad-plugins-decklinkvideosink.functions_details"></a><h2>Functions</h2>
+<p></p>
+</div>
+<div class="refsect1">
+<a name="gst-plugins-bad-plugins-decklinkvideosink.other_details"></a><h2>Types and Values</h2>
+<div class="refsect2">
+<a name="GstDecklinkVideoSink-struct"></a><h3>struct GstDecklinkVideoSink</h3>
+<pre class="programlisting">struct GstDecklinkVideoSink;</pre>
+</div>
+</div>
+<div class="refsect1">
+<a name="gst-plugins-bad-plugins-decklinkvideosink.property-details"></a><h2>Property Details</h2>
+<div class="refsect2">
+<a name="GstDecklinkVideoSink--device-number"></a><h3>The <code class="literal">“device-number”</code> property</h3>
+<pre class="programlisting">  “device-number”            <a href="/usr/share/gtk-doc/html/glib/glib-Basic-Types.html#gint"><span class="type">gint</span></a></pre>
+<p>Output device instance to use.</p>
+<p>Flags: Read / Write / Construct</p>
+<p>Allowed values: &gt;= 0</p>
+<p>Default value: 0</p>
+</div>
+<hr>
+<div class="refsect2">
+<a name="GstDecklinkVideoSink--mode"></a><h3>The <code class="literal">“mode”</code> property</h3>
+<pre class="programlisting">  “mode”                     <span class="type">GstDecklinkModes</span></pre>
+<p>Video Mode to use for playback.</p>
+<p>Flags: Read / Write / Construct</p>
+<p>Default value: NTSC SD 60i</p>
+</div>
+<hr>
+<div class="refsect2">
+<a name="GstDecklinkVideoSink--video-format"></a><h3>The <code class="literal">“video-format”</code> property</h3>
+<pre class="programlisting">  “video-format”             <span class="type">GstDecklinkVideoFormat</span></pre>
+<p>Video format type to use for playback.</p>
+<p>Flags: Read / Write / Construct</p>
+<p>Default value: bmdFormat8BitYUV</p>
+</div>
+<hr>
+<div class="refsect2">
+<a name="GstDecklinkVideoSink--timecode-format"></a><h3>The <code class="literal">“timecode-format”</code> property</h3>
+<pre class="programlisting">  “timecode-format”          <span class="type">GstDecklinkTimecodeFormat</span></pre>
+<p>Timecode format type to use for playback.</p>
+<p>Flags: Read / Write / Construct</p>
+<p>Default value: bmdTimecodeRP188Any</p>
+</div>
+<hr>
+<div class="refsect2">
+<a name="GstDecklinkVideoSink--hw-serial-number"></a><h3>The <code class="literal">“hw-serial-number”</code> property</h3>
+<pre class="programlisting">  “hw-serial-number”         <a href="/usr/share/gtk-doc/html/glib/glib-Basic-Types.html#gchar"><span class="type">gchar</span></a> *</pre>
+<p>The serial number (hardware ID) of the Decklink card.</p>
+<p>Flags: Read</p>
+<p>Default value: NULL</p>
+</div>
+<hr>
+<div class="refsect2">
+<a name="GstDecklinkVideoSink--keyer-level"></a><h3>The <code class="literal">“keyer-level”</code> property</h3>
+<pre class="programlisting">  “keyer-level”              <a href="/usr/share/gtk-doc/html/glib/glib-Basic-Types.html#gint"><span class="type">gint</span></a></pre>
+<p>Keyer level.</p>
+<p>Flags: Read / Write / Construct</p>
+<p>Allowed values: [0,255]</p>
+<p>Default value: 255</p>
+</div>
+<hr>
+<div class="refsect2">
+<a name="GstDecklinkVideoSink--keyer-mode"></a><h3>The <code class="literal">“keyer-mode”</code> property</h3>
+<pre class="programlisting">  “keyer-mode”               <span class="type">GstDecklinkKeyerMode</span></pre>
+<p>Keyer mode to be enabled.</p>
+<p>Flags: Read / Write / Construct</p>
+<p>Default value: Off</p>
+</div>
+<hr>
+<div class="refsect2">
+<a name="GstDecklinkVideoSink--cc-line"></a><h3>The <code class="literal">“cc-line”</code> property</h3>
+<pre class="programlisting">  “cc-line”                  <a href="/usr/share/gtk-doc/html/glib/glib-Basic-Types.html#gint"><span class="type">gint</span></a></pre>
+<p>Line number to use for inserting closed captions (0 = disabled).</p>
+<p>Flags: Read / Write / Construct</p>
+<p>Allowed values: [0,22]</p>
+<p>Default value: 0</p>
+</div>
+<hr>
+<div class="refsect2">
+<a name="GstDecklinkVideoSink--duplex-mode"></a><h3>The <code class="literal">“duplex-mode”</code> property</h3>
+<pre class="programlisting">  “duplex-mode”              <span class="type">GstDecklinkDuplexMode</span></pre>
+<p>Certain DeckLink devices such as the DeckLink Quad 2 and the DeckLink Duo 2 support configuration of the duplex mode of individual sub-devices.A sub-device configured as full-duplex will use two connectors, which allows simultaneous capture and playback, internal keying, and fill &amp; key scenarios.A half-duplex sub-device will use a single connector as an individual capture or playback channel.</p>
+<p>Flags: Read / Write / Construct</p>
+<p>Default value: Half-Duplex</p>
+</div>
+</div>
+</div>
+<div class="footer">
+<hr>Generated by GTK-Doc V1.28</div>
+</body>
+</html>
