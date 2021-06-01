@@ -1,0 +1,70 @@
+# Copyright (c) Huawei Technologies Co., Ltd. 2021. All rights reserved.
+
+import("//build/ohos.gni")
+
+group("gstplugins_bad_packages") {
+    deps = [
+        ":gstplayer",
+    ]
+}
+
+config("gst_player_config") {
+    visibility = [ ":*" ]
+
+    include_dirs = [
+        ".",
+        "./gst-libs",
+        "//third_party/gstreamer/gstreamer",
+        "//third_party/gstreamer/gstreamer/libs",
+        "//third_party/gstreamer/gstplugins_base",
+        "//third_party/gstreamer/gstplugins_base/gst-libs",
+        "//third_party/glib/glib",
+        "//third_party/glib",
+        "//third_party/glib/gmodule",
+    ]
+
+    cflags = [
+        "-Wall",
+        "-Werror",
+        "-DGST_DISABLE_DEPRECATED",
+        "-DHAVE_CONFIG_H",
+        "-DCOLORSPACE=\"videoconvert\"",
+        "-fno-strict-aliasing",
+        "-Wno-sign-compare",
+        "-Wno-builtin-requires-header",
+        "-Wno-implicit-function-declaration",
+    ]
+}
+
+ohos_source_set("player_source") {
+    sources = [
+        "gst-libs/gst/player/gstplayer.c",
+        "gst-libs/gst/player/gstplayer-signal-dispatcher.c",
+        "gst-libs/gst/player/gstplayer-video-renderer.c",
+        "gst-libs/gst/player/gstplayer-media-info.c",
+        "gst-libs/gst/player/gstplayer-g-main-context-signal-dispatcher.c",
+        "gst-libs/gst/player/gstplayer-video-overlay-video-renderer.c",
+        "gst-libs/gst/player/gstplayer-visualization.c",
+    ]
+
+    configs = [
+        ":gst_player_config",
+    ]
+}
+
+ohos_shared_library("gstplayer") {
+    deps = [
+        ":player_source",
+        "//third_party/gstreamer/gstreamer:gstreamer",
+        "//third_party/gstreamer/gstreamer:gstbase",
+        "//third_party/gstreamer/gstplugins_base:gstvideo",
+        "//third_party/gstreamer/gstplugins_base:gstaudio",
+        "//third_party/gstreamer/gstplugins_base:gstpbutils",
+        "//third_party/gstreamer/gstplugins_base:gsttag",
+        "//third_party/glib:glib",
+        "//third_party/glib:gobject",
+        "//third_party/glib:gmodule",
+    ]
+    part_name = "multimedia_histreamer"
+    subsystem_name = "multimedia"
+}
