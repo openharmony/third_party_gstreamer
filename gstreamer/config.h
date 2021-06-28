@@ -364,9 +364,6 @@
 /* Define to 1 if `tv_sec' is a member of `struct timespec'. */
 #define HAVE_STRUCT_TIMESPEC_TV_SEC 1
 
-/* Define to 1 if you have the <sys/poll.h> header file. */
-#define HAVE_SYS_POLL_H 1
-
 /* Define to 1 if you have the <sys/prctl.h> header file. */
 #define HAVE_SYS_PRCTL_H 1
 
