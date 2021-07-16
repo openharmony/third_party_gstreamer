@@ -867,6 +867,13 @@ static GstStaticCaps id3_caps = GST_STATIC_CAPS ("application/x-id3");
 static void
 id3v2_type_find (GstTypeFind * tf, gpointer unused)
 {
+/* ohos.opt.compat.0001: The demux of gstplayer does not accurately parse audio resources in the MP3 format.
+ * As a result, the duration value cannot be obtained in the preparation phase.
+ * Use the demux and typefind of ffmpeg to process audio resources in MP3 format.
+ */
+#ifndef OHOS_OPT_COMPAT
+  return;
+#endif
   const guint8 *data = gst_type_find_peek (tf, 0, 10);
 
   if (data && memcmp (data, "ID3", 3) == 0 &&
@@ -880,6 +887,13 @@ id3v2_type_find (GstTypeFind * tf, gpointer unused)
 static void
 id3v1_type_find (GstTypeFind * tf, gpointer unused)
 {
+/* ohos.opt.compat.0001: The demux of gstplayer does not accurately parse audio resources in the MP3 format.
+ * As a result, the duration value cannot be obtained in the preparation phase.
+ * Use the demux and typefind of ffmpeg to process audio resources in MP3 format.
+ */
+#ifndef OHOS_OPT_COMPAT
+  return;
+#endif  
   const guint8 *data = gst_type_find_peek (tf, -128, 3);
 
   if (data && memcmp (data, "TAG", 3) == 0) {
@@ -1574,6 +1588,13 @@ mp3_type_find_at_offset (GstTypeFind * tf, guint64 start_off,
 static void
 mp3_type_find (GstTypeFind * tf, gpointer unused)
 {
+/* ohos.opt.compat.0001: The demux of gstplayer does not accurately parse audio resources in the MP3 format.
+ * As a result, the duration value cannot be obtained in the preparation phase.
+ * Use the demux and typefind of ffmpeg to process audio resources in MP3 format.
+ */
+#ifndef OHOS_OPT_COMPAT
+  return;
+#endif
   GstTypeFindProbability prob, mid_prob;
   const guint8 *data;
   guint layer, mid_layer;
