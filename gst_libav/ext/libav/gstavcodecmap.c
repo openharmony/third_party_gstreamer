@@ -854,7 +854,12 @@ gst_ffmpeg_codecid_to_caps (enum AVCodecID codec_id,
             "video/x-h263", "variant", G_TYPE_STRING, "itu", NULL);
       }
       break;
-
+#ifdef OHOS_OPT_COMPAT
+    /* enable to use avdec_vorbis */
+    case AV_CODEC_ID_VORBIS:
+      caps = gst_ff_vid_caps_new (context, NULL, codec_id, encode, "audio/x-vorbis", NULL);
+      break;
+#endif      
     case AV_CODEC_ID_H263P:
       caps =
           gst_ff_vid_caps_new (context, NULL, codec_id, encode, "video/x-h263",
@@ -3576,8 +3581,10 @@ gst_ffmpeg_formatid_to_caps (const gchar * format_name)
         "mpegversion", G_TYPE_INT, 4, NULL);
   } else if (!strcmp (format_name, "gif")) {
     caps = gst_caps_from_string ("image/gif");
+#ifdef OHOS_OPT_COMPAT
   } else if (!strcmp (format_name, "ogg")) {
-    caps = gst_caps_from_string ("application/ogg");
+      caps = gst_caps_from_string ("application/ogg; audio/ogg");
+#endif  
   } else if (!strcmp (format_name, "mxf") || !strcmp (format_name, "mxf_d10")) {
     caps = gst_caps_from_string ("application/mxf");
   } else if (!strcmp (format_name, "gxf")) {

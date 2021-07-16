@@ -2042,7 +2042,13 @@ gst_ffmpegdemux_register (GstPlugin * plugin)
         !strcmp (in_plugin->name, "avi") ||
         !strcmp (in_plugin->name, "asf") ||
         !strcmp (in_plugin->name, "mpegvideo") ||
+/* ohos.opt.compat.0001: The demux of gstplayer does not accurately parse audio resources in the MP3 format.
+ * As a result, the duration value cannot be obtained in the preparation phase.
+ * Use the demux and typefind of ffmpeg to process audio resources in MP3 format.
+ */
+#ifndef OHOS_OPT_COMPAT
         !strcmp (in_plugin->name, "mp3") ||
+#endif
         !strcmp (in_plugin->name, "matroska") ||
         !strcmp (in_plugin->name, "matroska_webm") ||
         !strcmp (in_plugin->name, "matroska,webm") ||
@@ -2099,6 +2105,12 @@ gst_ffmpegdemux_register (GstPlugin * plugin)
         !strcmp (in_plugin->name, "ffm") ||
         !strcmp (in_plugin->name, "ea") ||
         !strcmp (in_plugin->name, "daud") ||
+#ifdef OHOS_OPT_COMPAT   
+        /* enable to use avdemux_ogg */     
+        !strcmp (in_plugin->name, "ogg") ||
+        /* enable to use avdemux_mp3 */
+        !strcmp (in_plugin->name, "mp3") ||
+#endif        
         !strcmp (in_plugin->name, "avs") ||
         !strcmp (in_plugin->name, "aiff") ||
         !strcmp (in_plugin->name, "4xm") ||
