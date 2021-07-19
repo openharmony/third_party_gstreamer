@@ -30,7 +30,9 @@
 
 #include "gstmultifilesink.h"
 #include "gstmultifilesrc.h"
+#ifndef OHOS_SUPPORT
 #include "gstsplitfilesrc.h"
+#endif
 #include "gstsplitmuxsink.h"
 #include "gstsplitmuxsrc.h"
 
@@ -41,9 +43,10 @@ plugin_init (GstPlugin * plugin)
       gst_multi_file_src_get_type ());
   gst_element_register (plugin, "multifilesink", GST_RANK_NONE,
       gst_multi_file_sink_get_type ());
+#ifndef OHOS_SUPPORT
   gst_element_register (plugin, "splitfilesrc", GST_RANK_NONE,
       gst_split_file_src_get_type ());
-
+#endif
   if (!register_splitmuxsink (plugin))
     return FALSE;
 

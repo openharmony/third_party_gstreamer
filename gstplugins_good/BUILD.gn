@@ -6,9 +6,10 @@ group("gstplugins_good_packages") {
     deps = [
         ":gstaudioparsers",
         ":gstautodetect",
-        ":gstid3demux",
         ":gstisomp4",
         ":gstwavparse",
+        ":gstmultifile",
+        ":gstaudiofx",
     ]
 }
 
@@ -19,6 +20,7 @@ config("gst_plugins_config") {
         ".",
         "./gst-libs",
         "./gst/isomp4",
+        "./gst/audiofx",
         "//third_party/gstreamer/gstreamer",
         "//third_party/gstreamer/gstreamer/libs",
         "//third_party/gstreamer/gstplugins_base",
@@ -40,6 +42,8 @@ config("gst_plugins_config") {
         "-Wno-sign-compare",
         "-Wno-builtin-requires-header",
         "-Wno-deprecated-declarations",
+        "-DOHOS_SUPPORT",
+        "-DOHOS_OPT_COMPAT",
     ]
 }
 
@@ -197,6 +201,84 @@ ohos_shared_library("gstwavparse") {
         "//third_party/gstreamer/gstplugins_base:gstaudio",
         "//third_party/gstreamer/gstplugins_base:gstpbutils",
         "//third_party/gstreamer/gstplugins_base:gstriff",
+        "//third_party/glib:glib",
+        "//third_party/glib:gobject",
+        "//third_party/glib:gmodule",
+    ]
+    part_name = "multimedia_histreamer"
+    subsystem_name = "multimedia"
+}
+
+ohos_source_set("multifile_source") {
+    sources = [
+        "gst/multifile/gstsplitmuxsink.c",
+        "gst/multifile/gstmultifilesink.c",
+        "gst/multifile/gstmultifilesrc.c",
+        "gst/multifile/gstsplitmuxpartreader.c",
+        "gst/multifile/gstsplitmuxsrc.c",
+        "gst/multifile/gstsplitutils.c",
+        "gst/multifile/patternspec.c",
+        "gst/multifile/gstmultifile.c",
+    ]
+
+    configs = [
+        ":gst_plugins_config",
+    ]
+}
+
+ohos_shared_library("gstmultifile") {
+    deps = [
+        ":multifile_source",
+        "//third_party/gstreamer/gstreamer:gstreamer",
+        "//third_party/gstreamer/gstreamer:gstbase",
+        "//third_party/gstreamer/gstplugins_base:gstvideo",
+        "//third_party/gstreamer/gstplugins_base:gstaudio",
+        "//third_party/gstreamer/gstplugins_base:gstpbutils",
+        "//third_party/gstreamer/gstplugins_base:gstriff",
+        "//third_party/glib:glib",
+        "//third_party/glib:gobject",
+        "//third_party/glib:gmodule",
+    ]
+    part_name = "multimedia_histreamer"
+    subsystem_name = "multimedia"
+}
+
+ohos_source_set("audiofx_source") {
+    sources = [
+        "gst/audiofx/audiofx.c",
+        "gst/audiofx/audiopanorama.c",
+        "gst/audiofx/audioinvert.c",
+        "gst/audiofx/audioamplify.c",
+        "gst/audiofx/audiodynamic.c",
+        "gst/audiofx/audiokaraoke.c",
+        "gst/audiofx/audiofxbaseiirfilter.c",
+        "gst/audiofx/audiocheblimit.c",
+        "gst/audiofx/audiochebband.c",
+        "gst/audiofx/audioiirfilter.c",
+        "gst/audiofx/audiofxbasefirfilter.c",
+        "gst/audiofx/audiowsincband.c",
+        "gst/audiofx/audiowsinclimit.c",
+        "gst/audiofx/audiofirfilter.c",
+        "gst/audiofx/audioecho.c",
+        "gst/audiofx/gstscaletempo.c",
+        "gst/audiofx/gststereo.c",
+        "gst/audiofx/audiopanoramaorc.c",
+    ]
+
+    configs = [
+        ":gst_plugins_config",
+    ]
+}
+
+ohos_shared_library("gstaudiofx") {
+    deps = [
+        ":audiofx_source",    
+        "//third_party/gstreamer/gstreamer:gstreamer",
+        "//third_party/gstreamer/gstreamer:gstbase",
+        "//third_party/gstreamer/gstplugins_base:gstaudio",
+        "//third_party/gstreamer/gstplugins_base:gstfft",
+        "//third_party/gstreamer/gstplugins_base:gstpbutils",
+        "//third_party/gstreamer/gstplugins_base:gsttag",
         "//third_party/glib:glib",
         "//third_party/glib:gobject",
         "//third_party/glib:gmodule",
