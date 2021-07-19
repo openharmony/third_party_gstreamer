@@ -14612,6 +14612,16 @@ gst_qtdemux_handle_esds (GstQTDemux * qtdemux, QtDemuxStream * stream,
           /* Let's assume it's vorbis if it's an audio stream of type 0xdd and we have codec data that extracts properly */
           codec_name = "Vorbis";
           caps = gst_caps_new_empty_simple ("audio/x-vorbis");
+#ifdef OHOS_OPT_COMPAT
+          // adapter for avdec_vorbis
+          GstBuffer *codec_data = gst_buffer_new_wrapped (data_ptr, data_len);
+          if (codec_data != NULL) {
+            gst_caps_set_simple (caps, "codec_data", GST_TYPE_BUFFER, codec_data, NULL);
+            gst_buffer_unref (codec_data);
+          } else {
+              GST_ERROR_OBJECT (qtdemux, "gst_buffer_new_wrapped failed");
+          }          
+#endif          
           g_value_init (&arr_val, GST_TYPE_ARRAY);
           g_value_init (&buf_val, GST_TYPE_BUFFER);
           for (tmp = headers; tmp; tmp = tmp->next) {

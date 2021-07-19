@@ -46,6 +46,7 @@ config("gst_plugins_config") {
         "-fno-strict-aliasing",
         "-Wno-sign-compare",
         "-Wno-builtin-requires-header",
+        "-DOHOS_OPT_COMPAT",
     ]
 }
 
