@@ -814,7 +814,7 @@ gst_ffmpegauddec_register (GstPlugin * plugin)
     /* Theora: Use libtheora based theoradec */
 #ifdef OHOS_OPT_COMPAT
     /* enable to use avdec_vorbis */
-    if (!strcmp (in_plugin->name, "wavpack")) ||
+    if (!strcmp (in_plugin->name, "wavpack") ||
 #else
     if (!strcmp (in_plugin->name, "vorbis") ||
         !strcmp (in_plugin->name, "wavpack") ||
