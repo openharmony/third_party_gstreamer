@@ -871,7 +871,7 @@ id3v2_type_find (GstTypeFind * tf, gpointer unused)
  * As a result, the duration value cannot be obtained in the preparation phase.
  * Use the demux and typefind of ffmpeg to process audio resources in MP3 format.
  */
-#ifndef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_COMPAT
   return;
 #endif
   const guint8 *data = gst_type_find_peek (tf, 0, 10);
@@ -891,7 +891,7 @@ id3v1_type_find (GstTypeFind * tf, gpointer unused)
  * As a result, the duration value cannot be obtained in the preparation phase.
  * Use the demux and typefind of ffmpeg to process audio resources in MP3 format.
  */
-#ifndef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_COMPAT
   return;
 #endif  
   const guint8 *data = gst_type_find_peek (tf, -128, 3);
@@ -1592,7 +1592,7 @@ mp3_type_find (GstTypeFind * tf, gpointer unused)
  * As a result, the duration value cannot be obtained in the preparation phase.
  * Use the demux and typefind of ffmpeg to process audio resources in MP3 format.
  */
-#ifndef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_COMPAT
   return;
 #endif
   GstTypeFindProbability prob, mid_prob;
