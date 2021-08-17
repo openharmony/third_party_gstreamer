@@ -893,7 +893,7 @@ id3v1_type_find (GstTypeFind * tf, gpointer unused)
  */
 #ifdef OHOS_OPT_COMPAT
   return;
-#endif  
+#endif
   const guint8 *data = gst_type_find_peek (tf, -128, 3);
 
   if (data && memcmp (data, "TAG", 3) == 0) {
@@ -1125,6 +1125,13 @@ static GstStaticCaps aac_caps = GST_STATIC_CAPS ("audio/mpeg, "
 static void
 aac_type_find (GstTypeFind * tf, gpointer unused)
 {
+/* ohos.opt.compat.0002: the demux of gstplayer does not accurately parse audio resources in the aac format.
+ * As a result, the duration value cannot be obtained in the preparation phase.
+ * Use the demux and typefind of ffmpeg to process audio resources in aac format.
+ */
+#ifdef OHOS_OPT_COMPAT
+  return;
+#endif
   DataScanCtx c = { 0, NULL, 0 };
   GstTypeFindProbability best_probability = GST_TYPE_FIND_NONE;
   GstCaps *best_caps = NULL;

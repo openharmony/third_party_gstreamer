@@ -68,6 +68,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_player_debug);
 #define DEFAULT_POSITION_UPDATE_INTERVAL_MS 100
 #define DEFAULT_AUDIO_VIDEO_OFFSET 0
 #define DEFAULT_SUBTITLE_VIDEO_OFFSET 0
+#define VIDEO_ERROR_MSG 1
 
 GQuark
 gst_player_error_quark (void)
@@ -113,6 +114,9 @@ enum
   PROP_VOLUME,
   PROP_MUTE,
   PROP_RATE,
+#ifdef OHOS_EXT_FUNC
+  PROP_SEEK_MODE,
+#endif
   PROP_PIPELINE,
   PROP_VIDEO_MULTIVIEW_MODE,
   PROP_VIDEO_MULTIVIEW_FLAGS,
@@ -130,6 +134,9 @@ enum
   SIGNAL_BUFFERING,
   SIGNAL_END_OF_STREAM,
   SIGNAL_ERROR,
+#ifdef OHOS_EXT_FUNC
+  SIGNAL_ERROR_MSG,
+#endif
   SIGNAL_WARNING,
   SIGNAL_VIDEO_DIMENSIONS_CHANGED,
   SIGNAL_MEDIA_INFO_UPDATED,
@@ -172,7 +179,9 @@ struct _GstPlayer
   GstClockTime cached_duration;
 
   gdouble rate;
-
+#ifdef OHOS_EXT_FUNC
+  gint seek_mode;
+#endif
   GstPlayerState app_state;
   gint buffering;
 
@@ -389,7 +398,12 @@ gst_player_class_init (GstPlayerClass * klass)
       g_param_spec_object ("pipeline", "Pipeline",
       "GStreamer pipeline that is used",
       GST_TYPE_ELEMENT, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
-
+#ifdef OHOS_EXT_FUNC
+  param_specs[PROP_SEEK_MODE] =
+      g_param_spec_int ("seek-mode", "seek-mode", "Playback seek-mode",
+      0, G_MAXINT, 0,
+      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+#endif
   param_specs[PROP_RATE] =
       g_param_spec_double ("rate", "rate", "Playback rate",
       -64.0, 64.0, DEFAULT_RATE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
@@ -455,7 +469,13 @@ gst_player_class_init (GstPlayerClass * klass)
       g_signal_new ("error", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS, 0, NULL,
       NULL, NULL, G_TYPE_NONE, 1, G_TYPE_ERROR);
-
+// ohos.ext.func.0001: change error callback which engine can get all msg
+#ifdef OHOS_EXT_FUNC
+  signals[SIGNAL_ERROR_MSG] =
+      g_signal_new ("error-msg", G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS, 0, NULL,
+      NULL, NULL, G_TYPE_NONE, 1, GST_TYPE_MESSAGE);
+#endif
   signals[SIGNAL_VIDEO_DIMENSIONS_CHANGED] =
       g_signal_new ("video-dimensions-changed", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS, 0, NULL,
@@ -720,6 +740,17 @@ gst_player_set_property (GObject * object, guint prop_id,
       gst_player_set_rate_internal (self);
       g_mutex_unlock (&self->lock);
       break;
+/* ohos.ext.func.0004: The playback engine requires different seek modes.
+ * The capability of setting the seek mode needs to be added to gstplayer.
+ */
+#ifdef OHOS_EXT_FUNC
+    case PROP_SEEK_MODE:
+      g_mutex_lock (&self->lock);
+      self->seek_mode = g_value_get_int (value);
+      GST_DEBUG_OBJECT (self, "Set seek_mode=%d", g_value_get_int (value));
+      g_mutex_unlock (&self->lock);
+      break;
+#endif
     case PROP_MUTE:
       GST_DEBUG_OBJECT (self, "Set mute=%d", g_value_get_boolean (value));
       g_object_set_property (G_OBJECT (self->playbin), "mute", value);
@@ -1162,6 +1193,91 @@ emit_warning (GstPlayer * self, GError * err)
   g_error_free (err);
 }
 
+#ifdef OHOS_EXT_FUNC
+//change error callback which engine can get all msg
+typedef struct
+{
+  GstPlayer *player;
+  GstMessage *msg;
+} MsgSignalData;
+
+static void
+error_msg_dispatch (gpointer user_data)
+{
+  GST_ERROR_OBJECT (NULL, "dispatch error msg\n");
+  MsgSignalData *data = user_data;
+
+  if (data->player->inhibit_sigs)
+    return;
+  g_return_if_fail (data->msg != NULL);
+  g_signal_emit (data->player, signals[SIGNAL_ERROR_MSG], 0, data->msg);
+}
+
+static void
+free_error_msg_signal_data (MsgSignalData * data)
+{
+  GST_ERROR_OBJECT (NULL, "free error msg\n");
+  g_object_unref (data->player);
+  gst_message_unref (data->msg);
+  g_free (data);
+}
+
+static void
+emit_error_msg (GstPlayer * self, GstMessage * msg)
+{
+  g_return_if_fail (msg != NULL);
+  if (g_signal_handler_find (self, G_SIGNAL_MATCH_ID,
+          signals[SIGNAL_ERROR_MSG], 0, NULL, NULL, NULL) != 0) {
+    MsgSignalData *data = g_new (MsgSignalData, 1);
+
+    data->player = g_object_ref (self);
+    data->msg = gst_message_ref (msg);
+    gst_player_signal_dispatcher_dispatch (self->signal_dispatcher, self,
+        error_msg_dispatch, data, (GDestroyNotify) free_error_msg_signal_data);
+  }
+
+  remove_tick_source (self);
+  remove_ready_timeout_source (self);
+
+  self->target_state = GST_STATE_NULL;
+  self->current_state = GST_STATE_NULL;
+  self->is_live = FALSE;
+  self->is_eos = FALSE;
+  gst_element_set_state (self->playbin, GST_STATE_NULL);
+  change_state (self, GST_PLAYER_STATE_STOPPED);
+  self->buffering = 100;
+
+  g_mutex_lock (&self->lock);
+  if (self->media_info) {
+    g_object_unref (self->media_info);
+    self->media_info = NULL;
+  }
+
+  if (self->global_tags) {
+    gst_tag_list_unref (self->global_tags);
+    self->global_tags = NULL;
+  }
+
+  self->seek_pending = FALSE;
+  remove_seek_source (self);
+  self->seek_position = GST_CLOCK_TIME_NONE;
+  self->last_seek_time = GST_CLOCK_TIME_NONE;
+  g_mutex_unlock (&self->lock);
+}
+
+static void
+error_cb_msg (G_GNUC_UNUSED GstBus * bus, GstMessage * msg, gpointer user_data)
+{
+  GstPlayer *self = GST_PLAYER (user_data);
+  GST_ERROR_OBJECT (self, "deal with error msg cb\n");
+
+  dump_dot_file (self, "error");
+  if (msg == NULL) {
+    GST_ERROR_OBJECT (self, "msg is null\n");
+  }
+  emit_error_msg (self, msg);
+}
+#else
 static void
 error_cb (G_GNUC_UNUSED GstBus * bus, GstMessage * msg, gpointer user_data)
 {
@@ -1200,6 +1316,7 @@ error_cb (G_GNUC_UNUSED GstBus * bus, GstMessage * msg, gpointer user_data)
   g_free (full_message);
   g_free (message);
 }
+#endif
 
 static void
 warning_cb (G_GNUC_UNUSED GstBus * bus, GstMessage * msg, gpointer user_data)
@@ -2763,11 +2880,22 @@ tags_changed_cb (GstPlayer * self, gint stream_index, GType type)
 {
   GstPlayerStreamInfo *s;
 
-  if (!self->media_info)
+/* ohos.opt.stable.0001 */
+#ifdef OHOS_OPT_STABLE
+  g_mutex_lock (&self->lock);
+
+  if (!self->media_info) {
+    g_mutex_unlock (&self->lock);
     return;
+  }
+#else
+  if (!self->media_info) {
+    return;
+  }
 
   /* update the stream information */
   g_mutex_lock (&self->lock);
+#endif
   s = gst_player_stream_info_find (self->media_info, type, stream_index);
   gst_player_stream_info_update_tags_and_caps (self, s);
   g_mutex_unlock (&self->lock);
@@ -2926,8 +3054,14 @@ gst_player_main (gpointer data)
       NULL, NULL);
   g_source_attach (bus_source, self->context);
 
+#ifdef OHOS_EXT_FUNC
+  //change error callback which engine can get all msg
+  g_signal_connect (G_OBJECT (bus), "message::error", G_CALLBACK (error_cb_msg),
+      self);
+#else
   g_signal_connect (G_OBJECT (bus), "message::error", G_CALLBACK (error_cb),
       self);
+#endif
   g_signal_connect (G_OBJECT (bus), "message::warning", G_CALLBACK (warning_cb),
       self);
   g_signal_connect (G_OBJECT (bus), "message::eos", G_CALLBACK (eos_cb), self);
@@ -3354,7 +3488,11 @@ gst_player_seek_internal_locked (GstPlayer * self)
   if (rate != 1.0) {
     flags |= GST_SEEK_FLAG_TRICKMODE;
   }
-
+#ifdef OHOS_EXT_FUNC
+  if (rate == 1.0) {
+    flags |= self->seek_mode;
+  }
+#endif
   if (rate >= 0.0) {
     s_event = gst_event_new_seek (rate, GST_FORMAT_TIME, flags,
         GST_SEEK_TYPE_SET, position, GST_SEEK_TYPE_SET, GST_CLOCK_TIME_NONE);
@@ -3398,7 +3536,9 @@ gst_player_set_rate (GstPlayer * self, gdouble rate)
 {
   g_return_if_fail (GST_IS_PLAYER (self));
   g_return_if_fail (rate != 0.0);
-
+#ifdef OHOS_EXT_FUNC
+  g_object_set (self, "seek-mode", 0, NULL);
+#endif
   g_object_set (self, "rate", rate, NULL);
 }
 
