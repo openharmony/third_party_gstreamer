@@ -76,6 +76,8 @@ ohos_shared_library("gstlibav") {
         "//third_party/glib:gmodule",
         "//third_party/ffmpeg:libohosffmpeg",
     ]
+
+    relative_install_dir = "media/plugins"
     part_name = "multimedia_histreamer"
     subsystem_name = "multimedia"
 }
