@@ -468,7 +468,7 @@ gst_ffmpegdemux_do_seek (GstFFMpegDemux * demux, GstSegment * segment)
   GST_LOG_OBJECT (demux, "do seek to time %" GST_TIME_FORMAT,
       GST_TIME_ARGS (target));
 
-  /* if we need to land on a keyframe, try to do so, we don't try to do a 
+  /* if we need to land on a keyframe, try to do so, we don't try to do a
    * keyframe seek if we are not absolutely sure we have an index.*/
   if (segment->flags & GST_SEEK_FLAG_KEY_UNIT) {
     gint keyframeidx;
@@ -1474,6 +1474,16 @@ gst_ffmpegdemux_loop (GstFFMpegDemux * demux)
 #endif
 
   if (GST_CLOCK_TIME_IS_VALID (timestamp)) {
+/* ohos.opt.compat.0002: the demux of gstplayer does not accurately parse audio resources in the aac format.
+ * As a result, the duration value cannot be obtained in the preparation phase.
+ * Use the demux and typefind of ffmpeg to process audio resources in aac format.
+ */
+#ifdef OHOS_OPT_COMPAT
+    if (!(GST_CLOCK_TIME_IS_VALID (demux->start_time)) &&
+        demux->start_time == -1) {
+        demux->start_time = timestamp;
+    }
+#endif
     /* start_time should be the ts of the first frame but it may actually be
      * higher because of rounding when converting to gst ts. */
     if (demux->start_time >= timestamp)
@@ -1994,7 +2004,12 @@ gst_ffmpegdemux_register (GstPlugin * plugin)
         in_plugin->name, in_plugin->long_name);
 
     /* no emulators */
-    if (in_plugin->long_name != NULL) {
+/* ohos.opt.compat.0002 */
+#ifdef OHOS_OPT_COMPAT
+    if(in_plugin->long_name != NULL && strncmp (in_plugin->name, "aac", 4)) {
+#else
+    if(in_plugin->long_name != NULL) {
+#endif
       if (!strncmp (in_plugin->long_name, "raw ", 4) ||
           !strncmp (in_plugin->long_name, "pcm ", 4)
           )
@@ -2029,7 +2044,14 @@ gst_ffmpegdemux_register (GstPlugin * plugin)
 
     /* these don't do what one would expect or
      * are only partially functional/useful */
-    if (!strcmp (in_plugin->name, "aac") ||
+    if (!strcmp (in_plugin->name, "wv") ||
+/* ohos.opt.compat.0002: the demux of gstplayer does not accurately parse audio resources in the aac format.
+ * As a result, the duration value cannot be obtained in the preparation phase.
+ * Use the demux and typefind of ffmpeg to process audio resources in aac format.
+ */
+#ifndef OHOS_OPT_COMPAT
+        !strcmp (in_plugin->name, "aac") ||
+#endif
         !strcmp (in_plugin->name, "wv") ||
         !strcmp (in_plugin->name, "ass") ||
         !strcmp (in_plugin->name, "ffmetadata"))
@@ -2105,12 +2127,17 @@ gst_ffmpegdemux_register (GstPlugin * plugin)
         !strcmp (in_plugin->name, "ffm") ||
         !strcmp (in_plugin->name, "ea") ||
         !strcmp (in_plugin->name, "daud") ||
-#ifdef OHOS_OPT_COMPAT   
-        /* enable to use avdemux_ogg */     
+/* ohos.opt.compat.0001: add avdemux_ogg
+ * add avdemux_mp3
+ * ohos.opt.compat.0002: add avdemux_aac */
+#ifdef OHOS_OPT_COMPAT
+        /* enable to use avdemux_ogg */
         !strcmp (in_plugin->name, "ogg") ||
         /* enable to use avdemux_mp3 */
         !strcmp (in_plugin->name, "mp3") ||
-#endif        
+        /*enable to use avdemux_aac*/
+        !strcmp (in_plugin->name, "aac") ||
+#endif
         !strcmp (in_plugin->name, "avs") ||
         !strcmp (in_plugin->name, "aiff") ||
         !strcmp (in_plugin->name, "4xm") ||

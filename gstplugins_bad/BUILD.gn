@@ -33,6 +33,8 @@ config("gst_player_config") {
         "-Wno-sign-compare",
         "-Wno-builtin-requires-header",
         "-Wno-implicit-function-declaration",
+        "-DOHOS_EXT_FUNC",
+        "-DOHOS_OPT_STABLE"
     ]
 }
 

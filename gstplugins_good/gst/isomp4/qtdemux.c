@@ -14620,9 +14620,9 @@ gst_qtdemux_handle_esds (GstQTDemux * qtdemux, QtDemuxStream * stream,
             gst_caps_set_simple (caps, "codec_data", GST_TYPE_BUFFER, codec_data, NULL);
             gst_buffer_unref (codec_data);
           } else {
-              GST_ERROR_OBJECT (qtdemux, "gst_buffer_new_wrapped failed");
-          }          
-#endif         
+            GST_ERROR_OBJECT (qtdemux, "gst_buffer_new_wrapped failed");
+          }
+#endif
           g_value_init (&arr_val, GST_TYPE_ARRAY);
           g_value_init (&buf_val, GST_TYPE_BUFFER);
           for (tmp = headers; tmp; tmp = tmp->next) {

@@ -34,11 +34,19 @@ static gboolean
 plugin_init (GstPlugin * plugin)
 {
   gboolean ret;
-
+/* ohos.opt.compat.0002: the demux of gstplayer does not accurately parse audio resources in the aac format.
+ * As a result, the duration value cannot be obtained in the preparation phase.
+ * Use the demux and typefind of ffmpeg to process audio resources in aac format.
+ */
+#ifdef OHOS_OPT_COMPAT
+  ret = gst_element_register (plugin, "amrparse",
+      GST_RANK_PRIMARY + 1, GST_TYPE_AMR_PARSE);
+#else
   ret = gst_element_register (plugin, "aacparse",
       GST_RANK_PRIMARY + 1, GST_TYPE_AAC_PARSE);
   ret &= gst_element_register (plugin, "amrparse",
       GST_RANK_PRIMARY + 1, GST_TYPE_AMR_PARSE);
+#endif
   ret &= gst_element_register (plugin, "ac3parse",
       GST_RANK_PRIMARY + 1, GST_TYPE_AC3_PARSE);
   ret &= gst_element_register (plugin, "dcaparse",
