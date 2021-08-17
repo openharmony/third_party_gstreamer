@@ -46,6 +46,7 @@ config("gst_plugins_config") {
         "-fno-strict-aliasing",
         "-Wno-sign-compare",
         "-Wno-builtin-requires-header",
+        "-DOHOS_EXT_FUNC",
         "-DOHOS_OPT_COMPAT",
     ]
 }
@@ -87,6 +88,8 @@ ohos_shared_library("gstplayback") {
         "//third_party/glib:gobject",
         "//third_party/glib:gmodule",
     ]
+
+    relative_install_dir = "media/plugins"
     part_name = "multimedia_histreamer"
     subsystem_name = "multimedia"
 }
@@ -329,6 +332,8 @@ ohos_shared_library("gstaudioconvert") {
         "//third_party/glib:gobject",
         "//third_party/glib:gmodule",
     ]
+
+    relative_install_dir = "media/plugins"
     part_name = "multimedia_histreamer"
     subsystem_name = "multimedia"
 }
@@ -353,6 +358,8 @@ ohos_shared_library("gsttypefindfunctions") {
         "//third_party/glib:gobject",
         "//third_party/glib:gmodule",
     ]
+
+    relative_install_dir = "media/plugins"
     part_name = "multimedia_histreamer"
     subsystem_name = "multimedia"
 }
@@ -381,6 +388,8 @@ ohos_shared_library("gstsubparse") {
         "//third_party/glib:gobject",
         "//third_party/glib:gmodule",
     ]
+
+    relative_install_dir = "media/plugins"
     part_name = "multimedia_histreamer"
     subsystem_name = "multimedia"
 }
@@ -405,6 +414,8 @@ ohos_shared_library("gstaudioresample") {
         "//third_party/glib:gobject",
         "//third_party/glib:gmodule",
     ]
+
+    relative_install_dir = "media/plugins"
     part_name = "multimedia_histreamer"
     subsystem_name = "multimedia"
 }
@@ -429,6 +440,8 @@ ohos_shared_library("gstaudiorate") {
         "//third_party/glib:gobject",
         "//third_party/glib:gmodule",
     ]
+
+    relative_install_dir = "media/plugins"
     part_name = "multimedia_histreamer"
     subsystem_name = "multimedia"
 }
@@ -455,6 +468,8 @@ ohos_shared_library("gstaudiomixer") {
         "//third_party/glib:gobject",
         "//third_party/glib:gmodule",
     ]
+
+    relative_install_dir = "media/plugins"
     part_name = "multimedia_histreamer"
     subsystem_name = "multimedia"
 }
@@ -485,6 +500,8 @@ ohos_shared_library("gstrawparse") {
         "//third_party/glib:gobject",
         "//third_party/glib:gmodule",
     ]
+
+    relative_install_dir = "media/plugins"
     part_name = "multimedia_histreamer"
     subsystem_name = "multimedia"
 }
@@ -573,6 +590,8 @@ ohos_shared_library("gstvideoconvert") {
         "//third_party/glib:gobject",
         "//third_party/glib:gmodule",
     ]
+
+    relative_install_dir = "media/plugins"
     part_name = "multimedia_histreamer"
     subsystem_name = "multimedia"
 }
@@ -599,6 +618,8 @@ ohos_shared_library("gstvideoscale") {
         "//third_party/glib:gobject",
         "//third_party/glib:gmodule",
     ]
+
+    relative_install_dir = "media/plugins"
     part_name = "multimedia_histreamer"
     subsystem_name = "multimedia"
 }
@@ -626,6 +647,8 @@ ohos_shared_library("gstapp") {
         "//third_party/glib:gobject",
         "//third_party/glib:gmodule",
     ]
+
+    relative_install_dir = "media/plugins"
     part_name = "multimedia_histreamer"
     subsystem_name = "multimedia"
 }

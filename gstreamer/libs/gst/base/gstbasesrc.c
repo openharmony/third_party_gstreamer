@@ -3063,6 +3063,17 @@ pause:
     } else if (ret == GST_FLOW_NOT_LINKED || ret <= GST_FLOW_EOS) {
       event = gst_event_new_eos ();
       gst_event_set_seqnum (event, src->priv->seqnum);
+
+/* ohos.ext.func.0003: The media recorder service must support bypassing the abnormal streams to continue
+ * recording normal streams. However, the gstpipeline cannot work properly if an error message is reported.
+ * Some error messages are changed to warning messages. Then the media recording service can detects abnormal
+ * streams by matching expected warning messages.
+ */
+#ifdef OHOS_EXT_FUNC
+      GST_ELEMENT_WARNING_WITH_DETAILS (src, STREAM, FAILED, ("Internal data stream error."),
+        ("streaming stopped, reason %s (%d)", gst_flow_get_name (ret), ret),
+        ("flow-return", G_TYPE_INT, ret, NULL));
+#else
       /* for fatal errors we post an error message, post the error
        * first so the app knows about the error first.
        * Also don't do this for FLUSHING because it happens
@@ -3070,6 +3081,7 @@ pause:
        * that is the wrong thing to do, e.g. when we're doing
        * a flushing seek. */
       GST_ELEMENT_FLOW_ERROR (src, ret);
+#endif
       gst_pad_push_event (pad, event);
     }
     goto done;

@@ -28,30 +28,39 @@
 
 #include <gst/gst.h>
 
+/* ohos.ext.func.0002 */
+#ifdef OHOS_EXT_FUNC
+#include "gstsplitmuxsink.h"
+#else
 #include "gstmultifilesink.h"
 #include "gstmultifilesrc.h"
-#ifndef OHOS_SUPPORT
 #include "gstsplitfilesrc.h"
-#endif
 #include "gstsplitmuxsink.h"
 #include "gstsplitmuxsrc.h"
+#endif
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
+/* ohos.ext.func.0002: The media service need splitmuxsink element to support recording file split feature.
+ * But the other elements have compilation dependence. So, only enable the compilation of necessary elements.
+ */
+#ifdef OHOS_EXT_FUNC
+  if (!register_splitmuxsink (plugin))
+    return FALSE;
+#else
   gst_element_register (plugin, "multifilesrc", GST_RANK_NONE,
       gst_multi_file_src_get_type ());
   gst_element_register (plugin, "multifilesink", GST_RANK_NONE,
       gst_multi_file_sink_get_type ());
-#ifndef OHOS_SUPPORT
   gst_element_register (plugin, "splitfilesrc", GST_RANK_NONE,
       gst_split_file_src_get_type ());
-#endif
   if (!register_splitmuxsink (plugin))
     return FALSE;
 
   if (!register_splitmuxsrc (plugin))
     return FALSE;
+#endif
 
   return TRUE;
 }

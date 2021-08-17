@@ -195,6 +195,7 @@ config("gstbase_config") {
         "-Wno-builtin-requires-header",
         "-Wno-undefined-internal",
         "-Wno-unused-function",
+        "-DOHOS_EXT_FUNC",
     ]
 }
 
@@ -299,6 +300,8 @@ ohos_shared_library("gstcoreelements") {
         "//third_party/glib:gobject",
         "//third_party/glib:gmodule",
     ]
+
+    relative_install_dir = "media/plugins"
     part_name = "multimedia_histreamer"
     subsystem_name = "multimedia"
 }
@@ -348,6 +351,8 @@ ohos_shared_library("gstcoretracers") {
         "//third_party/glib:gobject",
         "//third_party/glib:gmodule",
     ]
+
+    relative_install_dir = "media/plugins"
     part_name = "multimedia_histreamer"
     subsystem_name = "multimedia"
 }
@@ -368,7 +373,7 @@ config("gsttools_config") {
         "-fno-strict-aliasing",
         "-Wno-sign-compare",
         "-Wno-builtin-requires-header",
-        "-Wno-error=incompatible-pointer-types",  
+        "-Wno-error=incompatible-pointer-types",
     ]
 }
 
