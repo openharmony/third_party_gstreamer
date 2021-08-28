@@ -2052,7 +2052,6 @@ gst_ffmpegdemux_register (GstPlugin * plugin)
 #ifndef OHOS_OPT_COMPAT
         !strcmp (in_plugin->name, "aac") ||
 #endif
-        !strcmp (in_plugin->name, "wv") ||
         !strcmp (in_plugin->name, "ass") ||
         !strcmp (in_plugin->name, "ffmetadata"))
       continue;
