@@ -213,6 +213,7 @@ ohos_shared_library("gstwavparse") {
         "//third_party/glib:gobject",
         "//third_party/glib:gmodule",
     ]
+    relative_install_dir = "media/plugins"
     part_name = "multimedia_histreamer"
     subsystem_name = "multimedia"
 }
