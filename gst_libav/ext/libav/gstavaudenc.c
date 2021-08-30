@@ -175,9 +175,16 @@ gst_ffmpegaudenc_finalize (GObject * object)
 
   /* clean up remaining allocated data */
   av_frame_free (&ffmpegaudenc->frame);
+  /* ohos.opt.memleak.0001
+   * avcodec_close is deprecated, it may cause memory leak */
+#ifdef OHOS_OPT_MEMLEAK
+  avcodec_free_context (&ffmpegaudenc->context);
+  avcodec_free_context (&ffmpegaudenc->refcontext);
+#else
   gst_ffmpeg_avcodec_close (ffmpegaudenc->context);
   av_free (ffmpegaudenc->context);
   av_free (ffmpegaudenc->refcontext);
+#endif
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }

@@ -38,6 +38,7 @@ config("gstlibav_config") {
         "-Wno-implicit-function-declaration",
         "-Wno-unused-function",
         "-DOHOS_OPT_COMPAT",
+        "-DOHOS_OPT_MEMLEAK",
     ]
 }
 
