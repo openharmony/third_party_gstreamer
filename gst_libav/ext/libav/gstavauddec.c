@@ -707,10 +707,24 @@ gst_ffmpegauddec_handle_frame (GstAudioDecoder * decoder, GstBuffer * inbuf)
 
   gst_avpacket_init (&packet, data, size);
 
+/* ohos.opt.memleak.0002 */
+#ifdef OHOS_OPT_MEMLEAK
+  if (!packet.size) {
+    gst_buffer_unmap (inbuf, &map);
+    gst_buffer_unref (inbuf);
+    goto done;
+  }
+#else
   if (!packet.size)
     goto done;
+#endif
 
   if (avcodec_send_packet (ffmpegdec->context, &packet) < 0) {
+/* ohos.opt.memleak.0002 */
+#ifdef OHOS_OPT_MEMLEAK
+    gst_buffer_unmap (inbuf, &map);
+    gst_buffer_unref (inbuf);
+#endif
     goto send_packet_failed;
   }
 
