@@ -115,6 +115,7 @@ enum
   PROP_MUTE,
   PROP_RATE,
 #ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0004
   PROP_SEEK_MODE,
 #endif
   PROP_PIPELINE,
@@ -135,7 +136,10 @@ enum
   SIGNAL_END_OF_STREAM,
   SIGNAL_ERROR,
 #ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0001
   SIGNAL_ERROR_MSG,
+  // ohos.ext.func.0006
+  SIGNAL_SOURCE_SETUP,
 #endif
   SIGNAL_WARNING,
   SIGNAL_VIDEO_DIMENSIONS_CHANGED,
@@ -180,6 +184,7 @@ struct _GstPlayer
 
   gdouble rate;
 #ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0004
   gint seek_mode;
 #endif
   GstPlayerState app_state;
@@ -399,6 +404,7 @@ gst_player_class_init (GstPlayerClass * klass)
       "GStreamer pipeline that is used",
       GST_TYPE_ELEMENT, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
 #ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0004
   param_specs[PROP_SEEK_MODE] =
       g_param_spec_int ("seek-mode", "seek-mode", "Playback seek-mode",
       0, G_MAXINT, 0,
@@ -505,7 +511,13 @@ gst_player_class_init (GstPlayerClass * klass)
       g_signal_new ("seek-done", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS, 0, NULL,
       NULL, NULL, G_TYPE_NONE, 1, GST_TYPE_CLOCK_TIME);
-
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0006
+  signals[SIGNAL_SOURCE_SETUP] =
+      g_signal_new ("source-setup", G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL,
+      g_cclosure_marshal_generic, G_TYPE_NONE, 1, GST_TYPE_ELEMENT);
+#endif
   config_quark_initialize ();
 }
 
@@ -1194,7 +1206,7 @@ emit_warning (GstPlayer * self, GError * err)
 }
 
 #ifdef OHOS_EXT_FUNC
-//change error callback which engine can get all msg
+// ohos.ext.func.0001
 typedef struct
 {
   GstPlayer *player;
@@ -2979,7 +2991,10 @@ static void
 source_setup_cb (GstElement * playbin, GstElement * source, GstPlayer * self)
 {
   gchar *user_agent;
-
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0006
+  g_signal_emit (self, signals[SIGNAL_SOURCE_SETUP], 0, source);
+#endif
   user_agent = gst_player_config_get_user_agent (self->config);
   if (user_agent) {
     GParamSpec *prop;
@@ -3055,7 +3070,7 @@ gst_player_main (gpointer data)
   g_source_attach (bus_source, self->context);
 
 #ifdef OHOS_EXT_FUNC
-  //change error callback which engine can get all msg
+  // ohos.ext.func.0001
   g_signal_connect (G_OBJECT (bus), "message::error", G_CALLBACK (error_cb_msg),
       self);
 #else
@@ -3489,6 +3504,7 @@ gst_player_seek_internal_locked (GstPlayer * self)
     flags |= GST_SEEK_FLAG_TRICKMODE;
   }
 #ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0004
   if (rate == 1.0) {
     flags |= self->seek_mode;
   }
@@ -3537,6 +3553,7 @@ gst_player_set_rate (GstPlayer * self, gdouble rate)
   g_return_if_fail (GST_IS_PLAYER (self));
   g_return_if_fail (rate != 0.0);
 #ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0004
   g_object_set (self, "seek-mode", 0, NULL);
 #endif
   g_object_set (self, "rate", rate, NULL);
