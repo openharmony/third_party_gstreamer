@@ -1143,6 +1143,17 @@ complete_or_wait_on_out (GstSplitMuxSink * splitmux, MqStreamCtx * ctx)
               break;
             } else {
               GST_SPLITMUX_WAIT_OUTPUT (splitmux);
+/* ohos.ext.func.0007
+ * when GST_EVENT_FLUSH_START, ctx->flushing is set to TRUE.
+ * GST_SPLITMUX_BROADCAST_OUTPUT(splitmux) was called.
+ * this loop must break when fushing is set.
+ */
+#ifdef OHOS_EXT_FUNC
+              if (ctx->flushing) {
+                GST_DEBUG_OBJECT (ctx->srcpad, "splitmuxsink is flushing, break.");
+                break;
+              }
+#endif
             }
           } while (splitmux->output_state ==
               SPLITMUX_OUTPUT_STATE_AWAITING_COMMAND);
@@ -2222,7 +2233,14 @@ handle_mq_input (GstPad * pad, GstPadProbeInfo * info, MqStreamCtx * ctx)
         GST_SPLITMUX_LOCK (splitmux);
         gst_segment_init (&ctx->in_segment, GST_FORMAT_UNDEFINED);
         ctx->in_eos = FALSE;
+/* ohos.ext.func.0007
+ * when GST_EVENT_FLUSH_STOP, ctx->in_running_time is set to none.
+ * when GST_EVENT_EOS called after GST_EVENT_FLUSH_STOP, codes goes to handle_gathered_gop in
+ * check_completed_gop. queued_gop_time is always below zero, and it failed.
+ */
+#ifndef OHOS_EXT_FUNC
         ctx->in_running_time = GST_CLOCK_STIME_NONE;
+#endif
         GST_SPLITMUX_UNLOCK (splitmux);
         break;
       case GST_EVENT_EOS:
