@@ -2364,6 +2364,16 @@ no_clock:
 GstFlowReturn
 gst_base_sink_wait_preroll (GstBaseSink * sink)
 {
+/**
+ * ohos.ext.func.0009
+ * GST_BASE_SINK_PREROLL_WAIT is woken up when the system switches to playing,
+ * but the system does not go down immediately. 
+ * In this case, if you switch to pause first, the error logic will be entered.
+ * Now.If GST_BASE_SINK_PREROLL_WAIT does not go down during pause, continue to wait.
+ */
+#ifdef OHOS_EXT_FUNC
+  do {
+#endif
   sink->have_preroll = TRUE;
   GST_DEBUG_OBJECT (sink, "waiting in preroll for flush or PLAYING");
   /* block until the state changes, or we get a flush, or something */
@@ -2374,7 +2384,11 @@ gst_base_sink_wait_preroll (GstBaseSink * sink)
   if (G_UNLIKELY (sink->priv->step_unlock))
     goto step_unlocked;
   GST_DEBUG_OBJECT (sink, "continue after preroll");
-
+// ohos.ext.func.0009
+#ifdef OHOS_EXT_FUNC
+  } while ((GST_STATE(sink) == GST_STATE_PAUSED && GST_STATE_TARGET(sink) != GST_STATE_PLAYING)
+    || GST_STATE_TARGET(sink) == GST_STATE_PAUSED);
+#endif
   return GST_FLOW_OK;
 
   /* ERRORS */
