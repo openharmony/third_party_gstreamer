@@ -3,422 +3,404 @@
 import("//build/ohos.gni")
 
 group("gstreamer_packages") {
-    deps = [
-        ":gstreamer",
-        ":gstbase",
-        ":gstcoreelements",
-        ":gstcoretracers",
-        ":gst-inspect",
-        ":gst-launch",
-    ]
+  deps = [
+    ":gst-inspect",
+    ":gst-launch",
+    ":gstbase",
+    ":gstcoreelements",
+    ":gstcoretracers",
+    ":gstreamer",
+  ]
 }
 
 config("gst_config") {
-    visibility = [ ":*" ]
+  visibility = [ ":*" ]
 
-    include_dirs = [
-        ".",
-        "gst/parse",
-        "gst/",
-        "//third_party/glib/glib",
-        "//third_party/glib",
-        "//third_party/glib/gmodule",
-    ]
+  include_dirs = [
+    ".",
+    "gst/parse",
+    "gst/",
+    "//third_party/glib/glib",
+    "//third_party/glib",
+    "//third_party/glib/gmodule",
+  ]
 
-    cflags = [
-        "-Wall",
-        "-Werror",
-        "-DBUILDING_GST",
-        "-DG_LOG_DOMAIN=g_log_domain_gstreamer",
-        "-DGST_DISABLE_DEPRECATED",
-        "-DHAVE_CONFIG_H",
-        "-fno-strict-aliasing",
-        "-Wno-sign-compare",
-        "-Wno-deprecated-declarations",
-        "-Wno-incompatible-pointer-types",
-        "-Wno-builtin-requires-header",
-        "-Wno-unused-variable",
-        "-Wno-unused-function",
-    ]
+  cflags = [
+    "-Wall",
+    "-Werror",
+    "-DBUILDING_GST",
+    "-DG_LOG_DOMAIN=g_log_domain_gstreamer",
+    "-DGST_DISABLE_DEPRECATED",
+    "-DHAVE_CONFIG_H",
+    "-fno-strict-aliasing",
+    "-Wno-sign-compare",
+    "-Wno-deprecated-declarations",
+    "-Wno-incompatible-pointer-types",
+    "-Wno-builtin-requires-header",
+    "-Wno-unused-variable",
+    "-Wno-unused-function",
+  ]
 }
 
 ohos_source_set("gst_source") {
-    sources = [
-        "gst/gst.c",
-        "gst/gstobject.c",
-        "gst/gstallocator.c",
-        "gst/gstbin.c",
-        "gst/gstbuffer.c",
-        "gst/gstbufferlist.c",
-        "gst/gstbufferpool.c",
-        "gst/gstbus.c",
-        "gst/gstcaps.c",
-        "gst/gstcapsfeatures.c",
-        "gst/gstchildproxy.c",
-        "gst/gstclock.c",
-        "gst/gstcontext.c",
-        "gst/gstcontrolbinding.c",
-        "gst/gstcontrolsource.c",
-        "gst/gstdatetime.c",
-        "gst/gstdebugutils.c",
-        "gst/gstdevice.c",
-        "gst/gstdevicemonitor.c",
-        "gst/gstdeviceprovider.c",
-        "gst/gstdeviceproviderfactory.c",
-        "gst/gstdynamictypefactory.c",
-        "gst/gstelement.c",
-        "gst/gstelementfactory.c",
-        "gst/gsterror.c",
-        "gst/gstevent.c",
-        "gst/gstformat.c",
-        "gst/gstghostpad.c",
-        "gst/gstinfo.c",
-        "gst/gstiterator.c",
-        "gst/gstatomicqueue.c",
-        "gst/gstmessage.c",
-        "gst/gstmeta.c",
-        "gst/gstmemory.c",
-        "gst/gstminiobject.c",
-        "gst/gstpad.c",
-        "gst/gstpadtemplate.c",
-        "gst/gstparamspecs.c",
-        "gst/gstpipeline.c",
-        "gst/gstplugin.c",
-        "gst/gstpluginfeature.c",
-        "gst/gstpluginloader.c",
-        "gst/gstpoll.c",
-        "gst/gstpreset.c",
-        "gst/gstprotection.c",
-        "gst/gstquark.c",
-        "gst/gstquery.c",
-        "gst/gstregistry.c",
-        "gst/gstregistrychunks.c",
-        "gst/gstregistrybinary.c",
-        "gst/gstpromise.c",
-        "gst/gstsample.c",
-        "gst/gstsegment.c",
-        "gst/gststreamcollection.c",
-        "gst/gststreams.c",
-        "gst/gststructure.c",
-        "gst/gstsystemclock.c",
-        "gst/gsttaglist.c",
-        "gst/gsttagsetter.c",
-        "gst/gsttask.c",
-        "gst/gsttaskpool.c",
-        "gst/gsttoc.c",
-        "gst/gsttocsetter.c",
-        "gst/gsttracer.c",
-        "gst/gsttracerfactory.c",
-        "gst/gsttracerrecord.c",
-        "gst/gsttracerutils.c",
-        "gst/gsttypefind.c",
-        "gst/gsttypefindfactory.c",
-        "gst/gsturi.c",
-        "gst/gstutils.c",
-        "gst/gstvalue.c",
-        "gst/gstparse.c",
-        "gst/gstenumtypes.c",
-        "gst/parse/grammar.tab.c",
-        "gst/parse/lex.priv_gst_parse_yy.c",
-    ]
+  sources = [
+    "gst/gst.c",
+    "gst/gstallocator.c",
+    "gst/gstatomicqueue.c",
+    "gst/gstbin.c",
+    "gst/gstbuffer.c",
+    "gst/gstbufferlist.c",
+    "gst/gstbufferpool.c",
+    "gst/gstbus.c",
+    "gst/gstcaps.c",
+    "gst/gstcapsfeatures.c",
+    "gst/gstchildproxy.c",
+    "gst/gstclock.c",
+    "gst/gstcontext.c",
+    "gst/gstcontrolbinding.c",
+    "gst/gstcontrolsource.c",
+    "gst/gstdatetime.c",
+    "gst/gstdebugutils.c",
+    "gst/gstdevice.c",
+    "gst/gstdevicemonitor.c",
+    "gst/gstdeviceprovider.c",
+    "gst/gstdeviceproviderfactory.c",
+    "gst/gstdynamictypefactory.c",
+    "gst/gstelement.c",
+    "gst/gstelementfactory.c",
+    "gst/gstenumtypes.c",
+    "gst/gsterror.c",
+    "gst/gstevent.c",
+    "gst/gstformat.c",
+    "gst/gstghostpad.c",
+    "gst/gstinfo.c",
+    "gst/gstiterator.c",
+    "gst/gstmemory.c",
+    "gst/gstmessage.c",
+    "gst/gstmeta.c",
+    "gst/gstminiobject.c",
+    "gst/gstobject.c",
+    "gst/gstpad.c",
+    "gst/gstpadtemplate.c",
+    "gst/gstparamspecs.c",
+    "gst/gstparse.c",
+    "gst/gstpipeline.c",
+    "gst/gstplugin.c",
+    "gst/gstpluginfeature.c",
+    "gst/gstpluginloader.c",
+    "gst/gstpoll.c",
+    "gst/gstpreset.c",
+    "gst/gstpromise.c",
+    "gst/gstprotection.c",
+    "gst/gstquark.c",
+    "gst/gstquery.c",
+    "gst/gstregistry.c",
+    "gst/gstregistrybinary.c",
+    "gst/gstregistrychunks.c",
+    "gst/gstsample.c",
+    "gst/gstsegment.c",
+    "gst/gststreamcollection.c",
+    "gst/gststreams.c",
+    "gst/gststructure.c",
+    "gst/gstsystemclock.c",
+    "gst/gsttaglist.c",
+    "gst/gsttagsetter.c",
+    "gst/gsttask.c",
+    "gst/gsttaskpool.c",
+    "gst/gsttoc.c",
+    "gst/gsttocsetter.c",
+    "gst/gsttracer.c",
+    "gst/gsttracerfactory.c",
+    "gst/gsttracerrecord.c",
+    "gst/gsttracerutils.c",
+    "gst/gsttypefind.c",
+    "gst/gsttypefindfactory.c",
+    "gst/gsturi.c",
+    "gst/gstutils.c",
+    "gst/gstvalue.c",
+    "gst/parse/grammar.tab.c",
+    "gst/parse/lex.priv_gst_parse_yy.c",
+  ]
 
-    configs = [
-        ":gst_config",
-    ]
+  configs = [ ":gst_config" ]
 }
 
 config("gstprintf_config") {
-    include_dirs = [
-        ".",
-        "gst/printf",
-        "//third_party/glib/glib",
-        "//third_party/glib",
-        "//third_party/glib/gmodule",
-    ]
+  include_dirs = [
+    ".",
+    "gst/printf",
+    "//third_party/glib/glib",
+    "//third_party/glib",
+    "//third_party/glib/gmodule",
+  ]
 
-    cflags = [
-        "-DHAVE_CONFIG_H",
-        "-fno-strict-aliasing",
-        "-Wno-sign-compare",
-        "-Wno-builtin-requires-header",
-    ]
+  cflags = [
+    "-DHAVE_CONFIG_H",
+    "-fno-strict-aliasing",
+    "-Wno-sign-compare",
+    "-Wno-builtin-requires-header",
+  ]
 }
 
 ohos_source_set("gstprintf_source") {
-    sources = [
-        "gst/printf/asnprintf.c",
-        "gst/printf/printf-extension.c",
-        "gst/printf/printf-args.c",
-        "gst/printf/vasnprintf.c",
-        "gst/printf/printf.c",
-        "gst/printf/printf-parse.c",
-    ]
+  sources = [
+    "gst/printf/asnprintf.c",
+    "gst/printf/printf-args.c",
+    "gst/printf/printf-extension.c",
+    "gst/printf/printf-parse.c",
+    "gst/printf/printf.c",
+    "gst/printf/vasnprintf.c",
+  ]
 
-    configs = [
-        ":gstprintf_config",
-    ]
+  configs = [ ":gstprintf_config" ]
 }
 
 ohos_static_library("gstprintf") {
-    deps = [
-        ":gstprintf_source",
-    ]
+  deps = [ ":gstprintf_source" ]
 }
 
 ohos_shared_library("gstreamer") {
-    deps = [
-        ":gst_source",
-        ":gstprintf",
-        "//third_party/glib:glib",
-        "//third_party/glib:gobject",
-        "//third_party/glib:gmodule",
-    ]
+  deps = [
+    ":gst_source",
+    ":gstprintf",
+    "//third_party/glib:glib",
+    "//third_party/glib:gmodule",
+    "//third_party/glib:gobject",
+  ]
 
-    part_name = "multimedia_histreamer"
-    subsystem_name = "multimedia"
+  part_name = "multimedia_histreamer"
+  subsystem_name = "multimedia"
 }
 
 config("gstbase_config") {
-    include_dirs = [
-        ".",
-        "./libs",
-        "./libs/gst/base",
-        "//third_party/glib/glib",
-        "//third_party/glib",
-        "//third_party/glib/gmodule",
-    ]
+  include_dirs = [
+    ".",
+    "./libs",
+    "./libs/gst/base",
+    "//third_party/glib/glib",
+    "//third_party/glib",
+    "//third_party/glib/gmodule",
+  ]
 
-    cflags = [
-        "-DHAVE_CONFIG_H",
-        "-fno-strict-aliasing",
-        "-Wno-sign-compare",
-        "-Wno-builtin-requires-header",
-        "-Wno-undefined-internal",
-        "-Wno-unused-function",
-        "-DOHOS_EXT_FUNC",
-    ]
+  cflags = [
+    "-DHAVE_CONFIG_H",
+    "-fno-strict-aliasing",
+    "-Wno-sign-compare",
+    "-Wno-builtin-requires-header",
+    "-Wno-undefined-internal",
+    "-Wno-unused-function",
+    "-DOHOS_EXT_FUNC",
+    "-DOHOS_OPT_COMPAT",
+  ]
 }
 
 ohos_source_set("gstbase_source") {
-    sources = [
-        "libs/gst/base/gstadapter.c",
-        "libs/gst/base/gstaggregator.c",
-        "libs/gst/base/gstbaseparse.c",
-        "libs/gst/base/gstbasesink.c",
-        "libs/gst/base/gstbasesrc.c",
-        "libs/gst/base/gstbasetransform.c",
-        "libs/gst/base/gstbitreader.c",
-        "libs/gst/base/gstbitwriter.c",
-        "libs/gst/base/gstbytereader.c",
-        "libs/gst/base/gstbytewriter.c",
-        "libs/gst/base/gstcollectpads.c",
-        "libs/gst/base/gstdataqueue.c",
-        "libs/gst/base/gstflowcombiner.c",
-        "libs/gst/base/gstindex.c",
-        "libs/gst/base/gstmemindex.c",
-        "libs/gst/base/gstpushsrc.c",
-        "libs/gst/base/gsttypefindhelper.c",
-        "libs/gst/base/gstqueuearray.c",
-    ]
+  sources = [
+    "libs/gst/base/gstadapter.c",
+    "libs/gst/base/gstaggregator.c",
+    "libs/gst/base/gstbaseparse.c",
+    "libs/gst/base/gstbasesink.c",
+    "libs/gst/base/gstbasesrc.c",
+    "libs/gst/base/gstbasetransform.c",
+    "libs/gst/base/gstbitreader.c",
+    "libs/gst/base/gstbitwriter.c",
+    "libs/gst/base/gstbytereader.c",
+    "libs/gst/base/gstbytewriter.c",
+    "libs/gst/base/gstcollectpads.c",
+    "libs/gst/base/gstdataqueue.c",
+    "libs/gst/base/gstflowcombiner.c",
+    "libs/gst/base/gstindex.c",
+    "libs/gst/base/gstmemindex.c",
+    "libs/gst/base/gstpushsrc.c",
+    "libs/gst/base/gstqueuearray.c",
+    "libs/gst/base/gsttypefindhelper.c",
+  ]
 
-    configs = [
-        ":gstbase_config",
-    ]
+  configs = [ ":gstbase_config" ]
 }
 
 ohos_shared_library("gstbase") {
-    deps = [
-        ":gstbase_source",
-        ":gstreamer",
-        "//third_party/zlib:libz",
-        "//third_party/glib:glib",
-        "//third_party/glib:gobject",
-        "//third_party/glib:gmodule",
-    ]
-    part_name = "multimedia_histreamer"
-    subsystem_name = "multimedia"
+  deps = [
+    ":gstbase_source",
+    ":gstreamer",
+    "//third_party/glib:glib",
+    "//third_party/glib:gmodule",
+    "//third_party/glib:gobject",
+    "//third_party/zlib:libz",
+  ]
+  part_name = "multimedia_histreamer"
+  subsystem_name = "multimedia"
 }
 
 config("gstcoreelements_config") {
-    include_dirs = [
-        ".",
-        "./libs",
-        "./plugins/elements",
-        "//third_party/glib/glib",
-        "//third_party/glib",
-        "//third_party/glib/gmodule",
-    ]
+  include_dirs = [
+    ".",
+    "./libs",
+    "./plugins/elements",
+    "//third_party/glib/glib",
+    "//third_party/glib",
+    "//third_party/glib/gmodule",
+  ]
 
-    cflags = [
-        "-DHAVE_CONFIG_H",
-        "-fno-strict-aliasing",
-        "-Wno-sign-compare",
-        "-Wno-builtin-requires-header",
-        "-Wno-error=incompatible-pointer-types",
-    ]
+  cflags = [
+    "-DHAVE_CONFIG_H",
+    "-fno-strict-aliasing",
+    "-Wno-sign-compare",
+    "-Wno-builtin-requires-header",
+    "-Wno-error=incompatible-pointer-types",
+    "-DOHOS_OPT_COMPAT",
+  ]
 }
 
 ohos_source_set("gstcoreelements_source") {
-    sources = [
-        "plugins/elements/gstcapsfilter.c",
-        "plugins/elements/gstconcat.c",
-        "plugins/elements/gstdataurisrc.c",
-        "plugins/elements/gstdownloadbuffer.c",
-        "plugins/elements/gstelements.c",
-        "plugins/elements/gstelements_private.c",
-        "plugins/elements/gstfakesink.c",
-        "plugins/elements/gstfakesrc.c",
-        "plugins/elements/gstfdsink.c",
-        "plugins/elements/gstfdsrc.c",
-        "plugins/elements/gstfilesink.c",
-        "plugins/elements/gstfilesrc.c",
-        "plugins/elements/gstfunnel.c",
-        "plugins/elements/gstidentity.c",
-        "plugins/elements/gstinputselector.c",
-        "plugins/elements/gstmultiqueue.c",
-        "plugins/elements/gstoutputselector.c",
-        "plugins/elements/gstqueue2.c",
-        "plugins/elements/gstqueue.c",
-        "plugins/elements/gstsparsefile.c",
-        "plugins/elements/gststreamiddemux.c",
-        "plugins/elements/gsttee.c",
-        "plugins/elements/gsttypefindelement.c",
-        "plugins/elements/gstvalve.c",
-    ]
+  sources = [
+    "plugins/elements/gstcapsfilter.c",
+    "plugins/elements/gstconcat.c",
+    "plugins/elements/gstdataurisrc.c",
+    "plugins/elements/gstdownloadbuffer.c",
+    "plugins/elements/gstelements.c",
+    "plugins/elements/gstelements_private.c",
+    "plugins/elements/gstfakesink.c",
+    "plugins/elements/gstfakesrc.c",
+    "plugins/elements/gstfdsink.c",
+    "plugins/elements/gstfdsrc.c",
+    "plugins/elements/gstfilesink.c",
+    "plugins/elements/gstfilesrc.c",
+    "plugins/elements/gstfunnel.c",
+    "plugins/elements/gstidentity.c",
+    "plugins/elements/gstinputselector.c",
+    "plugins/elements/gstmultiqueue.c",
+    "plugins/elements/gstoutputselector.c",
+    "plugins/elements/gstqueue.c",
+    "plugins/elements/gstqueue2.c",
+    "plugins/elements/gstsparsefile.c",
+    "plugins/elements/gststreamiddemux.c",
+    "plugins/elements/gsttee.c",
+    "plugins/elements/gsttypefindelement.c",
+    "plugins/elements/gstvalve.c",
+  ]
 
-    configs = [
-        ":gstcoreelements_config",
-    ]
+  configs = [ ":gstcoreelements_config" ]
 }
 
 ohos_shared_library("gstcoreelements") {
-    deps = [
-        ":gstcoreelements_source",
-        ":gstreamer",
-        ":gstbase",
-        "//third_party/glib:glib",
-        "//third_party/glib:gobject",
-        "//third_party/glib:gmodule",
-    ]
+  deps = [
+    ":gstbase",
+    ":gstcoreelements_source",
+    ":gstreamer",
+    "//third_party/glib:glib",
+    "//third_party/glib:gmodule",
+    "//third_party/glib:gobject",
+  ]
 
-    relative_install_dir = "media/plugins"
-    part_name = "multimedia_histreamer"
-    subsystem_name = "multimedia"
+  relative_install_dir = "media/plugins"
+  part_name = "multimedia_histreamer"
+  subsystem_name = "multimedia"
 }
 
 config("gstcoretracers_config") {
-    include_dirs = [
-        ".",
-        "gst/parse",
-        "gst/",
-        "./plugins/tracers",
-        "//third_party/glib/glib",
-        "//third_party/glib",
-        "//third_party/glib/gmodule",
-    ]
+  include_dirs = [
+    ".",
+    "gst/parse",
+    "gst/",
+    "./plugins/tracers",
+    "//third_party/glib/glib",
+    "//third_party/glib",
+    "//third_party/glib/gmodule",
+  ]
 
-    cflags = [
-        "-DHAVE_CONFIG_H",
-        "-DGST_USE_UNSTABLE_API",
-        "-fno-strict-aliasing",
-        "-Wno-sign-compare",
-        "-Wno-builtin-requires-header",
-        "-Wno-undefined-internal",
-        "-Wno-unused-function",
-    ]
+  cflags = [
+    "-DHAVE_CONFIG_H",
+    "-DGST_USE_UNSTABLE_API",
+    "-fno-strict-aliasing",
+    "-Wno-sign-compare",
+    "-Wno-builtin-requires-header",
+    "-Wno-undefined-internal",
+    "-Wno-unused-function",
+  ]
 }
 
 ohos_source_set("gstcoretracers_source") {
-    sources = [
-        "plugins/tracers/gstlatency.c",
-        "plugins/tracers/gstleaks.c",
-        "plugins/tracers/gstlog.c",
-        "plugins/tracers/gstrusage.c",
-        "plugins/tracers/gststats.c",
-        "plugins/tracers/gsttracers.c",
-    ]
+  sources = [
+    "plugins/tracers/gstlatency.c",
+    "plugins/tracers/gstleaks.c",
+    "plugins/tracers/gstlog.c",
+    "plugins/tracers/gstrusage.c",
+    "plugins/tracers/gststats.c",
+    "plugins/tracers/gsttracers.c",
+  ]
 
-    configs = [
-        ":gstcoretracers_config",
-    ]
+  configs = [ ":gstcoretracers_config" ]
 }
 
 ohos_shared_library("gstcoretracers") {
-    deps = [
-        ":gstcoretracers_source",
-        ":gstreamer",
-        "//third_party/glib:glib",
-        "//third_party/glib:gobject",
-        "//third_party/glib:gmodule",
-    ]
+  deps = [
+    ":gstcoretracers_source",
+    ":gstreamer",
+    "//third_party/glib:glib",
+    "//third_party/glib:gmodule",
+    "//third_party/glib:gobject",
+  ]
 
-    relative_install_dir = "media/plugins"
-    part_name = "multimedia_histreamer"
-    subsystem_name = "multimedia"
+  relative_install_dir = "media/plugins"
+  part_name = "multimedia_histreamer"
+  subsystem_name = "multimedia"
 }
 
 config("gsttools_config") {
-    include_dirs = [
-        ".",
-        "./libs",
-        "./plugins/elements",
-        "./tools",
-        "//third_party/glib/glib",
-        "//third_party/glib",
-        "//third_party/glib/gmodule",
-    ]
+  include_dirs = [
+    ".",
+    "./libs",
+    "./plugins/elements",
+    "./tools",
+    "//third_party/glib/glib",
+    "//third_party/glib",
+    "//third_party/glib/gmodule",
+  ]
 
-    cflags = [
-        "-DHAVE_CONFIG_H",
-        "-fno-strict-aliasing",
-        "-Wno-sign-compare",
-        "-Wno-builtin-requires-header",
-        "-Wno-error=incompatible-pointer-types",
-    ]
+  cflags = [
+    "-DHAVE_CONFIG_H",
+    "-fno-strict-aliasing",
+    "-Wno-sign-compare",
+    "-Wno-builtin-requires-header",
+    "-Wno-error=incompatible-pointer-types",
+  ]
 }
 
 ohos_source_set("gst_inspect_source") {
-    sources = [
-        "tools/gst-inspect.c",
-    ]
+  sources = [ "tools/gst-inspect.c" ]
 
-    configs = [
-        ":gsttools_config",
-    ]
+  configs = [ ":gsttools_config" ]
 }
 
 ohos_executable("gst-inspect") {
-    deps = [
-        ":gst_inspect_source",
-        ":gstreamer",
-        ":gstbase",
-        "//third_party/glib:glib",
-        "//third_party/glib:gobject",
-        "//third_party/glib:gmodule",
-    ]
-    part_name = "multimedia_histreamer"
-    subsystem_name = "multimedia"
+  deps = [
+    ":gst_inspect_source",
+    ":gstbase",
+    ":gstreamer",
+    "//third_party/glib:glib",
+    "//third_party/glib:gmodule",
+    "//third_party/glib:gobject",
+  ]
+  part_name = "multimedia_histreamer"
+  subsystem_name = "multimedia"
 }
 
 ohos_source_set("gst_launch_source") {
-    sources = [
-        "tools/gst-launch.c",
-    ]
+  sources = [ "tools/gst-launch.c" ]
 
-    configs = [
-        ":gsttools_config",
-    ]
+  configs = [ ":gsttools_config" ]
 }
 
 ohos_executable("gst-launch") {
-    deps = [
-        ":gst_launch_source",
-        ":gstreamer",
-        ":gstbase",
-        "//third_party/glib:glib",
-        "//third_party/glib:gobject",
-        "//third_party/glib:gmodule",
-    ]
-    part_name = "multimedia_histreamer"
-    subsystem_name = "multimedia"
+  deps = [
+    ":gst_launch_source",
+    ":gstbase",
+    ":gstreamer",
+    "//third_party/glib:glib",
+    "//third_party/glib:gmodule",
+    "//third_party/glib:gobject",
+  ]
+  part_name = "multimedia_histreamer"
+  subsystem_name = "multimedia"
 }
