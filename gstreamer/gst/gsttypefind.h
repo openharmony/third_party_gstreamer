@@ -89,6 +89,10 @@ struct _GstTypeFind {
 
   /* <private> */
   gpointer _gst_reserved[GST_PADDING];
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0004
+  gboolean need_typefind_again;
+#endif
 };
 
 GST_API

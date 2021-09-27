@@ -50,8 +50,10 @@ plugin_init (GstPlugin * plugin)
 
   gst_element_register (plugin, "souphttpsrc", GST_RANK_PRIMARY,
       GST_TYPE_SOUP_HTTP_SRC);
+#ifndef OHOS_EXT_FUNC // ohos.ext.func.0007
   gst_element_register (plugin, "souphttpclientsink", GST_RANK_NONE,
       GST_TYPE_SOUP_HTTP_CLIENT_SINK);
+#endif
   GST_DEBUG_CATEGORY_INIT (soup_utils_debug, "souputils", 0, "Soup utils");
 
   return TRUE;
