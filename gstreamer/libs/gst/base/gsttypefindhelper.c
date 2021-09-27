@@ -609,6 +609,9 @@ static gboolean
 gst_type_find_helper_is_support_retypefind (GstObject * obj)
 {
   gboolean support = FALSE;
+  if (obj == NULL) {
+    return support;
+  }
 
   GParamSpec *pspec = g_object_class_find_property (G_OBJECT_GET_CLASS(obj), "re-typefind-factory-list");
   if (pspec != NULL && G_PARAM_SPEC_TYPE (pspec) == G_TYPE_PARAM_POINTER) {
@@ -621,7 +624,7 @@ static GList *
 gst_type_find_helper_get_type_list (GstObject * obj, gboolean support_retypefind)
 {
   GList *type_list = NULL;
-  if (support_retypefind) {
+  if (support_retypefind && obj != NULL) {
     g_object_get (obj, "re-typefind-factory-list", &type_list, NULL);
     if (type_list == NULL) {
       GST_INFO_OBJECT (obj,
@@ -732,7 +735,7 @@ gst_type_find_helper_for_data_with_extension (GstObject * obj,
 
 #ifdef OHOS_OPT_COMPAT
   // ohos.opt.compat.0004:set the list to the object doing the typefinding
-  if (support_retypefind && helper.best_probability < GST_TYPE_FIND_MAXIMUM) {
+  if (obj != NULL && support_retypefind && helper.best_probability < GST_TYPE_FIND_MAXIMUM) {
     g_object_set (obj, "re-typefind-factory-list", re_typefind_factory_list, NULL);
   }
   if (re_typefind_factory_list) {
