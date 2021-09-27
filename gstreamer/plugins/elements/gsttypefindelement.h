@@ -65,6 +65,12 @@ struct _GstTypeFindElement {
   gboolean need_stream_start;
   GstSegment segment;
   guint64 offset;
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0004
+  guint pre_prebability;
+  GList *re_typefind_factory_list;
+  GstCaps *pre_find_caps;
+#endif
 };
 
 struct _GstTypeFindElementClass {

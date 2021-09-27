@@ -2782,8 +2782,17 @@ h264_video_type_find (GstTypeFind * tf, gpointer unused)
   int bad = 0;
 
   while (c.offset < H264_MAX_PROBE_LENGTH) {
+#ifdef OHOS_OPT_COMPAT
+    // ohos.opt.compat.0004
+    if (G_UNLIKELY (!data_scan_ctx_ensure_data (tf, &c, 4))) {
+      GST_INFO ("h264_video_type_find need_typefind_again");
+      tf->need_typefind_again = TRUE;
+      break;
+    }
+#else
     if (G_UNLIKELY (!data_scan_ctx_ensure_data (tf, &c, 4)))
       break;
+#endif
 
     if (IS_MPEG_HEADER (c.data)) {
       nut = c.data[3] & 0x9f;   /* forbiden_zero_bit | nal_unit_type */
@@ -2848,9 +2857,20 @@ h264_video_type_find (GstTypeFind * tf, gpointer unused)
   GST_LOG ("good:%d, bad:%d, pps:%d, sps:%d, idr:%d ssps=%d", good, bad,
       seen_pps, seen_sps, seen_idr, seen_ssps);
 
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0004
+  if (good >= 2 && bad == 0) {
+    if (!tf->need_typefind_again) {
+      gst_type_find_suggest (tf, GST_TYPE_FIND_POSSIBLE, H264_VIDEO_CAPS);
+    }
+  } else {
+    tf->need_typefind_again = FALSE;
+  }
+#else
   if (good >= 2 && bad == 0) {
     gst_type_find_suggest (tf, GST_TYPE_FIND_POSSIBLE, H264_VIDEO_CAPS);
   }
+#endif
 }
 
 /*** video/x-h265 H265 elementary video stream ***/

@@ -69,6 +69,10 @@ GST_DEBUG_CATEGORY_STATIC (gst_player_debug);
 #define DEFAULT_AUDIO_VIDEO_OFFSET 0
 #define DEFAULT_SUBTITLE_VIDEO_OFFSET 0
 #define VIDEO_ERROR_MSG 1
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0007
+#define DEFAULT_RING_BUFFER_MAX_SIZE 0
+#endif
 
 GQuark
 gst_player_error_quark (void)
@@ -117,6 +121,8 @@ enum
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0004
   PROP_SEEK_MODE,
+  // ohos.ext.func.0007
+  PROP_RING_BUFFER_MAX_SIZE,
 #endif
   PROP_PIPELINE,
   PROP_VIDEO_MULTIVIEW_MODE,
@@ -408,6 +414,14 @@ gst_player_class_init (GstPlayerClass * klass)
   param_specs[PROP_SEEK_MODE] =
       g_param_spec_int ("seek-mode", "seek-mode", "Playback seek-mode",
       0, G_MAXINT, 0,
+      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+  // ohos.ext.func.0007
+  param_specs[PROP_RING_BUFFER_MAX_SIZE] =
+      g_param_spec_uint64 ("ring-buffer-max-size",
+      "Max. ring buffer size (bytes)",
+      "Max. amount of data in the ring buffer (bytes, 0 = ring buffer disabled)",
+      0, G_MAXUINT, DEFAULT_RING_BUFFER_MAX_SIZE,
       G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 #endif
   param_specs[PROP_RATE] =
@@ -752,15 +766,20 @@ gst_player_set_property (GObject * object, guint prop_id,
       gst_player_set_rate_internal (self);
       g_mutex_unlock (&self->lock);
       break;
-/* ohos.ext.func.0004: The playback engine requires different seek modes.
- * The capability of setting the seek mode needs to be added to gstplayer.
- */
 #ifdef OHOS_EXT_FUNC
+    /* ohos.ext.func.0004: The playback engine requires different seek modes.
+     * The capability of setting the seek mode needs to be added to gstplayer.
+     */
     case PROP_SEEK_MODE:
       g_mutex_lock (&self->lock);
       self->seek_mode = g_value_get_int (value);
       GST_DEBUG_OBJECT (self, "Set seek_mode=%d", g_value_get_int (value));
       g_mutex_unlock (&self->lock);
+      break;
+    // ohos.ext.func.0007
+    case PROP_RING_BUFFER_MAX_SIZE:
+      GST_INFO_OBJECT (self, "set ring-buffer-max-size=%" G_GUINT64_FORMAT, g_value_get_uint64 (value));
+      g_object_set_property (G_OBJECT (self->playbin), "ring-buffer-max-size", value);
       break;
 #endif
     case PROP_MUTE:
@@ -1438,6 +1457,19 @@ buffering_cb (G_GNUC_UNUSED GstBus * bus, GstMessage * msg, gpointer user_data)
     return;
   if (self->is_live)
     return;
+
+#ifdef OHOS_EXT_FUNC
+  /* ohos.ext.func.0007:
+   * Queue2 will post buffering message(buffering-level is 100%) when playbin is GST_STATE_READY,
+   * and player will be set to GST_PLAYER_STATE_PAUSED which will cause the prepared-message to be reported in advance
+   * To avoid this, we do not handle buffering message which comes from queue2.
+   */
+  if ((GST_MESSAGE_SRC (msg) != NULL) &&
+    (strncmp (gst_element_get_name (GST_MESSAGE_SRC(msg)), "queue2", strlen ("queue2")) == 0)) {
+    GST_DEBUG_OBJECT (self, "buffering msg comes from queue2, do not handle it");
+    return;
+  }
+#endif
 
   gst_message_parse_buffering (msg, &percent);
   GST_LOG_OBJECT (self, "Buffering %d%%", percent);
