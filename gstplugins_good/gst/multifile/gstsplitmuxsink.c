@@ -1434,7 +1434,8 @@ handle_mq_output (GstPad * pad, GstPadProbeInfo * info, MqStreamCtx * ctx)
      * until the muxer / sink are ready for it */
     if (!locked)
       GST_SPLITMUX_LOCK (splitmux);
-    if (!ctx->is_reference)
+    if (!ctx->is_reference && (GST_EVENT_TYPE(event) != GST_EVENT_FLUSH_START) &&
+    (GST_EVENT_TYPE(event) != GST_EVENT_FLUSH_STOP))
       complete_or_wait_on_out (splitmux, ctx);
     GST_SPLITMUX_UNLOCK (splitmux);
 
