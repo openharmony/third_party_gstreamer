@@ -1437,6 +1437,7 @@ handle_mq_output (GstPad * pad, GstPadProbeInfo * info, MqStreamCtx * ctx)
 /* ohos.ext.func.0007
  * when GST_EVENT_FLUSH_STOP, there is a very low probability freeze.
  * FLUSH_START and FLUSH_STOP should not wait for cmd in complete_or_wait_on_out.
+ * cause upstream component will be block if these two EVENT wait in this function.
  */
 #ifdef OHOS_EXT_FUNC
     if (!ctx->is_reference && (GST_EVENT_TYPE(event) != GST_EVENT_FLUSH_START) &&
