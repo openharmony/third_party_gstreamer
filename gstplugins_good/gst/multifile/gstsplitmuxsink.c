@@ -1143,7 +1143,7 @@ complete_or_wait_on_out (GstSplitMuxSink * splitmux, MqStreamCtx * ctx)
               break;
             } else {
               GST_SPLITMUX_WAIT_OUTPUT (splitmux);
-/* ohos.ext.func.0007
+/* ohos.ext.func.0008
  * when GST_EVENT_FLUSH_START, ctx->flushing is set to TRUE.
  * GST_SPLITMUX_BROADCAST_OUTPUT(splitmux) was called.
  * this loop must break when fushing is set.
@@ -1434,7 +1434,17 @@ handle_mq_output (GstPad * pad, GstPadProbeInfo * info, MqStreamCtx * ctx)
      * until the muxer / sink are ready for it */
     if (!locked)
       GST_SPLITMUX_LOCK (splitmux);
+/* ohos.ext.func.0008
+ * when GST_EVENT_FLUSH_STOP, there is a very low probability freeze.
+ * FLUSH_START and FLUSH_STOP should not wait for cmd in complete_or_wait_on_out.
+ * cause upstream component will be block if these two EVENT wait in this function.
+ */
+#ifdef OHOS_EXT_FUNC
+    if (!ctx->is_reference && (GST_EVENT_TYPE(event) != GST_EVENT_FLUSH_START) &&
+      (GST_EVENT_TYPE(event) != GST_EVENT_FLUSH_STOP))
+#else
     if (!ctx->is_reference)
+#endif
       complete_or_wait_on_out (splitmux, ctx);
     GST_SPLITMUX_UNLOCK (splitmux);
 
@@ -2233,7 +2243,7 @@ handle_mq_input (GstPad * pad, GstPadProbeInfo * info, MqStreamCtx * ctx)
         GST_SPLITMUX_LOCK (splitmux);
         gst_segment_init (&ctx->in_segment, GST_FORMAT_UNDEFINED);
         ctx->in_eos = FALSE;
-/* ohos.ext.func.0007
+/* ohos.ext.func.0008
  * when GST_EVENT_FLUSH_STOP, ctx->in_running_time is set to none.
  * when GST_EVENT_EOS called after GST_EVENT_FLUSH_STOP, codes goes to handle_gathered_gop in
  * check_completed_gop. queued_gop_time is always below zero, and it failed.
