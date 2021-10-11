@@ -67,6 +67,6 @@ ohos_shared_library("gstplayer") {
         "//third_party/glib:gobject",
         "//third_party/glib:gmodule",
     ]
-    part_name = "multimedia_histreamer"
+    part_name = "multimedia_media_standard"
     subsystem_name = "multimedia"
 }

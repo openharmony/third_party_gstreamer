@@ -79,7 +79,7 @@ ohos_shared_library("gstaudioparsers") {
     ]
 
     relative_install_dir = "media/plugins"
-    part_name = "multimedia_histreamer"
+    part_name = "multimedia_media_standard"
     subsystem_name = "multimedia"
 }
 
@@ -112,7 +112,7 @@ ohos_shared_library("gstautodetect") {
     ]
 
     relative_install_dir = "media/plugins"
-    part_name = "multimedia_histreamer"
+    part_name = "multimedia_media_standard"
     subsystem_name = "multimedia"
 }
 
@@ -140,7 +140,7 @@ ohos_shared_library("gstid3demux") {
     ]
 
     relative_install_dir = "media/plugins"
-    part_name = "multimedia_histreamer"
+    part_name = "multimedia_media_standard"
     subsystem_name = "multimedia"
 }
 
@@ -186,7 +186,7 @@ ohos_shared_library("gstisomp4") {
     ]
 
     relative_install_dir = "media/plugins"
-    part_name = "multimedia_histreamer"
+    part_name = "multimedia_media_standard"
     subsystem_name = "multimedia"
 }
 
@@ -213,8 +213,9 @@ ohos_shared_library("gstwavparse") {
         "//third_party/glib:gobject",
         "//third_party/glib:gmodule",
     ]
+
     relative_install_dir = "media/plugins"
-    part_name = "multimedia_histreamer"
+    part_name = "multimedia_media_standard"
     subsystem_name = "multimedia"
 }
 
@@ -250,7 +251,7 @@ ohos_shared_library("gstmultifile") {
     ]
 
     relative_install_dir = "media/plugins"
-    part_name = "multimedia_histreamer"
+    part_name = "multimedia_media_standard"
     subsystem_name = "multimedia"
 }
 
@@ -296,6 +297,6 @@ ohos_shared_library("gstaudiofx") {
     ]
 
     relative_install_dir = "media/plugins"
-    part_name = "multimedia_histreamer"
+    part_name = "multimedia_media_standard"
     subsystem_name = "multimedia"
 }
