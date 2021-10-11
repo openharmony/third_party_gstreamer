@@ -5,77 +5,82 @@
 import("//build/ohos.gni")
 
 group("gst_libav_packages") {
-  deps = [ ":gstlibav" ]
+    deps = [
+        ":gstlibav",
+    ]
 }
 
 config("gstlibav_config") {
-  visibility = [ ":*" ]
+    visibility = [ ":*" ]
 
-  include_dirs = [
-    "./",
-    "./ext/libav/",
-    "//third_party/gstreamer/gstreamer",
-    "//third_party/gstreamer/gstreamer/libs",
-    "//third_party/gstreamer/gstplugins_base",
-    "//third_party/gstreamer/gstplugins_base/gst-libs",
-    "//third_party/ffmpeg",
-    "//third_party/glib",
-    "//third_party/glib/glib",
-    "//third_party/glib/gmodule",
-  ]
+    include_dirs = [
+        "./",
+        "./ext/libav/",
+        "//third_party/gstreamer/gstreamer",
+        "//third_party/gstreamer/gstreamer/libs",
+        "//third_party/gstreamer/gstplugins_base",
+        "//third_party/gstreamer/gstplugins_base/gst-libs",
+        "//third_party/ffmpeg",
+        "//third_party/glib",
+        "//third_party/glib/glib",
+        "//third_party/glib/gmodule",
+    ]
 
-  cflags = [
-    "-Wall",
-    "-Werror",
-    "-DHAVE_CONFIG_H",
-    "-DHAVE_UNISTD_H",
-    "-fno-strict-aliasing",
-    "-Wno-sign-compare",
-    "-Wno-builtin-requires-header",
-    "-Wno-macro-redefined",
-    "-Wno-implicit-function-declaration",
-    "-Wno-unused-function",
-    "-DOHOS_OPT_COMPAT",
-    "-DOHOS_OPT_MEMLEAK",
-    "-DOHOS_EXT_FUNC",
-  ]
+    cflags = [
+        "-Wall",
+        "-Werror",
+        "-DHAVE_CONFIG_H",
+        "-DHAVE_UNISTD_H",
+        "-fno-strict-aliasing",
+        "-Wno-sign-compare",
+        "-Wno-builtin-requires-header",
+        "-Wno-macro-redefined",
+        "-Wno-implicit-function-declaration",
+        "-Wno-unused-function",
+        "-DOHOS_OPT_COMPAT",
+        "-DOHOS_OPT_MEMLEAK",
+        "-DOHOS_EXT_FUNC",
+    ]
 }
 
 ohos_source_set("gstlibav_source") {
-  sources = [
-    "ext/libav/gstav.c",
-    "ext/libav/gstavauddec.c",
-    "ext/libav/gstavaudenc.c",
-    "ext/libav/gstavcfg.c",
-    "ext/libav/gstavcodecmap.c",
-    "ext/libav/gstavdeinterlace.c",
-    "ext/libav/gstavdemux.c",
-    "ext/libav/gstavmux.c",
-    "ext/libav/gstavprotocol.c",
-    "ext/libav/gstavutils.c",
-    "ext/libav/gstavviddec.c",
-    "ext/libav/gstavvidenc.c",
-  ]
+    sources = [
+        "ext/libav/gstav.c",
+        "ext/libav/gstavauddec.c",
+        "ext/libav/gstavaudenc.c",
+        "ext/libav/gstavcfg.c",
+        "ext/libav/gstavcodecmap.c",
+        "ext/libav/gstavdeinterlace.c",
+        "ext/libav/gstavdemux.c",
+        "ext/libav/gstavmux.c",
+        "ext/libav/gstavprotocol.c",
+        "ext/libav/gstavutils.c",
+        "ext/libav/gstavviddec.c",
+        "ext/libav/gstavvidenc.c",
+    ]
 
-  configs = [ ":gstlibav_config" ]
+    configs = [
+        ":gstlibav_config",
+    ]
 }
 
 ohos_shared_library("gstlibav") {
-  deps = [
-    ":gstlibav_source",
-    "//third_party/ffmpeg:libohosffmpeg",
-    "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
-    "//third_party/glib:gobject",
-    "//third_party/gstreamer/gstplugins_base:gstaudio",
-    "//third_party/gstreamer/gstplugins_base:gstpbutils",
-    "//third_party/gstreamer/gstplugins_base:gsttag",
-    "//third_party/gstreamer/gstplugins_base:gstvideo",
-    "//third_party/gstreamer/gstreamer:gstbase",
-    "//third_party/gstreamer/gstreamer:gstreamer",
-  ]
+    deps = [
+        ":gstlibav_source",
+        "//third_party/gstreamer/gstreamer:gstreamer",
+        "//third_party/gstreamer/gstreamer:gstbase",
+        "//third_party/gstreamer/gstplugins_base:gstaudio",
+        "//third_party/gstreamer/gstplugins_base:gstvideo",
+        "//third_party/gstreamer/gstplugins_base:gstpbutils",
+        "//third_party/gstreamer/gstplugins_base:gsttag",
+        "//third_party/glib:glib",
+        "//third_party/glib:gobject",
+        "//third_party/glib:gmodule",
+        "//third_party/ffmpeg:libohosffmpeg",
+    ]
 
-  relative_install_dir = "media/plugins"
-  part_name = "multimedia_histreamer"
-  subsystem_name = "multimedia"
+    relative_install_dir = "media/plugins"
+    part_name = "multimedia_media_standard"
+    subsystem_name = "multimedia"
 }
+
