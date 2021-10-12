@@ -76,6 +76,6 @@ ohos_shared_library("gstlibav") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_histreamer"
+  part_name = "multimedia_media_standard"
   subsystem_name = "multimedia"
 }
