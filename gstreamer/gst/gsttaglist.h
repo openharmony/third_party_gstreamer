@@ -1209,6 +1209,25 @@ gst_tag_list_take (GstTagList **old_taglist, GstTagList *new_taglist)
  * Since: 1.4
  */
 #define GST_TAG_MIDI_BASE_NOTE                    "midi-base-note"
+
+/**
+ * ohos.ext.func.0010
+ * 
+ * The original gstreamer does not support the author's tag, but the
+ * author label is avaiable for id3, vorbiscomment, etc. So, add the
+ * GST_TAG_AUTHOR for supporting to retrieve the author metadata.
+ */
+#ifdef OHOS_EXT_FUNC
+/**
+ * GST_TAG_AUTHOR:
+ *
+ * Information about the people who write the lyrics
+ *
+ * Since: 1.2
+ */
+#define GST_TAG_AUTHOR                            "author"
+#endif
+
 /**
  * GST_TAG_PRIVATE_DATA:
  *
