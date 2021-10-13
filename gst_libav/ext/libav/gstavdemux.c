@@ -1124,6 +1124,15 @@ static const struct
   "album", GST_TAG_ALBUM}, {
   "album_artist", GST_TAG_ALBUM_ARTIST}, {
   "artist", GST_TAG_ARTIST}, {
+/**
+ * ohos.ext.func.0010
+ *
+ * add the mapping from ffmpeg's author label to GST_TAG_AUTHOR
+ * for retrieving the author metadata from the media file.
+ */
+#ifdef OHOS_EXT_FUNC
+  "author", GST_TAG_AUTHOR}, {
+#endif
   "comment", GST_TAG_COMMENT}, {
   "composer", GST_TAG_COMPOSER}, {
   "copyright", GST_TAG_COPYRIGHT}, {

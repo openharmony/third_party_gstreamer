@@ -32,6 +32,7 @@ config("gst_config") {
     "-DG_LOG_DOMAIN=g_log_domain_gstreamer",
     "-DGST_DISABLE_DEPRECATED",
     "-DHAVE_CONFIG_H",
+    "-DOHOS_EXT_FUNC",
     "-fno-strict-aliasing",
     "-Wno-sign-compare",
     "-Wno-deprecated-declarations",
