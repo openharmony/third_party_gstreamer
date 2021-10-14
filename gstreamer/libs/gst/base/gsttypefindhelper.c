@@ -455,7 +455,12 @@ gst_type_find_helper_get_range_full (GstObject * obj, GstObject * parent,
     /* Some typefinder might've tried to read too much, if we
      * didn't get any meaningful caps because of that this is
      * just a normal error */
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0005
+    helper.flow_ret = helper.best_probability > 0 ? GST_FLOW_OK : GST_FLOW_ERROR;
+#else
     helper.flow_ret = GST_FLOW_ERROR;
+#endif
   }
 
   GST_LOG_OBJECT (obj, "Returning %" GST_PTR_FORMAT " (probability = %u)",
