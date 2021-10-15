@@ -1377,6 +1377,19 @@ beach:
 
 #define GST_FFMPEG_TYPE_FIND_SIZE 4096
 #define GST_FFMPEG_TYPE_FIND_MIN_SIZE 256
+#ifdef OHOS_OPT_COMPAT
+/* ohos.opt.compat.0005
+ * Insufficient data read by the avdemux during the typefind process in the MP3 format.
+ * As a result, the device is mistakenly identified as video/h264.
+ * In the typefind of ffmpeg, if the score is 25 and the format is mp3,
+ * obtain more data and re-judge. In the typefindhelper,
+ * data may have been obtained but subsequent flows may not be obtained.
+ * As a result, EOS is returned. Check the EOS. If prob exists, change the value to ok.
+ * Otherwise, the value is error.
+ */
+#define GST_FFMPEG_TYPE_FIND_MAX_SIZE (2UL<<20)
+#define GST_FFMPEG_MP3_INCOMPLETE_SCORE 25
+#endif
 
 static void
 gst_ffmpegdemux_type_find (GstTypeFind * tf, gpointer priv)
@@ -1390,6 +1403,10 @@ gst_ffmpegdemux_type_find (GstTypeFind * tf, gpointer priv)
   /* We want GST_FFMPEG_TYPE_FIND_SIZE bytes, but if the file is shorter than
    * that we'll give it a try... */
   length = gst_type_find_get_length (tf);
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0005
+  guint64 realLen = MIN (length, GST_FFMPEG_TYPE_FIND_MAX_SIZE);
+#endif
   if (length == 0 || length > GST_FFMPEG_TYPE_FIND_SIZE)
     length = GST_FFMPEG_TYPE_FIND_SIZE;
 
@@ -1414,6 +1431,19 @@ gst_ffmpegdemux_type_find (GstTypeFind * tf, gpointer priv)
     res = in_plugin->read_probe (&probe_data);
     if (res > 0) {
       res = MAX (1, res * GST_TYPE_FIND_MAXIMUM / AVPROBE_SCORE_MAX);
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0005
+      if (g_str_has_prefix (in_plugin->name, "mp3") && res == GST_FFMPEG_MP3_INCOMPLETE_SCORE &&
+        (data = gst_type_find_peek (tf, 0, realLen)) != NULL) {
+        probe_data.filename = "";
+        probe_data.buf = (guint8 *) data;
+        probe_data.buf_size = realLen;
+        gint res_real = in_plugin->read_probe (&probe_data);
+        res_real = MAX (1, res_real * GST_TYPE_FIND_MAXIMUM / AVPROBE_SCORE_MAX);
+        GST_DEBUG ("change res from %d to %d", res, res_real);
+        res = MAX (res, res_real);
+      }
+#endif
       /* Restrict the probability for MPEG-TS streams, because there is
        * probably a better version in plugins-base, if the user has a recent
        * plugins-base (in fact we shouldn't even get here for ffmpeg mpegts or
