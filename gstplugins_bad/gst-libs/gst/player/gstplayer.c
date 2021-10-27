@@ -952,7 +952,15 @@ state_changed_signal_data_free (StateChangedSignalData * data)
 static void
 change_state (GstPlayer * self, GstPlayerState state)
 {
+#ifdef OHOS_EXT_FUNC
+/* ohos.ext.func.0011
+ * In non-seek mode of stream playback, stop is expected to be invoked in the EOS state,
+ * but the gstplay does not call back when stop is invoked in the EOS state.
+ */
+  if (state == self->app_state && state != GST_PLAYER_STATE_STOPPED)
+#else
   if (state == self->app_state)
+#endif
     return;
 
   GST_DEBUG_OBJECT (self, "Changing app state from %s to %s",
