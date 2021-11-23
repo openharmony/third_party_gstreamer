@@ -8,9 +8,9 @@ group("gstplugins_good_packages") {
     ":gstaudioparsers",
     ":gstautodetect",
     ":gstisomp4",
+    ":gstmatroska",
     ":gstmultifile",
     ":gstwavparse",
-    ":gstmatroska",
   ]
 }
 
@@ -289,14 +289,14 @@ ohos_source_set("matroska_source") {
   sources = [
     "gst/matroska/ebml-read.c",
     "gst/matroska/ebml-write.c",
-    "gst/matroska/matroska.c",
+    "gst/matroska/lzo.c",
     "gst/matroska/matroska-demux.c",
-    "gst/matroska/matroska-parse.c",
     "gst/matroska/matroska-ids.c",
     "gst/matroska/matroska-mux.c",
+    "gst/matroska/matroska-parse.c",
     "gst/matroska/matroska-read-common.c",
+    "gst/matroska/matroska.c",
     "gst/matroska/webm-mux.c",
-    "gst/matroska/lzo.c",
   ]
 
   configs = [ ":gst_plugins_config" ]
@@ -305,15 +305,15 @@ ohos_source_set("matroska_source") {
 ohos_shared_library("gstmatroska") {
   deps = [
     ":matroska_source",
+    "//third_party/bzip2:libbz2",
     "//third_party/glib:glib",
     "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
-    "//third_party/bzip2:libbz2",
     "//third_party/gstreamer/gstplugins_base:gstaudio",
     "//third_party/gstreamer/gstplugins_base:gstfft",
     "//third_party/gstreamer/gstplugins_base:gstpbutils",
-    "//third_party/gstreamer/gstplugins_base:gsttag",
     "//third_party/gstreamer/gstplugins_base:gstriff",
+    "//third_party/gstreamer/gstplugins_base:gsttag",
     "//third_party/gstreamer/gstplugins_base:gstvideo",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
