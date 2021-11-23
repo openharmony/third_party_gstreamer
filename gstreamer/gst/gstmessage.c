@@ -1435,6 +1435,36 @@ gst_message_parse_clock_provide (GstMessage * message, GstClock ** clock,
     *clock = (GstClock *) g_value_get_object (clock_gvalue);
 }
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0014
+GstMessage *
+gst_message_new_resolution_changed (GstObject * src, gint width, gint height)
+{
+  GstMessage *message;
+  GstStructure *structure;
+
+  structure = gst_structure_new ("resolution-changed",
+            "width", G_TYPE_INT, width, "height", G_TYPE_INT, height, NULL);
+  message = gst_message_new_custom (GST_MESSAGE_ELEMENT, src, structure);
+
+  return message;
+}
+
+void
+gst_message_parse_resulution_changed (GstMessage * message, gint * width, gint * height)
+{
+  GstStructure *structure;
+
+  g_return_if_fail (GST_MESSAGE_TYPE (message) == GST_MESSAGE_ELEMENT);
+
+  structure = GST_MESSAGE_STRUCTURE (message);
+  if (width && height) {
+    (void)gst_structure_get_int(structure, "width", width);
+    (void)gst_structure_get_int(structure, "height", height);
+  }
+}
+#endif
+
 /**
  * gst_message_parse_clock_lost:
  * @message: A valid #GstMessage of type GST_MESSAGE_CLOCK_LOST.
