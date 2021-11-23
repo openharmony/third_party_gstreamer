@@ -146,6 +146,8 @@ enum
   SIGNAL_ERROR_MSG,
   // ohos.ext.func.0006
   SIGNAL_SOURCE_SETUP,
+  // ohos.ext.func.0014
+  SIGNAL_RESOLUTION_CHANGED,
 #endif
   SIGNAL_WARNING,
   SIGNAL_VIDEO_DIMENSIONS_CHANGED,
@@ -531,6 +533,12 @@ gst_player_class_init (GstPlayerClass * klass)
       g_signal_new ("source-setup", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, 0, NULL, NULL,
       g_cclosure_marshal_generic, G_TYPE_NONE, 1, GST_TYPE_ELEMENT);
+
+// ohos.ext.func.0014
+  signals[SIGNAL_RESOLUTION_CHANGED] =
+      g_signal_new ("resolution-changed", G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS, 0, NULL,
+      NULL, NULL, G_TYPE_NONE, 2, G_TYPE_INT, G_TYPE_INT);
 #endif
   config_quark_initialize ();
 }
@@ -1874,6 +1882,55 @@ state_changed_cb (G_GNUC_UNUSED GstBus * bus, GstMessage * msg,
   }
 }
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0014
+typedef struct {
+  GstPlayer *player;
+  gint width;
+  gint height;
+} ResolutionChangedSignalData;
+
+static void
+resolution_changed_dispatch (gpointer user_data)
+{
+  ResolutionChangedSignalData *data = user_data;
+
+  if (data->player->inhibit_sigs)
+    return;
+
+  g_signal_emit (data->player, signals[SIGNAL_RESOLUTION_CHANGED], 0, data->width, data->height);
+}
+
+static void
+resolution_changed_signal_data_free (ResolutionChangedSignalData * data)
+{
+  g_object_unref (data->player);
+  g_free (data);
+}
+
+static void
+resulution_changed_cb (G_GNUC_UNUSED GstBus * bus, GstMessage * msg, gpointer user_data)
+{
+  GstPlayer *self = GST_PLAYER (user_data);
+  gint width;
+  gint height;
+
+  gst_message_parse_resulution_changed (msg, &width, &height);
+  GST_ERROR_OBJECT (self, "resulution width %d, height %d", width, height);
+
+  if (g_signal_handler_find (self, G_SIGNAL_MATCH_ID, signals[SIGNAL_RESOLUTION_CHANGED], 0, NULL, NULL, NULL) != 0) {
+    ResolutionChangedSignalData *data = g_new (ResolutionChangedSignalData, 1);
+
+    data->player = g_object_ref (self);
+    data->width = width;
+    data->height = height;
+    gst_player_signal_dispatcher_dispatch (self->signal_dispatcher, self,
+        resolution_changed_dispatch, data,
+        (GDestroyNotify) resolution_changed_signal_data_free);
+    }
+}
+#endif
+
 static void
 duration_changed_cb (G_GNUC_UNUSED GstBus * bus, G_GNUC_UNUSED GstMessage * msg,
     gpointer user_data)
@@ -2022,6 +2079,11 @@ element_cb (G_GNUC_UNUSED GstBus * bus, GstMessage * msg, gpointer user_data)
       else if (target_state == GST_STATE_PLAYING)
         gst_player_play_internal (self);
     }
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0014
+  } else if (gst_structure_has_name (s, "resolution-changed")) {
+    resulution_changed_cb(bus, msg, user_data);
+#endif
   }
 }
 

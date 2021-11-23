@@ -951,6 +951,19 @@ update_video_context (GstFFMpegVidDec * ffmpegdec, AVCodecContext * context,
       picture->sample_aspect_ratio.den,
       context->time_base.num, context->time_base.den, picture->format);
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0014
+  if (ffmpegdec->pic_width != picture->width
+      || ffmpegdec->pic_height != picture->height) {
+    GstMessage *msg_resolution_changed = NULL;
+    msg_resolution_changed = gst_message_new_resolution_changed(GST_OBJECT_CAST (ffmpegdec),
+        picture->width, picture->height);
+    if (msg_resolution_changed) {
+      gst_element_post_message (GST_ELEMENT_CAST (ffmpegdec), msg_resolution_changed);
+    }
+  }
+#endif
+
   ffmpegdec->pic_pix_fmt = picture->format;
   ffmpegdec->pic_width = picture->width;
   ffmpegdec->pic_height = picture->height;
