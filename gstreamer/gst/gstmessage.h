@@ -612,6 +612,15 @@ GST_API
 void            gst_message_parse_clock_provide (GstMessage *message, GstClock **clock,
                                                  gboolean *ready);
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0014
+GstMessage *
+gst_message_new_resolution_changed (GstObject * src, gint width, gint height);
+
+void
+gst_message_parse_resulution_changed (GstMessage * message, gint * width, gint * height);
+#endif
+
 /* CLOCK_LOST */
 
 GST_API
