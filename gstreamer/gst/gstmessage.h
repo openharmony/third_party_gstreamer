@@ -579,6 +579,34 @@ void            gst_message_parse_buffering_stats (GstMessage *message, GstBuffe
                                                    gint *avg_in, gint *avg_out,
                                                    gint64 *buffering_left);
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0012
+/* BUFFERING TIME*/
+GST_API
+GstMessage *    gst_message_new_buffering_time (GstObject * src, gint64 buffering_time, guint mq_num_id);
+
+GST_API
+void            gst_message_parse_buffering_time (GstMessage * message, gint64 * buffering_time, guint * mq_num_id);
+
+// ohos.ext.func.0013
+GST_API
+GstMessage *    gst_message_new_mq_num_use_buffering (GstObject * src, guint mq_num_use_buffering);
+
+GST_API
+void            gst_message_parse_mq_num_use_buffering (GstMessage * message, guint * mq_num_use_buffering);
+
+// ohos.ext.func.0014
+GST_API
+GstMessage *    gst_message_new_resolution_changed (GstObject * src, gint width, gint height);
+
+GST_API
+void            gst_message_parse_resulution_changed (GstMessage * message, gint * width, gint * height);
+
+// ohos.ext.func.0015
+GST_API
+GstMessage *    gst_message_new_render_first_video_frame (GstObject * src);
+#endif
+
 /* STATE_CHANGED */
 
 GST_API
@@ -611,15 +639,6 @@ GstMessage *    gst_message_new_clock_provide   (GstObject * src, GstClock *cloc
 GST_API
 void            gst_message_parse_clock_provide (GstMessage *message, GstClock **clock,
                                                  gboolean *ready);
-
-#ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0014
-GstMessage *
-gst_message_new_resolution_changed (GstObject * src, gint width, gint height);
-
-void
-gst_message_parse_resulution_changed (GstMessage * message, gint * width, gint * height);
-#endif
 
 /* CLOCK_LOST */
 

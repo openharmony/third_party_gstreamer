@@ -1289,7 +1289,41 @@ gst_ffmpeg_codecid_to_caps (enum AVCodecID codec_id,
       break;
 
     case AV_CODEC_ID_H264:
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0013
       caps =
+          gst_ff_vid_caps_new (context, NULL, codec_id, encode, "video/x-h264", NULL);
+      if (!encode) {
+        GValue arr = { 0, };
+        GValue item = { 0, };
+        GValue arralign = { 0, };
+        GValue align = { 0, };
+        g_value_init (&arr, GST_TYPE_LIST);
+        g_value_init (&item, G_TYPE_STRING);
+
+        g_value_init (&arralign, GST_TYPE_LIST);
+        g_value_init (&align, G_TYPE_STRING);
+
+        g_value_set_string (&align, "au");
+        gst_value_list_append_value (&arralign, &align);
+        g_value_set_string (&align, "nal");
+        gst_value_list_append_value (&arralign, &align);
+        g_value_unset (&align);
+        gst_caps_set_value (caps, "alignment", &arralign);
+        g_value_unset (&arralign);
+
+
+        g_value_set_string (&item, "avc");
+        gst_value_list_append_value (&arr, &item);
+        g_value_set_string (&item, "byte-stream");
+        gst_value_list_append_value (&arr, &item);
+        g_value_unset (&item);
+        gst_caps_set_value (caps, "stream-format", &arr);
+        g_value_unset (&arr);
+      }
+      break;
+#else
+     caps =
           gst_ff_vid_caps_new (context, NULL, codec_id, encode, "video/x-h264",
           "alignment", G_TYPE_STRING, "au", NULL);
       if (!encode) {
@@ -1306,7 +1340,7 @@ gst_ffmpeg_codecid_to_caps (enum AVCodecID codec_id,
         g_value_unset (&arr);
       }
       break;
-
+#endif
     case AV_CODEC_ID_HEVC:
       caps =
           gst_ff_vid_caps_new (context, NULL, codec_id, encode, "video/x-h265",

@@ -133,6 +133,11 @@ GST_DEBUG_CATEGORY (adaptivedemux_debug);
 #define SRC_QUEUE_MAX_BYTES 20 * 1024 * 1024    /* For safety. Large enough to hold a segment. */
 #define NUM_LOOKBACK_FRAGMENTS 3
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0013
+#define DEFAULT_TIMEOUT              15
+#endif
+
 #define GST_MANIFEST_GET_LOCK(d) (&(GST_ADAPTIVE_DEMUX_CAST(d)->priv->manifest_lock))
 #define GST_MANIFEST_LOCK(d) G_STMT_START { \
     GST_TRACE("Locking from thread %p", g_thread_self()); \
@@ -158,6 +163,12 @@ enum
   PROP_0,
   PROP_CONNECTION_SPEED,
   PROP_BITRATE_LIMIT,
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0013
+  PROP_STATE_CHANGE,
+  PROP_TIMEOUT,
+  PROP_EXIT_BLOCK,
+#endif
   PROP_LAST
 };
 
@@ -306,6 +317,13 @@ static gboolean
 gst_adaptive_demux_requires_periodical_playlist_update_default (GstAdaptiveDemux
     * demux);
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0013
+static void set_property_to_element (GstObject *elem, guint property_id, const void *property_value);
+static void set_property_to_src_element (const GList *stream_list, guint property_id, const void *value);
+static void set_property_to_src_and_download (GstAdaptiveDemux *demux, guint property_id, const void *property_value);
+#endif
+
 /* we can't use G_DEFINE_ABSTRACT_TYPE because we need the klass in the _init
  * method to get to the padtemplates */
 GType
@@ -362,6 +380,24 @@ gst_adaptive_demux_set_property (GObject * object, guint prop_id,
     case PROP_BITRATE_LIMIT:
       demux->bitrate_limit = g_value_get_float (value);
       break;
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0013
+    case PROP_TIMEOUT: {
+      guint timeout = g_value_get_uint (value);
+      set_property_to_src_and_download(demux, prop_id, (void *)&timeout);
+      break;
+    }
+    case PROP_STATE_CHANGE: {
+      gint state = g_value_get_int (value);
+      set_property_to_src_and_download(demux, prop_id, (void *)&state);
+      break;
+    }
+    case PROP_EXIT_BLOCK: {
+      gint exit_block = g_value_get_int (value);
+      set_property_to_src_and_download(demux, prop_id, (void *)&exit_block);
+      break;
+    }
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -431,6 +467,24 @@ gst_adaptive_demux_class_init (GstAdaptiveDemuxClass * klass)
           0, 1, DEFAULT_BITRATE_LIMIT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0013
+  g_object_class_install_property (gobject_class, PROP_TIMEOUT,
+      g_param_spec_uint ("timeout", "timeout",
+          "Value in seconds to timeout a blocking I/O (0 = No timeout).", 0,
+          3600, DEFAULT_TIMEOUT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_STATE_CHANGE,
+      g_param_spec_int ("state-change", "state-change from adaptive-demux",
+          "state-change from adaptive-demux", 0, (gint) (G_MAXINT32), 0,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_EXIT_BLOCK,
+      g_param_spec_int ("exit-block", "EXIT BLOCK",
+          "souphttpsrc exit block", 0, (gint) (G_MAXINT32), 0,
+          G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+#endif
+
   gstelement_class->change_state = gst_adaptive_demux_change_state;
 
   gstbin_class->handle_message = gst_adaptive_demux_handle_message;
@@ -481,6 +535,12 @@ gst_adaptive_demux_init (GstAdaptiveDemux * demux,
   } else {
     GDateTime *utc_now;
     GstClockTime rtc_now;
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0013
+    utc_now = g_date_time_new_now_utc ();
+    rtc_now = gst_clock_get_time (demux->realtime_clock);
+    demux->clock_offset = g_date_time_to_unix(utc_now) - GST_TIME_AS_USECONDS (rtc_now);
+#else
     GTimeVal gtv;
 
     utc_now = g_date_time_new_now_utc ();
@@ -489,6 +549,7 @@ gst_adaptive_demux_init (GstAdaptiveDemux * demux,
     demux->clock_offset =
         gtv.tv_sec * G_TIME_SPAN_SECOND + gtv.tv_usec -
         GST_TIME_AS_USECONDS (rtc_now);
+#endif
     g_date_time_unref (utc_now);
   }
   g_rec_mutex_init (&demux->priv->updates_lock);
@@ -557,6 +618,77 @@ gst_adaptive_demux_finalize (GObject * object)
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0013
+static void
+set_property_to_element (GstObject *elem, guint property_id, const void *property_value)
+{
+  if ((elem == NULL) || (property_value == NULL)) {
+    return;
+  }
+
+  if (property_id == PROP_STATE_CHANGE) {
+    const gint *state_change = (const gint *) property_value;
+    g_object_set (elem, "state-change", *state_change, NULL);
+  } else if (property_id == PROP_TIMEOUT) {
+    const guint *timeout = (const guint *) property_value;
+    g_object_set (elem, "timeout", *timeout, NULL);
+  } else if (property_id == PROP_EXIT_BLOCK) {
+    const gint *exit_block = (const gint *) property_value;
+    g_object_set (elem, "exit-block", *exit_block, NULL);
+   }
+}
+
+static void
+set_property_to_src_element (const GList *stream_list, guint property_id, const void *property_value)
+{
+  GstAdaptiveDemuxStream *stream = NULL;
+  GstIterator *iter = NULL;
+
+  if (property_value == NULL) {
+    GST_WARNING ("value is NULL, set_property_to_src_element failed!");
+    return;
+  }
+
+  for (; stream_list != NULL; stream_list = g_list_next (stream_list)) {
+    GValue data = { 0, };
+
+    stream = stream_list->data;
+    if ((stream == NULL) || (stream->src == NULL)) {
+      continue;
+    }
+
+    iter = gst_bin_iterate_sources ((GstBin *) stream->src);
+    if (iter == NULL) {
+      continue;
+    }
+    if (gst_iterator_next (iter, &data) == GST_ITERATOR_OK) {
+      GstElement *uri_src = g_value_get_object (&data);
+      if (uri_src != NULL) {
+        set_property_to_element ((GstObject *) uri_src, property_id, property_value);
+      }
+    }
+    if (G_IS_VALUE (&data)) {
+      g_value_unset (&data);
+    }
+    gst_iterator_free (iter);
+    iter = NULL;
+  }
+}
+
+static void
+set_property_to_src_and_download (GstAdaptiveDemux *demux, guint property_id, const void *property_value)
+{
+  if ((demux == NULL) || (property_value == NULL)) {
+    GST_WARNING ("input parameter is error");
+    return;
+  }
+
+  set_property_to_src_element (demux->streams, property_id, property_value);
+  //set_property_to_element ((GstObject *) demux->downloader, property_id, property_value);
+}
+#endif
 
 static GstStateChangeReturn
 gst_adaptive_demux_change_state (GstElement * element,
@@ -3467,6 +3599,16 @@ again:
       last_status_code, stream->download_error_count);
 
   live = gst_adaptive_demux_is_live (demux);
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0013
+  if (last_status_code == 408) {
+    GST_WARNING_OBJECT (stream->pad, "Receive error of souphttpsrc, status_code is %u", last_status_code);
+    stream->download_error_count = MAX_DOWNLOAD_ERROR_COUNT;
+    return GST_FLOW_ERROR;
+  }
+#endif
+
   if (!retried_once && ((last_status_code / 100 == 4 && live)
           || last_status_code / 100 == 5)) {
     /* 4xx/5xx */
@@ -4478,6 +4620,11 @@ gst_adaptive_demux_get_monotonic_time (GstAdaptiveDemux * demux)
 GDateTime *
 gst_adaptive_demux_get_client_now_utc (GstAdaptiveDemux * demux)
 {
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0013
+  GDateTime *utc_now = g_date_time_new_now_utc ();
+  return utc_now;
+#else
   GstClockTime rtc_now;
   gint64 utc_now;
   GTimeVal gtv;
@@ -4487,6 +4634,7 @@ gst_adaptive_demux_get_client_now_utc (GstAdaptiveDemux * demux)
   gtv.tv_sec = utc_now / G_TIME_SPAN_SECOND;
   gtv.tv_usec = utc_now % G_TIME_SPAN_SECOND;
   return g_date_time_new_from_timeval_utc (&gtv);
+#endif
 }
 
 /**

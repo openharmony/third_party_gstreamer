@@ -72,6 +72,13 @@ GST_DEBUG_CATEGORY_STATIC (gst_player_debug);
 #ifdef OHOS_EXT_FUNC
 // ohos.ext.func.0007
 #define DEFAULT_RING_BUFFER_MAX_SIZE 0
+
+// ohos.ext.func.0012
+#define DEFAULT_BUFFER_DURATION   0
+#define DEFAULT_LOW_PERCENT       10
+#define DEFAULT_HIGH_PERCENT      99
+#define DEFAULT_BUFFER_SIZE       -1
+#define DEFAULT_TIMEOUT           15
 #endif
 
 GQuark
@@ -129,6 +136,16 @@ enum
   PROP_VIDEO_MULTIVIEW_FLAGS,
   PROP_AUDIO_VIDEO_OFFSET,
   PROP_SUBTITLE_VIDEO_OFFSET,
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  PROP_BUFFERING_FLAGS,
+  PROP_BUFFER_DURATION,
+  PROP_BUFFER_SIZE,
+  PROP_LOW_PERCENT,
+  PROP_HIGH_PERCENT,
+  PROP_EXIT_BLOCK,
+  PROP_TIMEOUT,
+#endif
   PROP_LAST
 };
 
@@ -146,8 +163,14 @@ enum
   SIGNAL_ERROR_MSG,
   // ohos.ext.func.0006
   SIGNAL_SOURCE_SETUP,
+  // ohos.ext.func.0012
+  SIGNAL_BUFFERING_TIME,
+  // ohos.ext.func.0013
+  SIGNAL_MQ_NUM_USE_BUFFERING,
   // ohos.ext.func.0014
   SIGNAL_RESOLUTION_CHANGED,
+  // ohos.ext.func.0015
+  SIGNAL_RENDER_FIRST_VIDEO_FRAME,
 #endif
   SIGNAL_WARNING,
   SIGNAL_VIDEO_DIMENSIONS_CHANGED,
@@ -194,6 +217,8 @@ struct _GstPlayer
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0004
   gint seek_mode;
+  // ohos.ext.func.0012
+  guint timeout;
 #endif
   GstPlayerState app_state;
   gint buffering;
@@ -425,6 +450,43 @@ gst_player_class_init (GstPlayerClass * klass)
       "Max. amount of data in the ring buffer (bytes, 0 = ring buffer disabled)",
       0, G_MAXUINT, DEFAULT_RING_BUFFER_MAX_SIZE,
       G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+  // ohos.ext.func.0012
+  param_specs[PROP_BUFFERING_FLAGS] =
+      g_param_spec_boolean ("buffering-flags", "Buffering Flags", "Flags to control behaviour",
+      FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+  param_specs[PROP_BUFFER_DURATION] =
+      g_param_spec_uint64 ("buffer-duration", "Buffer duration (ns)",
+        "Buffer duration when buffering network streams",
+        0, G_MAXUINT64 / 1000, DEFAULT_BUFFER_DURATION,
+        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+  param_specs[PROP_BUFFER_SIZE] =
+      g_param_spec_int ("buffer-size", "Buffer size (bytes)",
+        "Buffer size when buffering network streams",
+        -1, G_MAXINT, DEFAULT_BUFFER_SIZE,
+        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+  param_specs[PROP_LOW_PERCENT] =
+      g_param_spec_int ("low-percent", "Low percent",
+          "Low threshold for buffering to start", 0, 100,
+          DEFAULT_LOW_PERCENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+  param_specs[PROP_HIGH_PERCENT] =
+      g_param_spec_int ("high-percent", "High percent",
+          "High threshold for buffering to finish", 0, 100,
+          DEFAULT_HIGH_PERCENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+  param_specs[PROP_EXIT_BLOCK] =
+      g_param_spec_int ("exit-block", "EXIT BLOCK",
+          "souphttpsrc exit block", 0, (gint) (G_MAXINT32), 0,
+          G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS);
+
+  param_specs[PROP_TIMEOUT] =
+      g_param_spec_uint ("timeout", "TIME OUT",
+          "souphttpsrc time out", 0, 3600, DEFAULT_TIMEOUT,
+          G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS);
 #endif
   param_specs[PROP_RATE] =
       g_param_spec_double ("rate", "rate", "Playback rate",
@@ -534,11 +596,29 @@ gst_player_class_init (GstPlayerClass * klass)
       G_SIGNAL_RUN_LAST, 0, NULL, NULL,
       g_cclosure_marshal_generic, G_TYPE_NONE, 1, GST_TYPE_ELEMENT);
 
-// ohos.ext.func.0014
+  // ohos.ext.func.0012
+  signals[SIGNAL_BUFFERING_TIME] =
+      g_signal_new ("buffering-time", G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS, 0, NULL,
+      NULL, NULL, G_TYPE_NONE, 2, GST_TYPE_CLOCK_TIME, G_TYPE_UINT);
+
+  // ohos.ext.func.0013
+  signals[SIGNAL_MQ_NUM_USE_BUFFERING] =
+      g_signal_new ("mq-num-use-buffering", G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS, 0, NULL,
+      NULL, NULL, G_TYPE_NONE, 1, G_TYPE_UINT);
+
+  // ohos.ext.func.0014
   signals[SIGNAL_RESOLUTION_CHANGED] =
       g_signal_new ("resolution-changed", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS, 0, NULL,
       NULL, NULL, G_TYPE_NONE, 2, G_TYPE_INT, G_TYPE_INT);
+
+  // ohos.ext.func.0015
+  signals[SIGNAL_RENDER_FIRST_VIDEO_FRAME] =
+      g_signal_new ("render-first-video-frame", G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS, 0, NULL,
+      NULL, NULL, G_TYPE_NONE, 0, G_TYPE_INVALID);
 #endif
   config_quark_initialize ();
 }
@@ -789,6 +869,37 @@ gst_player_set_property (GObject * object, guint prop_id,
       GST_INFO_OBJECT (self, "set ring-buffer-max-size=%" G_GUINT64_FORMAT, g_value_get_uint64 (value));
       g_object_set_property (G_OBJECT (self->playbin), "ring-buffer-max-size", value);
       break;
+
+    // ohos.ext.func.0012 : Control the behaviour of playbin
+    case PROP_BUFFERING_FLAGS:
+      GST_INFO_OBJECT (self, "buffering flag %d", g_value_get_boolean (value));
+      g_object_set_property (G_OBJECT (self->playbin), "buffering-flags", value);
+      break;
+    case PROP_BUFFER_DURATION:
+      GST_INFO_OBJECT (self, "set duration %" G_GUINT64_FORMAT, g_value_get_uint64 (value));
+      g_object_set_property (G_OBJECT (self->playbin), "buffer-duration", value);
+      break;
+    case PROP_BUFFER_SIZE:
+      GST_INFO_OBJECT (self, "set buffer size %d", g_value_get_int (value));
+      g_object_set_property (G_OBJECT (self->playbin), "buffer-size", value);
+      break;
+    case PROP_LOW_PERCENT:
+      GST_INFO_OBJECT (self, "set low-percent %d", g_value_get_int (value));
+      g_object_set_property (G_OBJECT (self->playbin), "low-percent", value);
+      break;
+    case PROP_HIGH_PERCENT:
+      GST_INFO_OBJECT (self, "set high-percent %d", g_value_get_int (value));
+      g_object_set_property (G_OBJECT (self->playbin), "high-percent", value);
+      break;
+    case PROP_EXIT_BLOCK:
+      g_object_set_property (G_OBJECT (self->playbin), "exit-block", value);
+      break;
+    case PROP_TIMEOUT:
+      g_mutex_lock (&self->lock);
+      self->timeout = g_value_get_uint (value);
+      GST_DEBUG_OBJECT (self, "Set timeout %u", g_value_get_uint (value));
+      g_mutex_unlock (&self->lock);
+      break;
 #endif
     case PROP_MUTE:
       GST_DEBUG_OBJECT (self, "Set mute=%d", g_value_get_boolean (value));
@@ -970,6 +1081,16 @@ change_state (GstPlayer * self, GstPlayerState state)
   if (state == self->app_state)
 #endif
     return;
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  if (state == GST_PLAYER_STATE_PAUSED || state == GST_PLAYER_STATE_PLAYING) {
+    g_object_set (self->playbin, "state-change", (guint)state, NULL);
+  } else if (self->app_state == GST_PLAYER_STATE_PLAYING && state == GST_PLAYER_STATE_BUFFERING) {
+    g_object_set (self->playbin, "timeout", self->timeout, NULL);
+    g_object_set (self->playbin, "state-change", (guint)state, NULL);
+  }
+#endif
 
   GST_DEBUG_OBJECT (self, "Changing app state from %s to %s",
       gst_player_state_get_name (self->app_state),
@@ -1543,11 +1664,185 @@ buffering_cb (G_GNUC_UNUSED GstBus * bus, GstMessage * msg, gpointer user_data)
     g_mutex_unlock (&self->lock);
 
     GST_DEBUG_OBJECT (self, "Buffering finished - staying PAUSED");
+#ifndef OHOS_EXT_FUNC
+	// ohos.ext.func.0012
     change_state (self, GST_PLAYER_STATE_PAUSED);
+#endif
   } else {
     g_mutex_unlock (&self->lock);
   }
 }
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0012
+typedef struct
+{
+  GstPlayer *player;
+  GstClockTime buffering_time;
+  guint mq_num_id;
+} BufferingTimeSignalData;
+
+static void
+buffering_time_dispatch (gpointer user_data)
+{
+  BufferingTimeSignalData *data = user_data;
+
+  if (data->player->inhibit_sigs)
+    return;
+
+  if (data->player->target_state >= GST_STATE_PAUSED) {
+    g_signal_emit (data->player, signals[SIGNAL_BUFFERING_TIME], 0, data->buffering_time, data->mq_num_id);
+  }
+}
+
+static void
+buffering_time_signal_data_free (BufferingTimeSignalData * data)
+{
+  g_object_unref (data->player);
+  g_free (data);
+}
+
+static void
+buffering_time_cb (GstMessage * msg, gpointer user_data)
+{
+  GstPlayer *self = GST_PLAYER (user_data);
+  gint64 buffering_time;
+  guint mq_num_id;
+
+  gst_message_parse_buffering_time (msg, &buffering_time, &mq_num_id);
+  GST_DEBUG_OBJECT (self, "mq_num_id = %u, Buffering time %" G_GUINT64_FORMAT, mq_num_id, buffering_time);
+
+  if (g_signal_handler_find (self, G_SIGNAL_MATCH_ID, signals[SIGNAL_BUFFERING_TIME], 0, NULL, NULL, NULL) != 0) {
+    BufferingTimeSignalData *data = g_new (BufferingTimeSignalData, 1);
+
+    data->player = g_object_ref (self);
+    data->buffering_time = buffering_time;
+    data->mq_num_id = mq_num_id;
+    gst_player_signal_dispatcher_dispatch (self->signal_dispatcher, self,
+        buffering_time_dispatch, data,
+        (GDestroyNotify) buffering_time_signal_data_free);
+  }
+}
+
+// ohos.ext.func.0013
+typedef struct
+{
+  GstPlayer *player;
+  guint mq_num_use_buffering;
+} MqNumUseBufferingSignalData;
+
+static void
+mq_num_use_buffering_dispatch (gpointer user_data)
+{
+  MqNumUseBufferingSignalData *data = user_data;
+
+  if (data->player->inhibit_sigs)
+    return;
+  g_signal_emit (data->player, signals[SIGNAL_MQ_NUM_USE_BUFFERING], 0, data->mq_num_use_buffering);
+}
+
+static void
+mq_num_use_buffering_signal_data_free (MqNumUseBufferingSignalData * data)
+{
+  g_object_unref (data->player);
+  g_free (data);
+}
+
+static void
+mq_num_use_buffering_cb (GstMessage * msg, gpointer user_data)
+{
+  GstPlayer *self = GST_PLAYER (user_data);
+  guint mq_num_use_buffering;
+
+  gst_message_parse_mq_num_use_buffering (msg, &mq_num_use_buffering);
+  GST_DEBUG_OBJECT (self, "mq_num_use_buffering = %u", mq_num_use_buffering);
+
+  if (g_signal_handler_find (self, G_SIGNAL_MATCH_ID, signals[SIGNAL_MQ_NUM_USE_BUFFERING], 0, NULL, NULL, NULL) != 0) {
+    MqNumUseBufferingSignalData *data = g_new (MqNumUseBufferingSignalData, 1);
+
+    data->player = g_object_ref (self);
+    data->mq_num_use_buffering = mq_num_use_buffering;
+    gst_player_signal_dispatcher_dispatch (self->signal_dispatcher, self,
+        mq_num_use_buffering_dispatch, data,
+        (GDestroyNotify) mq_num_use_buffering_signal_data_free);
+  }
+}
+
+// ohos.ext.func.0014
+typedef struct {
+  GstPlayer *player;
+  gint width;
+  gint height;
+} ResolutionChangedSignalData;
+
+static void
+resolution_changed_dispatch (gpointer user_data)
+{
+  ResolutionChangedSignalData *data = user_data;
+
+  if (data->player->inhibit_sigs)
+    return;
+
+  g_signal_emit (data->player, signals[SIGNAL_RESOLUTION_CHANGED], 0, data->width, data->height);
+}
+
+static void
+resolution_changed_signal_data_free (ResolutionChangedSignalData * data)
+{
+  g_object_unref (data->player);
+  g_free (data);
+}
+
+static void
+resulution_changed_cb (GstMessage * msg, gpointer user_data)
+{
+  GstPlayer *self = GST_PLAYER (user_data);
+  gint width;
+  gint height;
+
+  gst_message_parse_resulution_changed (msg, &width, &height);
+  GST_DEBUG_OBJECT (self, "resulution width %d, height %d", width, height);
+
+  if (g_signal_handler_find (self, G_SIGNAL_MATCH_ID, signals[SIGNAL_RESOLUTION_CHANGED], 0, NULL, NULL, NULL) != 0) {
+    ResolutionChangedSignalData *data = g_new (ResolutionChangedSignalData, 1);
+
+    data->player = g_object_ref (self);
+    data->width = width;
+    data->height = height;
+    gst_player_signal_dispatcher_dispatch (self->signal_dispatcher, self,
+        resolution_changed_dispatch, data,
+        (GDestroyNotify) resolution_changed_signal_data_free);
+    }
+}
+
+// ohos.ext.func.0015
+typedef struct {
+  GstPlayer *player;
+} RenderFirstVideoFrameSignalData;
+
+static void
+render_first_video_frame_dispatch (gpointer user_data)
+{
+  GstPlayer *player = user_data;
+
+  if (player->inhibit_sigs)
+    return;
+
+  g_signal_emit (player, signals[SIGNAL_RENDER_FIRST_VIDEO_FRAME], 0);
+}
+
+static void
+render_first_video_frame_cb (gpointer user_data)
+{
+  GstPlayer *self = GST_PLAYER (user_data);
+  if (g_signal_handler_find (self, G_SIGNAL_MATCH_ID, signals[SIGNAL_RENDER_FIRST_VIDEO_FRAME], 0,
+    NULL, NULL, NULL) != 0) {
+    gst_player_signal_dispatcher_dispatch (self->signal_dispatcher, self,
+        render_first_video_frame_dispatch, g_object_ref (self),
+        (GDestroyNotify) g_object_unref);
+    }
+}
+#endif
 
 static void
 clock_lost_cb (G_GNUC_UNUSED GstBus * bus, G_GNUC_UNUSED GstMessage * msg,
@@ -1882,55 +2177,6 @@ state_changed_cb (G_GNUC_UNUSED GstBus * bus, GstMessage * msg,
   }
 }
 
-#ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0014
-typedef struct {
-  GstPlayer *player;
-  gint width;
-  gint height;
-} ResolutionChangedSignalData;
-
-static void
-resolution_changed_dispatch (gpointer user_data)
-{
-  ResolutionChangedSignalData *data = user_data;
-
-  if (data->player->inhibit_sigs)
-    return;
-
-  g_signal_emit (data->player, signals[SIGNAL_RESOLUTION_CHANGED], 0, data->width, data->height);
-}
-
-static void
-resolution_changed_signal_data_free (ResolutionChangedSignalData * data)
-{
-  g_object_unref (data->player);
-  g_free (data);
-}
-
-static void
-resulution_changed_cb (G_GNUC_UNUSED GstBus * bus, GstMessage * msg, gpointer user_data)
-{
-  GstPlayer *self = GST_PLAYER (user_data);
-  gint width;
-  gint height;
-
-  gst_message_parse_resulution_changed (msg, &width, &height);
-  GST_ERROR_OBJECT (self, "resulution width %d, height %d", width, height);
-
-  if (g_signal_handler_find (self, G_SIGNAL_MATCH_ID, signals[SIGNAL_RESOLUTION_CHANGED], 0, NULL, NULL, NULL) != 0) {
-    ResolutionChangedSignalData *data = g_new (ResolutionChangedSignalData, 1);
-
-    data->player = g_object_ref (self);
-    data->width = width;
-    data->height = height;
-    gst_player_signal_dispatcher_dispatch (self->signal_dispatcher, self,
-        resolution_changed_dispatch, data,
-        (GDestroyNotify) resolution_changed_signal_data_free);
-    }
-}
-#endif
-
 static void
 duration_changed_cb (G_GNUC_UNUSED GstBus * bus, G_GNUC_UNUSED GstMessage * msg,
     gpointer user_data)
@@ -2079,12 +2325,20 @@ element_cb (G_GNUC_UNUSED GstBus * bus, GstMessage * msg, gpointer user_data)
       else if (target_state == GST_STATE_PLAYING)
         gst_player_play_internal (self);
     }
-#ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0014
-  } else if (gst_structure_has_name (s, "resolution-changed")) {
-    resulution_changed_cb(bus, msg, user_data);
-#endif
   }
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  else if (gst_structure_has_name (s, "message-buffering-time")) {
+    buffering_time_cb(msg, user_data);
+  } else if (gst_structure_has_name (s, "message-mq-num-use-buffering")) {
+    mq_num_use_buffering_cb(msg, user_data);
+  } else if (gst_structure_has_name (s, "resolution-changed")) {
+    resulution_changed_cb(msg, user_data);
+  } else if (gst_structure_has_name (s, "render-first-video-frame")) {
+    GST_ERROR_OBJECT (self, "gaizhengwei Redirect to ");
+    render_first_video_frame_cb(user_data);
+  }
+#endif
 }
 
 /* Must be called with lock */
@@ -3233,7 +3487,10 @@ gst_player_main (gpointer data)
   self->is_eos = FALSE;
   self->is_live = FALSE;
   self->rate = 1.0;
-
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  self->timeout = DEFAULT_TIMEOUT;
+#endif
   GST_TRACE_OBJECT (self, "Starting main loop");
   g_main_loop_run (self->loop);
   GST_TRACE_OBJECT (self, "Stopped main loop");

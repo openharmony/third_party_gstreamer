@@ -36,7 +36,12 @@ struct _GstUriDownloaderPrivate
   GstElement *urisrc;
   GstBus *bus;
   GstPad *pad;
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0013
+  GDateTime *timeout;
+#else
   GTimeVal *timeout;
+#endif
   GstFragment *download;
   gboolean got_buffer;
   GMutex download_lock;         /* used to restrict to one download only */

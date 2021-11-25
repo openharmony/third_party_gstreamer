@@ -195,6 +195,11 @@ struct _GstDecodeBin
                                  * before stopping the element.
                                  * Protected by the object lock */
   GList *cleanup_groups;        /* List of groups to free  */
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0013
+  guint mq_num_use_buffering;
+#endif
 };
 
 struct _GstDecodeBinClass
@@ -263,6 +268,11 @@ enum
 #define DEFAULT_EXPOSE_ALL_STREAMS  TRUE
 #define DEFAULT_CONNECTION_SPEED    0
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0013
+#define DEFAULT_TIMEOUT              15
+#endif
+
 /* Properties */
 enum
 {
@@ -278,6 +288,13 @@ enum
   PROP_MAX_SIZE_TIME,
   PROP_POST_STREAM_TOPOLOGY,
   PROP_EXPOSE_ALL_STREAMS,
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0013
+  PROP_MQ_NUM_USE_BUFFRING,
+  PROP_TIMEOUT,
+  PROP_STATE_CHANGE,
+  PROP_EXIT_BLOCK,
+#endif
   PROP_CONNECTION_SPEED
 };
 
@@ -1000,7 +1017,28 @@ gst_decode_bin_class_init (GstDecodeBinClass * klass)
           0, G_MAXUINT64 / 1000, DEFAULT_CONNECTION_SPEED,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  g_object_class_install_property (gobject_klass, PROP_MQ_NUM_USE_BUFFRING,
+      g_param_spec_uint ("mq-num-use-buffering", "Mq num use buffering",
+          "multiqueue number of use buffering", 0, 100,
+          0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_klass, PROP_TIMEOUT,
+      g_param_spec_uint ("timeout", "timeout",
+          "Value in seconds to timeout a blocking I/O (0 = No timeout).", 0,
+          3600, DEFAULT_TIMEOUT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_klass, PROP_STATE_CHANGE,
+    g_param_spec_int ("state-change", "state-change from adaptive-demux",
+        "state-change from adaptive-demux", 0, (gint) (G_MAXINT32), 0,
+        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_klass, PROP_EXIT_BLOCK,
+      g_param_spec_int ("exit-block", "EXIT BLOCK",
+          "souphttpsrc exit block", 0, (gint) (G_MAXINT32), 0,
+          G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+#endif
 
   klass->autoplug_continue =
       GST_DEBUG_FUNCPTR (gst_decode_bin_autoplug_continue);
@@ -1116,6 +1154,10 @@ gst_decode_bin_init (GstDecodeBin * decode_bin)
 
   decode_bin->expose_allstreams = DEFAULT_EXPOSE_ALL_STREAMS;
   decode_bin->connection_speed = DEFAULT_CONNECTION_SPEED;
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0013
+  decode_bin->mq_num_use_buffering = 0;
+#endif
 }
 
 static void
@@ -1259,6 +1301,50 @@ gst_decode_bin_get_subs_encoding (GstDecodeBin * dbin)
   return encoding;
 }
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0012
+static void
+set_property_handle_to_element (GstDecodeBin *dbin, guint property_id, const void *property_value)
+{
+  GList *walk = NULL;
+  GstBin *bin = (GstBin *) dbin;
+
+  for (walk = bin->children; walk != NULL; walk = g_list_next (walk)) {
+    GObject *element = G_OBJECT (walk->data);
+    if ((element == NULL) || !GST_IS_ELEMENT (element)) {
+      continue;
+    }
+
+    GstElementFactory *fac = gst_element_get_factory ((GstElement *)element);
+    if (fac == NULL) {
+      continue;
+    }
+    gboolean is_demux = gst_element_factory_list_is_type (fac, GST_ELEMENT_FACTORY_TYPE_DEMUXER);
+    if (!is_demux) {
+      continue;
+    }
+    GObjectClass *theclass = g_type_class_peek (gst_element_factory_get_element_type (fac));
+    if (property_id == PROP_TIMEOUT) {
+      const guint *timeout = (const guint *) property_value;
+      if ((theclass != NULL) && g_object_class_find_property (theclass, "timeout")) {
+        g_object_set (element, "timeout", *timeout, NULL);
+      }
+    } else if (property_id == PROP_STATE_CHANGE) {
+      const gint *state = (const gint *) property_value;
+      if ((theclass != NULL) && g_object_class_find_property (theclass, "state-change")) {
+        g_object_set (element, "state-change", *state, NULL);
+      }
+    } else if (property_id == PROP_EXIT_BLOCK) {
+      const gint *exit_block = (const gint *) property_value;
+      if ((theclass != NULL) && g_object_class_find_property (theclass, "exit-block")) {
+        g_object_set (element, "exit-block", *exit_block, NULL);
+      }
+    }
+  }
+  return;
+}
+#endif
+
 static void
 gst_decode_bin_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
@@ -1306,6 +1392,25 @@ gst_decode_bin_set_property (GObject * object, guint prop_id,
       dbin->connection_speed = g_value_get_uint64 (value) * 1000;
       GST_OBJECT_UNLOCK (dbin);
       break;
+
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0013
+    case PROP_TIMEOUT: {
+      guint timeout = g_value_get_uint (value);
+      set_property_handle_to_element (dbin, prop_id, (void *)&timeout);
+      break;
+    }
+    case PROP_STATE_CHANGE: {
+      gint state = g_value_get_int (value);
+      set_property_handle_to_element (dbin, prop_id, (void *)&state);
+      break;
+    }
+    case PROP_EXIT_BLOCK: {
+      gint exit_block = g_value_get_int (value);
+      set_property_handle_to_element (dbin, prop_id, (void *)&exit_block);
+      break;
+    }
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1358,6 +1463,14 @@ gst_decode_bin_get_property (GObject * object, guint prop_id,
       g_value_set_uint64 (value, dbin->connection_speed / 1000);
       GST_OBJECT_UNLOCK (dbin);
       break;
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0013
+    case PROP_MQ_NUM_USE_BUFFRING:
+      CHAIN_MUTEX_LOCK (dbin->decode_chain);
+      g_value_set_uint64 (value, dbin->mq_num_use_buffering);
+      CHAIN_MUTEX_UNLOCK (dbin->decode_chain);
+      break;
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -3247,6 +3360,15 @@ gst_decode_bin_reset_buffering (GstDecodeBin * dbin)
   if (dbin->decode_chain) {
     CHAIN_MUTEX_LOCK (dbin->decode_chain);
     gst_decode_chain_reset_buffering (dbin->decode_chain);
+
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0013
+    GstMessage *msg_mq_num_use_buffering =
+      gst_message_new_mq_num_use_buffering (GST_OBJECT_CAST (dbin), dbin->mq_num_use_buffering);
+    if (msg_mq_num_use_buffering != NULL) {
+      gst_element_post_message (GST_ELEMENT_CAST (dbin), msg_mq_num_use_buffering);
+    }
+#endif
     CHAIN_MUTEX_UNLOCK (dbin->decode_chain);
   }
 }
@@ -4364,9 +4486,19 @@ gst_decode_group_reset_buffering (GstDecodeGroup * group)
     /* all chains are buffering already, no need to do it here */
     g_object_set (group->multiqueue, "use-buffering", FALSE, NULL);
   } else {
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0013
+    g_object_set (group->multiqueue, "use-buffering", TRUE,
+        "low-percent", group->dbin->low_percent,
+        "high-percent", group->dbin->high_percent,
+        "mq-num-id", group->dbin->mq_num_use_buffering, NULL);
+
+	  group->dbin->mq_num_use_buffering++;
+#else
     g_object_set (group->multiqueue, "use-buffering", TRUE,
         "low-percent", group->dbin->low_percent,
         "high-percent", group->dbin->high_percent, NULL);
+#endif
   }
 
   GST_DEBUG_OBJECT (group->dbin, "Setting %s buffering to %d",
