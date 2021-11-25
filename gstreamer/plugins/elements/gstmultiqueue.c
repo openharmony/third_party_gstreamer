@@ -235,7 +235,10 @@ enum
 #define DEFAULT_MAX_SIZE_BYTES 10 * 1024 * 1024 /* 10 MB */
 #define DEFAULT_MAX_SIZE_BUFFERS 5
 #define DEFAULT_MAX_SIZE_TIME 2 * GST_SECOND
-
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0012
+#define DEFAULT_INTERNAL_BUFFERING_TIME 500 * GST_MSECOND
+#endif
 /* second limits. When we hit one of the above limits we are probably dealing
  * with a badly muxed file and we scale the limits to these emergency values.
  * This is currently not yet implemented.
@@ -273,6 +276,10 @@ enum
   PROP_USE_INTERLEAVE,
   PROP_UNLINKED_CACHE_TIME,
   PROP_MINIMUM_INTERLEAVE,
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0013
+  PROP_MQ_NUM_ID,
+#endif
   PROP_LAST
 };
 
@@ -625,6 +632,19 @@ gst_multi_queue_class_init (GstMultiQueueClass * klass)
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_PLAYING |
           G_PARAM_STATIC_STRINGS));
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0013
+  /**
+   * GstMultiQueue:mq-num-id:
+   *
+   * Low threshold percent for buffering to start.
+   */
+  g_object_class_install_property (gobject_class, PROP_MQ_NUM_ID,
+      g_param_spec_uint ("mq-num-id", "Mq num id", "Multiqueue number id",
+          0, 100, 0,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#endif
+
   gobject_class->finalize = gst_multi_queue_finalize;
 
   gst_element_class_set_static_metadata (gstelement_class,
@@ -668,6 +688,14 @@ gst_multi_queue_init (GstMultiQueue * mqueue)
   mqueue->counter = 1;
   mqueue->highid = -1;
   mqueue->high_time = GST_CLOCK_STIME_NONE;
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  mqueue->buffering_time = 0;
+  mqueue->buffering_time_changed = FALSE;
+
+  mqueue->mq_num_id = 0;
+#endif
 
   g_mutex_init (&mqueue->qlock);
   g_mutex_init (&mqueue->buffering_post_lock);
@@ -756,6 +784,10 @@ gst_multi_queue_set_property (GObject * object, guint prop_id,
     case PROP_MAX_SIZE_TIME:
       GST_MULTI_QUEUE_MUTEX_LOCK (mq);
       mq->max_size.time = g_value_get_uint64 (value);
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0012
+      mq->buffering_time = mq->max_size.time;
+#endif
       SET_CHILD_PROPERTY (mq, time);
       GST_MULTI_QUEUE_MUTEX_UNLOCK (mq);
       gst_multi_queue_post_buffering (mq);
@@ -789,6 +821,12 @@ gst_multi_queue_set_property (GObject * object, guint prop_id,
       mq->low_watermark = g_value_get_double (value) * MAX_BUFFERING_LEVEL;
       recheck_buffering_status (mq);
       break;
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0013
+    case PROP_MQ_NUM_ID:
+      mq->mq_num_id = g_value_get_uint (value);
+      break;
+#endif
     case PROP_HIGH_WATERMARK:
       mq->high_watermark = g_value_get_double (value) * MAX_BUFFERING_LEVEL;
       recheck_buffering_status (mq);
@@ -1169,6 +1207,31 @@ get_buffering_level (GstSingleQueue * sq)
   return buffering_level;
 }
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0012
+static void
+update_buffering_time (GstMultiQueue * mq)
+{
+  GList *iter;
+  GstClockTime buffering_time = mq->max_size.time;
+  for (iter = mq->queues; iter; iter = g_list_next (iter)) {
+    GstSingleQueue *sq = (GstSingleQueue *) iter->data;
+    if (buffering_time > sq->cur_time) {
+      buffering_time = sq->cur_time;
+    }
+  }
+
+  GST_DEBUG_OBJECT (mq, "Going to post buffering: mq_num_id = %d, buffering_time = %" G_GUINT64_FORMAT" cur_time = %" G_GUINT64_FORMAT,
+    mq->mq_num_id, mq->buffering_time, buffering_time);
+  mq->buffering_time = buffering_time;
+  if ((mq->buffering_time > (mq->last_buffering_time + DEFAULT_INTERNAL_BUFFERING_TIME)) ||
+    (mq->last_buffering_time > (mq->buffering_time + DEFAULT_INTERNAL_BUFFERING_TIME))) {
+    mq->buffering_time_changed = TRUE;
+    mq->last_buffering_time = mq->buffering_time;
+  }
+}
+#endif
+
 /* WITH LOCK TAKEN */
 static void
 update_buffering (GstMultiQueue * mq, GstSingleQueue * sq)
@@ -1210,11 +1273,24 @@ update_buffering (GstMultiQueue * mq, GstSingleQueue * sq)
       }
     }
 
-    if (is_buffering && buffering_level < mq->low_watermark) {
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+    if (is_buffering && (buffering_level < mq->low_watermark || mq->buffering_percent == 0)) {
       mq->buffering = TRUE;
       SET_PERCENT (mq, percent);
     }
+#else
+    if (is_buffering && buffering_level < mq->low_watermark) {
+        mq->buffering = TRUE;
+        SET_PERCENT (mq, percent);
+      }
+#endif
   }
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  update_buffering_time(mq);
+#endif
 }
 
 static void
@@ -1232,11 +1308,28 @@ gst_multi_queue_post_buffering (GstMultiQueue * mq)
     GST_DEBUG_OBJECT (mq, "Going to post buffering: %d%%", percent);
     msg = gst_message_new_buffering (GST_OBJECT_CAST (mq), percent);
   }
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  GstMessage *msg_buffering_time = NULL;
+  if (mq->buffering_time_changed) {
+    gint64 buffering_time = mq->buffering_time;
+    mq->buffering_time_changed = FALSE;
+    GST_DEBUG_OBJECT (mq, "Going to post buffering time: %" G_GUINT64_FORMAT, buffering_time);
+    msg_buffering_time = gst_message_new_buffering_time (GST_OBJECT_CAST (mq), buffering_time, mq->mq_num_id);
+  }
+#endif
   GST_MULTI_QUEUE_MUTEX_UNLOCK (mq);
 
   if (msg != NULL)
     gst_element_post_message (GST_ELEMENT_CAST (mq), msg);
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  if (msg_buffering_time != NULL) {
+    gst_element_post_message (GST_ELEMENT_CAST (mq), msg_buffering_time);
+  }
+#endif
   g_mutex_unlock (&mq->buffering_post_lock);
 }
 

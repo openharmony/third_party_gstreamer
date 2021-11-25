@@ -250,6 +250,7 @@ config("gstcoreelements_config") {
     "-Wno-builtin-requires-header",
     "-Wno-error=incompatible-pointer-types",
     "-DOHOS_OPT_COMPAT",
+    "-DOHOS_EXT_FUNC",
   ]
 }
 

@@ -23,9 +23,12 @@
 #ifndef __GST_H265_PARSER_H__
 #define __GST_H265_PARSER_H__
 
+#ifndef OHOS_EXT_FUNC
+// ohos.ext.func.0013
 #ifndef GST_USE_UNSTABLE_API
 #warning "The H.265 parsing library is unstable API and may change in future."
 #warning "You can define GST_USE_UNSTABLE_API to avoid this warning."
+#endif
 #endif
 
 #include <gst/gst.h>
