@@ -1504,17 +1504,17 @@ proc_buffering_time (GstSoupHTTPSrc *src, gint64 timeout)
   g_mutex_lock (&src->wait_lock);
   if ((timeout <= 0) || src->exit_block) {
     GST_INFO_OBJECT (src, "wait time out, or should quit immediately"
-        " timeout:%lld, src->exit_block:%d", timeout, src->exit_block);
+        " timeout:%"G_GUINT64_FORMAT", src->exit_block:%d", timeout, src->exit_block);
     g_mutex_unlock (&src->wait_lock);
     return SOUPHTTPSRC_INVALID_VALUE;
   }
 
   if (src->retry_count == SOUP_HTTP_SRC_RETRY_COUNT_ONCE) {
     src->buffering_time = g_get_monotonic_time ();
-    GST_INFO_OBJECT (src, "can not connect before start,begin to time:%lld ", src->buffering_time);
+    GST_INFO_OBJECT (src, "can not connect before start,begin to time:%"G_GUINT64_FORMAT" ", src->buffering_time);
   } else if ((src->buffering_time == SOUP_HTTP_SRC_BUFFERING_TIME) && (src->trickmode_key_units != 1)) {
     GST_INFO_OBJECT (src, "souphttpsrc not in buffering, sleep 20ms wait for buffering, "
-        "src->retry_count:%d, src->buffering_time:%lld\n", src->retry_count, src->buffering_time);
+        "src->retry_count:%d, src->buffering_time:%"G_GUINT64_FORMAT"\n", src->retry_count, src->buffering_time);
     if (src->exit_block || g_cond_wait_until (&src->wait_cond, &src->wait_lock,
         (g_get_monotonic_time () + DEFAULT_WAIT_STEP))) {
       g_mutex_unlock (&src->wait_lock);
@@ -1526,7 +1526,7 @@ proc_buffering_time (GstSoupHTTPSrc *src, gint64 timeout)
     return 0;
   } else if ((src->buffering_time == SOUP_HTTP_SRC_BUFFERING_TIME) && (src->trickmode_key_units == 1)) {
     src->buffering_time = g_get_monotonic_time ();
-    GST_INFO_OBJECT (src, "it's trickmode key units,begin to time:%lld ", src->buffering_time);
+    GST_INFO_OBJECT (src, "it's trickmode key units,begin to time:%"G_GUINT64_FORMAT" ", src->buffering_time);
     src->retry_count = 1;
   }
   g_mutex_unlock (&src->wait_lock);
@@ -1554,16 +1554,16 @@ wait_for_connect (GstSoupHTTPSrc *src, SoupMessage *msg, gint64 timeout)
     src->max_retries = (timeout - time_diff_us) / DEFAULT_WAIT_STEP + 1;
   }
 
-  GST_DEBUG_OBJECT (src, "max_retries:%d, timeout:%lld time_diff_us = %lld %lld %lld",
+  GST_DEBUG_OBJECT (src, "max_retries:%d, timeout:%"G_GUINT64_FORMAT" time_diff_us = %"G_GUINT64_FORMAT" %"G_GUINT64_FORMAT" %"G_GUINT64_FORMAT"",
     src->max_retries, timeout, time_diff_us, g_get_monotonic_time (), src->buffering_time);
 
   if (time_diff_us >= timeout) {
-    GST_ERROR_OBJECT (src, "now wait time is %lld us, timeout:%lld, and quit", time_diff_us, timeout);
+    GST_ERROR_OBJECT (src, "now wait time is %"G_GUINT64_FORMAT" us, timeout:%"G_GUINT64_FORMAT", and quit", time_diff_us, timeout);
     wait_for_connect_exit (src, msg);
     return;
   }
 
-  GST_INFO_OBJECT (src, "retry_count:%d, and sleep :%d us, timeout:%lld", src->retry_count, DEFAULT_WAIT_STEP, timeout);
+  GST_INFO_OBJECT (src, "retry_count:%d, and sleep :%d us, timeout:%"G_GUINT64_FORMAT"", src->retry_count, DEFAULT_WAIT_STEP, timeout);
   g_mutex_lock (&src->wait_lock);
   if (src->exit_block || g_cond_wait_until (&src->wait_cond, &src->wait_lock,
       (g_get_monotonic_time () + DEFAULT_WAIT_STEP))) {
