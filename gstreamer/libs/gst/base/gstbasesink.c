@@ -689,6 +689,13 @@ gst_base_sink_init (GstBaseSink * basesink, gpointer g_class)
   priv->drop_out_of_segment = DEFAULT_DROP_OUT_OF_SEGMENT;
 
   GST_OBJECT_FLAG_SET (basesink, GST_ELEMENT_FLAG_SINK);
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0015
+    basesink->first_video_frame = TRUE;
+    basesink->obtain_type = FALSE;
+    basesink->e_sink_type = E_SINK_TYPE_TEXT; // set TEXT as default type
+#endif
 }
 
 static void
@@ -3460,6 +3467,42 @@ gst_base_sink_needs_preroll (GstBaseSink * basesink)
   return res;
 }
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0015
+static void
+post_msg_first_video_frame (GstBaseSink * basesink)
+{
+  if (!basesink->first_video_frame) {
+    return;
+  }
+
+  if (!basesink->obtain_type) {
+    GstBaseSinkClass *bclass = GST_BASE_SINK_GET_CLASS (basesink);
+    GstCaps *caps = bclass->get_caps(basesink, NULL);
+    if (caps != NULL) {
+      gchar *cap_str = gst_caps_to_string(caps);
+      GST_DEBUG_OBJECT (basesink, "gstcaps=%s", cap_str);
+      if (strstr (cap_str, "video/") != NULL) {
+        basesink->e_sink_type = E_SINK_TYPE_VIDEO;
+      }
+      g_free (cap_str);
+      cap_str = NULL;
+    }
+    basesink->obtain_type = TRUE;
+  } else if (basesink->e_sink_type != E_SINK_TYPE_VIDEO) {
+    return;
+  }
+
+  if (basesink->e_sink_type == E_SINK_TYPE_VIDEO) {
+    GstMessage * render_first_frame = gst_message_new_render_first_video_frame ((GstObject *) basesink);
+    if (render_first_frame != NULL) {
+      gst_element_post_message ((GstElement *) basesink, render_first_frame);
+      basesink->first_video_frame = FALSE;
+    }
+  }
+}
+#endif
+
 /* with STREAM_LOCK, PREROLL_LOCK
  *
  * Takes a buffer and compare the timestamps with the last segment.
@@ -3658,6 +3701,11 @@ again:
     /* For buffer lists do not set last buffer for now. */
     gst_base_sink_set_last_buffer (basesink, GST_BUFFER_CAST (obj));
     gst_base_sink_set_last_buffer_list (basesink, NULL);
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0015
+  post_msg_first_video_frame(basesink);
+#endif
 
     if (bclass->render)
       ret = bclass->render (basesink, GST_BUFFER_CAST (obj));

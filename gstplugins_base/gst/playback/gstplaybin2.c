@@ -460,6 +460,12 @@ struct _GstPlayBin
 
   guint64 ring_buffer_max_size; /* 0 means disabled */
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  gint low_percent;
+  gint high_percent;
+#endif
+
   GList *contexts;
 };
 
@@ -518,9 +524,21 @@ struct _GstPlayBinClass
 #define DEFAULT_FRAME             NULL
 #define DEFAULT_FONT_DESC         NULL
 #define DEFAULT_CONNECTION_SPEED  0
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0012
+#define DEFAULT_BUFFER_DURATION   0
+#else
 #define DEFAULT_BUFFER_DURATION   -1
+#endif
 #define DEFAULT_BUFFER_SIZE       -1
 #define DEFAULT_RING_BUFFER_MAX_SIZE 0
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0012
+#define DEFAULT_LOW_PERCENT       10
+#define DEFAULT_HIGH_PERCENT      99
+#define DEFAULT_TIMEOUT           15
+#endif
 
 enum
 {
@@ -559,6 +577,15 @@ enum
   PROP_AUDIO_FILTER,
   PROP_VIDEO_FILTER,
   PROP_MULTIVIEW_MODE,
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  PROP_BUFFERING_FLAGS,
+  PROP_LOW_PERCENT,
+  PROP_HIGH_PERCENT,
+  PROP_STATE_CHANGE,
+  PROP_EXIT_BLOCK,
+  PROP_TIMEOUT,
+#endif
   PROP_MULTIVIEW_FLAGS
 };
 
@@ -938,11 +965,21 @@ gst_play_bin_class_init (GstPlayBinClass * klass)
           "Buffer size when buffering network streams",
           -1, G_MAXINT, DEFAULT_BUFFER_SIZE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0012
+  g_object_class_install_property (gobject_klass, PROP_BUFFER_DURATION,
+      g_param_spec_uint64 ("buffer-duration", "Buffer duration (ns)",
+          "Buffer duration when buffering network streams",
+          0, G_MAXUINT64 / 1000, DEFAULT_BUFFER_DURATION,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#else
   g_object_class_install_property (gobject_klass, PROP_BUFFER_DURATION,
       g_param_spec_int64 ("buffer-duration", "Buffer duration (ns)",
           "Buffer duration when buffering network streams",
           -1, G_MAXINT64, DEFAULT_BUFFER_DURATION,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#endif
   /**
    * GstPlayBin:av-offset:
    *
@@ -1026,6 +1063,57 @@ gst_play_bin_class_init (GstPlayBinClass * klass)
           "Override details of the multiview frame layout",
           GST_TYPE_VIDEO_MULTIVIEW_FLAGS, GST_VIDEO_MULTIVIEW_FLAGS_NONE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  /**
+   * GstPlayBin:state-change
+   *
+   * state change to modify wait time for httpsoupsrc.
+   */
+  g_object_class_install_property (gobject_klass, PROP_STATE_CHANGE,
+    g_param_spec_int ("state-change", "state-change from adaptive-demux",
+        "state-change from adaptive-demux", 0, (gint) (G_MAXINT32), 0,
+        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  /**
+   * GstPlayBin:exit-block
+   *
+   * exit block to connect for httpsoupsrc.
+   */
+  g_object_class_install_property (gobject_klass, PROP_EXIT_BLOCK,
+    g_param_spec_int ("exit-block", "EXIT BLOCK",
+        "souphttpsrc exit block", 0, (gint) (G_MAXINT32), 0,
+        G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+
+  /**
+   * GstPlayBin:low-percent
+   *
+   * Low threshold percent for buffering to start.
+   */
+  g_object_class_install_property (gobject_klass, PROP_LOW_PERCENT,
+      g_param_spec_int ("low-percent", "Low percent",
+          "Low threshold for buffering to start", 0, 100,
+          DEFAULT_LOW_PERCENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  /**
+   * GstPlayBin:high-percent
+   *
+   * High threshold percent for buffering to finish.
+   */
+  g_object_class_install_property (gobject_klass, PROP_HIGH_PERCENT,
+      g_param_spec_int ("high-percent", "High percent",
+          "High threshold for buffering to finish", 0, 100,
+          DEFAULT_HIGH_PERCENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_klass, PROP_TIMEOUT,
+      g_param_spec_uint ("timeout", "timeout",
+          "Value in seconds to timeout a blocking I/O (0 = No timeout).", 0,
+          3600, DEFAULT_TIMEOUT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_klass, PROP_BUFFERING_FLAGS,
+      g_param_spec_boolean ("buffering-flags", "Buffering Flags", "Flags to control behaviour",
+      FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#endif
 
   /**
    * GstPlayBin::about-to-finish
@@ -1579,6 +1667,13 @@ gst_play_bin_init (GstPlayBin * playbin)
 
   playbin->multiview_mode = GST_VIDEO_MULTIVIEW_FRAME_PACKING_NONE;
   playbin->multiview_flags = GST_VIDEO_MULTIVIEW_FLAGS_NONE;
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  playbin->low_percent = DEFAULT_LOW_PERCENT;
+  playbin->high_percent = DEFAULT_HIGH_PERCENT;
+#endif
+
 }
 
 static void
@@ -2473,7 +2568,12 @@ gst_play_bin_set_property (GObject * object, guint prop_id,
       playbin->buffer_size = g_value_get_int (value);
       break;
     case PROP_BUFFER_DURATION:
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0012
+      playbin->buffer_duration = g_value_get_uint64 (value);
+#else
       playbin->buffer_duration = g_value_get_int64 (value);
+#endif
       break;
     case PROP_AV_OFFSET:
       gst_play_sink_set_av_offset (playbin->playsink,
@@ -2508,6 +2608,49 @@ gst_play_bin_set_property (GObject * object, guint prop_id,
       playbin->multiview_flags = g_value_get_flags (value);
       GST_PLAY_BIN_UNLOCK (playbin);
       break;
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0012
+    case PROP_STATE_CHANGE:
+      if (playbin->curr_group) {
+        GST_SOURCE_GROUP_LOCK (playbin->curr_group);
+        if (playbin->curr_group->uridecodebin) {
+          g_object_set (playbin->curr_group->uridecodebin, "state-change", g_value_get_int (value), NULL);
+        }
+        GST_SOURCE_GROUP_UNLOCK (playbin->curr_group);
+      }
+      break;
+    case PROP_EXIT_BLOCK:
+      if (playbin->curr_group != NULL) {
+        GST_SOURCE_GROUP_LOCK (playbin->curr_group);
+        if (playbin->curr_group->uridecodebin) {
+          g_object_set (playbin->curr_group->uridecodebin, "exit-block", g_value_get_int (value), NULL);
+        }
+        GST_SOURCE_GROUP_UNLOCK (playbin->curr_group);
+      }
+      break;
+    case PROP_TIMEOUT:
+      if (playbin->curr_group != NULL) {
+        GST_SOURCE_GROUP_LOCK (playbin->curr_group);
+        if (playbin->curr_group->uridecodebin) {
+          g_object_set (playbin->curr_group->uridecodebin, "timeout", g_value_get_uint (value), NULL);
+        }
+        GST_SOURCE_GROUP_UNLOCK (playbin->curr_group);
+      }
+      break;
+    case PROP_LOW_PERCENT:
+      playbin->low_percent = g_value_get_int (value);
+      break;
+    case PROP_HIGH_PERCENT:
+      playbin->high_percent = g_value_get_int (value);
+      break;
+    case PROP_BUFFERING_FLAGS:
+      if (g_value_get_boolean (value)) {
+        GstPlayFlags flags = gst_play_bin_get_flags (playbin);
+        flags |= GST_PLAY_FLAG_BUFFERING;
+        gst_play_bin_set_flags (playbin, flags);
+      }
+      break;
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -2734,7 +2877,12 @@ gst_play_bin_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_BUFFER_DURATION:
       GST_OBJECT_LOCK (playbin);
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0012
+      g_value_set_uint64 (value, playbin->buffer_duration);
+#else
       g_value_set_int64 (value, playbin->buffer_duration);
+#endif
       GST_OBJECT_UNLOCK (playbin);
       break;
     case PROP_AV_OFFSET:
@@ -2765,6 +2913,15 @@ gst_play_bin_get_property (GObject * object, guint prop_id, GValue * value,
       g_value_set_flags (value, playbin->multiview_flags);
       GST_OBJECT_UNLOCK (playbin);
       break;
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0012
+    case PROP_LOW_PERCENT:
+      g_value_set_int (value, playbin->low_percent);
+      break;
+    case PROP_HIGH_PERCENT:
+      g_value_set_int (value, playbin->high_percent);
+      break;
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -5295,6 +5452,12 @@ activate_group (GstPlayBin * playbin, GstSourceGroup * group, GstState target)
     group->uridecodebin = gst_object_ref (uridecodebin);
   }
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  g_object_set (uridecodebin,
+      "low-percent", playbin->low_percent,
+      "high-percent", playbin->high_percent, NULL);
+#endif
   flags = gst_play_sink_get_flags (playbin->playsink);
 
   g_object_set (uridecodebin,

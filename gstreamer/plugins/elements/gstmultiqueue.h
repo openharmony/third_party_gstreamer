@@ -87,6 +87,15 @@ struct _GstMultiQueue {
   GstClockTimeDiff last_interleave_update;
 
   GstClockTime unlinked_cache_time;
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  gboolean buffering_time_changed;
+  GstClockTime buffering_time;
+  GstClockTime last_buffering_time;
+
+  // ohos.ext.func.0013
+  guint mq_num_id;
+#endif
 };
 
 struct _GstMultiQueueClass {
