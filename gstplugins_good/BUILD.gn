@@ -10,6 +10,7 @@ group("gstplugins_good_packages") {
     ":gstisomp4",
     ":gstmatroska",
     ":gstmultifile",
+    ":gstsoup",
     ":gstwavparse",
   ]
 }
@@ -30,6 +31,8 @@ config("gst_plugins_config") {
     "//third_party/glib",
     "//third_party/glib/gmodule",
     "//third_party/zlib",
+    "//third_party/libsoup",
+    "//third_party/gettext/gettext-runtime/intl",
     "//third_party/bzip2",
   ]
 
@@ -45,6 +48,7 @@ config("gst_plugins_config") {
     "-Wno-sign-compare",
     "-Wno-builtin-requires-header",
     "-Wno-deprecated-declarations",
+    "-DOHOS_SUPPORT",
     "-DOHOS_OPT_COMPAT",
     "-DOHOS_EXT_FUNC",
   ]
@@ -280,6 +284,35 @@ ohos_shared_library("gstaudiofx") {
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
 
+  relative_install_dir = "media/plugins"
+  part_name = "multimedia_media_standard"
+  subsystem_name = "multimedia"
+}
+
+ohos_source_set("gstsoup_source") {
+  sources = [
+    "ext/soup/gstsoup.c",
+    "ext/soup/gstsouphttpsrc.c",
+    "ext/soup/gstsouputils.c",
+
+    #"ext/soup/gstsouphttpclientsink.c",
+  ]
+
+  configs = [ ":gst_plugins_config" ]
+}
+
+ohos_shared_library("gstsoup") {
+  deps = [
+    ":gstsoup_source",
+    "//third_party/glib:gio",
+    "//third_party/glib:glib",
+    "//third_party/glib:gmodule",
+    "//third_party/glib:gobject",
+    "//third_party/gstreamer/gstplugins_base:gsttag",
+    "//third_party/gstreamer/gstreamer:gstbase",
+    "//third_party/gstreamer/gstreamer:gstreamer",
+    "//third_party/libsoup:libohossoup",
+  ]
   relative_install_dir = "media/plugins"
   part_name = "multimedia_media_standard"
   subsystem_name = "multimedia"
