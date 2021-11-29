@@ -62,16 +62,6 @@ typedef struct _GstBaseSink GstBaseSink;
 typedef struct _GstBaseSinkClass GstBaseSinkClass;
 typedef struct _GstBaseSinkPrivate GstBaseSinkPrivate;
 
-#ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0015
-typedef enum _EmSinkType {
-  E_SINK_TYPE_VIDEO = 0,
-  E_SINK_TYPE_AUDIO,
-  E_SINK_TYPE_TEXT,
-  E_SINK_TYPE_BOTTOM
-} E_SINK_TYPE;
-#endif
-
 /**
  * GstBaseSink:
  *
@@ -108,14 +98,6 @@ struct _GstBaseSink {
   gboolean       running;
 
   gint64         max_lateness;
-
-#ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0015
-  gboolean       first_video_frame;
-  gboolean       obtain_type;
-  E_SINK_TYPE    e_sink_type; // sink type
-#endif
-
   /*< private >*/
   GstBaseSinkPrivate *priv;
 
