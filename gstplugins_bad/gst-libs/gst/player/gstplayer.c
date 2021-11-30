@@ -613,12 +613,6 @@ gst_player_class_init (GstPlayerClass * klass)
       g_signal_new ("resolution-changed", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS, 0, NULL,
       NULL, NULL, G_TYPE_NONE, 2, G_TYPE_INT, G_TYPE_INT);
-
-  // ohos.ext.func.0015
-  signals[SIGNAL_RENDER_FIRST_VIDEO_FRAME] =
-      g_signal_new ("render-first-video-frame", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS, 0, NULL,
-      NULL, NULL, G_TYPE_NONE, 0, G_TYPE_INVALID);
 #endif
   config_quark_initialize ();
 }
@@ -1814,34 +1808,6 @@ resulution_changed_cb (GstMessage * msg, gpointer user_data)
         (GDestroyNotify) resolution_changed_signal_data_free);
     }
 }
-
-// ohos.ext.func.0015
-typedef struct {
-  GstPlayer *player;
-} RenderFirstVideoFrameSignalData;
-
-static void
-render_first_video_frame_dispatch (gpointer user_data)
-{
-  GstPlayer *player = user_data;
-
-  if (player->inhibit_sigs)
-    return;
-
-  g_signal_emit (player, signals[SIGNAL_RENDER_FIRST_VIDEO_FRAME], 0);
-}
-
-static void
-render_first_video_frame_cb (gpointer user_data)
-{
-  GstPlayer *self = GST_PLAYER (user_data);
-  if (g_signal_handler_find (self, G_SIGNAL_MATCH_ID, signals[SIGNAL_RENDER_FIRST_VIDEO_FRAME], 0,
-    NULL, NULL, NULL) != 0) {
-    gst_player_signal_dispatcher_dispatch (self->signal_dispatcher, self,
-        render_first_video_frame_dispatch, g_object_ref (self),
-        (GDestroyNotify) g_object_unref);
-    }
-}
 #endif
 
 static void
@@ -2334,9 +2300,6 @@ element_cb (G_GNUC_UNUSED GstBus * bus, GstMessage * msg, gpointer user_data)
     mq_num_use_buffering_cb(msg, user_data);
   } else if (gst_structure_has_name (s, "resolution-changed")) {
     resulution_changed_cb(msg, user_data);
-  } else if (gst_structure_has_name (s, "render-first-video-frame")) {
-    GST_ERROR_OBJECT (self, "gaizhengwei Redirect to ");
-    render_first_video_frame_cb(user_data);
   }
 #endif
 }
