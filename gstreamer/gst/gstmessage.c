@@ -1429,23 +1429,6 @@ gst_message_parse_resulution_changed (GstMessage * message, gint * width, gint *
     (void)gst_structure_get_int(structure, "height", height);
   }
 }
-
-/**
- * gst_message_new_render_first_video_frame:
- * @message: A valid #GstMessage of type render-first-video-frame.
- *
- * Extracts the first video frame from @message.
- */
-GstMessage *
-gst_message_new_render_first_video_frame (GstObject * src)
-{
-  GstMessage *message;
-  GstStructure *structure;
-  gint reserve = 0;
-  structure = gst_structure_new ("render-first-video-frame", "reserve", G_TYPE_INT, reserve,  NULL);
-  message = gst_message_new_custom (GST_MESSAGE_ELEMENT, src, structure);
-  return message;
-}
 #endif
 
 /**
