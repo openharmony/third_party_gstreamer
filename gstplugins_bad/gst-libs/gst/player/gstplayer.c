@@ -3827,9 +3827,7 @@ gst_player_seek_internal_locked (GstPlayer * self)
   }
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0004
-  if (rate == 1.0) {
     flags |= self->seek_mode;
-  }
 #endif
   if (rate >= 0.0) {
     s_event = gst_event_new_seek (rate, GST_FORMAT_TIME, flags,
