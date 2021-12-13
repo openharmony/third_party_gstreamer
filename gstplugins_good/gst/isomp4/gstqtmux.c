@@ -2346,7 +2346,7 @@ gst_qt_mux_send_moov (GstQTMux * qtmux, guint64 * _offset,
  */
 #ifdef OHOS_EXT_FUNC
   if (qtmux->enable_geolocation) {
-      qtmux->moov->udta.setlocation = TRUE;
+      qtmux->moov->udta.set_location = TRUE;
       qtmux->moov->udta.latitude = qtmux->latitudex10000;
       qtmux->moov->udta.longitude = qtmux->longitudex10000;
   }
