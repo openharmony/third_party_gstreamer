@@ -398,6 +398,23 @@ enum
   PROP_INTERLEAVE_TIME,
   PROP_MAX_RAW_AUDIO_DRIFT,
   PROP_START_GAP_THRESHOLD,
+
+/* ohos.ext.func.0016
+ * add additional features to set geographic location information in mp4 file.
+ * PROP_SET_LATITUDE is the property to set latitude.
+ * PROP_SET_LONGITUDE is the property to set longitude.
+ */
+#ifdef OHOS_EXT_FUNC
+  PROP_SET_LATITUDE,
+  PROP_SET_LONGITUDE,
+#endif
+/* ohos.ext.func.0018
+ * add additional features to set orientationHint in mp4 file.
+ * PROP_ROTAION_ANGLE is the angle to set, must be{0, 90, 180, 270}.
+ */
+#ifdef OHOS_EXT_FUNC
+  PROP_ROTAION_ANGLE,
+#endif
 };
 
 /* some spare for header size as well */
@@ -654,6 +671,35 @@ gst_qt_mux_class_init (GstQTMuxClass * klass)
           "Threshold for creating an edit list for gaps at the start in nanoseconds",
           0, G_MAXUINT64, DEFAULT_START_GAP_THRESHOLD,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+/* ohos.ext.func.0016
+ * add additional features to set geographic location information in mp4 file.
+ * PROP_SET_LATITUDE is the property to set latitude.
+ * PROP_SET_LONGITUDE is the property to set longitude.
+ */
+#ifdef OHOS_EXT_FUNC
+    g_object_class_install_property (gobject_class, PROP_SET_LATITUDE,
+        g_param_spec_int ("set-latitude", "Set Latitude",
+            "set the latitude in geolocation, here multiplying 10000",
+            G_MININT32, G_MAXINT32, 0,
+            G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+    g_object_class_install_property (gobject_class, PROP_SET_LONGITUDE,
+        g_param_spec_int ("set-longitude", "Set Longitude",
+            "set the longitude in geolocation, here multiplying 10000",
+            G_MININT32, G_MAXINT32, 0,
+            G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+#endif
+
+/* ohos.ext.func.0018
+ * add additional features to set orientationHint in mp4 file.
+ * PROP_ROTAION_ANGLE is the angle to set, must be{0, 90, 180, 270}.
+ */
+#ifdef OHOS_EXT_FUNC
+    g_object_class_install_property (gobject_class, PROP_ROTAION_ANGLE,
+        g_param_spec_uint ("orientation-hint", "Orientation Hint",
+            "set the rotation angle in mp4 file",
+            0, 270, 0,
+            G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+#endif
 
   gstelement_class->request_new_pad =
       GST_DEBUG_FUNCPTR (gst_qt_mux_request_new_pad);
@@ -826,6 +872,14 @@ gst_qt_mux_init (GstQTMux * qtmux, GstQTMuxClass * qtmux_klass)
   qtmux->interleave_time = DEFAULT_INTERLEAVE_TIME;
   qtmux->max_raw_audio_drift = DEFAULT_MAX_RAW_AUDIO_DRIFT;
   qtmux->start_gap_threshold = DEFAULT_START_GAP_THRESHOLD;
+
+/* ohos.ext.func.0016
+ * add additional features to set geographic location information in mp4 file
+ * the feature is default disable.
+ */
+#ifdef OHOS_EXT_FUNC
+  qtmux->enable_geolocation = FALSE;
+#endif
 
   /* always need this */
   qtmux->context =
@@ -2261,7 +2315,42 @@ gst_qt_mux_send_moov (GstQTMux * qtmux, guint64 * _offset,
 
     qtpad->trak->mdia.mdhd.time_info.modification_time = current_time;
     qtpad->trak->tkhd.modification_time = current_time;
+
+/* ohos.ext.func.0018
+ * add additional features to set orientationHint in mp4 file.
+ * { 0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000 }
+ */
+#ifdef OHOS_EXT_FUNC
+    switch (qtmux->rotation) {
+    case 90:
+        qtpad->trak->tkhd.matrix[1] = 1 << 16;
+        qtpad->trak->tkhd.matrix[4] = 65535 << 16;
+        break;
+    case 180:
+        qtpad->trak->tkhd.matrix[0] = 65535 << 16;
+        qtpad->trak->tkhd.matrix[4] = 65535 << 16;
+        break;
+    case 270:
+        qtpad->trak->tkhd.matrix[1] = 65535 << 16;
+        qtpad->trak->tkhd.matrix[4] = 1 << 16;
+        break;
+    default:
+        break;
+    }
+#endif
   }
+
+/* ohos.ext.func.0016
+ * add additional features to set geographic location information in mp4 file
+ * the feature is default disable.
+ */
+#ifdef OHOS_EXT_FUNC
+  if (qtmux->enable_geolocation) {
+      qtmux->moov->udta.setlocation = TRUE;
+      qtmux->moov->udta.latitude = qtmux->latitudex10000;
+      qtmux->moov->udta.longitude = qtmux->longitudex10000;
+  }
+#endif
 
   /* serialize moov */
   offset = size = 0;
@@ -6548,6 +6637,31 @@ gst_qt_mux_set_property (GObject * object,
     case PROP_START_GAP_THRESHOLD:
       qtmux->start_gap_threshold = g_value_get_uint64 (value);
       break;
+/* ohos.ext.func.0016
+ * add additional features to set geographic location information in mp4 file
+ * enable_geolocation is the flag to enable this feature
+ * latitudex10000 is the latitude to set, multiply 10000 for the convenience of calculation.
+ * longitudex10000 is the longitude to set, multiply 10000 for the convenience of calculation.
+ */
+#ifdef OHOS_EXT_FUNC
+    case PROP_SET_LATITUDE:
+      qtmux->latitudex10000 = g_value_get_int(value);
+      qtmux->enable_geolocation = TRUE;
+      break;
+    case PROP_SET_LONGITUDE:
+      qtmux->longitudex10000 = g_value_get_int(value);
+      break;
+#endif
+/* ohos.ext.func.0018
+ * add additional features to set orientationHint in mp4 file.
+ * PROP_ROTAION_ANGLE is the angle to set, must be{0, 90, 180, 270}.
+ */
+#ifdef OHOS_EXT_FUNC
+    case PROP_ROTAION_ANGLE:
+      qtmux->rotation = g_value_get_uint(value);
+      break;
+#endif
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
