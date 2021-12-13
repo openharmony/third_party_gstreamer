@@ -291,6 +291,26 @@ struct _GstQTMux
 
   GstClockTime start_gap_threshold;
 
+/* ohos.ext.func.0016
+ * add additional features to set geographic location information in mp4 file
+ * enable_geolocation is the flag to enable this feature
+ * latitudex10000 is the latitude to set, multiply 10000 for the convenience of calculation.
+ * longitudex10000 is the longitude to set, multiply 10000 for the convenience of calculation.
+ */
+#ifdef OHOS_EXT_FUNC
+  gboolean enable_geolocation;
+  gint latitudex10000;
+  gint longitudex10000;
+#endif
+
+/* ohos.ext.func.0018
+ * add additional features to set orientationHint in mp4 file.
+ */
+#ifdef OHOS_EXT_FUNC
+  guint32 rotation;
+#endif
+
+
   /* for request pad naming */
   guint video_pads, audio_pads, subtitle_pads, caption_pads;
 };
