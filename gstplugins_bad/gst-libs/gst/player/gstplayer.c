@@ -171,6 +171,10 @@ enum
   SIGNAL_RESOLUTION_CHANGED,
   // ohos.ext.func.0015
   SIGNAL_RENDER_FIRST_VIDEO_FRAME,
+  /* ohos.ext.func.0017
+   * report the signal when add new pads
+   */
+  SIGNAL_ELEMENT_SETUP,
 #endif
   SIGNAL_WARNING,
   SIGNAL_VIDEO_DIMENSIONS_CHANGED,
@@ -613,6 +617,14 @@ gst_player_class_init (GstPlayerClass * klass)
       g_signal_new ("resolution-changed", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS, 0, NULL,
       NULL, NULL, G_TYPE_NONE, 2, G_TYPE_INT, G_TYPE_INT);
+
+  /* ohos.ext.func.0017
+   * report the signal when add new pads
+   */
+  signals[SIGNAL_ELEMENT_SETUP] =
+      g_signal_new ("element-setup", G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS, 0, NULL,
+      NULL, NULL, G_TYPE_NONE, 1, GST_TYPE_ELEMENT);
 #endif
   config_quark_initialize ();
 }
@@ -3329,6 +3341,17 @@ source_setup_cb (GstElement * playbin, GstElement * source, GstPlayer * self)
   }
 }
 
+#ifdef OHOS_EXT_FUNC
+/* ohos.ext.func.0017
+ * report the signal when add new pads
+ */
+static void
+element_setup_cb (GstElement * playbin, GstElement * element, GstPlayer * self)
+{
+  g_signal_emit (self, signals[SIGNAL_ELEMENT_SETUP], 0, element);
+}
+#endif
+
 static gpointer
 gst_player_main (gpointer data)
 {
@@ -3443,6 +3466,13 @@ gst_player_main (gpointer data)
   g_signal_connect (self->playbin, "source-setup",
       G_CALLBACK (source_setup_cb), self);
 
+#ifdef OHOS_EXT_FUNC
+  /* ohos.ext.func.0017
+   * report the signal when add new pads
+   */
+  g_signal_connect (self->playbin, "element-setup",
+      G_CALLBACK (element_setup_cb), self);
+#endif
   self->target_state = GST_STATE_NULL;
   self->current_state = GST_STATE_NULL;
   change_state (self, GST_PLAYER_STATE_STOPPED);
