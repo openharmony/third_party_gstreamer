@@ -250,6 +250,13 @@ G_BEGIN_DECLS
 #define FOURCC_twos     GST_MAKE_FOURCC('t','w','o','s')
 #define FOURCC_tx3g     GST_MAKE_FOURCC('t','x','3','g')
 #define FOURCC_udta     GST_MAKE_FOURCC('u','d','t','a')
+/* ohos.ext.func.0016
+ * add additional features to set geographic location information in mp4 file
+ * FOURCC__xyz is the start of this box. for historical reason to start with "\0xA9"
+ */
+#ifdef OHOS_EXT_FUNC
+    #define FOURCC__xyz GST_MAKE_FOURCC(0xa9, 'x', 'y', 'z')
+#endif
 #define FOURCC_ulaw     GST_MAKE_FOURCC('u','l','a','w')
 #define FOURCC_url_     GST_MAKE_FOURCC('u','r','l',' ')
 #define FOURCC_uuid     GST_MAKE_FOURCC('u','u','i','d')

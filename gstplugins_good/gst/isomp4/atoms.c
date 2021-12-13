@@ -2828,6 +2828,75 @@ atom_meta_copy_data (AtomMETA * meta, guint8 ** buffer, guint64 * size,
   return *offset - original_offset;
 }
 
+/* ohos.ext.func.0016
+ * add additional features to set geographic location information in mp4 file
+ * copy the geolocation to udta box accordiong to ISO_IEC_14496
+ */
+#ifdef OHOS_EXT_FUNC
+static guint64
+atom_xyz_copy_data(Atom * atom, guint8 ** buffer, guint64 * size,
+  guint64 * offset, gint32 latitude, gint32 longitude)
+{
+  guint64 original_offset = *offset;
+  guint32 hexadecimal_zero = 48; // to change each number to hexadecimal.
+  guint8 lat_sign, lng_sign;
+  guint8 decimal_point = 0x2e; // '.'
+  guint8 end_sign = 0x2f; // '/'
+  guint32 boxsize = 30; // accordiong to ISO_IEC_14496.
+  guint32 format_language_code = 0x001215c7; // accordiong to ISO_IEC_14496.
+
+  if (latitude >= 0) {
+    lat_sign = 0x2b; // '+'
+  } else {
+    lat_sign = 0x2d; // '-'
+    latitude = -latitude;
+  }
+
+  if (longitude >= 0) {
+    lng_sign = 0x2b; // '+'
+  } else {
+    lng_sign = 0x2d; // '-'
+    longitude = -longitude;
+  }
+
+  guint32 lat_integer = latitude / 10000;
+  guint32 lat_decimals = latitude % 10000;
+  guint32 lng_integer = longitude / 10000;
+  guint32 lng_decimals = longitude % 10000;
+
+  prop_copy_uint32 (boxsize, buffer, size, offset);
+  prop_copy_fourcc (FOURCC__xyz, buffer, size, offset);
+  prop_copy_uint32 (format_language_code, buffer, size, offset);
+
+  prop_copy_uint8 (lat_sign, buffer, size, offset);
+  prop_copy_uint8 (lat_integer / 10 % 10 + hexadecimal_zero, buffer, size, offset);
+  prop_copy_uint8 (lat_integer % 10 + hexadecimal_zero, buffer, size, offset);
+
+  prop_copy_uint8 (decimal_point, buffer, size, offset);
+
+  prop_copy_uint8 (lat_decimals / 1000 % 10 + hexadecimal_zero, buffer, size, offset);
+  prop_copy_uint8 (lat_decimals / 100 % 10 + hexadecimal_zero, buffer, size, offset);
+  prop_copy_uint8 (lat_decimals / 10 % 10 + hexadecimal_zero, buffer, size, offset);
+  prop_copy_uint8 (lat_decimals % 10 + hexadecimal_zero, buffer, size, offset);
+
+  prop_copy_uint8 (lng_sign, buffer, size, offset);
+  prop_copy_uint8 (lng_integer / 100 % 10 + hexadecimal_zero, buffer, size, offset);
+  prop_copy_uint8 (lng_integer / 10 % 10 + hexadecimal_zero, buffer, size, offset);
+  prop_copy_uint8 (lng_integer % 10 + hexadecimal_zero, buffer, size, offset);
+
+  prop_copy_uint8 (decimal_point, buffer, size, offset);
+
+  prop_copy_uint8 (lng_decimals / 1000 % 10 + hexadecimal_zero, buffer, size, offset);
+  prop_copy_uint8 (lng_decimals / 100 % 10 + hexadecimal_zero, buffer, size, offset);
+  prop_copy_uint8 (lng_decimals / 10 % 10 + hexadecimal_zero, buffer, size, offset);
+  prop_copy_uint8 (lng_decimals % 10 + hexadecimal_zero, buffer, size, offset);
+
+  prop_copy_uint8 (end_sign, buffer, size, offset);
+
+  return *offset - original_offset;
+}
+#endif
+
 static guint64
 atom_udta_copy_data (AtomUDTA * udta, guint8 ** buffer, guint64 * size,
     guint64 * offset)
@@ -2837,6 +2906,19 @@ atom_udta_copy_data (AtomUDTA * udta, guint8 ** buffer, guint64 * size,
   if (!atom_copy_data (&udta->header, buffer, size, offset)) {
     return 0;
   }
+/* ohos.ext.func.0016
+ * add additional features to set geographic location information in mp4 file
+ * set_location is the flag to enable this feature
+ * latitude is the latitude to set, multiply 10000 for the convenience of calculation.
+ * longitude is the longitude to set, multiply 10000 for the convenience of calculation.
+ */
+#ifdef OHOS_EXT_FUNC
+  if (udta->set_location) {
+    if (!atom_xyz_copy_data (&udta->header, buffer, size, offset, udta->latitude, udta->longitude)) {
+      return 0;
+    }
+  }
+#endif
   if (udta->meta) {
     if (!atom_meta_copy_data (udta->meta, buffer, size, offset)) {
       return 0;
