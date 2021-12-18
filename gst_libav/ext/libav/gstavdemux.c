@@ -35,6 +35,7 @@
 #include "gstavcodecmap.h"
 #include "gstavutils.h"
 #include "gstavprotocol.h"
+#include "gst/tag/tag.h"
 
 #define MAX_STREAMS 20
 
@@ -943,6 +944,73 @@ gst_ffmpegdemux_create_padname (const gchar * templ, gint n)
   return g_string_free (string, FALSE);
 }
 
+#ifdef OHOS_EXT_FUNC
+/**
+ * ohos.ext.func.0019
+ * FFmpeg generate one stream for one image, rather than treated it as the metadata. Transfer it
+ * to gst tag for unified manner to resolve album art picture.
+ */
+static GstTagList *
+gst_ffmpegdemux_add_image_tag (GstFFMpegDemux * demux, GstTagList * taglist)
+{
+  if (taglist == NULL) {
+    taglist = gst_tag_list_new_empty();
+    if (taglist == NULL) {
+      GST_WARNING_OBJECT(demux, "create taglist failed");
+      return NULL;
+    }
+  }
+
+  GstFFStream * stream = NULL;
+  AVStream * avstream = NULL;
+
+  for (gint i = 0; i < MAX_STREAMS; i++) {
+    stream = demux->streams[i];
+    if (stream == NULL || stream->avstream == NULL) {
+      continue;
+    }
+    avstream = stream->avstream;
+
+    if (!(avstream->disposition & AV_DISPOSITION_ATTACHED_PIC)) {
+      continue;
+    }
+
+    if (avstream->attached_pic.data == NULL || avstream->attached_pic.size <= 0) {
+      continue;
+    }
+
+    GST_INFO_OBJECT (demux, "stream %d has attached pic, size: %d",
+        avstream->index, avstream->attached_pic.size);
+
+    /**
+     * We ignore the differences between different picture types except for the Front Conver.
+     */
+    GstTagImageType imageType = GST_TAG_IMAGE_TYPE_NONE;
+    AVDictionaryEntry * av_tag = av_dict_get (avstream->metadata, "comment", NULL, AV_DICT_MATCH_CASE);
+    if (av_tag != NULL) {
+      if (!strcmp (av_tag->value, "Cover (front)")) {
+        GST_INFO_OBJECT (demux, "stream %d has Cover (front) image", avstream->index);
+        imageType = GST_TAG_IMAGE_TYPE_FRONT_COVER;
+      }
+    }
+
+    GstSample * image = gst_tag_image_data_to_image_sample (
+        avstream->attached_pic.data,
+        avstream->attached_pic.size,
+        imageType);
+    if (image == NULL) {
+      GST_WARNING_OBJECT (demux, "stream %d convert image data to image sample failed", avstream->index);
+      return taglist;
+    }
+
+    gst_tag_list_add (taglist, GST_TAG_MERGE_APPEND, GST_TAG_IMAGE, image, NULL);
+    gst_sample_unref (image);
+  }
+
+  return taglist;
+}
+#endif
+
 static GstFFStream *
 gst_ffmpegdemux_get_stream (GstFFMpegDemux * demux, AVStream * avstream)
 {
@@ -1357,6 +1425,19 @@ gst_ffmpegdemux_open (GstFFMpegDemux * demux)
   if (tags) {
     GST_INFO_OBJECT (demux, "global tags: %" GST_PTR_FORMAT, tags);
   }
+
+#ifdef OHOS_EXT_FUNC
+  /**
+   * ohos.ext.func.0019
+   *
+   * Only add the image to global tags. The ffmpeg will create a new stream for each
+   * image, but it is a fake stream, the decodebin maybe not able to autoplug a downstream
+   * pipeline for it. Thus, we can not add the image to the stream tags, the tags from
+   * the fake stream can not be sended to downstream.
+   */
+  tags = gst_ffmpegdemux_add_image_tag(demux, tags);
+  gst_tag_list_set_scope(tags, GST_TAG_SCOPE_GLOBAL);
+#endif
 
   /* now handle the stream tags */
   for (i = 0; i < n_streams; i++) {
