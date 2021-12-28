@@ -6613,6 +6613,22 @@ gst_matroska_demux_audio_caps (GstMatroskaTrackAudioContext *
     *codec_name = g_strdup ("DTS audio");
   } else if (!strcmp (codec_id, GST_MATROSKA_CODEC_ID_AUDIO_VORBIS)) {
     caps = gst_caps_new_empty_simple ("audio/x-vorbis");
+#ifdef OHOS_OPT_COMPAT
+    /*
+     * ohos.opt.compat.0008
+     * adapter for avdec_vorbis
+     */
+    if (context->codec_priv != NULL) {
+      GstBuffer *codec_data = gst_buffer_new_allocate (NULL, context->codec_priv_size, NULL);
+      if (codec_data != NULL) {
+        gst_buffer_fill (codec_data, 0, context->codec_priv, context->codec_priv_size);
+        gst_caps_set_simple (caps, "codec_data", GST_TYPE_BUFFER, codec_data, NULL);
+        gst_buffer_unref (codec_data);
+      } else {
+        GST_ERROR ("gst_buffer_new_wrapped failed");
+      }
+    }
+#endif
     context->stream_headers =
         gst_matroska_parse_xiph_stream_headers (context->codec_priv,
         context->codec_priv_size);
