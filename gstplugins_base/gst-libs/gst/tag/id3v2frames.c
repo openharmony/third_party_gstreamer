@@ -109,7 +109,11 @@ id3v2_parse_frame (ID3TagsWorking * work)
 
   if (work->frame_flags & (ID3V2_FRAME_FORMAT_COMPRESSION |
           ID3V2_FRAME_FORMAT_DATA_LENGTH_INDICATOR)) {
+#ifdef OHOS_OPT_CVE
+    if (frame_data_size <= 4)
+#else
     if (work->hdr.frame_data_size <= 4)
+#endif
       return FALSE;
     if (ID3V2_VER_MAJOR (work->hdr.version) == 3) {
       work->parse_size = GST_READ_UINT32_BE (frame_data);

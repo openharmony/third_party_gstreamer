@@ -48,6 +48,7 @@ config("gst_plugins_config") {
         "-Wno-builtin-requires-header",
         "-DOHOS_EXT_FUNC",
         "-DOHOS_OPT_COMPAT",
+        "-DOHOS_OPT_CVE",
     ]
 }
 
