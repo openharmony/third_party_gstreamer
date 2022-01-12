@@ -1,0 +1,43 @@
+{
+    "name": "@ohos/gstreamer",
+    "version": "",
+    "description": "Third-party open-source software gstreamer | 三方开源软件gstreamer",
+    "homePage": "https://gitee.com/openharmony",
+    "license": "LGPL V2.0",
+    "repository": "https://gitee.com/openharmony/third_party_gstreamer",
+    "domain": "os",
+    "language": "",
+    "publishAs": "code-segment",
+    "private": false,
+    "scripts": {},
+    "tags": [
+        "third_party"
+    ],
+    "keywords": [
+        "third-party",
+        "gstreamer"
+    ],
+    "envs": {},
+    "dirs": {},
+    "licensePath": "gstreamer/COPYING",
+    "readmePath": {
+        "en": "gstreamer/README"
+    },
+    "segment": {
+        "destPath": "third_party/gstreamer"
+    },
+    "component": {
+        "name": "thirdparty_gstreamer",
+        "subsystem": "",
+        "syscap": [],
+        "features": [],
+        "adapted_system_type": [],
+        "rom": "",
+        "ram": "",
+        "build": {
+            "sub_component": [],
+            "inner_kits": [],
+            "test": []
+        }
+    }
+}
