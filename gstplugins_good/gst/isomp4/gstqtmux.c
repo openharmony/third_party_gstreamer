@@ -2323,16 +2323,20 @@ gst_qt_mux_send_moov (GstQTMux * qtmux, guint64 * _offset,
 #ifdef OHOS_EXT_FUNC
     switch (qtmux->rotation) {
     case 90:
+        qtpad->trak->tkhd.matrix[0] = 0;
         qtpad->trak->tkhd.matrix[1] = 1 << 16;
-        qtpad->trak->tkhd.matrix[4] = 65535 << 16;
+        qtpad->trak->tkhd.matrix[3] = 65535 << 16;
+        qtpad->trak->tkhd.matrix[4] = 0;
         break;
     case 180:
         qtpad->trak->tkhd.matrix[0] = 65535 << 16;
         qtpad->trak->tkhd.matrix[4] = 65535 << 16;
         break;
     case 270:
+        qtpad->trak->tkhd.matrix[0] = 0;
         qtpad->trak->tkhd.matrix[1] = 65535 << 16;
-        qtpad->trak->tkhd.matrix[4] = 1 << 16;
+        qtpad->trak->tkhd.matrix[4] = 0;
+        qtpad->trak->tkhd.matrix[5] = 65535 << 16;
         break;
     default:
         break;
