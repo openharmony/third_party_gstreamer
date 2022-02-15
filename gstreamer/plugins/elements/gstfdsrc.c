@@ -809,7 +809,7 @@ gst_fd_src_do_seek (GstBaseSrc * bsrc, GstSegment * segment)
   }
 
   if (src->seekable_fd) {
-    GST_INFO ("gst_fd_src_do_seek, offset=%lld", offset);
+    GST_INFO ("gst_fd_src_do_seek, offset=%" G_GINT64_FORMAT, offset);
     src->curoffset = offset;
   }
 #else
