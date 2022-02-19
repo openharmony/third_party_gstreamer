@@ -203,7 +203,7 @@ gst_fd_src_init (GstFdSrc * fdsrc)
 #ifdef OHOS_EXT_FUNC
   /**
    * ohos.ext.func.0020
-   * add start offset handling in gstfdsrc
+   * Add start offset handling in gstfdsrc.
    */
   fdsrc->start_offset = 0;
 #endif
@@ -289,7 +289,7 @@ gst_fd_src_start (GstBaseSrc * bsrc)
 #ifdef OHOS_EXT_FUNC
   /**
    * ohos.ext.func.0020
-   * add start offset handling in gstfdsrc
+   * Add start offset handling in gstfdsrc.
    */
   if (src->seekable_fd) {
     gint64 res = lseek (src->fd, src->start_offset, SEEK_SET);
@@ -410,7 +410,7 @@ gst_fd_src_get_property (GObject * object, guint prop_id, GValue * value,
 #ifdef OHOS_EXT_FUNC
 /**
  * ohos.ext.func.0021
- * enable gstfdsrc in pull mode. in pull mode, demux will pull buffer from function gst_fd_src_create_offset().
+ * Enable pull mode for gstfdsrc. In pull mode, demux will pull buffer from function gst_fd_src_create_offset().
  */
 static GstFlowReturn
 gst_fd_src_create_offset (GstBaseSrc * bsrc, guint64 offset, guint length, GstBuffer ** outbuf)
@@ -700,7 +700,7 @@ gst_fd_src_query (GstBaseSrc * basesrc, GstQuery * query)
 #ifdef OHOS_EXT_FUNC
     /**
      * ohos.ext.func.0021
-     * enable gstfdsrc in pull mode
+     * Enable pull mode for gstfdsrc.
      */
     case GST_QUERY_SCHEDULING:
       GST_INFO ("src->seekable_fd = %d", src->seekable_fd);
@@ -781,13 +781,19 @@ gst_fd_src_do_seek (GstBaseSrc * bsrc, GstSegment * segment)
 #ifdef OHOS_EXT_FUNC
   /**
    * ohos.ext.func.0020
-   * add start offset handling in gstfdsrc
+   * Add start offset handling in gstfdsrc.
    */
   res = lseek (src->fd, offset + src->start_offset, SEEK_SET);
   if (G_UNLIKELY ((res < 0) || (res != (offset + src->start_offset)))) {
     goto seek_failed;
   }
 
+  /**
+   * ohos.ext.func.0021
+   * Enable pull mode for gstfdsrc. When demux pulls buffer from this element,
+   * we need to ensure the requested position and current position equaled.
+   * Thus, we set current position to seeked position when seeking.
+   */
   if (src->seekable_fd) {
     GST_INFO ("gst_fd_src_do_seek, offset=%" G_GINT64_FORMAT, offset);
     src->curoffset = offset;
@@ -877,7 +883,7 @@ gst_fd_src_uri_set_uri (GstURIHandler * handler, const gchar * uri,
 #ifdef OHOS_EXT_FUNC
     /**
      * ohos.ext.func.0020
-     * add start offset handling in gstfdsrc
+     * Add start offset handling in gstfdsrc.
      */
     sp = g_strstr_len (q, -1, "offset=");
     if (sp != NULL) {
