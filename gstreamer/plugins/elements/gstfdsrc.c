@@ -131,7 +131,8 @@ static gboolean gst_fd_src_get_size (GstBaseSrc * src, guint64 * size);
 static gboolean gst_fd_src_do_seek (GstBaseSrc * src, GstSegment * segment);
 static gboolean gst_fd_src_query (GstBaseSrc * src, GstQuery * query);
 #ifdef OHOS_EXT_FUNC
-static GstFlowReturn gst_fd_src_create_base (GstBaseSrc *bsrc, guint64 offset, guint length, GstBuffer **ret);
+// ohos.ext.func.0021
+static GstFlowReturn gst_fd_src_create_base (GstBaseSrc * bsrc, guint64 offset, guint length, GstBuffer ** ret);
 #endif
 
 static GstFlowReturn gst_fd_src_create (GstPushSrc * psrc, GstBuffer ** outbuf);
@@ -182,6 +183,7 @@ gst_fd_src_class_init (GstFdSrcClass * klass)
   gstbasesrc_class->do_seek = GST_DEBUG_FUNCPTR (gst_fd_src_do_seek);
   gstbasesrc_class->query = GST_DEBUG_FUNCPTR (gst_fd_src_query);
 #ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0021
   gstbasesrc_class->create = GST_DEBUG_FUNCPTR (gst_fd_src_create_base);
 #endif
 
@@ -199,6 +201,10 @@ gst_fd_src_init (GstFdSrc * fdsrc)
   fdsrc->uri = g_strdup_printf ("fd://0");
   fdsrc->curoffset = 0;
 #ifdef OHOS_EXT_FUNC
+  /**
+   * ohos.ext.func.0020
+   * add start offset handling in gstfdsrc
+   */
   fdsrc->start_offset = 0;
 #endif
 }
@@ -281,6 +287,10 @@ gst_fd_src_start (GstBaseSrc * bsrc)
   GstFdSrc *src = GST_FD_SRC (bsrc);
 
 #ifdef OHOS_EXT_FUNC
+  /**
+   * ohos.ext.func.0020
+   * add start offset handling in gstfdsrc
+   */
   if (src->seekable_fd) {
     gint64 res = lseek (src->fd, src->start_offset, SEEK_SET);
     if (G_UNLIKELY ((res < 0) || (res != (gint64) src->start_offset))) {
@@ -398,24 +408,22 @@ gst_fd_src_get_property (GObject * object, guint prop_id, GValue * value,
 }
 
 #ifdef OHOS_EXT_FUNC
-typedef enum {
-  ERROR_NONE,
-  POLL_ERROR,
-  STOPPED,
-  ALLOC_FAILED,
-  STREAM_EOS,
-  READ_ERROR,
-  MAP_FAILED
-} ErrorType;
-
-#ifndef HAVE_WIN32
-static ErrorType
-poll_wait (GstBaseSrc *bsrc)
+/**
+ * ohos.ext.func.0021
+ * enable gstfdsrc in pull mode. in pull mode, demux will pull buffer from function gst_fd_src_create_offset().
+ */
+static GstFlowReturn
+gst_fd_src_create_offset (GstBaseSrc * bsrc, guint64 offset, guint length, GstBuffer ** outbuf)
 {
+  GstFdSrc *src = GST_FD_SRC (bsrc);
+  GstBuffer *buf = NULL;
+  gssize readbytes;
+  guint blocksize;
+  GstMapInfo info;
+
   GstClockTime timeout;
   gboolean try_again = FALSE;
   gint retval;
-  GstFdSrc *src = GST_FD_SRC (bsrc);
 
   if (src->timeout > 0) {
     timeout = src->timeout * GST_USECOND;
@@ -436,9 +444,9 @@ poll_wait (GstBaseSrc *bsrc)
       /* retry if interrupted */
         try_again = TRUE;
       } else if (errno == EBUSY) {
-        return STOPPED;
+        goto stopped;
       } else {
-        return POLL_ERROR;
+        goto poll_error;
       }
     } else if (G_UNLIKELY (retval == 0)) {
       try_again = TRUE;
@@ -448,126 +456,90 @@ poll_wait (GstBaseSrc *bsrc)
     }
   } while (G_UNLIKELY (try_again)); /* retry if interrupted or timeout */
 
-  return ERROR_NONE;
-}
-#endif
+  blocksize = length;
 
-static GstFlowReturn
-process_error (GstBaseSrc *bsrc, ErrorType error, const GstBuffer *buf)
-{
-  GstFdSrc *src = GST_FD_SRC (bsrc);
+  if (offset != src->curoffset) {
+    gint64 res_seek = lseek64 (src->fd, offset + src->start_offset, SEEK_SET);
+    if (G_UNLIKELY ((res_seek < 0) || (res_seek != (offset + src->start_offset)))) {
+      goto alloc_failed;
+    }
+    src->curoffset = offset;
+  }
 
-  switch (error) {
-    case POLL_ERROR: {
-      GST_ELEMENT_ERROR (src, RESOURCE, READ, (NULL), ("poll on file descriptor: %s.", g_strerror (errno)));
-      GST_DEBUG_OBJECT (src, "Error during poll");
+  /* create the buffer */
+  buf = gst_buffer_new_allocate (NULL, blocksize, NULL);
+  if (G_UNLIKELY (buf == NULL))
+    goto alloc_failed;
+
+  if (!gst_buffer_map (buf, &info, GST_MAP_WRITE))
+    goto buffer_read_error;
+
+  do {
+    readbytes = read (src->fd, info.data, blocksize);
+    GST_LOG_OBJECT (src, "read %" G_GSSIZE_FORMAT, readbytes);
+  } while (readbytes == -1 && errno == EINTR);  /* retry if interrupted */
+
+  if (readbytes < 0)
+    goto read_error;
+
+  gst_buffer_unmap (buf, &info);
+  gst_buffer_resize (buf, 0, readbytes);
+
+  if (readbytes == 0)
+    goto eos;
+
+  GST_BUFFER_OFFSET (buf) = src->curoffset;
+  GST_BUFFER_TIMESTAMP (buf) = GST_CLOCK_TIME_NONE;
+  src->curoffset += readbytes;
+
+  GST_DEBUG_OBJECT (src, "Read buffer of size %" G_GSSIZE_FORMAT, readbytes);
+
+  /* we're done, return the buffer */
+  *outbuf = buf;
+
+  return GST_FLOW_OK;
+
+  /* ERRORS */
+poll_error:
+  {
+    GST_ELEMENT_ERROR (src, RESOURCE, READ, (NULL), ("poll on file descriptor: %s.", g_strerror (errno)));
+    GST_DEBUG_OBJECT (src, "Error during poll");
+    return GST_FLOW_ERROR;
+  }
+stopped:
+  {
+    GST_DEBUG_OBJECT (src, "Poll stopped");
+    return GST_FLOW_FLUSHING;
+  }
+alloc_failed:
+  {
+      GST_ERROR_OBJECT (src, "Failed to allocate %u bytes", blocksize);
       return GST_FLOW_ERROR;
-    }
-    case STOPPED: {
-      GST_DEBUG_OBJECT (src, "Poll stopped");
-      return GST_FLOW_FLUSHING;
-    }
-    case ALLOC_FAILED: {
-      GST_ERROR_OBJECT (src, "Failed to allocate mem");
-      return GST_FLOW_ERROR;
-    }
-    case STREAM_EOS: {
-      GST_DEBUG_OBJECT (src, "Read 0 bytes. EOS.");
-      gst_buffer_unref (buf);
-      return GST_FLOW_EOS;
-    }
-    case READ_ERROR: {
-      GST_ELEMENT_ERROR (src, RESOURCE, READ, (NULL), ("read on file descriptor: %s.", g_strerror (errno)));
-      GST_ERROR_OBJECT (src, "Error reading from fd");
-      gst_buffer_unref (buf);
-      return GST_FLOW_ERROR;
-    }
-    case MAP_FAILED: {
-      GST_ELEMENT_ERROR (src, RESOURCE, WRITE, (NULL), ("Can't write to buffer"));
-      gst_buffer_unref (buf);
-      return GST_FLOW_ERROR;
-    }
-    default: {
-      GST_ERROR_OBJECT (src, "unknown error type");
-      return GST_FLOW_ERROR;
-    }
+  }
+eos:
+  {
+    GST_DEBUG_OBJECT (src, "Read 0 bytes. EOS.");
+    gst_buffer_unref (buf);
+    return GST_FLOW_EOS;
+  }
+read_error:
+  {
+    GST_ELEMENT_ERROR (src, RESOURCE, READ, (NULL), ("read on file descriptor: %s.", g_strerror (errno)));
+    GST_ERROR_OBJECT (src, "Error reading from fd");
+    gst_buffer_unmap (buf, &info);
+    gst_buffer_unref (buf);
+    return GST_FLOW_ERROR;
+  }
+buffer_read_error:
+  {
+    GST_ELEMENT_ERROR (src, RESOURCE, WRITE, (NULL), ("Can't write to buffer"));
+    gst_buffer_unref (buf);
+    return GST_FLOW_ERROR;
   }
 }
 
 static GstFlowReturn
-gst_fd_src_create_offset (GstBaseSrc *bsrc, guint64 offset, guint length, GstBuffer **outbuf)
-{
-  GstFdSrc *src = GST_FD_SRC (bsrc);
-  GstBuffer *buf = NULL;
-  gssize readbytes;
-  guint blocksize;
-  GstMapInfo info;
-  ErrorType error = ERROR_NONE;
-
-  do {
-#ifndef HAVE_WIN32
-    ErrorType error = poll_wait (bsrc);
-    if (error != ERROR_NONE) {
-      break;
-    }
-#endif
-    blocksize = length;
-    if (offset != src->curoffset) {
-      gint64 res_seek = lseek64 (src->fd, offset + src->start_offset, SEEK_SET);
-      if (G_UNLIKELY ((res_seek < 0) || (res_seek != (offset + src->start_offset)))) {
-        error = ALLOC_FAILED;
-        break;
-      }
-      src->curoffset = offset;
-    }
-
-    buf = gst_buffer_new_allocate (NULL, blocksize, NULL);
-    if (G_UNLIKELY (buf == NULL)) {
-      error = ALLOC_FAILED;
-      break;
-    }
-
-    if (!gst_buffer_map (buf, &info, GST_MAP_WRITE)) {
-      error = MAP_FAILED;
-      break;
-    }
-
-    do {
-      readbytes = read (src->fd, info.data, blocksize);
-      GST_LOG_OBJECT (src, "read %" G_GSSIZE_FORMAT, readbytes);
-    } while (readbytes == -1 && errno == EINTR);  /* retry if interrupted */
-
-    if (readbytes < 0) {
-      error = READ_ERROR;
-      gst_buffer_unmap (buf, &info);
-      break;
-    }
-
-    gst_buffer_unmap (buf, &info);
-    gst_buffer_resize (buf, 0, readbytes);
-    if (readbytes == 0) {
-      error = STREAM_EOS;
-      break;
-    }
-
-    GST_BUFFER_OFFSET (buf) = src->curoffset;
-    GST_BUFFER_TIMESTAMP (buf) = GST_CLOCK_TIME_NONE;
-    src->curoffset += readbytes;
-
-    GST_DEBUG_OBJECT (src, "Read buffer of size %" G_GSSIZE_FORMAT, readbytes);
-
-    /* we're done, return the buffer */
-    *outbuf = buf;
-
-    return GST_FLOW_OK;
-  } while (0);
-
-  /* ERRORS */
-  return process_error (bsrc, error, buf);
-}
-
-static GstFlowReturn
-gst_fd_src_create_base (GstBaseSrc *bsrc, guint64 offset, guint length, GstBuffer **ret)
+gst_fd_src_create_base (GstBaseSrc * bsrc, guint64 offset, guint length, GstBuffer ** ret)
 {
   GstFlowReturn fret;
   GstFdSrc *src = NULL;
@@ -726,6 +698,10 @@ gst_fd_src_query (GstBaseSrc * basesrc, GstQuery * query)
       ret = TRUE;
       break;
 #ifdef OHOS_EXT_FUNC
+    /**
+     * ohos.ext.func.0021
+     * enable gstfdsrc in pull mode
+     */
     case GST_QUERY_SCHEDULING:
       GST_INFO ("src->seekable_fd = %d", src->seekable_fd);
       if (src->seekable_fd) {
@@ -803,6 +779,10 @@ gst_fd_src_do_seek (GstBaseSrc * bsrc, GstSegment * segment)
     return TRUE;
 
 #ifdef OHOS_EXT_FUNC
+  /**
+   * ohos.ext.func.0020
+   * add start offset handling in gstfdsrc
+   */
   res = lseek (src->fd, offset + src->start_offset, SEEK_SET);
   if (G_UNLIKELY ((res < 0) || (res != (offset + src->start_offset)))) {
     goto seek_failed;
@@ -895,6 +875,10 @@ gst_fd_src_uri_set_uri (GstURIHandler * handler, const gchar * uri,
       }
     }
 #ifdef OHOS_EXT_FUNC
+    /**
+     * ohos.ext.func.0020
+     * add start offset handling in gstfdsrc
+     */
     sp = g_strstr_len (q, -1, "offset=");
     if (sp != NULL) {
       if (sscanf (sp, "offset=%" G_GUINT64_FORMAT, &src->start_offset) != 1) {
