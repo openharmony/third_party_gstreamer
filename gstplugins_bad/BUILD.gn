@@ -296,35 +296,35 @@ ohos_shared_library("gstcodecparsers") {
 }
 
 ohos_source_set("parse_source") {
-    visibility = [":*"]
+  visibility = [ ":*" ]
 
-    sources = [
-      "gst/videoparsers/plugin.c",
-      "gst/videoparsers/gsth264parse.c",
-    ]
+  sources = [
+    "gst/videoparsers/gsth264parse.c",
+    "gst/videoparsers/plugin.c",
+  ]
 
-    include_dirs = [
-      ".",
-      "./gst-libs",
-      "//third_party/gstreamer/gstreamer",
-      "//third_party/gstreamer/gstreamer/libs",
-      "//third_party/gstreamer/gstplugins_base",
-      "//third_party/gstreamer/gstplugins_base/gst-libs",
-      "//third_party/glib/glib",
-      "//third_party/glib",
-      "//third_party/glib/gmodule",
-      "//third_party/gstreamer/gstplugins_bad/gst/videoparsers",
-      "//third_party/zlibs",
-      "//third_party/gstreamer/gstplugins_bad/gst-libs/codecparsers",
-    ]
+  include_dirs = [
+    ".",
+    "./gst-libs",
+    "//third_party/gstreamer/gstreamer",
+    "//third_party/gstreamer/gstreamer/libs",
+    "//third_party/gstreamer/gstplugins_base",
+    "//third_party/gstreamer/gstplugins_base/gst-libs",
+    "//third_party/glib/glib",
+    "//third_party/glib",
+    "//third_party/glib/gmodule",
+    "//third_party/gstreamer/gstplugins_bad/gst/videoparsers",
+    "//third_party/zlibs",
+    "//third_party/gstreamer/gstplugins_bad/gst-libs/codecparsers",
+  ]
 
-    cflags = [
-      "-Wall",
-      "-Werror",
-      "-DGST_DISABLE_DEPRECATED",
-      "-DHAVE_CONFIG_H",
-      "-DOHOS_EXT_FUNC",
-    ]
+  cflags = [
+    "-Wall",
+    "-Werror",
+    "-DGST_DISABLE_DEPRECATED",
+    "-DHAVE_CONFIG_H",
+    "-DOHOS_EXT_FUNC",
+  ]
 }
 
 ohos_shared_library("gstvideoparsersbad") {
