@@ -7,6 +7,7 @@ group("gstplugins_bad_packages") {
     ":gsthls",
     ":gstmpegtsdemux",
     ":gstplayer",
+    ":gstvideoparsersbad",
   ]
 }
 
@@ -290,6 +291,58 @@ ohos_shared_library("gstcodecparsers") {
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
 
+  part_name = "multimedia_media_standard"
+  subsystem_name = "multimedia"
+}
+
+ohos_source_set("parse_source") {
+  visibility = [ ":*" ]
+
+  sources = [
+    "gst/videoparsers/gsth264parse.c",
+    "gst/videoparsers/plugin.c",
+  ]
+
+  include_dirs = [
+    ".",
+    "./gst-libs",
+    "//third_party/gstreamer/gstreamer",
+    "//third_party/gstreamer/gstreamer/libs",
+    "//third_party/gstreamer/gstplugins_base",
+    "//third_party/gstreamer/gstplugins_base/gst-libs",
+    "//third_party/glib/glib",
+    "//third_party/glib",
+    "//third_party/glib/gmodule",
+    "//third_party/gstreamer/gstplugins_bad/gst/videoparsers",
+    "//third_party/zlibs",
+    "//third_party/gstreamer/gstplugins_bad/gst-libs/codecparsers",
+  ]
+
+  cflags = [
+    "-Wall",
+    "-Werror",
+    "-DGST_DISABLE_DEPRECATED",
+    "-DHAVE_CONFIG_H",
+    "-DOHOS_EXT_FUNC",
+  ]
+}
+
+ohos_shared_library("gstvideoparsersbad") {
+  deps = [
+    ":parse_source",
+    "//third_party/glib:glib",
+    "//third_party/glib:gmodule",
+    "//third_party/glib:gobject",
+    "//third_party/gstreamer/gstplugins_bad:gstcodecparsers",
+    "//third_party/gstreamer/gstplugins_base:gstaudio",
+    "//third_party/gstreamer/gstplugins_base:gstpbutils",
+    "//third_party/gstreamer/gstplugins_base:gsttag",
+    "//third_party/gstreamer/gstplugins_base:gstvideo",
+    "//third_party/gstreamer/gstreamer:gstbase",
+    "//third_party/gstreamer/gstreamer:gstreamer",
+  ]
+
+  relative_install_dir = "media/plugins"
   part_name = "multimedia_media_standard"
   subsystem_name = "multimedia"
 }

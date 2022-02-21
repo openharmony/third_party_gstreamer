@@ -22,6 +22,12 @@
 #include "config.h"
 #endif
 
+/* ohos.ext.func.0022:
+ * we only need gsth264parse element. However, gstreamer will build all parser elemenet together, which make the
+ * memory bigger than expect.
+ * To avoid this, we do not make other parser elements.
+ */
+#ifndef OHOS_EXT_FUNC
 #include "gsth263parse.h"
 #include "gsth264parse.h"
 #include "gstdiracparse.h"
@@ -31,12 +37,21 @@
 #include "gstjpeg2000parse.h"
 #include "gstvc1parse.h"
 #include "gsth265parse.h"
+#else
+#include "gsth264parse.h"
+#endif
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
   gboolean ret = FALSE;
 
+/* ohos.ext.func.0022:
+ * we only need gsth264parse element. However, gstreamer will build all parser elemenet together, which make the
+ * memory bigger than expect.
+ * To avoid this, we do not make other parser elements.
+ */
+#ifndef OHOS_EXT_FUNC
   ret |= gst_element_register (plugin, "h263parse",
       GST_RANK_PRIMARY + 1, GST_TYPE_H263_PARSE);
   ret |= gst_element_register (plugin, "h264parse",
@@ -55,7 +70,10 @@ plugin_init (GstPlugin * plugin)
       GST_RANK_SECONDARY, GST_TYPE_H265_PARSE);
   ret |= gst_element_register (plugin, "vc1parse",
       GST_RANK_NONE, GST_TYPE_VC1_PARSE);
-
+#else
+  ret |= gst_element_register (plugin, "h264parse",
+      GST_RANK_PRIMARY + 1, GST_TYPE_H264_PARSE);
+#endif
   return ret;
 }
 
