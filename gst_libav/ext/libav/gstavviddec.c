@@ -270,7 +270,11 @@ gst_ffmpegviddec_init (GstFFMpegVidDec * ffmpegdec)
   ffmpegdec->debug_mv = DEFAULT_DEBUG_MV;
   ffmpegdec->max_threads = DEFAULT_MAX_THREADS;
   ffmpegdec->output_corrupt = DEFAULT_OUTPUT_CORRUPT;
-
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+  ffmpegdec->has_send_first_key_frame = FALSE;
+  ffmpegdec->has_recv_first_key_frame = FALSE;
+  ffmpegdec->send_first_key_frame_time = GST_CLOCK_TIME_NONE;
+#endif
   GST_PAD_SET_ACCEPT_TEMPLATE (GST_VIDEO_DECODER_SINK_PAD (ffmpegdec));
   gst_video_decoder_set_use_default_pad_acceptcaps (GST_VIDEO_DECODER_CAST
       (ffmpegdec), TRUE);
@@ -1521,6 +1525,13 @@ gst_ffmpegviddec_video_frame (GstFFMpegVidDec * ffmpegdec,
     goto beach;
   }
 
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+  if (!ffmpegdec->has_recv_first_key_frame) {
+    ffmpegdec->has_recv_first_key_frame = TRUE;
+    GST_WARNING_OBJECT (ffmpegdec, "KPI-TRACE: FIRST-VIDEO-FRAME decode cost %" G_GINT64_FORMAT " ms",
+      (g_get_monotonic_time () - ffmpegdec->send_first_key_frame_time) / GST_USECOND);
+  }
+#endif
   got_frame = TRUE;
 
   /* get the output picture timing info again */
@@ -1859,6 +1870,12 @@ gst_ffmpegviddec_handle_frame (GstVideoDecoder * decoder,
    * See https://bugzilla.gnome.org/show_bug.cgi?id=726020
    */
   GST_VIDEO_DECODER_STREAM_UNLOCK (ffmpegdec);
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+  if (!ffmpegdec->has_send_first_key_frame) {
+    ffmpegdec->has_send_first_key_frame = TRUE;
+    ffmpegdec->send_first_key_frame_time = g_get_monotonic_time ();
+  }
+#endif
   if (avcodec_send_packet (ffmpegdec->context, &packet) < 0) {
     GST_VIDEO_DECODER_STREAM_LOCK (ffmpegdec);
     goto send_packet_failed;
@@ -1947,7 +1964,11 @@ gst_ffmpegviddec_stop (GstVideoDecoder * decoder)
   ffmpegdec->pool_width = 0;
   ffmpegdec->pool_height = 0;
   ffmpegdec->pool_format = 0;
-
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+  ffmpegdec->has_send_first_key_frame = FALSE;
+  ffmpegdec->has_recv_first_key_frame = FALSE;
+  ffmpegdec->send_first_key_frame_time = GST_CLOCK_TIME_NONE;
+#endif
   return TRUE;
 }
 
