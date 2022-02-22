@@ -453,6 +453,9 @@ struct _QtDemuxStream
   GQueue protection_scheme_event_queue;
 
   gint ref_count;               /* atomic */
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+  gboolean has_push_first_frame;
+#endif
 };
 
 /* Contains properties and cryptographic info for a set of samples from a
@@ -2011,6 +2014,9 @@ _create_stream (GstQTDemux * demux, guint32 track_id)
   stream->ref_count = 1;
   /* consistent default for push based mode */
   gst_segment_init (&stream->segment, GST_FORMAT_TIME);
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+  stream->has_push_first_frame = FALSE;
+#endif
   return stream;
 }
 
@@ -2669,6 +2675,9 @@ gst_qtdemux_stream_clear (QtDemuxStream * stream)
   stream->redirect_uri = NULL;
   stream->sent_eos = FALSE;
   stream->protected = FALSE;
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+  stream->has_push_first_frame = FALSE;
+#endif
   if (stream->protection_scheme_info) {
     if (stream->protection_scheme_type == FOURCC_cenc) {
       QtDemuxCencSampleSetInfo *info =
@@ -5811,6 +5820,24 @@ gst_qtdemux_process_buffer (GstQTDemux * qtdemux, QtDemuxStream * stream,
   return buf;
 }
 
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+static void
+kpi_log_demux_push_first_frame (GstQTDemux *qtdemux, QtDemuxStream *stream)
+{
+  if (stream->has_push_first_frame) {
+    return;
+  }
+
+  if (stream->subtype == FOURCC_vide && stream->on_keyframe) {
+    stream->has_push_first_frame = TRUE;
+    GST_WARNING_OBJECT(qtdemux, "KPI-TRACE: FIRST-VIDEO-FRAME demux push first video keyframe");
+  } else if (stream->subtype == FOURCC_soun) {
+    stream->has_push_first_frame = TRUE;
+    GST_WARNING_OBJECT(qtdemux, "KPI-TRACE: demux push first audio frame");
+  }
+}
+#endif
+
 static GstFlowReturn
 gst_qtdemux_push_buffer (GstQTDemux * qtdemux, QtDemuxStream * stream,
     GstBuffer * buf)
@@ -5881,6 +5908,9 @@ gst_qtdemux_push_buffer (GstQTDemux * qtdemux, QtDemuxStream * stream,
   pts = GST_BUFFER_PTS (buf);
   duration = GST_BUFFER_DURATION (buf);
 
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+  kpi_log_demux_push_first_frame (qtdemux, stream);
+#endif
   ret = gst_pad_push (stream->pad, buf);
 
   if (GST_CLOCK_TIME_IS_VALID (pts) && GST_CLOCK_TIME_IS_VALID (duration)) {

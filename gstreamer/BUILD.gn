@@ -192,6 +192,7 @@ config("gstbase_config") {
     "-Wno-unused-function",
     "-DOHOS_EXT_FUNC",
     "-DOHOS_OPT_COMPAT",
+    "-DOHOS_OPT_PERFORMANCE"
   ]
 }
 
