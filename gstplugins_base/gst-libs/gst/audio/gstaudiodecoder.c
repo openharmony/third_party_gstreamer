@@ -265,7 +265,7 @@ struct _GstAudioDecoderPrivate
 
   /* flags */
   gboolean use_default_pad_acceptcaps;
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: first frame decoded cost time
   gboolean has_recv_first_frame;
   gboolean has_push_first_frame;
 #endif
@@ -1013,7 +1013,7 @@ gst_audio_decoder_push_forward (GstAudioDecoder * dec, GstBuffer * buf)
       GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buf)),
       GST_TIME_ARGS (GST_BUFFER_DURATION (buf)));
 
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: first frame decoded cost time
   if (!priv->has_push_first_frame) {
     priv->has_push_first_frame = TRUE;
     GST_WARNING_OBJECT (dec, "KPI-TRACE: audiodecoder push first frame");
@@ -1607,7 +1607,7 @@ gst_audio_decoder_handle_frame (GstAudioDecoder * dec,
     GST_LOG_OBJECT (dec, "providing subclass with NULL frame");
   }
 
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: first frame decoded cost time
   if (!dec->priv->has_recv_first_frame) {
     dec->priv->has_recv_first_frame = TRUE;
     GST_WARNING_OBJECT (dec, "KPI-TRACE: audiodecoder recv first frame");

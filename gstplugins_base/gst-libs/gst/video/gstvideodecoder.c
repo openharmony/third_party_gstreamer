@@ -403,7 +403,7 @@ struct _GstVideoDecoderPrivate
    * from flush to first output */
   GstClockTime last_reset_time;
 #endif
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: first frame decoded cost time
   gboolean has_recv_first_key_frame;
   gboolean has_push_first_frame;
 #endif
@@ -2079,7 +2079,7 @@ gst_video_decoder_reset (GstVideoDecoder * decoder, gboolean full,
   priv->last_reset_time = gst_util_get_timestamp ();
 #endif
 
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: first frame decoded cost time
   priv->has_recv_first_key_frame = FALSE;
   priv->has_push_first_frame = FALSE;
 #endif
@@ -3193,7 +3193,7 @@ gst_video_decoder_clip_and_push_buf (GstVideoDecoder * decoder, GstBuffer * buf)
   }
 #endif
 
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: first frame decoded cost time
   if (!priv->has_push_first_frame) {
     priv->has_push_first_frame = TRUE;
     GST_WARNING_OBJECT (decoder, "KPI-TRACE: FIRST-VIDEO-FRAME videodecoder push first frame");
@@ -3412,7 +3412,7 @@ gst_video_decoder_decode_frame (GstVideoDecoder * decoder,
       gst_segment_to_running_time (&decoder->input_segment, GST_FORMAT_TIME,
       frame->pts);
 
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: first frame decoded cost time
   if (!priv->has_recv_first_key_frame) {
     priv->has_recv_first_key_frame = TRUE;
     GST_WARNING_OBJECT (decoder, "KPI-TRACE: FIRST-VIDEO-FRAME videodecoder recv first key frame");

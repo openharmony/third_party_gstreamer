@@ -172,7 +172,7 @@ typedef struct
   gboolean need_preroll;        /* if we need preroll after this step */
 } GstStepInfo;
 
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: define sink type
 typedef enum {
   SINK_TYPE_VIDEO = 0,
   SINK_TYPE_AUDIO,
@@ -267,7 +267,7 @@ struct _GstBaseSinkPrivate
   gsize rc_accumulated;
 
   gboolean drop_out_of_segment;
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
   gboolean has_render_first_frame;
   gboolean has_recv_first_frame;
   guint64 tmp_render_nums_fps;
@@ -326,9 +326,9 @@ enum
   PROP_THROTTLE_TIME,
   PROP_MAX_BITRATE,
   PROP_PROCESSING_DEADLINE,
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
-  PROP_AUDIO_SINK,
-  PROP_LAST_RENDER_PTS,
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
+  PROP_AUDIO_SINK,      // add prop to get av sync diff time
+  PROP_LAST_RENDER_PTS, // add prop to get av sync diff time
   PROP_ENABLE_KPI_LOG,
 #endif
   PROP_LAST
@@ -580,11 +580,13 @@ gst_base_sink_class_init (GstBaseSinkClass * klass)
           DEFAULT_PROCESSING_DEADLINE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
+  /* add prop to get av sync diff time */
   g_object_class_install_property (gobject_class, PROP_AUDIO_SINK,
       g_param_spec_pointer ("audio-sink", "audio sink", "audio sink",
           G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
 
+  /* add prop to get av sync diff time */
   g_object_class_install_property (gobject_class, PROP_LAST_RENDER_PTS,
       g_param_spec_int64 ("last-render-pts", "last-render-pts", "last-render-pts", 0, G_MAXINT64,
           0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
@@ -728,7 +730,7 @@ gst_base_sink_init (GstBaseSink * basesink, gpointer g_class)
 
   priv->drop_out_of_segment = DEFAULT_DROP_OUT_OF_SEGMENT;
 
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
   priv->has_render_first_frame = FALSE;
   priv->has_recv_first_frame = FALSE;
   priv->tmp_render_nums_fps = 0;
@@ -1562,7 +1564,7 @@ gst_base_sink_get_processing_deadline (GstBaseSink * sink)
   return res;
 }
 
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
 static void
 gst_base_sink_set_audio_sink(GstBaseSink * sink, void *audio_sink)
 {
@@ -1640,7 +1642,7 @@ gst_base_sink_set_property (GObject * object, guint prop_id,
     case PROP_PROCESSING_DEADLINE:
       gst_base_sink_set_processing_deadline (sink, g_value_get_uint64 (value));
       break;
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
     case PROP_AUDIO_SINK:
       gst_base_sink_set_audio_sink(sink, g_value_get_pointer (value));
       break;
@@ -1697,7 +1699,7 @@ gst_base_sink_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_PROCESSING_DEADLINE:
       g_value_set_uint64 (value, gst_base_sink_get_processing_deadline (sink));
       break;
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: get last render pts
     case PROP_LAST_RENDER_PTS:
       g_value_set_int64 (value, gst_base_sink_get_last_render_pts (sink));
       break;
@@ -3562,7 +3564,7 @@ gst_base_sink_needs_preroll (GstBaseSink * basesink)
   return res;
 }
 
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
 static gchar *
 get_sink_type_by_caps(GstBaseSink * basesink)
 {
@@ -3634,6 +3636,7 @@ kpi_log_avsync_diff (GstBaseSink *basesink, guint64 last_render_pts)
   priv->last_render_pts = last_render_pts;
   GST_OBJECT_UNLOCK(basesink);
 
+  // get av sync diff time
   if (priv->enable_kpi_log && priv->sink_type == SINK_TYPE_VIDEO && priv->audio_sink) {
     gint64 audio_last_render_pts = 0;
     g_object_get (priv->audio_sink, "last-render-pts", &audio_last_render_pts, NULL);
@@ -3863,7 +3866,7 @@ again:
     goto flushing;
 
   priv->rendered++;
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
   kpi_log_avsync_diff(basesink, GST_BUFFER_PTS (GST_BUFFER_CAST (obj)));
   kpi_log_render_first_frame(basesink);
   kpi_log_fps(basesink);
@@ -3963,7 +3966,7 @@ preroll_failed:
   }
 }
 
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
 static void
 kpi_log_recv_first_frame(GstBaseSink *basesink)
 {
@@ -3973,6 +3976,8 @@ kpi_log_recv_first_frame(GstBaseSink *basesink)
   }
 
   priv->has_recv_first_frame = TRUE;
+
+  /* get sink type by caps */
   gchar *sink_type = get_sink_type_by_caps(basesink);
   if (strncmp(sink_type, "video", strlen("video")) == 0) {
     priv->sink_type = SINK_TYPE_VIDEO;
@@ -3997,7 +4002,7 @@ gst_base_sink_chain_main (GstBaseSink * basesink, GstPad * pad, gpointer obj,
     goto wrong_mode;
 
   GST_BASE_SINK_PREROLL_LOCK (basesink);
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
   kpi_log_recv_first_frame(basesink);
 #endif
   result = gst_base_sink_chain_unlocked (basesink, pad, obj, is_list);
@@ -5413,7 +5418,7 @@ gst_base_sink_change_state (GstElement * element, GstStateChange transition)
       priv->call_preroll = TRUE;
       priv->current_step.valid = FALSE;
       priv->pending_step.valid = FALSE;
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
       priv->has_render_first_frame = FALSE;
       priv->has_recv_first_frame = FALSE;
 #endif
@@ -5545,7 +5550,7 @@ gst_base_sink_change_state (GstElement * element, GstStateChange transition)
       priv->current_sstart = GST_CLOCK_TIME_NONE;
       priv->current_sstop = GST_CLOCK_TIME_NONE;
       priv->have_latency = FALSE;
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
       priv->has_render_first_frame = FALSE;
       priv->has_recv_first_frame = FALSE;
       if (priv->audio_sink) {

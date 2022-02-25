@@ -453,7 +453,7 @@ struct _QtDemuxStream
   GQueue protection_scheme_event_queue;
 
   gint ref_count;               /* atomic */
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: demux push first audio/video frame
   gboolean has_push_first_frame;
 #endif
 };
@@ -2014,7 +2014,7 @@ _create_stream (GstQTDemux * demux, guint32 track_id)
   stream->ref_count = 1;
   /* consistent default for push based mode */
   gst_segment_init (&stream->segment, GST_FORMAT_TIME);
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: demux push first audio/video frame
   stream->has_push_first_frame = FALSE;
 #endif
   return stream;
@@ -2675,7 +2675,7 @@ gst_qtdemux_stream_clear (QtDemuxStream * stream)
   stream->redirect_uri = NULL;
   stream->sent_eos = FALSE;
   stream->protected = FALSE;
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: demux push first audio/video frame
   stream->has_push_first_frame = FALSE;
 #endif
   if (stream->protection_scheme_info) {
@@ -5820,7 +5820,7 @@ gst_qtdemux_process_buffer (GstQTDemux * qtdemux, QtDemuxStream * stream,
   return buf;
 }
 
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: demux push first audio/video frame
 static void
 kpi_log_demux_push_first_frame (GstQTDemux *qtdemux, QtDemuxStream *stream)
 {
@@ -5908,7 +5908,7 @@ gst_qtdemux_push_buffer (GstQTDemux * qtdemux, QtDemuxStream * stream,
   pts = GST_BUFFER_PTS (buf);
   duration = GST_BUFFER_DURATION (buf);
 
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
   kpi_log_demux_push_first_frame (qtdemux, stream);
 #endif
   ret = gst_pad_push (stream->pad, buf);
