@@ -1679,6 +1679,9 @@ buffering_cb (G_GNUC_UNUSED GstBus * bus, GstMessage * msg, gpointer user_data)
     GST_DEBUG_OBJECT (self, "Buffering finished - staying PAUSED");
 
 #ifdef OHOS_EXT_FUNC
+/* ohos.ext.func.0024
+ * When the above state is switched in advance, 
+ * it is necessary to take a state switch here to solve the problem of the last business trip in the state */
   if (self->isStateChange) {
     change_state (self, GST_PLAYER_STATE_PAUSED);
     self->isStateChange = FALSE;
