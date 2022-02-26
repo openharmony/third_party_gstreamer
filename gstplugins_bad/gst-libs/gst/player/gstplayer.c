@@ -224,6 +224,12 @@ struct _GstPlayer
   // ohos.ext.func.0012
   guint timeout;
 #endif
+
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0010
+  gboolean isStateChange;
+#endif
+
   GstPlayerState app_state;
   gint buffering;
 
@@ -348,6 +354,11 @@ gst_player_init (GstPlayer * self)
   self->seek_position = GST_CLOCK_TIME_NONE;
   self->last_seek_time = GST_CLOCK_TIME_NONE;
   self->inhibit_sigs = FALSE;
+
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0010
+  self->isStateChange = FALSE;
+#endif
 
   GST_TRACE_OBJECT (self, "Initialized");
 }
@@ -1670,9 +1681,17 @@ buffering_cb (G_GNUC_UNUSED GstBus * bus, GstMessage * msg, gpointer user_data)
     g_mutex_unlock (&self->lock);
 
     GST_DEBUG_OBJECT (self, "Buffering finished - staying PAUSED");
-#ifndef OHOS_EXT_FUNC
-	// ohos.ext.func.0012
+
+#ifdef OHOS_OPT_COMPAT
+/* ohos.opt.compat.0010
+ * When the above state is switched in advance, 
+ * it is necessary to take a state switch here to solve the problem of the last business trip in the state */
+  if (self->isStateChange) {
     change_state (self, GST_PLAYER_STATE_PAUSED);
+    self->isStateChange = FALSE;
+  }
+#else
+  change_state (self, GST_PLAYER_STATE_PAUSED);
 #endif
   } else {
     g_mutex_unlock (&self->lock);
@@ -2133,6 +2152,12 @@ state_changed_cb (G_GNUC_UNUSED GstBus * bus, GstMessage * msg,
         } else if (self->buffering == 100) {
           change_state (self, GST_PLAYER_STATE_PAUSED);
         }
+        #ifdef OHOS_OPT_COMPAT
+        // ohos.opt.compat.0010
+        else {
+          self->isStateChange = TRUE;
+        }
+        #endif
       } else {
         g_mutex_unlock (&self->lock);
       }
