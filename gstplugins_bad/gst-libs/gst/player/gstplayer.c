@@ -2153,8 +2153,8 @@ state_changed_cb (G_GNUC_UNUSED GstBus * bus, GstMessage * msg,
           change_state (self, GST_PLAYER_STATE_PAUSED);
         }
         #ifdef OHOS_OPT_COMPAT
+        // ohos.opt.compat.0010
         else {
-          // ohos.opt.compat.0010
           self->isStateChange = TRUE;
         }
         #endif
