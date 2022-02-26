@@ -38,6 +38,7 @@ config("gst_player_config") {
     "-Wno-implicit-function-declaration",
     "-DOHOS_EXT_FUNC",
     "-DOHOS_OPT_STABLE",
+    "-DOHOS_OPT_COMPAT",
   ]
 }
 
