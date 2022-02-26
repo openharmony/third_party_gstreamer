@@ -1992,8 +1992,8 @@ gst_queue2_create_write (GstQueue2 * queue, GstBuffer * buffer)
         guint64 range_data_start, range_data_end;
         GstQueue2Range *range_to_destroy = NULL;
 
-#ifndef OHOS_EXT_FUNC
-/* ohos.ext.func.0023
+#ifndef OHOS_OPT_COMPAT
+/* ohos.opt.compat.0009
  * Resolve the issue of replaying the page gray screen after the video playback is over */
         if (range == queue->current)
           goto next_range;
