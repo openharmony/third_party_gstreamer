@@ -223,6 +223,8 @@ struct _GstPlayer
   gint seek_mode;
   // ohos.ext.func.0012
   guint timeout;
+  // ohos.ext.func.0024
+  gboolean isStateChange;
 #endif
   GstPlayerState app_state;
   gint buffering;
@@ -348,6 +350,11 @@ gst_player_init (GstPlayer * self)
   self->seek_position = GST_CLOCK_TIME_NONE;
   self->last_seek_time = GST_CLOCK_TIME_NONE;
   self->inhibit_sigs = FALSE;
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0024
+  self->isStateChange = FALSE;
+#endif
 
   GST_TRACE_OBJECT (self, "Initialized");
 }
@@ -1670,9 +1677,14 @@ buffering_cb (G_GNUC_UNUSED GstBus * bus, GstMessage * msg, gpointer user_data)
     g_mutex_unlock (&self->lock);
 
     GST_DEBUG_OBJECT (self, "Buffering finished - staying PAUSED");
-#ifndef OHOS_EXT_FUNC
-	// ohos.ext.func.0012
+
+#ifdef OHOS_EXT_FUNC
+  if (self->isStateChange) {
     change_state (self, GST_PLAYER_STATE_PAUSED);
+    self->isStateChange = FALSE;
+  }
+#else
+  change_state (self, GST_PLAYER_STATE_PAUSED);
 #endif
   } else {
     g_mutex_unlock (&self->lock);
@@ -2133,6 +2145,12 @@ state_changed_cb (G_GNUC_UNUSED GstBus * bus, GstMessage * msg,
         } else if (self->buffering == 100) {
           change_state (self, GST_PLAYER_STATE_PAUSED);
         }
+        #ifdef OHOS_EXT_FUNC
+        else {
+          // ohos.ext.func.0024
+          self->isStateChange = TRUE;
+        }
+        #endif
       } else {
         g_mutex_unlock (&self->lock);
       }
