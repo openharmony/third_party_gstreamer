@@ -78,6 +78,11 @@ struct _GstFFMpegVidDec
   gint pool_height;
   enum AVPixelFormat pool_format;
   GstVideoInfo pool_info;
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: first key frame decoded cost time
+  gboolean has_send_first_key_frame;
+  gint64 send_first_key_frame_time;
+  gboolean has_recv_first_key_frame;
+#endif
 };
 
 typedef struct _GstFFMpegVidDecClass GstFFMpegVidDecClass;

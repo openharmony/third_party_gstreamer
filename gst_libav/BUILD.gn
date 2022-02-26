@@ -38,6 +38,7 @@ config("gstlibav_config") {
     "-DOHOS_OPT_COMPAT",
     "-DOHOS_OPT_MEMLEAK",
     "-DOHOS_EXT_FUNC",
+    "-DOHOS_OPT_PERFORMANCE",
   ]
 }
 
