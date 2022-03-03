@@ -6380,13 +6380,13 @@ gst_qt_mux_sink_event (GstCollectPads * pads, GstCollectData * data,
  * resulting in a file exception.
  */
 #ifdef OHOS_OPT_COMPAT
-    CASE GST_EVENT_FLUSH_START:
+    case GST_EVENT_FLUSH_START:
     {
       g_mutex_lock(&qtmux->flush_lock);
       qtmux->is_flushing = TRUE;
       g_mutex_unlock(&qtmux->flush_lock);
     }
-    CASE GST_EVENT_FLUSH_STOP:
+    case GST_EVENT_FLUSH_STOP:
     {
       g_mutex_lock(&qtmux->flush_lock);
       qtmux->is_flushing = FALSE;
