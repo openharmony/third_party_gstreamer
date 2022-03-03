@@ -310,6 +310,17 @@ struct _GstQTMux
   guint32 rotation;
 #endif
 
+/* ohos.opt.compat.0011
+ * qtmux itself does not handle flush events, so in extreme cases, the buffer is discarded by gstpad
+ * when it is passed forward, but qtmux thinks that the buffer writes the file successfully,
+ * resulting in a file exception.
+ * is_flushing: a flag to tell qtmux, in flushing progress.
+ * flush_lock: is a lock to make sure the flag Operating normally.
+ */
+#ifdef OHOS_OPT_COMPAT
+  GMutex flush_lock;
+  gboolean is_flushing;
+#endif
 
   /* for request pad naming */
   guint video_pads, audio_pads, subtitle_pads, caption_pads;

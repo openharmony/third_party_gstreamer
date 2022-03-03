@@ -881,6 +881,19 @@ gst_qt_mux_init (GstQTMux * qtmux, GstQTMuxClass * qtmux_klass)
   qtmux->enable_geolocation = FALSE;
 #endif
 
+/* ohos.opt.compat.0011
+ * qtmux itself does not handle flush events, so in extreme cases, the buffer is discarded by gstpad
+ * when it is passed forward, but qtmux thinks that the buffer writes the file successfully,
+ * resulting in a file exception.
+ * is_flushing: a flag to tell qtmux, in flushing progress.
+ * flush_lock: is a lock to make sure the flag Operating normally.
+ */
+#ifdef OHOS_OPT_COMPAT
+  g_mutex_init(&qtmux->flush_lock);
+  qtmux->is_flushing = FALSE;
+#endif
+
+
   /* always need this */
   qtmux->context =
       atoms_context_new (gst_qt_mux_map_format_to_flavor (qtmux_klass->format));
@@ -899,6 +912,17 @@ gst_qt_mux_finalize (GObject * object)
 
   g_free (qtmux->fast_start_file_path);
   g_free (qtmux->moov_recov_file_path);
+
+/* ohos.opt.compat.0011
+ * qtmux itself does not handle flush events, so in extreme cases, the buffer is discarded by gstpad
+ * when it is passed forward, but qtmux thinks that the buffer writes the file successfully,
+ * resulting in a file exception.
+ * is_flushing: a flag to tell qtmux, in flushing progress.
+ * flush_lock: is a lock to make sure the flag Operating normally.
+ */
+#ifdef OHOS_OPT_COMPAT
+  g_mutex_clear(&qtmux->flush_lock);
+#endif
 
   atoms_context_free (qtmux->context);
   gst_object_unref (qtmux->collect);
@@ -1902,6 +1926,20 @@ gst_qt_mux_send_buffer (GstQTMux * qtmux, GstBuffer * buf, guint64 * offset,
   size = gst_buffer_get_size (buf);
   GST_LOG_OBJECT (qtmux, "sending buffer size %" G_GSIZE_FORMAT, size);
 
+/* ohos.opt.compat.0011
+ * qtmux itself does not handle flush events, so in extreme cases, the buffer is discarded by gstpad
+ * when it is passed forward, but qtmux thinks that the buffer writes the file successfully,
+ * resulting in a file exception.
+ */
+#ifdef OHOS_OPT_COMPAT
+  g_mutex_lock(&qtmux->flush_lock);
+  if (qtmux->is_flushing) {
+      g_mutex_unlock(&qtmux->flush_lock);
+      GST_INFO_OBJECT(qtmux, "drop buffer size %" G_GSIZE_FORMAT, size);
+      return GST_FLOW_FLUSHING;
+  }
+#endif
+
   if (mind_fast && qtmux->fast_start_file) {
     GstMapInfo map;
     gint ret;
@@ -1922,6 +1960,15 @@ gst_qt_mux_send_buffer (GstQTMux * qtmux, GstBuffer * buf, guint64 * offset,
 
   if (G_LIKELY (offset))
     *offset += size;
+
+/* ohos.opt.compat.0011
+ * qtmux itself does not handle flush events, so in extreme cases, the buffer is discarded by gstpad
+ * when it is passed forward, but qtmux thinks that the buffer writes the file successfully,
+ * resulting in a file exception.
+ */
+#ifdef OHOS_OPT_COMPAT
+  g_mutex_unlock(&qtmux->flush_lock);
+#endif
 
   return res;
 
@@ -6327,6 +6374,25 @@ gst_qt_mux_sink_event (GstCollectPads * pads, GstCollectData * data,
       ret = TRUE;
       break;
     }
+/* ohos.opt.compat.0011
+ * qtmux itself does not handle flush events, so in extreme cases, the buffer is discarded by gstpad
+ * when it is passed forward, but qtmux thinks that the buffer writes the file successfully,
+ * resulting in a file exception.
+ */
+#ifdef OHOS_OPT_COMPAT
+    case GST_EVENT_FLUSH_START:
+    {
+      g_mutex_lock(&qtmux->flush_lock);
+      qtmux->is_flushing = TRUE;
+      g_mutex_unlock(&qtmux->flush_lock);
+    }
+    case GST_EVENT_FLUSH_STOP:
+    {
+      g_mutex_lock(&qtmux->flush_lock);
+      qtmux->is_flushing = FALSE;
+      g_mutex_unlock(&qtmux->flush_lock);
+    }
+#endif
     default:
       break;
   }
