@@ -883,7 +883,7 @@ gst_qt_mux_init (GstQTMux * qtmux, GstQTMuxClass * qtmux_klass)
 
 /* ohos.opt.compat.0011
  * qtmux itself does not handle flush events, so in extreme cases, the buffer is discarded by gstpad
- * when it is passed backwards, but qtmux thinks that the buffer writes the file successfully,
+ * when it is passed forward, but qtmux thinks that the buffer writes the file successfully,
  * resulting in a file exception.
  * is_flushing: a flag to tell qtmux, in flushing progress.
  * flush_lock: is a lock to make sure the flag Operating normally.
@@ -915,7 +915,7 @@ gst_qt_mux_finalize (GObject * object)
 
 /* ohos.opt.compat.0011
  * qtmux itself does not handle flush events, so in extreme cases, the buffer is discarded by gstpad
- * when it is passed backwards, but qtmux thinks that the buffer writes the file successfully,
+ * when it is passed forward, but qtmux thinks that the buffer writes the file successfully,
  * resulting in a file exception.
  * is_flushing: a flag to tell qtmux, in flushing progress.
  * flush_lock: is a lock to make sure the flag Operating normally.
@@ -1928,7 +1928,7 @@ gst_qt_mux_send_buffer (GstQTMux * qtmux, GstBuffer * buf, guint64 * offset,
 
 /* ohos.opt.compat.0011
  * qtmux itself does not handle flush events, so in extreme cases, the buffer is discarded by gstpad
- * when it is passed backwards, but qtmux thinks that the buffer writes the file successfully,
+ * when it is passed forward, but qtmux thinks that the buffer writes the file successfully,
  * resulting in a file exception.
  */
 #ifdef OHOS_OPT_COMPAT
@@ -1963,7 +1963,7 @@ gst_qt_mux_send_buffer (GstQTMux * qtmux, GstBuffer * buf, guint64 * offset,
 
 /* ohos.opt.compat.0011
  * qtmux itself does not handle flush events, so in extreme cases, the buffer is discarded by gstpad
- * when it is passed backwards, but qtmux thinks that the buffer writes the file successfully,
+ * when it is passed forward, but qtmux thinks that the buffer writes the file successfully,
  * resulting in a file exception.
  */
 #ifdef OHOS_OPT_COMPAT
@@ -6376,7 +6376,7 @@ gst_qt_mux_sink_event (GstCollectPads * pads, GstCollectData * data,
     }
 /* ohos.opt.compat.0011
  * qtmux itself does not handle flush events, so in extreme cases, the buffer is discarded by gstpad
- * when it is passed backwards, but qtmux thinks that the buffer writes the file successfully,
+ * when it is passed forward, but qtmux thinks that the buffer writes the file successfully,
  * resulting in a file exception.
  */
 #ifdef OHOS_OPT_COMPAT
