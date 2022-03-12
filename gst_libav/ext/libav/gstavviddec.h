@@ -83,6 +83,10 @@ struct _GstFFMpegVidDec
   gint64 send_first_key_frame_time;
   gboolean has_recv_first_key_frame;
 #endif
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0012
+  gboolean is_first_key_frame_after_seek;
+#endif
 };
 
 typedef struct _GstFFMpegVidDecClass GstFFMpegVidDecClass;
