@@ -1617,6 +1617,9 @@ gst_soup_http_src_parse_status (SoupMessage * msg, GstSoupHTTPSrc * src)
         }
 
         wait_for_connect (src, msg, (gint64) src->wait_time - (gint64) src->wait_already);
+
+        if (src->max_retries == -1 || src->retry_count < src->max_retries)
+          return GST_FLOW_CUSTOM_ERROR;
 #endif
         SOUP_HTTP_SRC_ERROR (src, msg, RESOURCE, OPEN_READ,
             _("Could not establish connection to server."));
