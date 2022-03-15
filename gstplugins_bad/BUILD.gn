@@ -39,6 +39,7 @@ config("gst_player_config") {
     "-DOHOS_EXT_FUNC",
     "-DOHOS_OPT_STABLE",
     "-DOHOS_OPT_COMPAT",
+    "-DOHOS_OPT_CVE",
   ]
 }
 
