@@ -96,6 +96,12 @@ static gboolean picture_changed (GstFFMpegVidDec * ffmpegdec,
 static gboolean context_changed (GstFFMpegVidDec * ffmpegdec,
     AVCodecContext * context);
 
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0012
+static gboolean gst_ffmpegviddec_sink_event (GstVideoDecoder * decoder,
+    GstEvent * event);
+#endif
+
 #define GST_FFDEC_PARAMS_QDATA g_quark_from_static_string("avdec-params")
 
 static GstElementClass *parent_class = NULL;
@@ -250,6 +256,10 @@ gst_ffmpegviddec_class_init (GstFFMpegVidDecClass * klass)
   viddec_class->drain = gst_ffmpegviddec_drain;
   viddec_class->decide_allocation = gst_ffmpegviddec_decide_allocation;
   viddec_class->propose_allocation = gst_ffmpegviddec_propose_allocation;
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0012
+  viddec_class->sink_event = gst_ffmpegviddec_sink_event;
+#endif
 
   GST_DEBUG_CATEGORY_GET (GST_CAT_PERFORMANCE, "GST_PERFORMANCE");
 }
@@ -275,6 +285,10 @@ gst_ffmpegviddec_init (GstFFMpegVidDec * ffmpegdec)
   ffmpegdec->has_recv_first_key_frame = FALSE;
   ffmpegdec->send_first_key_frame_time = GST_CLOCK_TIME_NONE;
 #endif
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0012
+  ffmpegdec->is_first_key_frame_after_seek = TRUE;
+#endif
   GST_PAD_SET_ACCEPT_TEMPLATE (GST_VIDEO_DECODER_SINK_PAD (ffmpegdec));
   gst_video_decoder_set_use_default_pad_acceptcaps (GST_VIDEO_DECODER_CAST
       (ffmpegdec), TRUE);
@@ -297,6 +311,28 @@ gst_ffmpegviddec_finalize (GObject * object)
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
+
+#ifdef OHOS_OPT_COMPAT
+/**
+ * ohos.opt.compat.0012
+ * Fix blurry pictures after ts file seeking.
+ * After seeking, when flush stop event comes, set flag 'is_first_key_frame_after_seek' to FALSE.
+ */
+static gboolean gst_ffmpegviddec_sink_event (GstVideoDecoder * decoder,
+    GstEvent * event)
+{
+  GstFFMpegVidDec *ffmpegdec = (GstFFMpegVidDec *) decoder;
+
+  switch (GST_EVENT_TYPE (event)) {
+    case GST_EVENT_FLUSH_STOP:
+      ffmpegdec->is_first_key_frame_after_seek = FALSE;
+      break;
+    default:
+      break;
+  }
+  return GST_VIDEO_DECODER_CLASS (parent_class)->sink_event (decoder, event);
+}
+#endif
 
 static void
 gst_ffmpegviddec_context_set_flags (AVCodecContext * context, guint flags,
@@ -1525,6 +1561,22 @@ gst_ffmpegviddec_video_frame (GstFFMpegVidDec * ffmpegdec,
     goto beach;
   }
 
+#ifdef OHOS_OPT_COMPAT
+  /**
+   * ohos.opt.compat.0012
+   * Fix blurry pictures after ts file seeking.
+   * After seeking, drop frames until the first key frame (I-frame for MPEG4, IDR-frame for H264) comes.
+   */
+  if (!ffmpegdec->is_first_key_frame_after_seek) {
+    if (ffmpegdec->picture->pict_type == AV_PICTURE_TYPE_I && ffmpegdec->picture->key_frame == 1) {
+      ffmpegdec->is_first_key_frame_after_seek = TRUE;
+    } else {
+      GST_WARNING_OBJECT (ffmpegdec, "not key frame after seek, drop it!");
+      goto beach;
+    }
+  }
+#endif
+
 #ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: first key frame decoded cost time
   if (!ffmpegdec->has_recv_first_key_frame) {
     ffmpegdec->has_recv_first_key_frame = TRUE;
@@ -1968,6 +2020,10 @@ gst_ffmpegviddec_stop (GstVideoDecoder * decoder)
   ffmpegdec->has_send_first_key_frame = FALSE;
   ffmpegdec->has_recv_first_key_frame = FALSE;
   ffmpegdec->send_first_key_frame_time = GST_CLOCK_TIME_NONE;
+#endif
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0012
+  ffmpegdec->is_first_key_frame_after_seek = TRUE;
 #endif
   return TRUE;
 }
