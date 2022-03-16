@@ -1604,6 +1604,23 @@ gst_soup_http_src_parse_status (SoupMessage * msg, GstSoupHTTPSrc * src)
 #endif
       case SOUP_STATUS_CANT_CONNECT:
       case SOUP_STATUS_CANT_CONNECT_PROXY:
+#ifdef OHOS_EXT_FUNC
+        /* ohos.ext.func.0012
+        The network is disconnected and reconnected. The time-out is 3 seconds after starting broadcasting, 
+        and the time-out is 15 seconds after interruption during broadcasting
+        */
+        if (!src->exit_block) {
+            if (src->playerState == GST_PLAYER_STATUS_PAUSED || src->playerState == GST_PLAYER_STATUS_PLAYING) {
+            src->retry_count = 0;
+            return GST_FLOW_CUSTOM_ERROR;
+          }
+        }
+
+        wait_for_connect (src, msg, (gint64) src->wait_time - (gint64) src->wait_already);
+
+        if (src->max_retries == -1 || src->retry_count < src->max_retries)
+          return GST_FLOW_CUSTOM_ERROR;
+#endif
         SOUP_HTTP_SRC_ERROR (src, msg, RESOURCE, OPEN_READ,
             _("Could not establish connection to server."));
         return GST_FLOW_ERROR;
@@ -1613,15 +1630,22 @@ gst_soup_http_src_parse_status (SoupMessage * msg, GstSoupHTTPSrc * src)
         return GST_FLOW_ERROR;
       case SOUP_STATUS_IO_ERROR:
 #ifdef OHOS_EXT_FUNC
-          // ohos.ext.func.0012
-          if (!src->exit_block) {
-              if (src->playerState == GST_PLAYER_STATUS_PAUSED || src->playerState == GST_PLAYER_STATUS_PLAYING) {
-              src->retry_count = 0;
-              return GST_FLOW_CUSTOM_ERROR;
-            }
+        /* ohos.ext.func.0012
+        The network is disconnected and reconnected. The time-out is 3 seconds after starting broadcasting, 
+        and the time-out is 15 seconds after interruption during broadcasting
+        */
+        if (!src->exit_block) {
+            if (src->playerState == GST_PLAYER_STATUS_PAUSED || src->playerState == GST_PLAYER_STATUS_PLAYING) {
+            src->retry_count = 0;
+            return GST_FLOW_CUSTOM_ERROR;
           }
+        }
 
+        if (src->playerState == GST_PLAYER_STATUS_BUFFERING) {
           wait_for_connect (src, msg, (gint64) src->wait_time - (gint64) src->wait_already);
+        } else {
+          wait_for_connect (src, msg, 0);
+        }
 #endif
         if (src->max_retries == -1 || src->retry_count < src->max_retries)
           return GST_FLOW_CUSTOM_ERROR;
