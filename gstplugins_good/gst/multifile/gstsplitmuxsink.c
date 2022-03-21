@@ -2424,16 +2424,6 @@ handle_mq_input (GstPad * pad, GstPadProbeInfo * info, MqStreamCtx * ctx)
           /* Store this new keyframe to remember the start of GOP */
           gst_buffer_replace (&ctx->prev_in_keyframe, buf);
         } else {
-  /**
-   * ohos.opt.compat.0013
-   * Audio data input speed is slow on the current version, If the synchronization wait is performed,
-   * the audio data will be too small, which will affect the smoothness of playback.
-   * So temporarily turn off sync to fix the problem.
-   */
-#ifdef OHOS_OPT_COMPAT
-          loop_again = FALSE;
-          break;
-#else
           /* Pass this buffer if the reference ctx is far enough ahead */
           if (ctx->in_running_time < splitmux->max_in_running_time) {
             loop_again = FALSE;
@@ -2446,7 +2436,6 @@ handle_mq_input (GstPad * pad, GstPadProbeInfo * info, MqStreamCtx * ctx)
           GST_LOG_OBJECT (pad,
               "Done sleeping for GOP start input state now %d",
               splitmux->input_state);
-#endif
         }
         break;
       case SPLITMUX_INPUT_STATE_WAITING_GOP_COLLECT:{
