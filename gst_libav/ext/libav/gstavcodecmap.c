@@ -2263,7 +2263,7 @@ gst_ffmpeg_codecid_to_caps (enum AVCodecID codec_id,
     case AV_CODEC_ID_OPUS:
 #ifdef OHOS_EXT_FUNC
       // ohos.ext.func.0023
-      caps = gst_caps_new_simple ("audio/x-opus");
+      caps = gst_caps_new_empty_simple ("audio/x-opus");
       break;
 #else
       /* Note that ffmpeg has no encoder yet, but just for safety. In the
