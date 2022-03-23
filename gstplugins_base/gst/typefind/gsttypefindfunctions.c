@@ -2690,7 +2690,12 @@ mpeg4_video_type_find (GstTypeFind * tf, gpointer unused)
     else if (num_vop_headers > 0)
       probability = GST_TYPE_FIND_POSSIBLE - 10;
     else if (seen_vos && seen_vol)
+#ifdef OHOS_OPT_COMPAT
+      // ohos.opt.compat.0015
+      probability = GST_TYPE_FIND_POSSIBLE - 40;
+#else
       probability = GST_TYPE_FIND_POSSIBLE - 20;
+#endif
 
     gst_type_find_suggest (tf, probability, MPEG4_VIDEO_CAPS);
   }
