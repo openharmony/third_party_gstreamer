@@ -2691,7 +2691,11 @@ mpeg4_video_type_find (GstTypeFind * tf, gpointer unused)
       probability = GST_TYPE_FIND_POSSIBLE - 10;
     else if (seen_vos && seen_vol)
 #ifdef OHOS_OPT_COMPAT
-      // ohos.opt.compat.0015
+      /*
+       * ohos.opt.compat.0015
+       * mp3: mpeg audio stream is incorrectly identified as video: mpeg4 video stream,
+       * which causes playback failure and lowers the score
+       */
       probability = GST_TYPE_FIND_POSSIBLE - 40;
 #else
       probability = GST_TYPE_FIND_POSSIBLE - 20;
@@ -2760,6 +2764,13 @@ h263_video_type_find (GstTypeFind * tf, gpointer unused)
   return;
 }
 
+#ifdef OHOS_OPT_COMPAT
+/*
+ * ohos.opt.compat.0015
+ * mp3: mpeg audio stream is incorrectly identified as video:h264 or video:h265 video stream,
+ * which causes playback failure and lowers the score
+ */
+#else
 /*** video/x-h264 H264 elementary video stream ***/
 
 static GstStaticCaps h264_video_caps =
@@ -2969,7 +2980,7 @@ h265_video_type_find (GstTypeFind * tf, gpointer unused)
     gst_type_find_suggest (tf, GST_TYPE_FIND_POSSIBLE, H265_VIDEO_CAPS);
   }
 }
-
+#endif
 /*** video/mpeg video stream ***/
 
 static GstStaticCaps mpeg_video_caps = GST_STATIC_CAPS ("video/mpeg, "
@@ -3067,10 +3078,22 @@ mpeg_video_stream_type_find (GstTypeFind * tf, gpointer unused)
       probability = GST_TYPE_FIND_POSSIBLE;
     else if (seen_seq && found > 0)
       probability = GST_TYPE_FIND_POSSIBLE - 5;
+#ifdef OHOS_OPT_COMPAT
+    /*
+     * ohos.opt.compat.0015
+     * mp3: mpeg audio stream is incorrectly identified as video: mpeg video stream,
+     * which causes playback failure and lowers the score
+     */
+    else if (found > 0)
+      probability = GST_TYPE_FIND_POSSIBLE - 40;
+    else if (seen_seq)
+      probability = GST_TYPE_FIND_POSSIBLE - 45;
+#else
     else if (found > 0)
       probability = GST_TYPE_FIND_POSSIBLE - 10;
     else if (seen_seq)
       probability = GST_TYPE_FIND_POSSIBLE - 20;
+#endif
 
     gst_type_find_suggest_simple (tf, probability, "video/mpeg",
         "systemstream", G_TYPE_BOOLEAN, FALSE,
@@ -5951,10 +5974,18 @@ plugin_init (GstPlugin * plugin)
       mpeg4_video_type_find, "m4v", MPEG_VIDEO_CAPS, NULL, NULL);
   TYPE_FIND_REGISTER (plugin, "video/x-h263", GST_RANK_SECONDARY,
       h263_video_type_find, "h263,263", H263_VIDEO_CAPS, NULL, NULL);
+#ifdef OHOS_OPT_COMPAT
+/*
+ * ohos.opt.compat.0015
+ * mp3: mpeg audio stream is incorrectly identified as video:h264 or video:h265 video stream,
+ * which causes playback failure and lowers the score
+ */
+#else
   TYPE_FIND_REGISTER (plugin, "video/x-h264", GST_RANK_PRIMARY,
       h264_video_type_find, "h264,x264,264", H264_VIDEO_CAPS, NULL, NULL);
   TYPE_FIND_REGISTER (plugin, "video/x-h265", GST_RANK_PRIMARY,
       h265_video_type_find, "h265,x265,265", H265_VIDEO_CAPS, NULL, NULL);
+#endif
   TYPE_FIND_REGISTER (plugin, "video/x-nuv", GST_RANK_SECONDARY, nuv_type_find,
       "nuv", NUV_CAPS, NULL, NULL);
 
