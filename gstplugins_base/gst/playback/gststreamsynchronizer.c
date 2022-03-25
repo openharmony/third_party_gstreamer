@@ -721,10 +721,24 @@ gst_stream_synchronizer_sink_event (GstPad * pad, GstObject * parent,
         g_slist_free (pads);
       } else {
         if (seen_data) {
+#ifdef OHOS_OPT_COMPAT
+          /**
+           * ohos.opt.compat.0009
+           * drop lock when sending eos, which may block in e.g. preroll.
+           * eos coming for one of streams when chaning state to pause, which may
+           * leads the preroll to be blocked.
+           */
+          GST_DEBUG_OBJECT (pad, "send EOS event, in");
+          GST_STREAM_SYNCHRONIZER_UNLOCK (self);
+          ret = gst_pad_push_event (srcpad, gst_event_new_eos ());
+          GST_STREAM_SYNCHRONIZER_LOCK (self);
+          stream->eos_sent = TRUE;
+#else
           stream->send_gap_event = TRUE;
           stream->gap_duration = GST_CLOCK_TIME_NONE;
           stream->wait = TRUE;
           ret = gst_stream_synchronizer_wait (self, srcpad);
+#endif
         }
       }
 
