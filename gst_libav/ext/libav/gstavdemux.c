@@ -1518,8 +1518,19 @@ gst_ffmpegdemux_type_find (GstTypeFind * tf, gpointer priv)
   }
 
   GST_LOG ("typefinding %" G_GUINT64_FORMAT " bytes", length);
+#ifdef OHOS_OPT_COMPAT
+  /*
+   * ohos.opt.compat.0016
+   * obtaining parsed data fails due to insufficient data
+   */
+  data = gst_type_find_peek (tf, 0, length);
+  if (data == NULL) {
+    tf->need_typefind_again = TRUE;
+  } else if (in_plugin->read_probe && data != NULL) {
+#else
   if (in_plugin->read_probe &&
       (data = gst_type_find_peek (tf, 0, length)) != NULL) {
+#endif
     AVProbeData probe_data;
 
     probe_data.filename = "";
