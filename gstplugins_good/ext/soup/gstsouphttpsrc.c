@@ -484,6 +484,7 @@ gst_soup_http_src_reset (GstSoupHTTPSrc * src)
   src->stop_position = -1;
 #ifdef OHOS_OPT_COMPAT
   // ohos.opt.compat.0017
+  /* Solve the problem of seek probability directly stuck to the end */
   src->content_size = -1;
 #else
   src->content_size = 0;
@@ -1915,6 +1916,7 @@ gst_soup_http_src_do_request (GstSoupHTTPSrc * src, const gchar * method)
   /* EOS immediately if we have an empty segment */
 #ifdef OHOS_OPT_COMPAT
   // ohos.opt.compat.0017
+  /* Solve the problem of seek probability directly stuck to the end */
   if (src->request_position == src->stop_position || src->request_position >= src->content_size)
 #else
   if (src->request_position == src->stop_position)
