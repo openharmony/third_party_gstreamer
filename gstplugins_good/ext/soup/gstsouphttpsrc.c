@@ -482,7 +482,12 @@ gst_soup_http_src_reset (GstSoupHTTPSrc * src)
   src->read_position = 0;
   src->request_position = 0;
   src->stop_position = -1;
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0017
+  src->content_size = -1;
+#else
   src->content_size = 0;
+#endif
   src->have_body = FALSE;
 
   src->reduce_blocksize_count = 0;
@@ -1908,7 +1913,12 @@ gst_soup_http_src_do_request (GstSoupHTTPSrc * src, const gchar * method)
 
   src->retry_count++;
   /* EOS immediately if we have an empty segment */
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0017
+  if (src->request_position == src->stop_position || src->request_position >= src->content_size)
+#else
   if (src->request_position == src->stop_position)
+#endif
     return GST_FLOW_EOS;
 
   GST_LOG_OBJECT (src, "Running request for method: %s", method);
