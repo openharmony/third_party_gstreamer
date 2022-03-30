@@ -482,7 +482,13 @@ gst_soup_http_src_reset (GstSoupHTTPSrc * src)
   src->read_position = 0;
   src->request_position = 0;
   src->stop_position = -1;
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0017
+  /* Solve the problem of seek probability directly stuck to the end */
+  src->content_size = -1;
+#else
   src->content_size = 0;
+#endif
   src->have_body = FALSE;
 
   src->reduce_blocksize_count = 0;
@@ -1592,16 +1598,25 @@ gst_soup_http_src_parse_status (SoupMessage * msg, GstSoupHTTPSrc * src)
       case SOUP_STATUS_CANT_RESOLVE:
       case SOUP_STATUS_CANT_RESOLVE_PROXY:
 #ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0012
-        SOUP_HTTP_SRC_ERROR_HTTP_STANDARD_ERRORS (src, msg, SOUP_STATUS_BAD_GATEWAY,
-            RESOURCE, NOT_FOUND,
-            _("Could not resolve server name."));
-        return GST_FLOW_CUSTOM_SUCCESS;
-#else
+        /* ohos.ext.func.0012
+        The network is disconnected and reconnected. The time-out is 3 seconds after starting broadcasting, 
+        and the time-out is 15 seconds after interruption during broadcasting
+        */
+        if (!src->exit_block) {
+            if (src->playerState == GST_PLAYER_STATUS_PAUSED || src->playerState == GST_PLAYER_STATUS_PLAYING) {
+            src->retry_count = 0;
+            return GST_FLOW_CUSTOM_ERROR;
+          }
+        }
+
+        wait_for_connect (src, msg, (gint64) src->wait_time - (gint64) src->wait_already);
+
+        if (src->max_retries == -1 || src->retry_count < src->max_retries)
+          return GST_FLOW_CUSTOM_ERROR;
+#endif
         SOUP_HTTP_SRC_ERROR (src, msg, RESOURCE, NOT_FOUND,
             _("Could not resolve server name."));
         return GST_FLOW_ERROR;
-#endif
       case SOUP_STATUS_CANT_CONNECT:
       case SOUP_STATUS_CANT_CONNECT_PROXY:
 #ifdef OHOS_EXT_FUNC
@@ -1899,7 +1914,13 @@ gst_soup_http_src_do_request (GstSoupHTTPSrc * src, const gchar * method)
 
   src->retry_count++;
   /* EOS immediately if we have an empty segment */
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0017
+  /* Solve the problem of seek probability directly stuck to the end */
+  if (src->request_position == src->stop_position || src->request_position >= src->content_size)
+#else
   if (src->request_position == src->stop_position)
+#endif
     return GST_FLOW_EOS;
 
   GST_LOG_OBJECT (src, "Running request for method: %s", method);
