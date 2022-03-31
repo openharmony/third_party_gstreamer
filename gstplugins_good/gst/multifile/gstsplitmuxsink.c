@@ -2328,6 +2328,13 @@ handle_mq_input (GstPad * pad, GstPadProbeInfo * info, MqStreamCtx * ctx)
     ts = GST_BUFFER_PTS (buf);
   else
     ts = GST_BUFFER_DTS (buf);
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0018
+// to avoid when buffer take too many time in src,
+// cause pst comes to clock none.
+  GST_BUFFER_PTS (buf) = ts;
+  GST_BUFFER_DTS (buf) = ts;
+#endif
 
   GST_LOG_OBJECT (pad, "Buffer TS is %" GST_TIME_FORMAT, GST_TIME_ARGS (ts));
 
