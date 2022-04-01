@@ -2261,6 +2261,11 @@ gst_ffmpeg_codecid_to_caps (enum AVCodecID codec_id,
       break;
 
     case AV_CODEC_ID_OPUS:
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0023
+      caps = gst_caps_new_empty_simple ("audio/x-opus");
+      break;
+#else
       /* Note that ffmpeg has no encoder yet, but just for safety. In the
        * encoder case, we want to add things like samplerate, channels... */
       if (!encode) {
@@ -2269,6 +2274,7 @@ gst_ffmpeg_codecid_to_caps (enum AVCodecID codec_id,
             "channel-mapping-family", G_TYPE_INT, 0, NULL);
       }
       break;
+#endif
 
     case AV_CODEC_ID_S302M:
       caps = gst_caps_new_empty_simple ("audio/x-smpte-302m");
