@@ -2382,8 +2382,8 @@ gst_qt_mux_send_moov (GstQTMux * qtmux, guint64 * _offset,
     case 270:
         qtpad->trak->tkhd.matrix[0] = 0;
         qtpad->trak->tkhd.matrix[1] = 65535 << 16;
+        qtpad->trak->tkhd.matrix[3] = 1 << 16;
         qtpad->trak->tkhd.matrix[4] = 0;
-        qtpad->trak->tkhd.matrix[5] = 65535 << 16;
         break;
     default:
         break;
