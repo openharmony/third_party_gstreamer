@@ -22,6 +22,7 @@
 
 #include <gst/gst-i18n-plugin.h>
 
+#ifndef OHOS_EXT_FUNC
 #include "gstcurlbasesink.h"
 #include "gstcurltlssink.h"
 #include "gstcurlhttpsink.h"
@@ -30,6 +31,7 @@
 #include "gstcurlsmtpsink.h"
 #ifdef HAVE_SSH2
 #include "gstcurlsftpsink.h"
+#endif
 #endif
 #include "gstcurlhttpsrc.h"
 
@@ -43,6 +45,7 @@ plugin_init (GstPlugin * plugin)
   bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
 #endif /* ENABLE_NLS */
 
+#ifndef OHOS_EXT_FUNC
   if (!gst_element_register (plugin, "curlhttpsink", GST_RANK_NONE,
           GST_TYPE_CURL_HTTP_SINK))
     return FALSE;
@@ -63,6 +66,7 @@ plugin_init (GstPlugin * plugin)
   if (!gst_element_register (plugin, "curlsftpsink", GST_RANK_NONE,
           GST_TYPE_CURL_SFTP_SINK))
     return FALSE;
+#endif
 #endif
   if (!gst_element_register (plugin, "curlhttpsrc", GST_RANK_SECONDARY,
           GST_TYPE_CURLHTTPSRC))

@@ -2518,7 +2518,12 @@ gst_soup_http_src_uri_get_type (GType type)
 static const gchar *const *
 gst_soup_http_src_uri_get_protocols (GType type)
 {
+#ifdef OHOS_EXT_FUNC
+  /* disable https, https will be supported with curlhttpsrc */
+  static const gchar *protocols[] = { "http", "icy", "icyx", NULL };
+#else
   static const gchar *protocols[] = { "http", "https", "icy", "icyx", NULL };
+#endif
 
   return protocols;
 }
