@@ -557,6 +557,7 @@ gst_curl_http_src_set_property (GObject * object, guint prop_id,
       source->strict_ssl = g_value_get_boolean (value);
       break;
     case PROP_SSL_CA_FILE:
+      g_free (source->custom_ca_file);
       source->custom_ca_file = g_value_dup_string (value);
       break;
     case PROP_RETRIES:
@@ -1534,6 +1535,8 @@ gst_curl_http_src_cleanup_instance (GstCurlHttpSrc * src)
   }
   g_free (src->reason_phrase);
   src->reason_phrase = NULL;
+  g_free (src->custom_ca_file);
+  src->custom_ca_file = NULL;
   gst_caps_replace (&src->caps, NULL);
 
   gst_curl_http_src_destroy_easy_handle (src);
