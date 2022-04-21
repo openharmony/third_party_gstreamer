@@ -194,9 +194,12 @@ static void gst_curl_http_src_cleanup_instance (GstCurlHttpSrc * src);
 static gboolean gst_curl_http_src_query (GstBaseSrc * bsrc, GstQuery * query);
 static gboolean gst_curl_http_src_get_content_length (GstBaseSrc * bsrc,
     guint64 * size);
+#ifdef OHOS_EXT_FUNC
+/* ohos.ext.func.0025 support https seek: */
 static gboolean gst_curl_http_src_is_seekable (GstBaseSrc * bsrc);
 static gboolean gst_curl_http_src_do_seek (GstBaseSrc * bsrc,
     GstSegment * segment);
+#endif
 static gboolean gst_curl_http_src_unlock (GstBaseSrc * bsrc);
 static gboolean gst_curl_http_src_unlock_stop (GstBaseSrc * bsrc);
 
@@ -270,15 +273,20 @@ gst_curl_http_src_class_init (GstCurlHttpSrcClass * klass)
   GST_DEBUG_CATEGORY_INIT (gst_curl_http_src_debug, "curlhttpsrc",
       0, "UriHandler for libcURL");
 
+  GST_INFO_OBJECT (klass, "class_init started!");
+
   gstelement_class->change_state =
       GST_DEBUG_FUNCPTR (gst_curl_http_src_change_state);
   gstpushsrc_class->create = GST_DEBUG_FUNCPTR (gst_curl_http_src_create);
   gstbasesrc_class->query = GST_DEBUG_FUNCPTR (gst_curl_http_src_query);
   gstbasesrc_class->get_size =
       GST_DEBUG_FUNCPTR (gst_curl_http_src_get_content_length);
+#ifdef OHOS_EXT_FUNC
+  /* ohos.ext.func.0025 support https seek: */
   gstbasesrc_class->is_seekable =
       GST_DEBUG_FUNCPTR (gst_curl_http_src_is_seekable);
   gstbasesrc_class->do_seek = GST_DEBUG_FUNCPTR (gst_curl_http_src_do_seek);
+#endif
   gstbasesrc_class->unlock = GST_DEBUG_FUNCPTR (gst_curl_http_src_unlock);
   gstbasesrc_class->unlock_stop =
       GST_DEBUG_FUNCPTR (gst_curl_http_src_unlock_stop);
@@ -557,7 +565,10 @@ gst_curl_http_src_set_property (GObject * object, guint prop_id,
       source->strict_ssl = g_value_get_boolean (value);
       break;
     case PROP_SSL_CA_FILE:
+#ifdef OHOS_OPT_MEMLEAK
+      /* ohos.opt.memleak.0003 fix memory leak. */
       g_free (source->custom_ca_file);
+#endif
       source->custom_ca_file = g_value_dup_string (value);
       break;
     case PROP_RETRIES:
@@ -703,11 +714,14 @@ gst_curl_http_src_init (GstCurlHttpSrc * source)
   source->retries_remaining = source->total_retries;
   source->slist = NULL;
   source->accept_compressed_encodings = FALSE;
+#ifdef OHOS_EXT_FUNC
+  /* ohos.ext.func.0025 support https seek: */
   source->seekable = GSTCURL_SEEKABLE_UNKNOWN;
   source->content_size = 0;
   source->request_position = 0;
   source->read_position = 0;
   source->stop_position = -1;
+#endif
 
   gst_base_src_set_automatic_eos (GST_BASE_SRC (source), FALSE);
 
@@ -811,11 +825,15 @@ gst_curl_http_src_unref_multi (GstCurlHttpSrc * src)
       GstCurlHttpSrcClass);
 
   g_mutex_lock (&klass->multi_task_context.mutex);
+#ifdef OHOS_EXT_FUNC
+  /* ohos.ext.func.0025 for clean code */
   if (klass->multi_task_context.refcount == 0) {
     GST_WARNING_OBJECT (src, "worker thread refcount is 0");
     g_mutex_unlock (&klass->multi_task_context.mutex);
     GSTCURL_FUNCTION_EXIT (src);
+    return;
   }
+#endif
 
   klass->multi_task_context.refcount--;
   GST_INFO_OBJECT (src, "Closing instance, worker thread refcount is now %u",
@@ -858,6 +876,8 @@ gst_curl_http_src_finalize (GObject * obj)
   G_OBJECT_CLASS (gst_curl_http_src_parent_class)->finalize (obj);
 }
 
+#ifdef OHOS_EXT_FUNC
+/* ohos.ext.func.0025 for seek */
 static void
 gst_curl_http_src_handle_seek(GstCurlHttpSrc * src, GstCurlHttpSrcMultiTaskContext * context)
 {
@@ -865,7 +885,7 @@ gst_curl_http_src_handle_seek(GstCurlHttpSrc * src, GstCurlHttpSrcMultiTaskConte
     /* not seek, just return */
     return;
   }
-  if (src->curl_handel == NULL || context->multi_handle == NULL) {
+  if (src->curl_handle == NULL || context->multi_handle == NULL) {
     GST_INFO_OBJECT (src, "parameter is invalid");
     return;
   }
@@ -889,10 +909,10 @@ gst_curl_http_src_handle_seek(GstCurlHttpSrc * src, GstCurlHttpSrcMultiTaskConte
     src->buffer_len = 0;
   }
 
-  GST_INFO_OBJECT (src, "handle_seek begin: req_pos:%llu, read_pos:%llu",
+  GST_INFO_OBJECT (src, "handle_seek begin: req_pos:%" G_GUINT64_FORMAT ", read_pos:%" G_GUINT64_FORMAT,
     src->request_position, src->read_position);
 }
-}
+#endif
 
 /*
  * Do the transfer. If the transfer hasn't begun yet, start a new curl handle
@@ -925,7 +945,10 @@ retry:
     goto escape;
   }
 
+#ifdef OHOS_EXT_FUNC
+  /* ohos.ext.func.0025 for seek */
   gst_curl_http_src_handle_seek(src, &klass->multi_task_context);
+#endif
 
   if (!src->transfer_begun) {
     GST_DEBUG_OBJECT (src, "Starting new request for URI %s", src->uri);
@@ -1176,7 +1199,9 @@ gst_curl_http_src_create_easy_handle (GstCurlHttpSrc * s)
   gst_curl_setopt_bool (s, handle, CURLOPT_SSL_VERIFYPEER, s->strict_ssl);
   gst_curl_setopt_str (s, handle, CURLOPT_CAINFO, s->custom_ca_file);
 
-  if (s->request_position || s->stop_position > 0) {
+#ifdef OHOS_EXT_FUNC
+  /* ohos.ext.func.0025 for seek */
+  if (s->request_position > 0 || s->stop_position > 0) {
     gchar *range;
     if (s->stop_position < 1) {
       /* start specified, no end specified */
@@ -1193,6 +1218,7 @@ gst_curl_http_src_create_easy_handle (GstCurlHttpSrc * s)
     g_free (range);
   }
   s->read_position = s->request_position;
+#endif
 
   switch (s->preferred_http_version) {
     case GSTCURL_HTTP_VERSION_1_0:
@@ -1247,7 +1273,10 @@ gst_curl_http_src_handle_response (GstCurlHttpSrc * src)
 {
   glong curl_info_long;
   gdouble curl_info_dbl;
+#ifdef OHOS_EXT_FUNC
+  /* ohos.ext.func.0025 */
   curl_off_t curl_info_offt;
+#endif
   gchar *redirect_url;
   GstBaseSrc *basesrc;
   const GValue *response_headers;
@@ -1340,6 +1369,8 @@ gst_curl_http_src_handle_response (GstCurlHttpSrc * src)
   /*
    * Push the content length
    */
+#ifdef OHOS_EXT_FUNC
+  /* ohos.ext.func.0025 */
   if (curl_easy_getinfo (src->curl_handle, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T,
           &curl_info_offt) == CURLE_OK) {
     if (curl_info_offt == -1) {
@@ -1363,6 +1394,21 @@ gst_curl_http_src_handle_response (GstCurlHttpSrc * src)
           gst_message_new_duration_changed (GST_OBJECT (src)));
     }
   }
+#else
+  if (curl_easy_getinfo (src->curl_handle, CURLINFO_CONTENT_LENGTH_DOWNLOAD,
+          &curl_info_dbl) == CURLE_OK) {
+    if (curl_info_dbl == -1) {
+      GST_WARNING_OBJECT (src,
+          "No Content-Length was specified in the response.");
+    } else {
+      GST_INFO_OBJECT (src, "Content-Length was given as %.0f", curl_info_dbl);
+      basesrc = GST_BASE_SRC_CAST (src);
+      basesrc->segment.duration = curl_info_dbl;
+      gst_element_post_message (GST_ELEMENT (src),
+          gst_message_new_duration_changed (GST_OBJECT (src)));
+    }
+  }
+#endif
 
   /*
    * Push all the received headers down via a sicky event
@@ -1535,8 +1581,11 @@ gst_curl_http_src_cleanup_instance (GstCurlHttpSrc * src)
   }
   g_free (src->reason_phrase);
   src->reason_phrase = NULL;
+#ifdef OHOS_OPT_MEMLEAK
+  /* ohos.opt.memleak.0003 fix memory leak. */
   g_free (src->custom_ca_file);
   src->custom_ca_file = NULL;
+#endif
   gst_caps_replace (&src->caps, NULL);
 
   gst_curl_http_src_destroy_easy_handle (src);
@@ -1595,6 +1644,8 @@ gst_curl_http_src_get_content_length (GstBaseSrc * bsrc, guint64 * size)
   return ret;
 }
 
+#ifdef OHOS_EXT_FUNC
+/* ohos.ext.func.0025 support https seek: */
 static gboolean
 gst_curl_http_src_is_seekable (GstBaseSrc * bsrc)
 {
@@ -1647,6 +1698,7 @@ done:
   g_mutex_unlock (&src->buffer_mutex);
   return ret;
 }
+#endif
 
 static void
 gst_curl_http_src_uri_handler_init (gpointer g_iface, gpointer iface_data)
@@ -2014,6 +2066,8 @@ gst_curl_http_src_get_header (void *header, size_t size, size_t nmemb,
       /* We have some special cases - deal with them here */
       if (g_strcmp0 (header_key, "content-type") == 0) {
         gst_curl_http_src_negotiate_caps (src);
+#ifdef OHOS_EXT_FUNC
+      /* ohos.ext.func.0025 support https seek: */
       } else if (g_strcmp0 (header_key, "accept-ranges") == 0 &&
           g_ascii_strcasecmp (header_value, "none") == 0) {
         s->seekable = GSTCURL_SEEKABLE_FALSE;
@@ -2025,6 +2079,7 @@ gst_curl_http_src_get_header (void *header, size_t size, size_t nmemb,
         if (size) {
           s->content_size = atoi (size);
         }
+#endif
       }
 
       g_free (header_key);
@@ -2074,25 +2129,30 @@ gst_curl_http_src_strcasestr (const char *haystack, const char *needle)
   return location;
 }
 
+#ifdef OHOS_EXT_FUNC
+/*
+ * ohos.ext.func.0025 support https seek:
+ */
 static void
 gst_curl_http_src_update_position (GstCurlHttpSrc * src, guint64 bytes_read)
 {
   guint64 new_position;
   if (bytes_read > (G_MAXUINT64 - src->read_position)) {
-    GST_WARNING_OBJECT (src, "bytes_read:%llu abnormal, should check, read pos:%llu",
+    GST_WARNING_OBJECT (src, "bytes_read:%" G_GUINT64_FORMAT " abnormal, should check, read pos:%" G_GUINT64_FORMAT,
       bytes_read, src->read_position);
     return;
   }
 
   new_position = src->read_position + bytes_read;
   if (G_LIKELY(src->request_position == src->read_position)) {
-    src->request_position = src->new_position;
+    src->request_position = new_position;
   }
-  src->read_position = src->new_position;
+  src->read_position = new_position;
 
-  GST_DEBUG_OBJECT (src, "update_position: bytes_read:%llu, req:%llu, read:%llu",
+  GST_DEBUG_OBJECT (src, "bytes_read:%" G_GUINT64_FORMAT ", req:%" G_GUINT64_FORMAT ", read:%" G_GUINT64_FORMAT,
     bytes_read, src->request_position, src->read_position);
 }
+#endif
 
 /*
  * Receive chunks of the requested body and pass these back to the ::create()
@@ -2107,7 +2167,10 @@ gst_curl_http_src_get_chunks (void *chunk, size_t size, size_t nmemb, void *src)
       "Received curl chunk for URI %s of size %d", s->uri, (int) chunk_len);
   g_mutex_lock (&s->buffer_mutex);
 
+#ifdef OHOS_EXT_FUNC
+/* ohos.ext.func.0025 support https seek: */
   gst_curl_http_src_update_position(s, (guint64)chunk_len);
+#endif
 
   if (s->state == GSTCURL_UNLOCK) {
     g_mutex_unlock (&s->buffer_mutex);

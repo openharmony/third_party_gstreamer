@@ -15,11 +15,11 @@ import("//build/ohos.gni")
 
 group("gstplugins_bad_packages") {
   deps = [
+    ":gstcurl",
     ":gsthls",
     ":gstmpegtsdemux",
     ":gstplayer",
     ":gstvideoparsersbad",
-    ":gstcurl",
   ]
 }
 
