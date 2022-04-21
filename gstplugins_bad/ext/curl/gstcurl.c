@@ -23,6 +23,9 @@
 #include <gst/gst-i18n-plugin.h>
 
 #ifndef OHOS_EXT_FUNC
+/* ohos.ext.func.0024 support https:
+ * Don't include not used head files.
+ */
 #include "gstcurlbasesink.h"
 #include "gstcurltlssink.h"
 #include "gstcurlhttpsink.h"
@@ -46,6 +49,9 @@ plugin_init (GstPlugin * plugin)
 #endif /* ENABLE_NLS */
 
 #ifndef OHOS_EXT_FUNC
+  /* ohos.ext.func.0024 support https:
+   * disable not used element.
+   */
   if (!gst_element_register (plugin, "curlhttpsink", GST_RANK_NONE,
           GST_TYPE_CURL_HTTP_SINK))
     return FALSE;
