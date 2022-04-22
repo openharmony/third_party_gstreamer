@@ -52,6 +52,9 @@ plugin_init (GstPlugin * plugin)
  * memory bigger than expect.
  * To avoid this, we do not make other parser elements.
  */
+/* ohos.ext.func.0026:
+ * The avmuxer need mpeg4videoparse, so mpeg4videoparse needs to be registered
+ */
 #ifndef OHOS_EXT_FUNC
   ret |= gst_element_register (plugin, "h263parse",
       GST_RANK_PRIMARY + 1, GST_TYPE_H263_PARSE);
