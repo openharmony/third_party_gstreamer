@@ -39,6 +39,7 @@
 #include "gsth265parse.h"
 #else
 #include "gsth264parse.h"
+#include "gstmpeg4videoparse.h"
 #endif
 
 static gboolean
@@ -50,6 +51,9 @@ plugin_init (GstPlugin * plugin)
  * we only need gsth264parse element. However, gstreamer will build all parser elemenet together, which make the
  * memory bigger than expect.
  * To avoid this, we do not make other parser elements.
+ */
+/* ohos.ext.func.0026:
+ * The avmuxer need mpeg4videoparse, so mpeg4videoparse needs to be registered
  */
 #ifndef OHOS_EXT_FUNC
   ret |= gst_element_register (plugin, "h263parse",
@@ -73,6 +77,8 @@ plugin_init (GstPlugin * plugin)
 #else
   ret |= gst_element_register (plugin, "h264parse",
       GST_RANK_PRIMARY + 1, GST_TYPE_H264_PARSE);
+  ret |= gst_element_register (plugin, "mpeg4videoparse",
+      GST_RANK_PRIMARY + 1, GST_TYPE_MPEG4VIDEO_PARSE);
 #endif
   return ret;
 }

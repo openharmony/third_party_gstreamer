@@ -38,15 +38,14 @@ plugin_init (GstPlugin * plugin)
  * As a result, the duration value cannot be obtained in the preparation phase.
  * Use the demux and typefind of ffmpeg to process audio resources in aac format.
  */
-#ifdef OHOS_OPT_COMPAT
-  ret = gst_element_register (plugin, "amrparse",
-      GST_RANK_PRIMARY + 1, GST_TYPE_AMR_PARSE);
-#else
+/* ohos.ext.func.0026:
+ * The avmuxer need aacparse, so aacparse needs to be registered, and to avoid conflicts with existing code,
+ * aacparse's priority has been reduced to GST_RANK_NONE
+ */
   ret = gst_element_register (plugin, "aacparse",
-      GST_RANK_PRIMARY + 1, GST_TYPE_AAC_PARSE);
+      GST_RANK_NONE, GST_TYPE_AAC_PARSE);
   ret &= gst_element_register (plugin, "amrparse",
       GST_RANK_PRIMARY + 1, GST_TYPE_AMR_PARSE);
-#endif
   ret &= gst_element_register (plugin, "ac3parse",
       GST_RANK_PRIMARY + 1, GST_TYPE_AC3_PARSE);
   ret &= gst_element_register (plugin, "dcaparse",
