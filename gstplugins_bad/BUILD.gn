@@ -313,6 +313,7 @@ ohos_source_set("parse_source") {
 
   sources = [
     "gst/videoparsers/gsth264parse.c",
+    "gst/videoparsers/gstmpeg4videoparse.c",
     "gst/videoparsers/plugin.c",
   ]
 
