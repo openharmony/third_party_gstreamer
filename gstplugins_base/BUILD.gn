@@ -49,6 +49,7 @@ config("gst_plugins_config") {
   cflags = [
     "-Wall",
     "-Werror",
+
     #"-DBUILDING_GST",
     "-DGST_DISABLE_DEPRECATED",
     "-DHAVE_CONFIG_H",
