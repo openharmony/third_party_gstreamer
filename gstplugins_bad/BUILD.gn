@@ -15,6 +15,7 @@ import("//build/ohos.gni")
 
 group("gstplugins_bad_packages") {
   deps = [
+    ":gstcurl",
     ":gsthls",
     ":gstmpegtsdemux",
     ":gstplayer",
@@ -352,6 +353,42 @@ ohos_shared_library("gstvideoparsersbad") {
     "//third_party/gstreamer/gstplugins_base:gstpbutils",
     "//third_party/gstreamer/gstplugins_base:gsttag",
     "//third_party/gstreamer/gstplugins_base:gstvideo",
+    "//third_party/gstreamer/gstreamer:gstbase",
+    "//third_party/gstreamer/gstreamer:gstreamer",
+  ]
+
+  relative_install_dir = "media/plugins"
+  part_name = "multimedia_media_standard"
+  subsystem_name = "multimedia"
+}
+
+config("curlhttp_source_config") {
+  include_dirs = [
+    ".",
+    "//third_party/curl/include",
+  ]
+}
+
+ohos_source_set("curlhttp_source") {
+  sources = [
+    "ext/curl/gstcurl.c",
+    "ext/curl/gstcurlhttpsrc.c",
+    "ext/curl/gstcurlqueue.c",
+  ]
+
+  configs = [
+    ":gst_plugins_config",
+    ":curlhttp_source_config",
+  ]
+}
+
+ohos_shared_library("gstcurl") {
+  deps = [
+    ":curlhttp_source",
+    "//third_party/curl:curl",
+    "//third_party/glib:glib",
+    "//third_party/glib:gmodule",
+    "//third_party/glib:gobject",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
