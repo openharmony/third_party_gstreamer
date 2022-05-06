@@ -114,6 +114,7 @@ config("gst_plugins_config") {
     "-Wno-unused-function",
     "-DOHOS_SUPPORT",
     "-DOHOS_EXT_FUNC",
+    "-DOHOS_GLIB_COMPATIBLE",
   ]
 }
 
@@ -339,6 +340,7 @@ ohos_source_set("parse_source") {
     "-DGST_DISABLE_DEPRECATED",
     "-DHAVE_CONFIG_H",
     "-DOHOS_EXT_FUNC",
+    "-DOHOS_GLIB_COMPATIBLE",
   ]
 }
 
