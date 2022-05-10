@@ -51,6 +51,7 @@ config("gst_plugins_config") {
     "-DOHOS_OPT_COMPAT",
     "-DOHOS_OPT_CVE",
     "-DOHOS_OPT_PERFORMANCE",
+    "-DOHOS_GLIB_COMPATIBLE",
   ]
 }
 
