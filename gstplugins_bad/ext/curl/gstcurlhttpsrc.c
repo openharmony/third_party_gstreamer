@@ -893,6 +893,7 @@ gst_curl_http_src_handle_seek(GstCurlHttpSrc * src, GstCurlHttpSrcMultiTaskConte
   curl_multi_remove_handle (context->multi_handle, src->curl_handle);
   gst_curl_http_src_remove_queue_handle (&context->queue, src->curl_handle, CURLE_OK);
 
+  g_mutex_lock (&src->buffer_mutex);
   src->state = GSTCURL_NONE;
   src->transfer_begun = FALSE;
   src->status_code = 0;
@@ -908,6 +909,7 @@ gst_curl_http_src_handle_seek(GstCurlHttpSrc * src, GstCurlHttpSrcMultiTaskConte
     src->buffer = NULL;
     src->buffer_len = 0;
   }
+  g_mutex_unlock (&src->buffer_mutex);
 
   GST_INFO_OBJECT (src, "handle_seek begin: req_pos:%" G_GUINT64_FORMAT ", read_pos:%" G_GUINT64_FORMAT,
     src->request_position, src->read_position);
@@ -939,16 +941,17 @@ retry:
   /* NOTE: when both the buffer_mutex and multi_task_context.mutex are
      needed, multi_task_context.mutex must be acquired first */
   g_mutex_lock (&klass->multi_task_context.mutex);
-  g_mutex_lock (&src->buffer_mutex);
-  if (src->state == GSTCURL_UNLOCK) {
-    ret = GST_FLOW_FLUSHING;
-    goto escape;
-  }
 
 #ifdef OHOS_EXT_FUNC
   /* ohos.ext.func.0025 for seek */
   gst_curl_http_src_handle_seek(src, &klass->multi_task_context);
 #endif
+
+  g_mutex_lock (&src->buffer_mutex);
+  if (src->state == GSTCURL_UNLOCK) {
+    ret = GST_FLOW_FLUSHING;
+    goto escape;
+  }
 
   if (!src->transfer_begun) {
     GST_DEBUG_OBJECT (src, "Starting new request for URI %s", src->uri);
