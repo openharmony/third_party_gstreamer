@@ -4880,7 +4880,16 @@ autoplug_select_cb (GstElement * decodebin, GstPad * pad,
            */
           if ((isaudiodec && !(flags & GST_PLAY_FLAG_NATIVE_AUDIO)
                   && gst_caps_can_intersect (caps, raw_caps)) || (!isaudiodec
+#ifdef OHOS_OPT_COMPAT
+                  /*
+                   * ohos.opt.compat.0021
+                   * when open GST_PLAY_FLAG_NATIVE_VIDEO will not change decoder caps
+                   * Otherwise, the decoding plug-in is identified as the H264 soft plug-in
+                   */
+                  && (!(flags & GST_PLAY_FLAG_NATIVE_VIDEO) || (flags & GST_PLAY_FLAG_HARDWARE_VIDEO))
+#else
                   && !(flags & GST_PLAY_FLAG_NATIVE_VIDEO)
+#endif
                   && gst_caps_can_intersect (caps, raw_caps))) {
             compatible =
                 gst_element_factory_can_src_any_caps (factory, raw_caps)

@@ -69,6 +69,12 @@ gst_play_flags_get_type (void)
         "soft-colorbalance"},
     {C_FLAGS (GST_PLAY_FLAG_FORCE_FILTERS),
         "Force audio/video filter(s) to be applied", "force-filters"},
+#ifdef OHOS_OPT_COMPAT
+    // ohos.opt.compat.0021
+    // when open GST_PLAY_FLAG_NATIVE_VIDEO will not change decoder caps
+    {C_FLAGS (GST_PLAY_FLAG_HARDWARE_VIDEO),
+        "Only hardware play will open this flag", "hardware-video"},
+#endif
     {0, NULL, NULL}
   };
   static volatile GType id = 0;
