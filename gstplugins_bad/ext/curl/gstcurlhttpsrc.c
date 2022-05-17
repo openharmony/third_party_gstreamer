@@ -1599,6 +1599,11 @@ gst_curl_http_src_query (GstBaseSrc * bsrc, GstQuery * query)
 {
   GstCurlHttpSrc *src = GST_CURLHTTPSRC (bsrc);
   gboolean ret;
+#ifdef OHOS_EXT_FUNC
+  /* ohos.opt.compat.0022 support pull mode in libav demux */
+  GstSchedulingFlags flags;
+  gint minsize, maxsize, align;
+#endif
   GSTCURL_FUNCTION_ENTRY (src);
 
   switch (GST_QUERY_TYPE (query)) {
@@ -1615,6 +1620,27 @@ gst_curl_http_src_query (GstBaseSrc * bsrc, GstQuery * query)
       ret = GST_BASE_SRC_CLASS (parent_class)->query (bsrc, query);
       break;
   }
+
+#ifdef OHOS_EXT_FUNC
+  /* ohos.opt.compat.0022 support pull mode in libav demux */
+  switch (GST_QUERY_TYPE (query)) {
+    case GST_QUERY_SCHEDULING:
+      gst_query_parse_scheduling (query, &flags, &minsize, &maxsize, &align);
+      flags |= GST_SCHEDULING_FLAG_BANDWIDTH_LIMITED;
+
+      if (src->seekable) {
+        flags |= GST_SCHEDULING_FLAG_SEEKABLE;
+      } else {
+        flags &= (~GST_SCHEDULING_FLAG_SEEKABLE);
+      }
+      GST_INFO_OBJECT (src, "seekable: %d", src->seekable);
+
+      gst_query_set_scheduling (query, flags, minsize, maxsize, align);
+      break;
+    default:
+      break;
+  }
+#endif
 
   GSTCURL_FUNCTION_EXIT (src);
   return ret;
