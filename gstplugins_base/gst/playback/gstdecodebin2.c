@@ -3535,6 +3535,13 @@ gst_decode_chain_free_internal (GstDecodeChain * chain, gboolean hide)
     }
 
     if (GST_OBJECT_PARENT (element) == GST_OBJECT_CAST (chain->dbin))
+      #ifdef OHOS_OPT_COMPAT
+      /* OHOS_OPT_COMPAT.0024
+      When changing the codec, the hardware plug-in is removed but does not stop,
+      which will cause the newly created hardware plug-in to report that there is still a buffer outside
+      when negotiating the pool with the surfacesink, resulting in the failure of the negotiation pool */
+      gst_element_set_state (element, GST_STATE_NULL);
+      #endif
       gst_bin_remove (GST_BIN_CAST (chain->dbin), element);
     if (!hide) {
       set_to_null = g_list_append (set_to_null, gst_object_ref (element));
