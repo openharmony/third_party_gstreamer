@@ -3490,10 +3490,10 @@ gst_play_sink_do_reconfigure (GstPlaySink * playsink)
       When playing pure audio, we will also connect the audio plug-in to video_Sink,
       so when the audio is changed to codec, it will turn here Set audio_sink to null */
     if (playsink->video_sink && (playsink->video_sink != playsink->audio_sink))
-        gst_element_set_state (playsink->video_sink, GST_STATE_NULL);
+      gst_element_set_state (playsink->video_sink, GST_STATE_NULL);
 #else
     if (playsink->video_sink)
-        gst_element_set_state (playsink->video_sink, GST_STATE_NULL);
+      gst_element_set_state (playsink->video_sink, GST_STATE_NULL);
 #endif
 
     if (playsink->video_filter)
