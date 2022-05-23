@@ -3489,7 +3489,7 @@ gst_play_sink_do_reconfigure (GstPlaySink * playsink)
     /* OHOS_OPT_COMPAT.0023
       When playing pure audio, we will also connect the audio plug-in to video_Sink,
       so when the audio is changed to codec, it will turn here Set audio_sink to null */
-    if (playsink->video_sink && (playsink->video_sink != playsink->audio->sink))
+    if (playsink->video_sink && (playsink->video_sink != playsink->audio_sink))
         gst_element_set_state (playsink->video_sink, GST_STATE_NULL);
 #else
     if (playsink->video_sink)
