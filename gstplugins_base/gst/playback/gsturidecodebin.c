@@ -172,6 +172,10 @@ enum
   SIGNAL_AUTOPLUG_QUERY,
   SIGNAL_DRAINED,
   SIGNAL_SOURCE_SETUP,
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0028
+  SIGNAL_BITRATE_PARSE_COMPLETE,
+#endif
   LAST_SIGNAL
 };
 
@@ -746,6 +750,14 @@ gst_uri_decode_bin_class_init (GstURIDecodeBinClass * klass)
       G_SIGNAL_RUN_LAST, 0, NULL, NULL,
       g_cclosure_marshal_generic, G_TYPE_NONE, 1, GST_TYPE_ELEMENT);
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0028
+  gst_uri_decode_bin_signals[SIGNAL_BITRATE_PARSE_COMPLETE] =
+        g_signal_new("bitrate-parse-complete",
+        G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST,
+        0, NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 2, G_TYPE_POINTER, G_TYPE_UINT);
+#endif
+
   gst_element_class_add_static_pad_template (gstelement_class, &srctemplate);
   gst_element_class_set_static_metadata (gstelement_class,
       "URI Decoder", "Generic/Bin/Decoder",
@@ -864,6 +876,9 @@ set_property_to_decodebin (GstURIDecodeBin *dec, guint property_id, const void *
     } else if (property_id == PROP_EXIT_BLOCK) {
       const gint *exit_block = (const gint *) property_value;
       g_object_set (decodebin, "exit-block", *exit_block, NULL);
+    } else if (property_id == PROP_CONNECTION_SPEED) {
+      const guint64 *con_speed = (const guint64 *) property_value;
+      g_object_set (decodebin, "connection-speed", *con_speed, NULL);
     }
   }
 }
@@ -886,6 +901,11 @@ gst_uri_decode_bin_set_property (GObject * object, guint prop_id,
       GST_OBJECT_LOCK (dec);
       dec->connection_speed = g_value_get_uint64 (value) * 1000;
       GST_OBJECT_UNLOCK (dec);
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0028
+      guint64 con_speed = g_value_get_uint64 (value);
+      set_property_to_decodebin(dec, prop_id, (void *)&con_speed);
+#endif
       break;
     case PROP_CAPS:
       GST_OBJECT_LOCK (dec);
@@ -1059,6 +1079,18 @@ do_async_done (GstURIDecodeBin * dbin)
 #define DEFAULT_QUEUE_SIZE          (3 * GST_SECOND)
 #define DEFAULT_QUEUE_MIN_THRESHOLD ((DEFAULT_QUEUE_SIZE * 30) / 100)
 #define DEFAULT_QUEUE_THRESHOLD     ((DEFAULT_QUEUE_SIZE * 95) / 100)
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0028
+static void
+bitrate_parse_complete_cb (GstElement * element, gpointer input, guint num, GstURIDecodeBin * decoder)
+{
+  if ((element == NULL) || (decoder == NULL)) {
+    return;
+  }
+  g_signal_emit (decoder, gst_uri_decode_bin_signals[SIGNAL_BITRATE_PARSE_COMPLETE], 0, input, num);
+}
+#endif
 
 static void
 unknown_type_cb (GstElement * element, GstPad * pad, GstCaps * caps,
@@ -1988,6 +2020,12 @@ make_decoder (GstURIDecodeBin * decoder)
         G_CALLBACK (no_more_pads), decoder);
     g_signal_connect (decodebin,
         "unknown-type", G_CALLBACK (unknown_type_cb), decoder);
+
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0028
+    g_signal_connect (decodebin,
+        "bitrate-parse-complete", G_CALLBACK (bitrate_parse_complete_cb), decoder);
+#endif
   }
 
   /* configure caps if we have any */
