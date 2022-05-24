@@ -719,6 +719,7 @@ gst_curl_http_src_init (GstCurlHttpSrc * source)
   source->seekable = GSTCURL_SEEKABLE_UNKNOWN;
   source->content_size = 0;
   source->request_position = 0;
+  source->orig_request_pos = 0;
   source->read_position = 0;
   source->stop_position = -1;
 #endif
@@ -1216,6 +1217,7 @@ gst_curl_http_src_create_easy_handle (GstCurlHttpSrc * s)
       range = g_strdup_printf ("%" G_GUINT64_FORMAT "-%" G_GINT64_FORMAT,
           s->request_position, s->stop_position - 1);
     }
+    s->orig_request_pos = s->request_position;
     GST_TRACE_OBJECT (s, "Requesting range: %s", range);
     curl_easy_setopt (handle, CURLOPT_RANGE, range);
     g_free (range);
@@ -1383,13 +1385,13 @@ gst_curl_http_src_handle_response (GstCurlHttpSrc * src)
     } else {
       /* Note that in the case of a range get, Content-Length is the number
          of bytes requested, not the total size of the resource */
-      GST_INFO_OBJECT (src, "Content-Length was given as %" G_GUINT64_FORMAT,
-          curl_info_offt);
+      GST_INFO_OBJECT (src, "orig req pos:%" G_GUINT64_FORMAT ", Content-Length was given as %" G_GUINT64_FORMAT,
+          src->orig_request_pos, curl_info_offt);
       if (src->content_size == 0) {
-        src->content_size = src->request_position + curl_info_offt;
+        src->content_size = src->orig_request_pos + curl_info_offt;
       }
       basesrc = GST_BASE_SRC_CAST (src);
-      basesrc->segment.duration = src->request_position + curl_info_offt;
+      basesrc->segment.duration = src->orig_request_pos + curl_info_offt;
       if (src->seekable == GSTCURL_SEEKABLE_UNKNOWN) {
         src->seekable = GSTCURL_SEEKABLE_TRUE;
       }
@@ -2107,6 +2109,7 @@ gst_curl_http_src_get_header (void *header, size_t size, size_t nmemb,
         gchar *size = strchr (header_value, '/');
         if (size) {
           s->content_size = atoi (size);
+          GST_INFO_OBJECT (s, "content_size: %" G_GUINT64_FORMAT, s->content_size);
         }
 #endif
       }

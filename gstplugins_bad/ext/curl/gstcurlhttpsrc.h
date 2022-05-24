@@ -171,8 +171,9 @@ struct _GstCurlHttpSrc
 #ifdef OHOS_EXT_FUNC
   /* ohos.ext.func.0025 support https seek: */
   guint64 request_position;     /* Seek to this position. */
+  guint64 orig_request_pos;     /* Original request position. */
   guint64 read_position;        /* Current position. */
-  gint64 stop_position;        /* Stop at this position. */
+  gint64 stop_position;         /* Stop at this position. */
 #endif
 
   /* Connection options */
