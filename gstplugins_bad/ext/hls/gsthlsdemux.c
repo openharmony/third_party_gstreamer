@@ -61,6 +61,11 @@ GST_DEBUG_CATEGORY (gst_hls_demux_debug);
 #define GST_M3U8_CLIENT_LOCK(l) /* FIXME */
 #define GST_M3U8_CLIENT_UNLOCK(l)       /* FIXME */
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0028
+#define MAX_BITRATE_NUM 100
+#endif
+
 /* GObject */
 static void gst_hls_demux_finalize (GObject * obj);
 
@@ -116,6 +121,11 @@ static gboolean gst_hls_demux_get_live_seek_range (GstAdaptiveDemux * demux,
 static GstM3U8 *gst_hls_demux_stream_get_m3u8 (GstHLSDemuxStream * hls_stream);
 static void gst_hls_demux_set_current_variant (GstHLSDemux * hlsdemux,
     GstHLSVariantStream * variant);
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0028
+static gboolean gst_hls_demux_get_bitrate_info(GstAdaptiveDemux * demux,
+    GstAdaptiveDemuxBitrateInfo * bitrate_info);
+#endif
 
 #define gst_hls_demux_parent_class parent_class
 G_DEFINE_TYPE (GstHLSDemux, gst_hls_demux, GST_TYPE_ADAPTIVE_DEMUX);
@@ -182,6 +192,10 @@ gst_hls_demux_class_init (GstHLSDemuxClass * klass)
   adaptivedemux_class->finish_fragment = gst_hls_demux_finish_fragment;
   adaptivedemux_class->data_received = gst_hls_demux_data_received;
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0028
+  adaptivedemux_class->get_bitrate_info = gst_hls_demux_get_bitrate_info;
+#endif
   GST_DEBUG_CATEGORY_INIT (gst_hls_demux_debug, "hlsdemux", 0,
       "hlsdemux element");
 }
@@ -1002,6 +1016,48 @@ gst_hls_demux_data_received (GstAdaptiveDemux * demux,
 
   return gst_hls_demux_handle_buffer (demux, stream, buffer, FALSE);
 }
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0028
+static gboolean gst_hls_demux_get_bitrate_info(GstAdaptiveDemux * demux,
+    GstAdaptiveDemuxBitrateInfo * bitrate_info)
+{
+  GstHLSDemux *hls_demux = GST_HLS_DEMUX_CAST (demux);
+  gint idx = 0;
+  GList *rep_list = NULL;
+  GList *list = NULL;
+  GstHLSVariantStream *representation = NULL;
+
+  if ((hls_demux->master == NULL) || (hls_demux->master->variants == NULL)) {
+    return FALSE;
+  }
+
+  rep_list = hls_demux->master->variants;
+  bitrate_info->bitrate_num = g_list_length (rep_list);
+  GST_INFO_OBJECT (hls_demux, "there are %u bitrate num", bitrate_info->bitrate_num);
+  if ((bitrate_info->bitrate_num == 0) || (bitrate_info->bitrate_num > MAX_BITRATE_NUM)) {
+    GST_WARNING_OBJECT (hls_demux, "bitrate_num(%u) is error", bitrate_info->bitrate_num);
+    return FALSE;
+  }
+
+  bitrate_info->bitrate_list = g_malloc0 (sizeof(guint) * bitrate_info->bitrate_num);
+  if (bitrate_info->bitrate_list == NULL) {
+    GST_ERROR_OBJECT (hls_demux, "bitrate_list alloc failed");
+    return FALSE;
+  }
+
+  for (list = g_list_first(hls_demux->master->variants); list != NULL; list = g_list_next(list)) {
+    representation = (GstHLSVariantStream *)list->data;
+    if (representation != NULL) {
+      bitrate_info->bitrate_list[idx] = (guint) representation->bandwidth;
+      GST_INFO_OBJECT (hls_demux, "video bitrate[%d]:[%d]", idx, representation->bandwidth);
+    }
+    idx++;
+  }
+
+  return TRUE;
+}
+#endif
 
 static void
 gst_hls_demux_stream_free (GstAdaptiveDemuxStream * stream)

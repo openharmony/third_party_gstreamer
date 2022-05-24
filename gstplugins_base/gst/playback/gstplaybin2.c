@@ -354,6 +354,10 @@ struct _GstSourceGroup
 
   /* combiners for different streams */
   GstSourceCombine combiner[PLAYBIN_STREAM_LAST];
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0028
+  gulong bitrate_parse_complete_id;
+#endif
 };
 
 #define GST_PLAY_BIN_GET_LOCK(bin) (&((GstPlayBin*)(bin))->lock)
@@ -608,6 +612,10 @@ enum
   SIGNAL_GET_TEXT_PAD,
   SIGNAL_SOURCE_SETUP,
   SIGNAL_ELEMENT_SETUP,
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0028
+  SIGNAL_BITRATE_PARSE_COMPLETE,
+#endif
   LAST_SIGNAL
 };
 
@@ -1399,6 +1407,15 @@ gst_play_bin_class_init (GstPlayBinClass * klass)
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
       G_STRUCT_OFFSET (GstPlayBinClass, get_text_pad), NULL, NULL,
       g_cclosure_marshal_generic, GST_TYPE_PAD, 1, G_TYPE_INT);
+
+  #ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0028
+  gst_play_bin_signals[SIGNAL_BITRATE_PARSE_COMPLETE] =
+        g_signal_new("bitrate-parse-complete",
+        G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST,
+        0, NULL, NULL,
+        g_cclosure_marshal_generic, G_TYPE_NONE, 2, G_TYPE_POINTER, G_TYPE_UINT);
+  #endif
 
   klass->get_video_tags = gst_play_bin_get_video_tags;
   klass->get_audio_tags = gst_play_bin_get_audio_tags;
@@ -2563,6 +2580,12 @@ gst_play_bin_set_property (GObject * object, guint prop_id,
       GST_PLAY_BIN_LOCK (playbin);
       playbin->connection_speed = g_value_get_uint64 (value) * 1000;
       GST_PLAY_BIN_UNLOCK (playbin);
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0028
+      if (playbin->curr_group && playbin->curr_group->uridecodebin) {
+        g_object_set (playbin->curr_group->uridecodebin, "connection-speed", g_value_get_uint64 (value), NULL);
+      }
+#endif
       break;
     case PROP_BUFFER_SIZE:
       playbin->buffer_size = g_value_get_int (value);
@@ -5368,6 +5391,21 @@ group_set_locked_state_unlocked (GstPlayBin * playbin, GstSourceGroup * group,
   return TRUE;
 }
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0028
+static void
+bitrate_parse_complete_cb (GstElement * uridecodebin, gpointer input, guint num, GstSourceGroup * group)
+{
+  if ((group == NULL) || (group->playbin == NULL)) {
+    return;
+  }
+  GstPlayBin *playbin = group->playbin;
+  GST_INFO_OBJECT (playbin, "in manifest parse complete");
+  g_signal_emit (playbin, gst_play_bin_signals[SIGNAL_BITRATE_PARSE_COMPLETE], 0, input, num);
+  GST_INFO_OBJECT (playbin, "out manifest parse complete");
+}
+#endif
+
 /* must be called with PLAY_BIN_LOCK */
 static GstStateChangeReturn
 activate_group (GstPlayBin * playbin, GstSourceGroup * group, GstState target)
@@ -5466,6 +5504,10 @@ activate_group (GstPlayBin * playbin, GstSourceGroup * group, GstState target)
   g_object_set (uridecodebin,
       "low-percent", playbin->low_percent,
       "high-percent", playbin->high_percent, NULL);
+
+  // ohos.ext.func.0028
+  group->bitrate_parse_complete_id =
+    g_signal_connect (uridecodebin, "bitrate-parse-complete", G_CALLBACK (bitrate_parse_complete_cb), group);
 #endif
   flags = gst_play_sink_get_flags (playbin->playsink);
 
@@ -5583,6 +5625,11 @@ activate_group (GstPlayBin * playbin, GstSourceGroup * group, GstState target)
       REMOVE_SIGNAL (group->suburidecodebin, group->sub_no_more_pads_id);
       REMOVE_SIGNAL (group->suburidecodebin, group->sub_autoplug_continue_id);
       REMOVE_SIGNAL (group->suburidecodebin, group->sub_autoplug_query_id);
+
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0028
+      REMOVE_SIGNAL (group->suburidecodebin, group->bitrate_parse_complete_id);
+#endif
       /* Might already be removed because of an error message */
       if (GST_OBJECT_PARENT (suburidecodebin) == GST_OBJECT_CAST (playbin))
         gst_bin_remove (GST_BIN_CAST (playbin), suburidecodebin);

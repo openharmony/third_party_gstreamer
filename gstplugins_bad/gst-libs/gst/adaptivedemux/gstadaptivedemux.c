@@ -172,6 +172,16 @@ enum
   PROP_LAST
 };
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0028
+enum {
+  SIGNAL_BITRATE_PARSE_COMPLETE,
+  LAST_SIGNALS
+};
+
+static guint g_gst_adaptive_demux_signals[LAST_SIGNALS] = {0};
+#endif
+
 /* Internal, so not using GST_FLOW_CUSTOM_SUCCESS_N */
 #define GST_ADAPTIVE_DEMUX_FLOW_SWITCH (GST_FLOW_CUSTOM_SUCCESS_2 + 1)
 
@@ -485,6 +495,14 @@ gst_adaptive_demux_class_init (GstAdaptiveDemuxClass * klass)
           G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
 #endif
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0028
+  g_gst_adaptive_demux_signals[SIGNAL_BITRATE_PARSE_COMPLETE] =
+        g_signal_new("bitrate-parse-complete",
+            G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST,
+            0, NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 2, G_TYPE_POINTER, G_TYPE_UINT);
+#endif
+
   gstelement_class->change_state = gst_adaptive_demux_change_state;
 
   gstbin_class->handle_message = gst_adaptive_demux_handle_message;
@@ -737,6 +755,36 @@ gst_adaptive_demux_change_state (GstElement * element,
   return result;
 }
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0028
+static void
+gst_adaptive_demux_update_bitrate (GstAdaptiveDemux *demux)
+{
+  GstAdaptiveDemuxBitrateInfo stream_bitrate_info;
+  stream_bitrate_info.bitrate_list = NULL;
+  stream_bitrate_info.bitrate_num = 0;
+  GstAdaptiveDemuxClass *demux_class = GST_ADAPTIVE_DEMUX_GET_CLASS (demux);
+  if ((demux_class->get_bitrate_info) == NULL) {
+    return;
+  }
+
+  gboolean ret = demux_class->get_bitrate_info(demux, &stream_bitrate_info);
+  if (!ret) {
+    return;
+  }
+
+  GST_INFO_OBJECT (demux, "Send to user, bitrate num = %u", stream_bitrate_info.bitrate_num);
+  g_signal_emit (GST_ELEMENT(demux), g_gst_adaptive_demux_signals[SIGNAL_BITRATE_PARSE_COMPLETE],
+    0, stream_bitrate_info.bitrate_list, stream_bitrate_info.bitrate_num);
+
+  if (stream_bitrate_info.bitrate_list != NULL) {
+    g_free (stream_bitrate_info.bitrate_list);
+    stream_bitrate_info.bitrate_list = NULL;
+    stream_bitrate_info.bitrate_num = 0;
+  }
+}
+#endif
+
 static gboolean
 gst_adaptive_demux_sink_event (GstPad * pad, GstObject * parent,
     GstEvent * event)
@@ -826,6 +874,14 @@ gst_adaptive_demux_sink_event (GstPad * pad, GstObject * parent,
       } else {
         g_atomic_int_set (&demux->priv->have_manifest, TRUE);
       }
+
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0028
+      if (ret) {
+        gst_adaptive_demux_update_bitrate(demux);
+      }
+#endif
+
       gst_buffer_unref (manifest_buffer);
 
       gst_element_post_message (GST_ELEMENT_CAST (demux),

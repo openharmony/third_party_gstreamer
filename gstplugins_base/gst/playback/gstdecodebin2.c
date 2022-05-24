@@ -240,6 +240,10 @@ enum
   SIGNAL_AUTOPLUG_SORT,
   SIGNAL_AUTOPLUG_QUERY,
   SIGNAL_DRAINED,
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0028
+  SIGNAL_BITRATE_PARSE_COMPLETE,
+#endif
   LAST_SIGNAL
 };
 
@@ -416,6 +420,17 @@ static void unblock_pads (GstDecodeBin * dbin);
 		    g_thread_self ());					\
     g_mutex_unlock (&GST_DECODE_BIN_CAST(dbin)->buffering_lock);		\
 } G_STMT_END
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0028
+#define GET_ELEMENT_FAC(ele) gst_element_get_factory (ele)
+
+#define GET_ELEMENT_DEMUX(ele) \
+  gst_plugin_feature_get_name (GST_PLUGIN_FEATURE_CAST (GET_ELEMENT_FAC (ele)))
+
+#define IS_ADAPTIVE_DEMUX(ele) \
+  ((GET_ELEMENT_DEMUX (ele)) && (!strcasecmp ((GET_ELEMENT_DEMUX (ele)), "hlsdemux")))
+#endif
 
 struct _GstPendingPad
 {
@@ -901,6 +916,14 @@ gst_decode_bin_class_init (GstDecodeBinClass * klass)
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstDecodeBinClass, drained),
       NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 0, G_TYPE_NONE);
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0028
+  gst_decode_bin_signals[SIGNAL_BITRATE_PARSE_COMPLETE] =
+        g_signal_new("bitrate-parse-complete",
+            G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST,
+            0, NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 2, G_TYPE_POINTER, G_TYPE_UINT);
+#endif
+
   g_object_class_install_property (gobject_klass, PROP_CAPS,
       g_param_spec_boxed ("caps", "Caps", "The caps on which to stop decoding.",
           GST_TYPE_CAPS, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
@@ -1339,6 +1362,11 @@ set_property_handle_to_element (GstDecodeBin *dbin, guint property_id, const voi
       if ((theclass != NULL) && g_object_class_find_property (theclass, "exit-block")) {
         g_object_set (element, "exit-block", *exit_block, NULL);
       }
+    } else if (property_id == PROP_CONNECTION_SPEED) {
+      const guint64 *con_speed = (const guint64 *) property_value;
+      if ((theclass != NULL) && g_object_class_find_property (theclass, "connection-speed")) {
+        g_object_set (element, "connection-speed", *con_speed, NULL);
+      }
     }
   }
   return;
@@ -1391,8 +1419,12 @@ gst_decode_bin_set_property (GObject * object, guint prop_id,
       GST_OBJECT_LOCK (dbin);
       dbin->connection_speed = g_value_get_uint64 (value) * 1000;
       GST_OBJECT_UNLOCK (dbin);
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0028
+      guint64 con_speed = g_value_get_uint64 (value);
+      set_property_handle_to_element (dbin, prop_id, (void *)&con_speed);
+#endif
       break;
-
 #ifdef OHOS_EXT_FUNC
     // ohos.ext.func.0013
     case PROP_TIMEOUT: {
@@ -2187,6 +2219,22 @@ typedef struct
   GstPad *pad;
 } PadExposeData;
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0028
+static void
+bitrate_parse_complete_cb (GstElement * element, gpointer input, guint num, GstDecodeChain * chain)
+{
+  if ((element == NULL) || (chain == NULL) || (chain->dbin == NULL)) {
+    return;
+  }
+
+  GstDecodeBin *dbin = chain->dbin;
+  GST_INFO_OBJECT (dbin, "in manifest parse complete");
+  g_signal_emit (dbin, gst_decode_bin_signals[SIGNAL_BITRATE_PARSE_COMPLETE], 0, input, num);
+  GST_INFO_OBJECT (dbin, "out manifest parse complete");
+
+}
+#endif
 /* connect_pad:
  *
  * Try to connect the given pad to an element created from one of the factories,
@@ -2572,6 +2620,13 @@ connect_pad (GstDecodeBin * dbin, GstElement * src, GstDecodePad * dpad,
         }
       }
     }
+
+    #ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0028
+    if (IS_ADAPTIVE_DEMUX(element)) {
+        g_signal_connect (element, "bitrate-parse-complete", G_CALLBACK (bitrate_parse_complete_cb), chain);
+    }
+    #endif
 
     /* try to configure the subtitle encoding property when we can */
     pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (element),

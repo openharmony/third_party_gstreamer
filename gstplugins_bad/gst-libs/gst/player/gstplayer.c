@@ -79,6 +79,9 @@ GST_DEBUG_CATEGORY_STATIC (gst_player_debug);
 #define DEFAULT_HIGH_PERCENT      99
 #define DEFAULT_BUFFER_SIZE       -1
 #define DEFAULT_TIMEOUT           15
+
+// ohos.ext.func.0028
+#define DEFAULT_CONNECTION_SPEED    0
 #endif
 
 GQuark
@@ -145,6 +148,8 @@ enum
   PROP_HIGH_PERCENT,
   PROP_EXIT_BLOCK,
   PROP_TIMEOUT,
+  //ohos.ext.func.0028
+  PROP_CONNECTION_SPEED,
 #endif
   PROP_LAST
 };
@@ -175,6 +180,8 @@ enum
    * report the signal when add new pads
    */
   SIGNAL_ELEMENT_SETUP,
+  // ohos.ext.func.0028
+  SIGNAL_BITRATE_PARSE_COMPLETE,
 #endif
   SIGNAL_WARNING,
   SIGNAL_VIDEO_DIMENSIONS_CHANGED,
@@ -502,6 +509,13 @@ gst_player_class_init (GstPlayerClass * klass)
       g_param_spec_uint ("timeout", "TIME OUT",
           "souphttpsrc time out", 0, 3600, DEFAULT_TIMEOUT,
           G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS);
+
+  // ohos.ext.func.0028
+  param_specs[PROP_CONNECTION_SPEED] =
+      g_param_spec_uint64 ("connection-speed", "Connection Speed",
+          "Network connection speed in kbps (0 = unknown)",
+          0, G_MAXUINT64 / 1000, DEFAULT_CONNECTION_SPEED,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 #endif
   param_specs[PROP_RATE] =
       g_param_spec_double ("rate", "rate", "Playback rate",
@@ -636,6 +650,13 @@ gst_player_class_init (GstPlayerClass * klass)
       g_signal_new ("element-setup", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS, 0, NULL,
       NULL, NULL, G_TYPE_NONE, 1, GST_TYPE_ELEMENT);
+
+  // ohos.ext.func.0028
+  signals[SIGNAL_BITRATE_PARSE_COMPLETE] =
+      g_signal_new("bitrate-parse-complete",
+      G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST,
+      0, NULL, NULL,
+      g_cclosure_marshal_generic, G_TYPE_NONE, 2, G_TYPE_POINTER, G_TYPE_UINT);
 #endif
   config_quark_initialize ();
 }
@@ -916,6 +937,10 @@ gst_player_set_property (GObject * object, guint prop_id,
       self->timeout = g_value_get_uint (value);
       GST_DEBUG_OBJECT (self, "Set timeout %u", g_value_get_uint (value));
       g_mutex_unlock (&self->lock);
+      break;
+    //ohos.ext.func.0028
+    case PROP_CONNECTION_SPEED:
+      g_object_set_property (G_OBJECT (self->playbin), "connection-speed",  value);
       break;
 #endif
     case PROP_MUTE:
@@ -3375,6 +3400,13 @@ element_setup_cb (GstElement * playbin, GstElement * element, GstPlayer * self)
 {
   g_signal_emit (self, signals[SIGNAL_ELEMENT_SETUP], 0, element);
 }
+
+//ohos.ext.func.0028
+static void
+bitrate_parse_complete_cb (GstElement * playbin, gpointer input, guint num, GstPlayer * self)
+{
+  g_signal_emit (self, signals[SIGNAL_BITRATE_PARSE_COMPLETE], 0, input, num);
+}
 #endif
 
 static gpointer
@@ -3497,6 +3529,9 @@ gst_player_main (gpointer data)
    */
   g_signal_connect (self->playbin, "element-setup",
       G_CALLBACK (element_setup_cb), self);
+
+  g_signal_connect (self->playbin, "bitrate-parse-complete",
+      G_CALLBACK (bitrate_parse_complete_cb), self);
 #endif
   self->target_state = GST_STATE_NULL;
   self->current_state = GST_STATE_NULL;
