@@ -148,7 +148,7 @@ enum
   PROP_HIGH_PERCENT,
   PROP_EXIT_BLOCK,
   PROP_TIMEOUT,
-  //ohos.ext.func.0028
+  // ohos.ext.func.0028
   PROP_CONNECTION_SPEED,
 #endif
   PROP_LAST

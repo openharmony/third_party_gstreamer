@@ -2621,12 +2621,12 @@ connect_pad (GstDecodeBin * dbin, GstElement * src, GstDecodePad * dpad,
       }
     }
 
-    #ifdef OHOS_EXT_FUNC
+#ifdef OHOS_EXT_FUNC
     // ohos.ext.func.0028
     if (IS_ADAPTIVE_DEMUX(element)) {
         g_signal_connect (element, "bitrate-parse-complete", G_CALLBACK (bitrate_parse_complete_cb), chain);
     }
-    #endif
+#endif
 
     /* try to configure the subtitle encoding property when we can */
     pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (element),
