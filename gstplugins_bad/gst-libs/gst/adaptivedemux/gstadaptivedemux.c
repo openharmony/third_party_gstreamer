@@ -383,7 +383,12 @@ gst_adaptive_demux_set_property (GObject * object, guint prop_id,
 
   switch (prop_id) {
     case PROP_CONNECTION_SPEED:
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0028
+      demux->connection_speed = g_value_get_uint (value);
+#else
       demux->connection_speed = g_value_get_uint (value) * 1000;
+#endif
       GST_DEBUG_OBJECT (demux, "Connection speed set to %u",
           demux->connection_speed);
       break;
@@ -463,12 +468,20 @@ gst_adaptive_demux_class_init (GstAdaptiveDemuxClass * klass)
   gobject_class->get_property = gst_adaptive_demux_get_property;
   gobject_class->finalize = gst_adaptive_demux_finalize;
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0028
+  g_object_class_install_property (gobject_class, PROP_CONNECTION_SPEED,
+      g_param_spec_uint ("connection-speed", "Connection Speed",
+          "Network connection speed in kbps (0 = calculate from downloaded"
+          " fragments)", 0, G_MAXUINT, DEFAULT_CONNECTION_SPEED,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#else
   g_object_class_install_property (gobject_class, PROP_CONNECTION_SPEED,
       g_param_spec_uint ("connection-speed", "Connection Speed",
           "Network connection speed in kbps (0 = calculate from downloaded"
           " fragments)", 0, G_MAXUINT / 1000, DEFAULT_CONNECTION_SPEED,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
+#endif
   /* FIXME 2.0: rename this property to bandwidth-usage or any better name */
   g_object_class_install_property (gobject_class, PROP_BITRATE_LIMIT,
       g_param_spec_float ("bitrate-limit",
