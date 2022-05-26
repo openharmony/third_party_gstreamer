@@ -708,7 +708,8 @@ gst_curl_http_src_init (GstCurlHttpSrc * source)
   source->max_conns_per_proxy = GSTCURL_DEFAULT_CONNECTIONS_PROXY;
   source->max_conns_global = GSTCURL_DEFAULT_CONNECTIONS_GLOBAL;
 #ifdef OHOS_OPT_COMPAT
-  /* ohos.ext.compat.0025 not support for ssl*/
+  /* ohos.ext.compat.0025
+    It will be closed temporarily until the certificate verification needs are delivered on September 30 */
   source->strict_ssl = 0;
 #else
   source->strict_ssl = GSTCURL_HANDLE_DEFAULT_CURLOPT_SSL_VERIFYPEER;
