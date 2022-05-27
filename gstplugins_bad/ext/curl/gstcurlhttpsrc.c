@@ -880,19 +880,22 @@ gst_curl_http_src_finalize (GObject * obj)
 #ifdef OHOS_EXT_FUNC
 /* ohos.ext.func.0025 for seek */
 static void
-gst_curl_http_src_handle_seek(GstCurlHttpSrc * src, GstCurlHttpSrcMultiTaskContext * context)
+gst_curl_http_src_handle_seek(GstCurlHttpSrc * src)
 {
-  if (src->request_position == src->read_position) {
-    /* not seek, just return */
-    return;
-  }
-  if (src->curl_handle == NULL || context->multi_handle == NULL) {
+  if (src->curl_handle == NULL) {
     GST_INFO_OBJECT (src, "parameter is invalid");
     return;
   }
 
-  curl_multi_remove_handle (context->multi_handle, src->curl_handle);
-  gst_curl_http_src_remove_queue_handle (&context->queue, src->curl_handle, CURLE_OK);
+  g_mutex_lock (&src->buffer_mutex);
+  if (src->request_position == src->read_position) {
+    /* not seek, just return */
+    g_mutex_unlock (&src->buffer_mutex);
+    return;
+  }
+  g_mutex_unlock (&src->buffer_mutex);
+
+  gst_curl_http_src_wait_until_removed(src);
 
   g_mutex_lock (&src->buffer_mutex);
   src->state = GSTCURL_NONE;
@@ -912,7 +915,7 @@ gst_curl_http_src_handle_seek(GstCurlHttpSrc * src, GstCurlHttpSrcMultiTaskConte
   }
   g_mutex_unlock (&src->buffer_mutex);
 
-  GST_INFO_OBJECT (src, "handle_seek begin: req_pos:%" G_GUINT64_FORMAT ", read_pos:%" G_GUINT64_FORMAT,
+  GST_INFO_OBJECT (src, "seek_begin: curl handle removed, req_pos:%" G_GUINT64_FORMAT ", read_pos:%" G_GUINT64_FORMAT,
     src->request_position, src->read_position);
 }
 #endif
@@ -939,15 +942,15 @@ gst_curl_http_src_create (GstPushSrc * psrc, GstBuffer ** outbuf)
 
 retry:
   ret = GST_FLOW_OK;
-  /* NOTE: when both the buffer_mutex and multi_task_context.mutex are
-     needed, multi_task_context.mutex must be acquired first */
-  g_mutex_lock (&klass->multi_task_context.mutex);
 
 #ifdef OHOS_EXT_FUNC
   /* ohos.ext.func.0025 for seek */
-  gst_curl_http_src_handle_seek(src, &klass->multi_task_context);
+  gst_curl_http_src_handle_seek(src);
 #endif
 
+  /* NOTE: when both the buffer_mutex and multi_task_context.mutex are
+     needed, multi_task_context.mutex must be acquired first */
+  g_mutex_lock (&klass->multi_task_context.mutex);
   g_mutex_lock (&src->buffer_mutex);
   if (src->state == GSTCURL_UNLOCK) {
     ret = GST_FLOW_FLUSHING;
