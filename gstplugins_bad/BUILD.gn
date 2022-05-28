@@ -341,6 +341,7 @@ ohos_source_set("parse_source") {
     "-DHAVE_CONFIG_H",
     "-DOHOS_EXT_FUNC",
     "-DOHOS_GLIB_COMPATIBLE",
+    "-DOHOS_OPT_COMPAT",
   ]
 }
 
