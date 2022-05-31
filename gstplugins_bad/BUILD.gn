@@ -115,6 +115,7 @@ config("gst_plugins_config") {
     "-DOHOS_SUPPORT",
     "-DOHOS_EXT_FUNC",
     "-DOHOS_GLIB_COMPATIBLE",
+    "-DOHOS_OPT_COMPAT",
   ]
 }
 
