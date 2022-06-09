@@ -40,6 +40,7 @@ config("gstlibav_config") {
     "-DHAVE_UNISTD_H",
     "-fno-strict-aliasing",
     "-Wno-sign-compare",
+    "-Wno-deprecated-declarations",
     "-Wno-builtin-requires-header",
     "-Wno-macro-redefined",
     "-Wno-implicit-function-declaration",
