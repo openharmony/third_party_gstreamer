@@ -2725,8 +2725,17 @@ h263_video_type_find (GstTypeFind * tf, gpointer unused)
   guint pc_type, pb_mode;
 
   while (c.offset < H263_MAX_PROBE_LENGTH) {
+#ifdef OHOS_OPT_COMPAT
+    // ohos.opt.compat.0004
+    if (G_UNLIKELY (!data_scan_ctx_ensure_data (tf, &c, 4))) {
+      GST_INFO ("h263 need_typefind_again");
+      tf->need_typefind_again = TRUE;
+      break;
+    }
+#else
     if (G_UNLIKELY (!data_scan_ctx_ensure_data (tf, &c, 4)))
       break;
+#endif
 
     /* Find the picture start code */
     data = (data << 8) + c.data[0];
@@ -2758,8 +2767,19 @@ h263_video_type_find (GstTypeFind * tf, gpointer unused)
 
   GST_LOG ("good: %d, bad: %d", good, bad);
 
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0004
+  if (good > 2 * bad) {
+    if (!tf->need_typefind_again) {
+      gst_type_find_suggest (tf, GST_TYPE_FIND_POSSIBLE, H263_VIDEO_CAPS);
+    }
+  } else {
+    tf->need_typefind_again = FALSE;
+  }
+#else
   if (good > 2 * bad)
     gst_type_find_suggest (tf, GST_TYPE_FIND_POSSIBLE, H263_VIDEO_CAPS);
+#endif
 
   return;
 }
