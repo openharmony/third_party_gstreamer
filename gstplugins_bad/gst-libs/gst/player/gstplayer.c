@@ -3420,6 +3420,7 @@ element_setup_cb (GstElement * playbin, GstElement * element, GstPlayer * self)
 static void
 element_unsetup_cb (GstElement * playbin, GstElement * sub_bin, GstElement * child, GstPlayer * self)
 {
+  (void)sub_bin;
   g_signal_emit (self, signals[SIGNAL_ELEMENT_UNSETUP], 0, child);
 }
 
