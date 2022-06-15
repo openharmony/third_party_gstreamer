@@ -615,6 +615,8 @@ enum
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0028
   SIGNAL_BITRATE_PARSE_COMPLETE,
+  // ohos.ext.func.0029
+  DEEP_ELEMENT_REMOVED,
 #endif
   LAST_SIGNAL
 };
@@ -637,6 +639,13 @@ static GstStateChangeReturn gst_play_bin_change_state (GstElement * element,
 static void gst_play_bin_handle_message (GstBin * bin, GstMessage * message);
 static void gst_play_bin_deep_element_added (GstBin * playbin, GstBin * sub_bin,
     GstElement * child);
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0029
+static void gst_play_bin_deep_element_removed (GstBin * playbin, GstBin * sub_bin,
+    GstElement * child);
+#endif
+
 static gboolean gst_play_bin_query (GstElement * element, GstQuery * query);
 static void gst_play_bin_set_context (GstElement * element,
     GstContext * context);
@@ -1415,6 +1424,12 @@ gst_play_bin_class_init (GstPlayBinClass * klass)
         G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST,
         0, NULL, NULL,
         g_cclosure_marshal_generic, G_TYPE_NONE, 2, G_TYPE_POINTER, G_TYPE_UINT);
+
+  // ohos.ext.func.0029
+  gst_play_bin_signals[DEEP_ELEMENT_REMOVED] =
+      g_signal_new ("deep-element-removed", G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL,
+      g_cclosure_marshal_generic, G_TYPE_NONE, 1, GST_TYPE_ELEMENT);
   #endif
 
   klass->get_video_tags = gst_play_bin_get_video_tags;
@@ -1442,6 +1457,12 @@ gst_play_bin_class_init (GstPlayBinClass * klass)
       GST_DEBUG_FUNCPTR (gst_play_bin_handle_message);
   gstbin_klass->deep_element_added =
       GST_DEBUG_FUNCPTR (gst_play_bin_deep_element_added);
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0029
+  gstbin_klass->deep_element_removed =
+      GST_DEBUG_FUNCPTR (gst_play_bin_deep_element_removed);
+#endif
 }
 
 static void
@@ -3225,6 +3246,21 @@ gst_play_bin_deep_element_added (GstBin * playbin, GstBin * sub_bin,
 
   GST_BIN_CLASS (parent_class)->deep_element_added (playbin, sub_bin, child);
 }
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0029
+static void
+gst_play_bin_deep_element_removed (GstBin * playbin, GstBin * sub_bin,
+    GstElement * child)
+{
+  GST_LOG_OBJECT (playbin, "element %" GST_PTR_FORMAT " was removed to "
+      "%" GST_PTR_FORMAT, child, sub_bin);
+
+  g_signal_emit (playbin, gst_play_bin_signals[DEEP_ELEMENT_REMOVED], 0, child);
+
+  GST_BIN_CLASS (parent_class)->deep_element_removed (playbin, sub_bin, child);
+}
+#endif
 
 static void
 combiner_active_pad_changed (GObject * combiner, GParamSpec * pspec,
