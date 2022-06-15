@@ -3418,9 +3418,9 @@ element_setup_cb (GstElement * playbin, GstElement * element, GstPlayer * self)
  * report the signal when remove element
  */
 static void
-element_unsetup_cb (GstElement * playbin, GstElement * element, GstPlayer * self)
+element_unsetup_cb (GstElement * playbin, GstElement * sub_bin, GstElement * child, GstPlayer * self)
 {
-  g_signal_emit (self, signals[SIGNAL_ELEMENT_UNSETUP], 0, element);
+  g_signal_emit (self, signals[SIGNAL_ELEMENT_UNSETUP], 0, child);
 }
 
 //ohos.ext.func.0028
