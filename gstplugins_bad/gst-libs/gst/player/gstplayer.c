@@ -177,9 +177,14 @@ enum
   // ohos.ext.func.0015
   SIGNAL_RENDER_FIRST_VIDEO_FRAME,
   /* ohos.ext.func.0017
-   * report the signal when add new pads
+   * report the signal when add new element
    */
   SIGNAL_ELEMENT_SETUP,
+
+  /* ohos.ext.func.0029
+   * report the signal when remove element
+   */
+  SIGNAL_ELEMENT_UNSETUP,
   // ohos.ext.func.0028
   SIGNAL_BITRATE_PARSE_COMPLETE,
 #endif
@@ -644,10 +649,18 @@ gst_player_class_init (GstPlayerClass * klass)
       NULL, NULL, G_TYPE_NONE, 2, G_TYPE_INT, G_TYPE_INT);
 
   /* ohos.ext.func.0017
-   * report the signal when add new pads
+   * report the signal when add new element
    */
   signals[SIGNAL_ELEMENT_SETUP] =
       g_signal_new ("element-setup", G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS, 0, NULL,
+      NULL, NULL, G_TYPE_NONE, 1, GST_TYPE_ELEMENT);
+
+  /* ohos.ext.func.0029
+   * report the signal when remove element
+   */
+  signals[SIGNAL_ELEMENT_UNSETUP] =
+      g_signal_new ("element-unsetup", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS, 0, NULL,
       NULL, NULL, G_TYPE_NONE, 1, GST_TYPE_ELEMENT);
 
@@ -3393,12 +3406,22 @@ source_setup_cb (GstElement * playbin, GstElement * source, GstPlayer * self)
 
 #ifdef OHOS_EXT_FUNC
 /* ohos.ext.func.0017
- * report the signal when add new pads
+ * report the signal when add new element
  */
 static void
 element_setup_cb (GstElement * playbin, GstElement * element, GstPlayer * self)
 {
   g_signal_emit (self, signals[SIGNAL_ELEMENT_SETUP], 0, element);
+}
+
+/* ohos.ext.func.0029
+ * report the signal when remove element
+ */
+static void
+element_unsetup_cb (GstElement * playbin, GstElement * sub_bin, GstElement * child, GstPlayer * self)
+{
+  (void)sub_bin;
+  g_signal_emit (self, signals[SIGNAL_ELEMENT_UNSETUP], 0, child);
 }
 
 //ohos.ext.func.0028
@@ -3525,10 +3548,16 @@ gst_player_main (gpointer data)
 
 #ifdef OHOS_EXT_FUNC
   /* ohos.ext.func.0017
-   * report the signal when add new pads
+   * report the signal when add new element
    */
   g_signal_connect (self->playbin, "element-setup",
       G_CALLBACK (element_setup_cb), self);
+
+  /* ohos.ext.func.0029
+   * report the signal when remove element
+   */
+  g_signal_connect (self->playbin, "deep-element-removed",
+      G_CALLBACK (element_unsetup_cb), self);
 
   g_signal_connect (self->playbin, "bitrate-parse-complete",
       G_CALLBACK (bitrate_parse_complete_cb), self);
