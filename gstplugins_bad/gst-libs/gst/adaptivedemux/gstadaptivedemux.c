@@ -362,8 +362,8 @@ gst_adaptive_demux_get_instance_private (GstAdaptiveDemux * self)
   return (G_STRUCT_MEMBER_P (self, private_offset));
 }
 
-#ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0013
+#ifdef OHOS_OPT_COMPAT
+// ohos.ext.func.0029
 static void
 gst_adaptive_demux_set_exit_block (GstAdaptiveDemux *demux, const GValue *value)
 {
@@ -416,13 +416,13 @@ gst_adaptive_demux_set_property (GObject * object, guint prop_id,
 {
   GstAdaptiveDemux *demux = GST_ADAPTIVE_DEMUX (object);
 
-#ifdef OHOS_EXT_FUNC
+#ifdef OHOS_OPT_COMPAT
   // ohos.opt.compat.0029
   if (prop_id != PROP_EXIT_BLOCK) {
 #endif
     GST_API_LOCK (demux);
     GST_MANIFEST_LOCK (demux);
-#ifdef OHOS_EXT_FUNC
+#ifdef OHOS_OPT_COMPAT
   // ohos.opt.compat.0029
   }
 #endif
@@ -458,13 +458,13 @@ gst_adaptive_demux_set_property (GObject * object, guint prop_id,
       break;
   }
 
-#ifdef OHOS_EXT_FUNC
+#ifdef OHOS_OPT_COMPAT
   // ohos.opt.compat.0029
   if (prop_id != PROP_EXIT_BLOCK) {
 #endif
     GST_MANIFEST_UNLOCK (demux);
     GST_API_UNLOCK (demux);
-#ifdef OHOS_EXT_FUNC
+#ifdef OHOS_OPT_COMPAT
   // ohos.opt.compat.0029
   }
 #endif
