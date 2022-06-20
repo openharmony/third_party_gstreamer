@@ -71,10 +71,6 @@ struct _GstFdSrc {
   GstPoll *fdset;
 
   gulong curoffset; /* current offset in file */
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0020
-  guint64 start_offset;
-#endif
 };
 
 struct _GstFdSrcClass {

@@ -836,7 +836,7 @@ setup_src_pad (GstElement * element,
   GstPad *srcpad, *sinkpad;
 
   srcpad = gst_pad_new_from_static_template (tmpl, "src");
-  sinkpad = gst_element_get_request_pad (element, name);
+  sinkpad = gst_element_request_pad_simple (element, name);
   fail_unless (gst_pad_link (srcpad, sinkpad) == GST_PAD_LINK_OK,
       "Could not link source and %s sink pads", GST_ELEMENT_NAME (element));
   gst_pad_set_event_function (srcpad, src_event);
@@ -973,7 +973,7 @@ GST_START_TEST (test_flushing_seek)
   fail_unless_equals_int (flush_start_events, 0);
   fail_unless_equals_int (flush_stop_events, 0);
 
-  /* flush ogg:sink_0. This flushs collectpads, calls ::flush() and sends
+  /* flush ogg:sink_0. This flushes collectpads, calls ::flush() and sends
    * FLUSH_START downstream */
   fail_unless (gst_pad_push_event (srcpad1, gst_event_new_flush_start ()));
   fail_unless_equals_int (flush_start_events, 1);

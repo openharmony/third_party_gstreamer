@@ -150,10 +150,6 @@ typedef enum
   GST_RESOURCE_ERROR_SETTINGS,
   GST_RESOURCE_ERROR_NO_SPACE_LEFT,
   GST_RESOURCE_ERROR_NOT_AUTHORIZED,
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0012
-  GST_RESOURCE_ERROR_TIME_OUT,
-#endif
   GST_RESOURCE_ERROR_NUM_ERRORS
 } GstResourceError;
 
@@ -249,15 +245,27 @@ typedef enum
 GST_API
 gchar *gst_error_get_message (GQuark domain, gint code);
 
+/**
+ * gst_stream_error_quark: (attributes doc.skip=true)
+ */
 GST_API
 GQuark gst_stream_error_quark (void);
 
+/**
+ * gst_core_error_quark: (attributes doc.skip=true)
+ */
 GST_API
 GQuark gst_core_error_quark (void);
 
+/**
+ * gst_resource_error_quark: (attributes doc.skip=true)
+ */
 GST_API
 GQuark gst_resource_error_quark (void);
 
+/**
+ * gst_library_error_quark: (attributes doc.skip=true)
+ */
 GST_API
 GQuark gst_library_error_quark (void);
 
