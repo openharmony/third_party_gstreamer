@@ -46,12 +46,19 @@ G_BEGIN_DECLS
 typedef struct _GstDecklinkVideoSrc GstDecklinkVideoSrc;
 typedef struct _GstDecklinkVideoSrcClass GstDecklinkVideoSrcClass;
 
+typedef enum {
+  SIGNAL_STATE_UNKNOWN,
+  SIGNAL_STATE_LOST,
+  SIGNAL_STATE_AVAILABLE,
+} GstDecklinkSignalState;
+
 struct _GstDecklinkVideoSrc
 {
   GstPushSrc parent;
 
   GstDecklinkModeEnum mode;
   GstDecklinkModeEnum caps_mode;
+  gint aspect_ratio_flag; /* -1 when unknown, 0 not set, 1 set */
   BMDPixelFormat caps_format;
   GstDecklinkConnectionEnum connection;
   gint device_number;
@@ -65,7 +72,7 @@ struct _GstDecklinkVideoSrc
 
   GstVideoInfo info;
   GstDecklinkVideoFormat video_format;
-  BMDDuplexMode duplex_mode;
+  GstDecklinkProfileId profile_id;
   BMDTimecodeFormat timecode_format;
 
   GstDecklinkInput *input;
@@ -74,7 +81,7 @@ struct _GstDecklinkVideoSrc
   GMutex lock;
   gboolean flushing;
   GstQueueArray *current_frames;
-  gboolean no_signal;
+  GstDecklinkSignalState signal_state;
 
   guint buffer_size;
 
@@ -100,7 +107,15 @@ struct _GstDecklinkVideoSrc
   GstVideoFormat anc_vformat;
   gint anc_width;
   gboolean output_cc;
-  guint last_cc_vbi_line;
+  gint last_cc_vbi_line;
+  gint last_cc_vbi_line_field2;
+  gboolean output_afd_bar;
+  gint last_afd_bar_vbi_line;
+  gint last_afd_bar_vbi_line_field2;
+
+  guint skipped_last;
+  GstClockTime skip_from_timestamp;
+  GstClockTime skip_to_timestamp;
 };
 
 struct _GstDecklinkVideoSrcClass
@@ -109,6 +124,8 @@ struct _GstDecklinkVideoSrcClass
 };
 
 GType gst_decklink_video_src_get_type (void);
+
+GST_ELEMENT_REGISTER_DECLARE (decklinkvideosrc);
 
 G_END_DECLS
 

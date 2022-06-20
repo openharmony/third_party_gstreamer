@@ -168,6 +168,8 @@ gst_wasapi_src_class_init (GstWasapiSrcClass * klass)
 
   GST_DEBUG_CATEGORY_INIT (gst_wasapi_src_debug, "wasapisrc",
       0, "Windows audio session API source");
+
+  gst_type_mark_as_plugin_api (GST_WASAPI_DEVICE_TYPE_ROLE, 0);
 }
 
 static void
@@ -189,10 +191,15 @@ gst_wasapi_src_init (GstWasapiSrc * self)
   self->low_latency = DEFAULT_LOW_LATENCY;
   self->try_audioclient3 = DEFAULT_AUDIOCLIENT3;
   self->event_handle = CreateEvent (NULL, FALSE, FALSE, NULL);
+  self->cancellable = CreateEvent (NULL, TRUE, FALSE, NULL);
   self->client_needs_restart = FALSE;
   self->adapter = gst_adapter_new ();
 
-  CoInitializeEx (NULL, COINIT_MULTITHREADED);
+  /* Extra event handles used for loopback */
+  self->loopback_event_handle = CreateEvent (NULL, FALSE, FALSE, NULL);
+  self->loopback_cancellable = CreateEvent (NULL, TRUE, FALSE, NULL);
+
+  self->enumerator = gst_mm_device_enumerator_new ();
 }
 
 static void
@@ -203,6 +210,11 @@ gst_wasapi_src_dispose (GObject * object)
   if (self->event_handle != NULL) {
     CloseHandle (self->event_handle);
     self->event_handle = NULL;
+  }
+
+  if (self->cancellable != NULL) {
+    CloseHandle (self->cancellable);
+    self->cancellable = NULL;
   }
 
   if (self->client_clock != NULL) {
@@ -220,6 +232,23 @@ gst_wasapi_src_dispose (GObject * object)
     self->capture_client = NULL;
   }
 
+  if (self->loopback_client != NULL) {
+    IUnknown_Release (self->loopback_client);
+    self->loopback_client = NULL;
+  }
+
+  if (self->loopback_event_handle != NULL) {
+    CloseHandle (self->loopback_event_handle);
+    self->loopback_event_handle = NULL;
+  }
+
+  if (self->loopback_cancellable != NULL) {
+    CloseHandle (self->loopback_cancellable);
+    self->loopback_cancellable = NULL;
+  }
+
+  gst_clear_object (&self->enumerator);
+
   G_OBJECT_CLASS (parent_class)->dispose (object);
 }
 
@@ -230,8 +259,6 @@ gst_wasapi_src_finalize (GObject * object)
 
   CoTaskMemFree (self->mix_format);
   self->mix_format = NULL;
-
-  CoUninitialize ();
 
   g_clear_pointer (&self->cached_caps, gst_caps_unref);
   g_clear_pointer (&self->positions, g_free);
@@ -316,10 +343,8 @@ gst_wasapi_src_get_property (GObject * object, guint prop_id,
 static gboolean
 gst_wasapi_src_can_audioclient3 (GstWasapiSrc * self)
 {
-  if (self->sharemode == AUDCLNT_SHAREMODE_SHARED &&
-      self->try_audioclient3 && gst_wasapi_util_have_audioclient3 ())
-    return TRUE;
-  return FALSE;
+  return (self->sharemode == AUDCLNT_SHAREMODE_SHARED &&
+      self->try_audioclient3 && gst_wasapi_util_have_audioclient3 ());
 }
 
 static GstCaps *
@@ -392,6 +417,7 @@ gst_wasapi_src_open (GstAudioSrc * asrc)
   gboolean res = FALSE;
   IAudioClient *client = NULL;
   IMMDevice *device = NULL;
+  IMMDevice *loopback_device = NULL;
 
   if (self->client)
     return TRUE;
@@ -400,9 +426,11 @@ gst_wasapi_src_open (GstAudioSrc * asrc)
    * even if the old device was unplugged. We need to handle this somehow.
    * For example, perhaps we should automatically switch to the new device if
    * the default device is changed and a device isn't explicitly selected. */
-  if (!gst_wasapi_util_get_device_client (GST_ELEMENT (self),
+  if (!gst_wasapi_util_get_device (self->enumerator,
           self->loopback ? eRender : eCapture, self->role, self->device_strid,
-          &device, &client)) {
+          &device)
+      || !gst_wasapi_util_get_audio_client (GST_ELEMENT (self),
+          device, &client)) {
     if (!self->device_strid)
       GST_ELEMENT_ERROR (self, RESOURCE, OPEN_READ, (NULL),
           ("Failed to get default device"));
@@ -410,6 +438,29 @@ gst_wasapi_src_open (GstAudioSrc * asrc)
       GST_ELEMENT_ERROR (self, RESOURCE, OPEN_READ, (NULL),
           ("Failed to open device %S", self->device_strid));
     goto beach;
+  }
+
+  /* An oddness of wasapi loopback feature is that capture client will not
+   * provide any audio data if there is no outputting sound.
+   * To workaround this problem, probably we can add timeout around loop
+   * in this case but it's glitch prone. So, instead of timeout,
+   * we will keep pusing silence data to into wasapi client so that make audio
+   * client report audio data in any case
+   */
+  if (!gst_wasapi_util_get_device (self->enumerator,
+          eRender, self->role, self->device_strid, &loopback_device)
+      || !gst_wasapi_util_get_audio_client (GST_ELEMENT (self),
+          loopback_device, &self->loopback_client)) {
+    if (!self->device_strid)
+      GST_ELEMENT_ERROR (self, RESOURCE, OPEN_READ, (NULL),
+          ("Failed to get default device for loopback"));
+    else
+      GST_ELEMENT_ERROR (self, RESOURCE, OPEN_READ, (NULL),
+          ("Failed to open device %S", self->device_strid));
+    goto beach;
+
+    /* no need to hold this object */
+    IUnknown_Release (loopback_device);
   }
 
   self->client = client;
@@ -436,7 +487,112 @@ gst_wasapi_src_close (GstAudioSrc * asrc)
     self->client = NULL;
   }
 
+  if (self->loopback_client != NULL) {
+    IUnknown_Release (self->loopback_client);
+    self->loopback_client = NULL;
+  }
+
   return TRUE;
+}
+
+static gpointer
+gst_wasapi_src_loopback_silence_feeding_thread (GstWasapiSrc * self)
+{
+  HRESULT hr;
+  UINT32 buffer_frames;
+  gboolean res G_GNUC_UNUSED = FALSE;
+  BYTE *data;
+  DWORD dwWaitResult;
+  HANDLE event_handle[2];
+  UINT32 padding;
+  UINT32 n_frames;
+
+  /* NOTE: if this task cause glitch, we need to consider thread priority
+   * adjusing. See gstaudioutilsprivate.c (e.g., AvSetMmThreadCharacteristics)
+   * for this context */
+
+  GST_INFO_OBJECT (self, "Run loopback silence feeding thread");
+
+  event_handle[0] = self->loopback_event_handle;
+  event_handle[1] = self->loopback_cancellable;
+
+  hr = IAudioClient_GetBufferSize (self->loopback_client, &buffer_frames);
+  HR_FAILED_GOTO (hr, IAudioClient::GetBufferSize, beach);
+
+  hr = IAudioClient_SetEventHandle (self->loopback_client,
+      self->loopback_event_handle);
+  HR_FAILED_GOTO (hr, IAudioClient::SetEventHandle, beach);
+
+  /* To avoid start-up glitches, before starting the streaming, we fill the
+   * buffer with silence as recommended by the documentation:
+   * https://msdn.microsoft.com/en-us/library/windows/desktop/dd370879%28v=vs.85%29.aspx */
+  hr = IAudioRenderClient_GetBuffer (self->loopback_render_client,
+      buffer_frames, &data);
+  HR_FAILED_GOTO (hr, IAudioRenderClient::GetBuffer, beach);
+
+  hr = IAudioRenderClient_ReleaseBuffer (self->loopback_render_client,
+      buffer_frames, AUDCLNT_BUFFERFLAGS_SILENT);
+  HR_FAILED_GOTO (hr, IAudioRenderClient::ReleaseBuffer, beach);
+
+  hr = IAudioClient_Start (self->loopback_client);
+  HR_FAILED_GOTO (hr, IAudioClock::Start, beach);
+
+  /* There is an OS bug prior to Windows 10, that is loopback capture client
+   * will not receive event (in case of event-driven mode).
+   * A guide for workaround this case is that signal it whenever render client
+   * writes data.
+   * See https://docs.microsoft.com/en-us/windows/win32/api/audioclient/nf-audioclient-iaudioclient-initialize
+   */
+
+  /* Signal for read thread to wakeup */
+  SetEvent (self->event_handle);
+
+  /* Ok, now we are ready for running for feeding silence data */
+  while (1) {
+    dwWaitResult = WaitForMultipleObjects (2, event_handle, FALSE, INFINITE);
+    if (dwWaitResult != WAIT_OBJECT_0 && dwWaitResult != WAIT_OBJECT_0 + 1) {
+      GST_ERROR_OBJECT (self, "Error waiting for event handle: %x",
+          (guint) dwWaitResult);
+      goto stop;
+    }
+
+    /* Stopping was requested from unprepare() */
+    if (dwWaitResult == WAIT_OBJECT_0 + 1) {
+      GST_DEBUG_OBJECT (self, "operation was cancelled");
+      goto stop;
+    }
+
+    hr = IAudioClient_GetCurrentPadding (self->loopback_client, &padding);
+    HR_FAILED_GOTO (hr, IAudioClock::Start, stop);
+
+    if (buffer_frames < padding) {
+      GST_WARNING_OBJECT (self,
+          "Current padding %d is too large (buffer size %d)",
+          padding, buffer_frames);
+      n_frames = 0;
+    } else {
+      n_frames = buffer_frames - padding;
+    }
+
+    hr = IAudioRenderClient_GetBuffer (self->loopback_render_client, n_frames,
+        &data);
+    HR_FAILED_GOTO (hr, IAudioRenderClient::GetBuffer, stop);
+
+    hr = IAudioRenderClient_ReleaseBuffer (self->loopback_render_client,
+        n_frames, AUDCLNT_BUFFERFLAGS_SILENT);
+    HR_FAILED_GOTO (hr, IAudioRenderClient::ReleaseBuffer, stop);
+
+    /* Signal for read thread to wakeup */
+    SetEvent (self->event_handle);
+  }
+
+stop:
+  IAudioClient_Stop (self->loopback_client);
+
+beach:
+  GST_INFO_OBJECT (self, "Terminate loopback silence feeding thread");
+
+  return NULL;
 }
 
 static gboolean
@@ -447,8 +603,6 @@ gst_wasapi_src_prepare (GstAudioSrc * asrc, GstAudioRingBufferSpec * spec)
   REFERENCE_TIME latency_rt;
   guint bpf, rate, devicep_frames, buffer_frames;
   HRESULT hr;
-
-  CoInitializeEx (NULL, COINIT_MULTITHREADED);
 
   if (gst_wasapi_src_can_audioclient3 (self)) {
     if (!gst_wasapi_util_initialize_audioclient3 (GST_ELEMENT (self), spec,
@@ -510,6 +664,25 @@ gst_wasapi_src_prepare (GstAudioSrc * asrc, GstAudioRingBufferSpec * spec)
     goto beach;
   }
 
+  /* In case loopback, spawn another dedicated thread for feeding silence data
+   * into wasapi render client */
+  if (self->loopback) {
+    /* don't need to be audioclient3 or low-latency since we will keep pushing
+     * silence data which is not varying over entire playback */
+    if (!gst_wasapi_util_initialize_audioclient (GST_ELEMENT (self), spec,
+            self->loopback_client, self->mix_format, self->sharemode,
+            FALSE, FALSE, &devicep_frames))
+      goto beach;
+
+    if (!gst_wasapi_util_get_render_client (GST_ELEMENT (self),
+            self->loopback_client, &self->loopback_render_client)) {
+      goto beach;
+    }
+
+    self->loopback_thread = g_thread_new ("wasapi-loopback",
+        (GThreadFunc) gst_wasapi_src_loopback_silence_feeding_thread, self);
+  }
+
   hr = IAudioClient_Start (self->client);
   HR_FAILED_GOTO (hr, IAudioClock::Start, beach);
   self->client_needs_restart = FALSE;
@@ -518,7 +691,12 @@ gst_wasapi_src_prepare (GstAudioSrc * asrc, GstAudioRingBufferSpec * spec)
       (self)->ringbuffer, self->positions);
 
   res = TRUE;
+
+  /* reset cancellable event handle */
+  ResetEvent (self->cancellable);
+
 beach:
+
   /* unprepare() is not called if prepare() fails, but we want it to be, so call
    * it manually when needed */
   if (!res)
@@ -546,9 +724,23 @@ gst_wasapi_src_unprepare (GstAudioSrc * asrc)
     self->client_clock = NULL;
   }
 
-  self->client_clock_freq = 0;
+  if (self->loopback_thread) {
+    GST_DEBUG_OBJECT (self, "loopback task thread is stopping");
 
-  CoUninitialize ();
+    SetEvent (self->loopback_cancellable);
+
+    g_thread_join (self->loopback_thread);
+    self->loopback_thread = NULL;
+    ResetEvent (self->loopback_cancellable);
+    GST_DEBUG_OBJECT (self, "loopback task thread has been stopped");
+  }
+
+  if (self->loopback_render_client != NULL) {
+    IUnknown_Release (self->loopback_render_client);
+    self->loopback_render_client = NULL;
+  }
+
+  self->client_clock_freq = 0;
 
   return TRUE;
 }
@@ -570,6 +762,7 @@ gst_wasapi_src_read (GstAudioSrc * asrc, gpointer data, guint length,
     HR_FAILED_ELEMENT_ERROR_AND (hr, IAudioClient::Start, self,
         GST_OBJECT_UNLOCK (self); goto err);
     self->client_needs_restart = FALSE;
+    ResetEvent (self->cancellable);
     gst_adapter_clear (self->adapter);
   }
 
@@ -587,13 +780,23 @@ gst_wasapi_src_read (GstAudioSrc * asrc, gpointer data, guint length,
   while (wanted > 0) {
     DWORD dwWaitResult;
     guint got_frames, avail_frames, n_frames, want_frames, read_len;
+    HANDLE event_handle[2];
+
+    event_handle[0] = self->event_handle;
+    event_handle[1] = self->cancellable;
 
     /* Wait for data to become available */
-    dwWaitResult = WaitForSingleObject (self->event_handle, INFINITE);
-    if (dwWaitResult != WAIT_OBJECT_0) {
+    dwWaitResult = WaitForMultipleObjects (2, event_handle, FALSE, INFINITE);
+    if (dwWaitResult != WAIT_OBJECT_0 && dwWaitResult != WAIT_OBJECT_0 + 1) {
       GST_ERROR_OBJECT (self, "Error waiting for event handle: %x",
           (guint) dwWaitResult);
       goto err;
+    }
+
+    /* ::reset was requested */
+    if (dwWaitResult == WAIT_OBJECT_0 + 1) {
+      GST_DEBUG_OBJECT (self, "operation was cancelled");
+      return -1;
     }
 
     hr = IAudioCaptureClient_GetBuffer (self->capture_client,
@@ -687,13 +890,16 @@ gst_wasapi_src_reset (GstAudioSrc * asrc)
   if (!self->client)
     return;
 
+  SetEvent (self->cancellable);
+
   GST_OBJECT_LOCK (self);
   hr = IAudioClient_Stop (self->client);
-  HR_FAILED_RET (hr, IAudioClock::Stop,);
+  HR_FAILED_AND (hr, IAudioClock::Stop, goto err);
 
   hr = IAudioClient_Reset (self->client);
-  HR_FAILED_RET (hr, IAudioClock::Reset,);
+  HR_FAILED_AND (hr, IAudioClock::Reset, goto err);
 
+err:
   self->client_needs_restart = TRUE;
   GST_OBJECT_UNLOCK (self);
 }

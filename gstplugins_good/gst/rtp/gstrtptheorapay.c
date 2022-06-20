@@ -26,6 +26,7 @@
 #include <gst/rtp/gstrtpbuffer.h>
 #include <gst/video/video.h>
 
+#include "gstrtpelements.h"
 #include "fnv1hash.h"
 #include "gstrtptheorapay.h"
 #include "gstrtputils.h"
@@ -79,6 +80,8 @@ enum
 
 #define gst_rtp_theora_pay_parent_class parent_class
 G_DEFINE_TYPE (GstRtpTheoraPay, gst_rtp_theora_pay, GST_TYPE_RTP_BASE_PAYLOAD);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtptheorapay, "rtptheorapay",
+    GST_RANK_SECONDARY, GST_TYPE_RTP_THEORA_PAY, rtp_element_init (plugin));
 
 static gboolean gst_rtp_theora_pay_setcaps (GstRTPBasePayload * basepayload,
     GstCaps * caps);
@@ -281,8 +284,8 @@ gst_rtp_theora_pay_init_packet (GstRtpTheoraPay * rtptheorapay, guint8 TDT,
 
   /* new packet allocate max packet size */
   rtptheorapay->packet =
-      gst_rtp_buffer_new_allocate_len (GST_RTP_BASE_PAYLOAD_MTU
-      (rtptheorapay), 0, 0);
+      gst_rtp_base_payload_allocate_output_buffer (GST_RTP_BASE_PAYLOAD
+      (rtptheorapay), GST_RTP_BASE_PAYLOAD_MTU (rtptheorapay), 0, 0);
   gst_rtp_theora_pay_reset_packet (rtptheorapay, TDT);
 
   GST_BUFFER_PTS (rtptheorapay->packet) = timestamp;
@@ -975,11 +978,4 @@ gst_rtp_theora_pay_get_property (GObject * object, guint prop_id,
     default:
       break;
   }
-}
-
-gboolean
-gst_rtp_theora_pay_plugin_init (GstPlugin * plugin)
-{
-  return gst_element_register (plugin, "rtptheorapay",
-      GST_RANK_SECONDARY, GST_TYPE_RTP_THEORA_PAY);
 }

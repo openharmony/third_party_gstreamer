@@ -1,5 +1,6 @@
 /* GStreamer
  * Copyright (C) 2007-2008 Wouter Cloetens <wouter@mind.be>
+ * Copyright (C) 2021 Igalia S.L.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -15,13 +16,12 @@
 #ifndef __GST_SOUP_HTTP_SRC_H__
 #define __GST_SOUP_HTTP_SRC_H__
 
-#include <gst/gst.h>
+#include "gstsouputils.h"
+#include "gstsouploader.h"
+#include <gio/gio.h>
 #include <gst/base/gstpushsrc.h>
-#include <glib.h>
 
 G_BEGIN_DECLS
-
-#include <libsoup/soup.h>
 
 #define GST_TYPE_SOUP_HTTP_SRC \
   (gst_soup_http_src_get_type())
@@ -45,15 +45,8 @@ typedef enum {
   GST_SOUP_HTTP_SRC_SESSION_IO_STATUS_CANCELLED,
 } GstSoupHTTPSrcSessionIOStatus;
 
-#ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0012
-typedef enum {
-  GST_PLAYER_STATUS_IDLE,
-  GST_PLAYER_STATUS_BUFFERING,
-  GST_PLAYER_STATUS_PAUSED,
-  GST_PLAYER_STATUS_PLAYING,
-} GstPlayerStatus;
-#endif
+/* opaque from here, implementation detail */
+typedef struct _GstSoupSession GstSoupSession;
 
 struct _GstSoupHTTPSrc {
   GstPushSrc element;
@@ -63,21 +56,21 @@ struct _GstSoupHTTPSrc {
   gboolean redirection_permanent; /* Permanent or temporary redirect? */
   gchar *user_agent;           /* User-Agent HTTP header. */
   gboolean automatic_redirect; /* Follow redirects. */
-  SoupURI *proxy;              /* HTTP proxy URI. */
+  GstSoupUri *proxy;           /* HTTP proxy URI. */
   gchar *user_id;              /* Authentication user id for location URI. */
   gchar *user_pw;              /* Authentication user password for location URI. */
   gchar *proxy_id;             /* Authentication user id for proxy URI. */
   gchar *proxy_pw;             /* Authentication user password for proxy URI. */
   gchar **cookies;             /* HTTP request cookies. */
-  SoupSession *session;        /* Async context. */
+  GstSoupSession *session;     /* Libsoup session wrapper. */
   gboolean session_is_shared;
-  SoupSession *external_session; /* Shared via GstContext */
-  gboolean forced_external_session; /* If session was explicitly set from application */
+  GstSoupSession *external_session; /* Shared via GstContext */
   SoupMessage *msg;            /* Request message. */
   gint retry_count;            /* Number of retries since we received data */
   gint max_retries;            /* Maximum number of retries */
   gchar *method;               /* HTTP method */
 
+  GstFlowReturn headers_ret;
   gboolean got_headers;        /* Already received headers from the server */
   gboolean have_size;          /* Received and parsed Content-Length
                                   header. */
@@ -121,29 +114,16 @@ struct _GstSoupHTTPSrc {
 
   guint timeout;
 
-  GMutex mutex;
-  GCond have_headers_cond;
+  /* This mutex-cond pair is used to talk to the soup session thread; it is
+   * per src to allow concurrent access to shared sessions (if it was inside
+   * the shared session structure, it would be effectively global)
+   */
+  GMutex session_mutex;
+  GCond session_cond;
 
   GstEvent *http_headers_event;
 
   gint64 last_socket_read_time;
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0012
-  GstFlowReturn ret; /* Return code from callback. */
-  guint last_status_code;
-  gint64 buffering_time;
-  gint64 last_try_time;
-  gint64 wait_time;
-  gint64 wait_already;
-  GMutex wait_lock;
-  GCond wait_cond;
-  gboolean exit_block;
-  guint32 error_code;
-  gint trickmode_key_units;
-  gboolean has_sent_first_request;
-  gboolean has_received_first_response;
-  gint64 playerState;
-#endif
 };
 
 struct _GstSoupHTTPSrcClass {

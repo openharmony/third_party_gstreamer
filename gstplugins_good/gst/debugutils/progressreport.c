@@ -22,10 +22,11 @@
 
 /**
  * SECTION:element-progressreport
+ * @title: progressreport
  *
  * The progressreport element can be put into a pipeline to report progress,
  * which is done by doing upstream duration and position queries in regular
- * (real-time) intervals. Both the interval and the prefered query format
+ * (real-time) intervals. Both the interval and the preferred query format
  * can be specified via the #GstProgressReport:update-freq and the
  * #GstProgressReport:format property.
  *
@@ -53,15 +54,14 @@
  * is in reference to an internal point of a pipeline and not the pipeline as
  * a whole).
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * gst-launch-1.0 -m filesrc location=foo.ogg ! decodebin ! progressreport update-freq=1 ! audioconvert ! audioresample ! autoaudiosink
  * ]| This shows a progress query where a duration is available.
  * |[
  * gst-launch-1.0 -m audiotestsrc ! progressreport update-freq=1 ! audioconvert ! autoaudiosink
  * ]| This shows a progress query where no duration is available.
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -73,6 +73,7 @@
 #include <math.h>
 #include <time.h>
 
+#include "gstdebugutilselements.h"
 #include "progressreport.h"
 
 
@@ -117,6 +118,8 @@ static gboolean gst_progress_report_stop (GstBaseTransform * trans);
 
 #define gst_progress_report_parent_class parent_class
 G_DEFINE_TYPE (GstProgressReport, gst_progress_report, GST_TYPE_BASE_TRANSFORM);
+GST_ELEMENT_REGISTER_DEFINE (progressreport, "progressreport",
+    GST_RANK_NONE, gst_progress_report_get_type ());
 
 static void
 gst_progress_report_finalize (GObject * obj)
@@ -325,7 +328,7 @@ gst_progress_report_do_query (GstProgressReport * filter, GstFormat format,
 }
 
 static void
-gst_progress_report_report (GstProgressReport * filter, GTimeVal cur_time,
+gst_progress_report_report (GstProgressReport * filter, gint64 cur_time_s,
     GstBuffer * buf)
 {
   GstFormat try_formats[] = { GST_FORMAT_TIME, GST_FORMAT_BYTES,
@@ -338,7 +341,7 @@ gst_progress_report_report (GstProgressReport * filter, GTimeVal cur_time,
   glong run_time;
   gint hh, mm, ss;
 
-  run_time = cur_time.tv_sec - filter->start_time.tv_sec;
+  run_time = cur_time_s - filter->start_time_s;
 
   hh = (run_time / 3600) % 100;
   mm = (run_time / 60) % 60;
@@ -387,10 +390,9 @@ gst_progress_report_sink_event (GstBaseTransform * trans, GstEvent * event)
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_EOS:
     {
-      GTimeVal cur_time;
+      gint64 cur_time_s = g_get_real_time () / G_USEC_PER_SEC;
 
-      g_get_current_time (&cur_time);
-      gst_progress_report_report (filter, cur_time, NULL);
+      gst_progress_report_report (filter, cur_time_s, NULL);
       break;
     }
     default:
@@ -404,23 +406,22 @@ gst_progress_report_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
 {
   GstProgressReport *filter;
   gboolean need_update;
-  GTimeVal cur_time;
+  gint64 cur_time;
 
-  g_get_current_time (&cur_time);
+  cur_time = g_get_real_time () / G_USEC_PER_SEC;
 
   filter = GST_PROGRESS_REPORT (trans);
 
   /* Check if update_freq seconds have passed since the last update */
   GST_OBJECT_LOCK (filter);
-  need_update =
-      ((cur_time.tv_sec - filter->last_report.tv_sec) >= filter->update_freq);
+  need_update = (cur_time - filter->last_report_s) >= filter->update_freq;
   filter->buffer_count++;
   GST_OBJECT_UNLOCK (filter);
 
   if (need_update) {
     gst_progress_report_report (filter, cur_time, buf);
     GST_OBJECT_LOCK (filter);
-    filter->last_report = cur_time;
+    filter->last_report_s = cur_time;
     GST_OBJECT_UNLOCK (filter);
   }
 
@@ -434,8 +435,8 @@ gst_progress_report_start (GstBaseTransform * trans)
 
   filter = GST_PROGRESS_REPORT (trans);
 
-  g_get_current_time (&filter->last_report);
-  filter->start_time = filter->last_report;
+  filter->start_time_s = filter->last_report_s =
+      g_get_real_time () / G_USEC_PER_SEC;
   filter->buffer_count = 0;
 
   return TRUE;

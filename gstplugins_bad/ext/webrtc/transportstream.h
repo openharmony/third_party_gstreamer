@@ -34,6 +34,7 @@ GType transport_stream_get_type(void);
 typedef struct
 {
   guint8 pt;
+  guint media_idx;
   GstCaps *caps;
 } PtMapItem;
 
@@ -41,26 +42,31 @@ typedef struct
 {
   guint32 ssrc;
   guint media_idx;
+  GWeakRef rtpjitterbuffer; /* for stats */
 } SsrcMapItem;
+
+SsrcMapItem *           ssrcmap_item_new            (guint32 ssrc,
+                                                     guint media_idx);
 
 struct _TransportStream
 {
   GstObject                 parent;
 
   guint                     session_id;             /* session_id */
-  gboolean                  rtcp;
-  gboolean                  rtcp_mux;
-  gboolean                  rtcp_rsize;
   gboolean                  dtls_client;
+  gboolean                  active;                 /* TRUE if any mline in the bundle/transport is active */
   TransportSendBin         *send_bin;               /* bin containing all the sending transport elements */
   TransportReceiveBin      *receive_bin;            /* bin containing all the receiving transport elements */
   GstWebRTCICEStream       *stream;
 
   GstWebRTCDTLSTransport   *transport;
-  GstWebRTCDTLSTransport   *rtcp_transport;
 
   GArray                   *ptmap;                  /* array of PtMapItem's */
-  GArray                   *remote_ssrcmap;         /* array of SsrcMapItem's */
+  GPtrArray                *remote_ssrcmap;         /* array of SsrcMapItem's */
+  gboolean                  output_connected;       /* whether receive bin is connected to rtpbin */
+
+  GstElement               *rtxsend;
+  GstElement               *rtxreceive;
 };
 
 struct _TransportStreamClass
@@ -71,7 +77,11 @@ struct _TransportStreamClass
 TransportStream *       transport_stream_new        (GstWebRTCBin * webrtc,
                                                      guint session_id);
 int                     transport_stream_get_pt     (TransportStream * stream,
-                                                     const gchar * encoding_name);
+                                                     const gchar * encoding_name,
+                                                     guint media_idx);
+int *                   transport_stream_get_all_pt (TransportStream * stream,
+                                                     const gchar * encoding_name,
+                                                     gsize * pt_len);
 GstCaps *               transport_stream_get_caps_for_pt    (TransportStream * stream,
                                                              guint pt);
 

@@ -125,6 +125,8 @@ gst_decklink_audio_src_change_state (GstElement * element,
 
 static gboolean gst_decklink_audio_src_unlock (GstBaseSrc * bsrc);
 static gboolean gst_decklink_audio_src_unlock_stop (GstBaseSrc * bsrc);
+static GstCaps *gst_decklink_audio_src_get_caps (GstBaseSrc * bsrc,
+    GstCaps * filter);
 static gboolean gst_decklink_audio_src_query (GstBaseSrc * bsrc,
     GstQuery * query);
 
@@ -138,6 +140,8 @@ static gboolean gst_decklink_audio_src_stop (GstDecklinkAudioSrc * self);
 
 #define parent_class gst_decklink_audio_src_parent_class
 G_DEFINE_TYPE (GstDecklinkAudioSrc, gst_decklink_audio_src, GST_TYPE_PUSH_SRC);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (decklinkaudiosrc, "decklinkaudiosrc", GST_RANK_NONE,
+    GST_TYPE_DECKLINK_AUDIO_SRC, decklink_element_init (plugin));
 
 static void
 gst_decklink_audio_src_class_init (GstDecklinkAudioSrcClass * klass)
@@ -156,6 +160,7 @@ gst_decklink_audio_src_class_init (GstDecklinkAudioSrcClass * klass)
 
   basesrc_class->query = GST_DEBUG_FUNCPTR (gst_decklink_audio_src_query);
   basesrc_class->negotiate = NULL;
+  basesrc_class->get_caps = GST_DEBUG_FUNCPTR (gst_decklink_audio_src_get_caps);
   basesrc_class->unlock = GST_DEBUG_FUNCPTR (gst_decklink_audio_src_unlock);
   basesrc_class->unlock_stop =
       GST_DEBUG_FUNCPTR (gst_decklink_audio_src_unlock_stop);
@@ -237,6 +242,10 @@ gst_decklink_audio_src_init (GstDecklinkAudioSrc * self)
   self->current_packets =
       gst_queue_array_new_for_struct (sizeof (CapturePacket),
       DEFAULT_BUFFER_SIZE);
+
+  self->skipped_last = 0;
+  self->skip_from_timestamp = GST_CLOCK_TIME_NONE;
+  self->skip_to_timestamp = GST_CLOCK_TIME_NONE;
 }
 
 void
@@ -466,6 +475,10 @@ gst_decklink_audio_src_start (GstDecklinkAudioSrc * self)
   }
   gst_caps_unref (caps);
 
+  self->skipped_last = 0;
+  self->skip_from_timestamp = GST_CLOCK_TIME_NONE;
+  self->skip_to_timestamp = GST_CLOCK_TIME_NONE;
+
   return TRUE;
 }
 
@@ -477,7 +490,7 @@ gst_decklink_audio_src_got_packet (GstElement * element,
     gboolean no_signal)
 {
   GstDecklinkAudioSrc *self = GST_DECKLINK_AUDIO_SRC_CAST (element);
-  GstClockTime timestamp;
+  GstClockTime timestamp = GST_CLOCK_TIME_NONE;
 
   GST_LOG_OBJECT (self,
       "Got audio packet at %" GST_TIME_FORMAT " / %" GST_TIME_FORMAT
@@ -497,8 +510,10 @@ gst_decklink_audio_src_got_packet (GstElement * element,
     if (videosrc->first_time == GST_CLOCK_TIME_NONE)
       videosrc->first_time = stream_time;
 
-    if (videosrc->skip_first_time > 0
-        && stream_time - videosrc->first_time < videosrc->skip_first_time) {
+    if (GST_CLOCK_TIME_IS_VALID (videosrc->first_time) &&
+        GST_CLOCK_TIME_IS_VALID (stream_time) &&
+        videosrc->skip_first_time > 0 &&
+        stream_time - videosrc->first_time < videosrc->skip_first_time) {
       GST_DEBUG_OBJECT (self,
           "Skipping frame as requested: %" GST_TIME_FORMAT " < %"
           GST_TIME_FORMAT, GST_TIME_ARGS (stream_time),
@@ -509,7 +524,7 @@ gst_decklink_audio_src_got_packet (GstElement * element,
 
     if (videosrc->output_stream_time)
       timestamp = stream_time;
-    else
+    else if (GST_CLOCK_TIME_IS_VALID (stream_time))
       timestamp = gst_clock_adjust_with_calibration (NULL, stream_time,
           videosrc->current_time_mapping.xbase,
           videosrc->current_time_mapping.b, videosrc->current_time_mapping.num,
@@ -526,25 +541,36 @@ gst_decklink_audio_src_got_packet (GstElement * element,
   if (!self->flushing) {
     CapturePacket p;
     guint skipped_packets = 0;
-    GstClockTime from_timestamp = GST_CLOCK_TIME_NONE;
-    GstClockTime to_timestamp = GST_CLOCK_TIME_NONE;
 
     while (gst_queue_array_get_length (self->current_packets) >=
         self->buffer_size) {
       CapturePacket *tmp = (CapturePacket *)
           gst_queue_array_pop_head_struct (self->current_packets);
-      if (skipped_packets == 0)
-        from_timestamp = tmp->timestamp;
+      if (skipped_packets == 0 && self->skipped_last == 0)
+        self->skip_from_timestamp = tmp->timestamp;
       skipped_packets++;
-      to_timestamp = tmp->timestamp;
+      self->skip_to_timestamp = tmp->timestamp;
       capture_packet_clear (tmp);
     }
 
-    if (skipped_packets > 0)
-      GST_WARNING_OBJECT (self,
-          "Dropped %u old packets from %" GST_TIME_FORMAT " to %"
-          GST_TIME_FORMAT, skipped_packets, GST_TIME_ARGS (from_timestamp),
-          GST_TIME_ARGS (to_timestamp));
+    if (self->skipped_last == 0 && skipped_packets > 0) {
+      GST_WARNING_OBJECT (self, "Starting to drop audio packets");
+    }
+
+    if (skipped_packets == 0 && self->skipped_last > 0) {
+      GST_ELEMENT_WARNING_WITH_DETAILS (self,
+          STREAM, FAILED,
+          ("Dropped %u old packets from %" GST_TIME_FORMAT " to %"
+              GST_TIME_FORMAT, self->skipped_last,
+              GST_TIME_ARGS (self->skip_from_timestamp),
+              GST_TIME_ARGS (self->skip_to_timestamp)),
+          (NULL),
+          ("dropped", G_TYPE_UINT, self->skipped_last,
+              "from", G_TYPE_UINT64, self->skip_from_timestamp,
+              "to", G_TYPE_UINT64, self->skip_to_timestamp, NULL));
+      self->skipped_last = 0;
+    }
+    self->skipped_last += skipped_packets;
 
     memset (&p, 0, sizeof (p));
     p.packet = packet;
@@ -604,12 +630,33 @@ retry:
   sample_count = p.packet->GetSampleFrameCount ();
   data_size = self->info.bpf * sample_count;
 
-  if (p.timestamp == GST_CLOCK_TIME_NONE && self->next_offset == (guint64) - 1) {
-    GST_DEBUG_OBJECT (self,
-        "Got packet without timestamp before initial "
-        "timestamp after discont - dropping");
-    capture_packet_clear (&p);
-    goto retry;
+  timestamp = p.timestamp;
+
+  if (!GST_CLOCK_TIME_IS_VALID (timestamp)) {
+    if (self->next_offset == (guint64) - 1) {
+      GST_DEBUG_OBJECT (self,
+          "Got packet without timestamp before initial "
+          "timestamp after discont - dropping");
+      capture_packet_clear (&p);
+      goto retry;
+    } else {
+      GST_INFO_OBJECT (self, "Unknown timestamp value");
+
+      /* Likely the case where IDeckLinkInputCallback::VideoInputFrameArrived()
+       * didn't provide video frame, so no reference video stream timestamp
+       * is available. It can happen as per SDK documentation
+       * under the following circumstances:
+       * - On Intensity Pro with progressive NTSC only, every video frame will
+       *   have two audio packets.
+       * - With 3:2 pulldown there are five audio packets for each four
+       *   video frames.
+       * - If video processing is not fast enough, audio will still be delivered
+       *
+       * Assume there was no packet drop from previous valid packet, and use
+       * previously calculated expected timestamp here */
+      timestamp = gst_util_uint64_scale (self->next_offset,
+          GST_SECOND, self->info.rate);
+    }
   }
 
   ap = (AudioPacket *) g_malloc0 (sizeof (AudioPacket));
@@ -624,14 +671,14 @@ retry:
   ap->input = self->input->input;
   ap->input->AddRef ();
 
-  timestamp = p.timestamp;
-
   // Jitter and discontinuity handling, based on audiobasesrc
   start_time = timestamp;
 
   // Convert to the sample numbers
   start_offset =
       gst_util_uint64_scale (start_time, self->info.rate, GST_SECOND);
+  // Convert back to round down to a sample multiple and get rid of rounding errors
+  start_time = gst_util_uint64_scale (start_offset, GST_SECOND, self->info.rate);
 
   end_offset = start_offset + sample_count;
   end_time = gst_util_uint64_scale_int (end_offset, GST_SECOND,
@@ -655,7 +702,9 @@ retry:
         GST_SECOND);
 
     // Discont!
-    if (G_UNLIKELY (diff >= max_sample_diff)) {
+    if (self->alignment_threshold > 0
+        && self->alignment_threshold != GST_CLOCK_TIME_NONE
+        && G_UNLIKELY (diff >= max_sample_diff)) {
       if (self->discont_wait > 0) {
         if (self->discont_time == GST_CLOCK_TIME_NONE) {
           self->discont_time = start_time;
@@ -682,6 +731,8 @@ retry:
     self->next_offset = end_offset;
     // Got a discont and adjusted, reset the discont_time marker.
     self->discont_time = GST_CLOCK_TIME_NONE;
+  } else if (self->alignment_threshold == 0) {
+    // Don't align, just pass through timestamps
   } else {
     // No discont, just keep counting
     timestamp =
@@ -776,6 +827,42 @@ retry:
   capture_packet_clear (&p);
 
   return flow_ret;
+}
+
+static GstCaps *
+gst_decklink_audio_src_get_caps (GstBaseSrc * bsrc, GstCaps * filter)
+{
+  GstDecklinkAudioSrc *self = GST_DECKLINK_AUDIO_SRC_CAST (bsrc);
+  GstCaps *caps, *template_caps;
+  const GstStructure *s;
+  gint channels;
+
+  channels = self->channels;
+  if (channels == 0)
+    channels = self->channels_found;
+
+  template_caps = gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD (bsrc));
+  if (channels == 0) {
+    caps = template_caps;
+  } else {
+    if (channels > 2)
+      s = gst_caps_get_structure (template_caps, 1);
+    else
+      s = gst_caps_get_structure (template_caps, 0);
+
+    caps = gst_caps_new_full (gst_structure_copy (s), NULL);
+    gst_caps_set_simple (caps, "channels", G_TYPE_INT, channels, NULL);
+    gst_caps_unref (template_caps);
+  }
+
+  if (filter) {
+    GstCaps *tmp =
+        gst_caps_intersect_full (filter, caps, GST_CAPS_INTERSECT_FIRST);
+    gst_caps_unref (caps);
+    caps = tmp;
+  }
+
+  return caps;
 }
 
 static gboolean

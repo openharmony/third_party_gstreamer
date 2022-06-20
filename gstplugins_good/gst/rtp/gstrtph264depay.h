@@ -59,6 +59,7 @@ struct _GstRtpH264Depay
 
   /* Work around broken payloaders wrt. FU-A & FU-B */
   guint8 current_fu_type;
+  guint16 last_fu_seqnum;
   GstClockTime fu_timestamp;
   gboolean fu_marker;
 
@@ -70,6 +71,10 @@ struct _GstRtpH264Depay
   /* downstream allocator */
   GstAllocator *allocator;
   GstAllocationParams params;
+
+  gboolean wait_for_keyframe;
+  gboolean request_keyframe;
+  gboolean waiting_for_keyframe;
 };
 
 struct _GstRtpH264DepayClass
@@ -78,8 +83,6 @@ struct _GstRtpH264DepayClass
 };
 
 GType gst_rtp_h264_depay_get_type (void);
-
-gboolean gst_rtp_h264_depay_plugin_init (GstPlugin * plugin);
 
 gboolean gst_rtp_h264_add_sps_pps (GstElement * rtph264, GPtrArray * sps,
     GPtrArray * pps, GstBuffer * nal);

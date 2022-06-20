@@ -20,6 +20,7 @@
 
 /**
  * SECTION:element-apedemux
+ * @title: apedemux
  *
  * apedemux accepts data streams with APE tags at the start or at the end
  * (or both). The mime type of the data between the tag blocks is detected
@@ -33,14 +34,13 @@
  * wavparse or musepackdec, can operate on files containing APE tag
  * information.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * gst-launch-1.0 -t filesrc location=file.mpc ! apedemux ! fakesink
  * ]| This pipeline should read any available APE tag information and output it.
  * The contents of the file inside the APE tag regions should be detected, and
  * the appropriate mime type set on buffers produced from apedemux.
- * </refsect2>
+ *
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -73,6 +73,8 @@ static GstTagDemuxResult gst_ape_demux_parse_tag (GstTagDemux * demux,
     GstTagList ** tags);
 
 G_DEFINE_TYPE (GstApeDemux, gst_ape_demux, GST_TYPE_TAG_DEMUX);
+GST_ELEMENT_REGISTER_DEFINE (apedemux, "apedemux", GST_RANK_PRIMARY,
+    GST_TYPE_APE_DEMUX);
 
 static void
 gst_ape_demux_class_init (GstApeDemuxClass * klass)
@@ -434,8 +436,7 @@ gst_ape_demux_parse_tag (GstTagDemux * demux, GstBuffer * buffer,
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return gst_element_register (plugin, "apedemux",
-      GST_RANK_PRIMARY, GST_TYPE_APE_DEMUX);
+  return GST_ELEMENT_REGISTER (apedemux, plugin);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

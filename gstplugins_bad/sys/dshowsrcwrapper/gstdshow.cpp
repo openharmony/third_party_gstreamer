@@ -49,7 +49,7 @@ gst_dshow_free_mediatype (AM_MEDIA_TYPE * pmt)
       pmt->pbFormat = NULL;
     }
     if (pmt->pUnk != NULL) {
-      /* Unecessary because pUnk should not be used, but safest. */
+      /* Unnecessary because pUnk should not be used, but safest. */
       pmt->pUnk->Release ();
       pmt->pUnk = NULL;
     }
@@ -205,7 +205,7 @@ gst_dshow_find_filter (CLSID input_majortype, CLSID input_subtype,
   if (filter)
     *filter = NULL;
 
-  /* create a private copy of prefered filter substring in upper case */
+  /* create a private copy of preferred filter substring in upper case */
   if (prefered_filter_name) {
     prefered_filter_upper = g_strdup (prefered_filter_name);
     _strupr (prefered_filter_upper);
@@ -446,7 +446,7 @@ gst_dshow_select_device (const GUID * device_category,
     } else if (!device && device_name && g_strcmp0 (device_name, entry->device_name) == 0) {
       selected = entry;
       break;
-    } else if (!device && !deviceName && device_index == entry->device_index) {
+    } else if (!device && !device_name && device_index == entry->device_index) {
       selected = entry;
       break;
     }

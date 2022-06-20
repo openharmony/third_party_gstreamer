@@ -17,7 +17,7 @@
  * Boston, MA 02110-1335, USA.
  */
 /**
- * SECTION:element-gstzebrastripe
+ * SECTION:element-zebrastripe
  * @title: gstzebrastripe
  *
  * The zebrastripe element marks areas of images in a video stream
@@ -88,6 +88,8 @@ G_DEFINE_TYPE_WITH_CODE (GstZebraStripe, gst_zebra_stripe,
     GST_TYPE_VIDEO_FILTER,
     GST_DEBUG_CATEGORY_INIT (gst_zebra_stripe_debug_category, "zebrastripe", 0,
         "debug category for zebrastripe element"));
+GST_ELEMENT_REGISTER_DEFINE (zebrastripe, "zebrastripe",
+    GST_RANK_NONE, gst_zebra_stripe_get_type ());
 
 static void
 gst_zebra_stripe_class_init (GstZebraStripeClass * klass)

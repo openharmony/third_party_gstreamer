@@ -22,12 +22,9 @@
 #ifndef __GST_VC1_PARSER_H__
 #define __GST_VC1_PARSER_H__
 
-#ifndef OHOS_EXT_FUNC
-// ohos.ext.func.0013
 #ifndef GST_USE_UNSTABLE_API
 #warning "The VC1 parsing library is unstable API and may change in future."
 #warning "You can define GST_USE_UNSTABLE_API to avoid this warning."
-#endif
 #endif
 
 #include <gst/gst.h>
@@ -308,7 +305,7 @@ struct _GstVC1SeqStructC
 
   /* Wmvp specific */
   guint8 wmvp;          /* Specify if the stream is wmp or not */
-  /* In the wmvp case, the framerate is not computed but in the bistream */
+  /* In the wmvp case, the framerate is not computed but in the bitstream */
   guint8 slice_code;
 };
 

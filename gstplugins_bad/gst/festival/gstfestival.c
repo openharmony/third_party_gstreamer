@@ -65,9 +65,9 @@
  * @title: festival
  *
  * This element connects to a
- * <ulink url="http://www.festvox.org/festival/index.html">festival</ulink>
- * server process and uses it to synthesize speech. Festival need to run already
- * in server mode, started as <screen>festival --server</screen>
+ * [festival](http://www.festvox.org/festival/index.html) server process and
+ * uses it to synthesize speech. Festival need to run already in server mode,
+ * started as `festival --server`
  *
  * ## Example pipeline
  * |[
@@ -150,9 +150,14 @@ enum
 
 /*static guint gst_festival_signals[LAST_SIGNAL] = { 0 }; */
 
-G_DEFINE_TYPE (GstFestival, gst_festival, GST_TYPE_ELEMENT)
+G_DEFINE_TYPE (GstFestival, gst_festival, GST_TYPE_ELEMENT);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (festival, "festival", GST_RANK_NONE,
+    GST_TYPE_FESTIVAL, GST_DEBUG_CATEGORY_INIT (festival_debug, "festival",
+        0, "Festival text-to-speech synthesizer");
+    );;
 
-     static void gst_festival_class_init (GstFestivalClass * klass)
+static void
+gst_festival_class_init (GstFestivalClass * klass)
 {
   GObjectClass *gobject_class;
   GstElementClass *gstelement_class;
@@ -396,7 +401,7 @@ socket_receive_file_to_buff (int fd, int *size)
 {
   /* Receive file (probably a waveform file) from socket using   */
   /* Festival key stuff technique, but long winded I know, sorry */
-  /* but will receive any file without closeing the stream or    */
+  /* but will receive any file without closing the stream or    */
   /* using OOB data                                              */
   static const char file_stuff_key[] = "ft_StUfF_key";  /* must == Festival's key */
   char *buff;
@@ -524,14 +529,7 @@ gst_festival_src_query (GstPad * pad, GstObject * parent, GstQuery * query)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  GST_DEBUG_CATEGORY_INIT (festival_debug, "festival",
-      0, "Festival text-to-speech synthesizer");
-
-  if (!gst_element_register (plugin, "festival", GST_RANK_NONE,
-          GST_TYPE_FESTIVAL))
-    return FALSE;
-
-  return TRUE;
+  return GST_ELEMENT_REGISTER (festival, plugin);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

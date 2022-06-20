@@ -107,7 +107,7 @@ gst_msdk_video_memory_get_surface_available (GstMemory * mem)
 
 /*
  * Every time releasing a gst buffer, we need to check the status of surface's lock,
- * so that we could manage locked surfaces seperatedly in the context.
+ * so that we could manage locked surfaces separately in the context.
  * Otherwise, we put the surface to the available list.
  */
 void
@@ -166,11 +166,13 @@ gst_msdk_video_memory_new (GstAllocator * base_allocator)
     return NULL;
 
   mem->surface = gst_msdk_video_allocator_get_surface (base_allocator);
-  if (!mem->surface)
+  if (!mem->surface) {
+    g_slice_free (GstMsdkVideoMemory, mem);
     return NULL;
+  }
 
   vip = &allocator->image_info;
-  gst_memory_init (&mem->parent_instance, GST_MEMORY_FLAG_NO_SHARE,
+  gst_memory_init (&mem->parent_instance, 0,
       base_allocator, NULL, GST_VIDEO_INFO_SIZE (vip), 0, 0,
       GST_VIDEO_INFO_SIZE (vip));
 
@@ -207,7 +209,7 @@ gst_video_meta_map_msdk_memory (GstVideoMeta * meta, guint plane,
   }
 
   if ((flags & GST_MAP_WRITE) && mem->surface && mem->surface->Data.Locked) {
-    GST_WARNING ("The surface in memory %p is not still avaliable", mem);
+    GST_WARNING ("The surface in memory %p is not still available", mem);
     return FALSE;
   }
 
@@ -235,13 +237,28 @@ gst_video_meta_map_msdk_memory (GstVideoMeta * meta, guint plane,
   pitch = mem_id->pitch;
 #endif
 
-  /* The first channel in memory is V for GST_VIDEO_FORMAT_VUYA */
-  if (meta->format == GST_VIDEO_FORMAT_VUYA)
-    *data = mem->surface->Data.V + offset;
-  else
-    *data = mem->surface->Data.Y + offset;
-  *stride = pitch;
+  switch (meta->format) {
+    case GST_VIDEO_FORMAT_BGRA:
+    case GST_VIDEO_FORMAT_BGRx:
+      *data = mem->surface->Data.B + offset;
+      break;
 
+      /* The first channel in memory is V for GST_VIDEO_FORMAT_VUYA */
+    case GST_VIDEO_FORMAT_VUYA:
+      *data = mem->surface->Data.V + offset;
+      break;
+
+    case GST_VIDEO_FORMAT_Y410:
+    case GST_VIDEO_FORMAT_Y412_LE:
+      *data = mem->surface->Data.U + offset;
+      break;
+
+    default:
+      *data = mem->surface->Data.Y + offset;
+      break;
+  }
+
+  *stride = pitch;
   info->flags = flags;
   ret = (*data != NULL);
 
@@ -290,13 +307,42 @@ gst_msdk_video_memory_map_full (GstMemory * base_mem, GstMapInfo * info,
 
   if ((info->flags & GST_MAP_WRITE) && mem->surface
       && mem->surface->Data.Locked) {
-    GST_WARNING ("The surface in memory %p is not still avaliable", mem);
+    GST_WARNING ("The surface in memory %p is not still available", mem);
     return NULL;
   }
 
   gst_msdk_frame_lock (msdk_video_allocator->context, mem->surface->Data.MemId,
       &mem->surface->Data);
-  return mem->surface->Data.Y;
+
+  switch (mem->surface->Info.FourCC) {
+    case MFX_FOURCC_RGB4:
+      return mem->surface->Data.B;      /* The first channel is B */
+
+      /* The first channel in memory is V for MFX_FOURCC_AYUV (GST_VIDEO_FORMAT_VUYA) format */
+    case MFX_FOURCC_AYUV:
+      return mem->surface->Data.V;
+
+#if (MFX_VERSION >= 1027)
+    case MFX_FOURCC_Y410:
+      return mem->surface->Data.U;      /* Data.Y410 */
+#endif
+
+#if (MFX_VERSION >= 1031)
+    case MFX_FOURCC_Y416:
+      return mem->surface->Data.U;
+#endif
+
+#if (MFX_VERSION >= 2004)
+    case MFX_FOURCC_RGBP:
+      return mem->surface->Data.R;
+
+    case MFX_FOURCC_BGRP:
+      return mem->surface->Data.B;
+#endif
+
+    default:
+      return mem->surface->Data.Y;
+  }
 }
 
 static void
@@ -309,6 +355,38 @@ gst_msdk_video_memory_unmap (GstMemory * base_mem)
 
   gst_msdk_frame_unlock (msdk_video_allocator->context,
       mem->surface->Data.MemId, &mem->surface->Data);
+}
+
+static GstMemory *
+gst_msdk_video_memory_copy (GstMemory * base_mem, gssize offset, gssize size)
+{
+  GstMemory *copy;
+  GstVideoInfo *info;
+  GstMsdkVideoAllocator *msdk_video_allocator;
+  gsize mem_size;
+  GstMapInfo src_map, dst_map;
+
+  /* FIXME: can we consider offset and size here ? */
+  copy = gst_msdk_video_memory_new (base_mem->allocator);
+
+  if (!copy) {
+    GST_ERROR_OBJECT (base_mem->allocator, "Failed to create new video memory");
+    return NULL;
+  }
+
+  msdk_video_allocator = GST_MSDK_VIDEO_ALLOCATOR_CAST (base_mem->allocator);
+
+  info = &msdk_video_allocator->image_info;
+  mem_size = GST_VIDEO_INFO_SIZE (info);
+
+  gst_memory_map (base_mem, &src_map, GST_MAP_READ);
+  gst_memory_map (copy, &dst_map, GST_MAP_WRITE);
+
+  memcpy (dst_map.data, src_map.data, mem_size);
+  gst_memory_unmap (copy, &dst_map);
+  gst_memory_unmap (base_mem, &src_map);
+
+  return copy;
 }
 
 /* GstMsdkVideoAllocator */
@@ -327,8 +405,18 @@ gst_msdk_video_allocator_finalize (GObject * object)
 {
   GstMsdkVideoAllocator *allocator = GST_MSDK_VIDEO_ALLOCATOR_CAST (object);
 
+  gst_msdk_frame_free (allocator->context, allocator->alloc_response);
+
   gst_object_unref (allocator->context);
   G_OBJECT_CLASS (gst_msdk_video_allocator_parent_class)->finalize (object);
+}
+
+static void
+gst_msdk_video_allocator_free (GstAllocator * allocator, GstMemory * base_mem)
+{
+  GstMsdkVideoMemory *const mem = GST_MSDK_VIDEO_MEMORY_CAST (base_mem);
+
+  g_slice_free (GstMsdkVideoMemory, mem);
 }
 
 static void
@@ -340,6 +428,7 @@ gst_msdk_video_allocator_class_init (GstMsdkVideoAllocatorClass * klass)
   object_class->finalize = gst_msdk_video_allocator_finalize;
 
   allocator_class->alloc = gst_msdk_video_allocator_alloc;
+  allocator_class->free = gst_msdk_video_allocator_free;
 }
 
 static void
@@ -350,6 +439,7 @@ gst_msdk_video_allocator_init (GstMsdkVideoAllocator * allocator)
   base_allocator->mem_type = GST_MSDK_VIDEO_MEMORY_NAME;
   base_allocator->mem_map_full = gst_msdk_video_memory_map_full;
   base_allocator->mem_unmap = gst_msdk_video_memory_unmap;
+  base_allocator->mem_copy = gst_msdk_video_memory_copy;
 
   GST_OBJECT_FLAG_SET (allocator, GST_ALLOCATOR_FLAG_CUSTOM_ALLOC);
 }
@@ -359,17 +449,27 @@ gst_msdk_video_allocator_new (GstMsdkContext * context,
     GstVideoInfo * image_info, mfxFrameAllocResponse * alloc_resp)
 {
   GstMsdkVideoAllocator *allocator;
+  GstMsdkAllocResponse *cached = NULL;
 
   g_return_val_if_fail (context != NULL, NULL);
   g_return_val_if_fail (image_info != NULL, NULL);
+
+  cached = gst_msdk_context_get_cached_alloc_responses (context, alloc_resp);
+
+  if (!cached) {
+    GST_ERROR ("Failed to get the cached alloc response");
+    return NULL;
+  }
 
   allocator = g_object_new (GST_TYPE_MSDK_VIDEO_ALLOCATOR, NULL);
   if (!allocator)
     return NULL;
 
+  g_atomic_int_inc (&cached->refcount);
   allocator->context = gst_object_ref (context);
   allocator->image_info = *image_info;
-  allocator->alloc_response = alloc_resp;
+  allocator->mfx_response = *alloc_resp;
+  allocator->alloc_response = &allocator->mfx_response;
 
   return GST_ALLOCATOR_CAST (allocator);
 }
@@ -408,18 +508,22 @@ gst_msdk_dmabuf_memory_new_with_surface (GstAllocator * allocator,
   g_return_val_if_fail (GST_IS_MSDK_DMABUF_ALLOCATOR (allocator), NULL);
 
   mem_id = surface->Data.MemId;
-  fd = mem_id->info.handle;
-  size = mem_id->info.mem_size;
 
-  if (fd < 0 || (fd = dup (fd)) < 0) {
+  g_assert (mem_id->desc.num_objects == 1);
+
+  fd = mem_id->desc.objects[0].fd;
+  size = mem_id->desc.objects[0].size;
+
+  if (fd < 0) {
     GST_ERROR ("Failed to get dmabuf handle");
     return NULL;
   }
 
-  mem = gst_dmabuf_allocator_alloc (allocator, fd, size);
+  mem = gst_fd_allocator_alloc (allocator, fd, size,
+      GST_FD_MEMORY_FLAG_DONT_CLOSE);
+
   if (!mem) {
     GST_ERROR ("failed ! dmabuf fd: %d", fd);
-    close (fd);
     return NULL;
   }
 
@@ -440,6 +544,8 @@ static void
 gst_msdk_dmabuf_allocator_finalize (GObject * object)
 {
   GstMsdkDmaBufAllocator *allocator = GST_MSDK_DMABUF_ALLOCATOR_CAST (object);
+
+  gst_msdk_frame_free (allocator->context, allocator->alloc_response);
 
   gst_object_unref (allocator->context);
   G_OBJECT_CLASS (gst_msdk_dmabuf_allocator_parent_class)->finalize (object);
@@ -465,17 +571,27 @@ gst_msdk_dmabuf_allocator_new (GstMsdkContext * context,
     GstVideoInfo * image_info, mfxFrameAllocResponse * alloc_resp)
 {
   GstMsdkDmaBufAllocator *allocator;
+  GstMsdkAllocResponse *cached = NULL;
 
   g_return_val_if_fail (context != NULL, NULL);
   g_return_val_if_fail (image_info != NULL, NULL);
+
+  cached = gst_msdk_context_get_cached_alloc_responses (context, alloc_resp);
+
+  if (!cached) {
+    GST_ERROR ("Failed to get the cached alloc response");
+    return NULL;
+  }
 
   allocator = g_object_new (GST_TYPE_MSDK_DMABUF_ALLOCATOR, NULL);
   if (!allocator)
     return NULL;
 
+  g_atomic_int_inc (&cached->refcount);
   allocator->context = gst_object_ref (context);
   allocator->image_info = *image_info;
-  allocator->alloc_response = alloc_resp;
+  allocator->mfx_response = *alloc_resp;
+  allocator->alloc_response = &allocator->mfx_response;
 
   return GST_ALLOCATOR_CAST (allocator);
 }

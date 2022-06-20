@@ -811,11 +811,11 @@ deserialize_exif_gps_direction (XmpTag * xmptag, GstTagList * taglist,
   }
 
   if (!dir_str) {
-    GST_WARNING ("Missing %s tag", dir_str);
+    GST_WARNING ("Missing GPSImgDirection tag");
     return;
   }
   if (!dirref_str) {
-    GST_WARNING ("Missing %s tag", dirref_str);
+    GST_WARNING ("Missing GPSImgDirectionRef tag");
     return;
   }
 
@@ -932,7 +932,7 @@ deserialize_tiff_orientation (XmpTag * xmptag, GstTagList * taglist,
 }
 
 
-/* look at this page for addtional schemas
+/* look at this page for additional schemas
  * http://www.sno.phy.queensu.ca/~phil/exiftool/TagNames/XMP.html
  */
 static gpointer
@@ -1078,7 +1078,7 @@ struct _GstXmpNamespaceMatch
 
   /*
    * Stores extra namespaces for array tags
-   * The namespaces should be writen in the form:
+   * The namespaces should be written in the form:
    *
    * xmlns:XpTo="http://some.org/your/ns/name/ (next ones)"
    */

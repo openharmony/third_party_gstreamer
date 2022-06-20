@@ -21,43 +21,20 @@
 #include "config.h"
 #endif
 
-#include <gst/net/gstnetaddressmeta.h>
+#include "gstudpelements.h"
 
-#include "gstudpsrc.h"
-#include "gstmultiudpsink.h"
-#include "gstudpsink.h"
-#include "gstdynudpsink.h"
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  /* not using GLIB_CHECK_VERSION on purpose, run-time version matters */
-  if (glib_check_version (2, 36, 0) != NULL) {
-    GST_WARNING ("Your GLib version is < 2.36, UDP multicasting support may "
-        "be broken, see https://bugzilla.gnome.org/show_bug.cgi?id=688378");
-  }
+  gboolean ret = FALSE;
 
-  /* register info of the netaddress metadata so that we can use it from
-   * multiple threads right away. Note that the plugin loading is always
-   * serialized */
-  gst_net_address_meta_get_info ();
+  ret |= GST_ELEMENT_REGISTER (udpsink, plugin);
+  ret |= GST_ELEMENT_REGISTER (multiudpsink, plugin);
+  ret |= GST_ELEMENT_REGISTER (dynudpsink, plugin);
+  ret |= GST_ELEMENT_REGISTER (udpsrc, plugin);
 
-  if (!gst_element_register (plugin, "udpsink", GST_RANK_NONE,
-          GST_TYPE_UDPSINK))
-    return FALSE;
-
-  if (!gst_element_register (plugin, "multiudpsink", GST_RANK_NONE,
-          GST_TYPE_MULTIUDPSINK))
-    return FALSE;
-
-  if (!gst_element_register (plugin, "dynudpsink", GST_RANK_NONE,
-          GST_TYPE_DYNUDPSINK))
-    return FALSE;
-
-  if (!gst_element_register (plugin, "udpsrc", GST_RANK_NONE, GST_TYPE_UDPSRC))
-    return FALSE;
-
-  return TRUE;
+  return ret;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

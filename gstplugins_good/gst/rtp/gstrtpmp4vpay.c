@@ -26,6 +26,7 @@
 #include <gst/rtp/gstrtpbuffer.h>
 #include <gst/video/video.h>
 
+#include "gstrtpelements.h"
 #include "gstrtpmp4vpay.h"
 #include "gstrtputils.h"
 
@@ -81,6 +82,12 @@ static gboolean gst_rtp_mp4v_pay_sink_event (GstRTPBasePayload * pay,
 
 #define gst_rtp_mp4v_pay_parent_class parent_class
 G_DEFINE_TYPE (GstRtpMP4VPay, gst_rtp_mp4v_pay, GST_TYPE_RTP_BASE_PAYLOAD);
+/* Note: This element is marked at a "+1" rank to make sure that
+ * auto-plugging of payloaders for MPEG4 elementary streams don't
+ * end up using the 'rtpmp4gpay' element (generic mpeg4) which isn't
+ * as well supported as this RFC */
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpmp4vpay, "rtpmp4vpay",
+    GST_RANK_SECONDARY + 1, GST_TYPE_RTP_MP4V_PAY, rtp_element_init (plugin));
 
 static void
 gst_rtp_mp4v_pay_class_init (GstRtpMP4VPayClass * klass)
@@ -107,10 +114,11 @@ gst_rtp_mp4v_pay_class_init (GstRtpMP4VPayClass * klass)
       "Wim Taymans <wim.taymans@gmail.com>");
 
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_CONFIG_INTERVAL,
-      g_param_spec_uint ("config-interval", "Config Send Interval",
+      g_param_spec_int ("config-interval", "Config Send Interval",
           "Send Config Insertion Interval in seconds (configuration headers "
-          "will be multiplexed in the data stream when detected.) (0 = disabled)",
-          0, 3600, DEFAULT_CONFIG_INTERVAL,
+          "will be multiplexed in the data stream when detected.) "
+          "(0 = disabled, -1 = send with every IDR frame)",
+          -1, 3600, DEFAULT_CONFIG_INTERVAL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)
       );
 
@@ -266,7 +274,7 @@ gst_rtp_mp4v_pay_flush (GstRtpMP4VPay * rtpmp4vpay)
     guint packet_len;
     GstRTPBuffer rtp = { NULL };
 
-    /* this will be the total lenght of the packet */
+    /* this will be the total length of the packet */
     packet_len = gst_rtp_buffer_calc_packet_len (avail, 0, 0);
 
     /* fill one MTU or all available bytes */
@@ -277,7 +285,9 @@ gst_rtp_mp4v_pay_flush (GstRtpMP4VPay * rtpmp4vpay)
 
     /* create buffer without payload. The payload will be put
      * in next buffer instead. Both buffers will be merged */
-    outbuf = gst_rtp_buffer_new_allocate (0, 0, 0);
+    outbuf =
+        gst_rtp_base_payload_allocate_output_buffer (GST_RTP_BASE_PAYLOAD
+        (rtpmp4vpay), 0, 0, 0);
 
     /* Take buffer with the payload from the adapter */
     outbuf_data = gst_adapter_take_buffer_fast (rtpmp4vpay->adapter,
@@ -412,7 +422,7 @@ gst_rtp_mp4v_pay_depay_data (GstRtpMP4VPay * enc, guint8 * data, guint size,
   return result;
 }
 
-/* we expect buffers starting on startcodes. 
+/* we expect buffers starting on startcodes.
  */
 static GstFlowReturn
 gst_rtp_mp4v_pay_handle_buffer (GstRTPBasePayload * basepayload,
@@ -429,6 +439,7 @@ gst_rtp_mp4v_pay_handle_buffer (GstRTPBasePayload * basepayload,
   GstClockTime timestamp, duration;
   gboolean vopi;
   gboolean send_config;
+  GstClockTime running_time = GST_CLOCK_TIME_NONE;
 
   ret = GST_FLOW_OK;
   send_config = FALSE;
@@ -457,8 +468,10 @@ gst_rtp_mp4v_pay_handle_buffer (GstRTPBasePayload * basepayload,
   gst_buffer_unmap (buffer, &map);
 
   if (strip) {
-    /* strip off config if requested */
-    if (!(rtpmp4vpay->config_interval > 0)) {
+    /* strip off config if requested, do not strip off if the
+     * config_interval is set to -1 */
+    if (!(rtpmp4vpay->config_interval > 0)
+        && !(rtpmp4vpay->config_interval == -1)) {
       GstBuffer *subbuf;
 
       GST_LOG_OBJECT (rtpmp4vpay, "stripping config at %d, size %d", strip,
@@ -473,7 +486,7 @@ gst_rtp_mp4v_pay_handle_buffer (GstRTPBasePayload * basepayload,
 
       size = gst_buffer_get_size (buffer);
     } else {
-      GstClockTime running_time =
+      running_time =
           gst_segment_to_running_time (&basepayload->segment, GST_FORMAT_TIME,
           timestamp);
 
@@ -484,7 +497,7 @@ gst_rtp_mp4v_pay_handle_buffer (GstRTPBasePayload * basepayload,
 
   /* there is a config request, see if we need to insert it */
   if (vopi && (rtpmp4vpay->config_interval > 0) && rtpmp4vpay->config) {
-    GstClockTime running_time =
+    running_time =
         gst_segment_to_running_time (&basepayload->segment, GST_FORMAT_TIME,
         timestamp);
 
@@ -516,20 +529,26 @@ gst_rtp_mp4v_pay_handle_buffer (GstRTPBasePayload * basepayload,
       GST_DEBUG_OBJECT (rtpmp4vpay, "no previous config time, send now");
       send_config = TRUE;
     }
+  }
 
-    if (send_config) {
-      /* we need to send config now first */
-      GST_LOG_OBJECT (rtpmp4vpay, "inserting config in stream");
+  if (vopi && (rtpmp4vpay->config_interval == -1)) {
+    GST_DEBUG_OBJECT (rtpmp4vpay, "sending config before current IDR frame");
+    /* send config before every IDR frame */
+    send_config = TRUE;
+  }
 
-      /* insert header */
-      buffer = gst_buffer_append (gst_buffer_ref (rtpmp4vpay->config), buffer);
+  if (send_config) {
+    /* we need to send config now first */
+    GST_LOG_OBJECT (rtpmp4vpay, "inserting config in stream");
 
-      GST_BUFFER_PTS (buffer) = timestamp;
-      size = gst_buffer_get_size (buffer);
+    /* insert header */
+    buffer = gst_buffer_append (gst_buffer_ref (rtpmp4vpay->config), buffer);
 
-      if (running_time != -1) {
-        rtpmp4vpay->last_config = running_time;
-      }
+    GST_BUFFER_PTS (buffer) = timestamp;
+    size = gst_buffer_get_size (buffer);
+
+    if (running_time != -1) {
+      rtpmp4vpay->last_config = running_time;
     }
   }
 
@@ -596,7 +615,7 @@ gst_rtp_mp4v_pay_set_property (GObject * object, guint prop_id,
 
   switch (prop_id) {
     case PROP_CONFIG_INTERVAL:
-      rtpmp4vpay->config_interval = g_value_get_uint (value);
+      rtpmp4vpay->config_interval = g_value_get_int (value);
       break;
     default:
       break;
@@ -613,20 +632,9 @@ gst_rtp_mp4v_pay_get_property (GObject * object, guint prop_id,
 
   switch (prop_id) {
     case PROP_CONFIG_INTERVAL:
-      g_value_set_uint (value, rtpmp4vpay->config_interval);
+      g_value_set_int (value, rtpmp4vpay->config_interval);
       break;
     default:
       break;
   }
-}
-
-gboolean
-gst_rtp_mp4v_pay_plugin_init (GstPlugin * plugin)
-{
-  /* Note: This element is marked at a "+1" rank to make sure that
-   * auto-plugging of payloaders for MPEG4 elementary streams don't
-   * end up using the 'rtpmp4gpay' element (generic mpeg4) which isn't
-   * as well supported as this RFC */
-  return gst_element_register (plugin, "rtpmp4vpay",
-      GST_RANK_SECONDARY + 1, GST_TYPE_RTP_MP4V_PAY);
 }

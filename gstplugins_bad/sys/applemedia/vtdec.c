@@ -19,13 +19,28 @@
  */
 /**
  * SECTION:element-vtdec
- * @title: gstvtdec
+ * @title: vtdec
  *
- * Apple VideoToolbox based decoder.
+ * Apple VideoToolbox based decoder which might use a HW or a SW
+ * implementation depending on the device.
  *
  * ## Example launch line
  * |[
  * gst-launch-1.0 -v filesrc location=file.mov ! qtdemux ! queue ! h264parse ! vtdec ! videoconvert ! autovideosink
+ * ]|
+ * Decode h264 video from a mov file.
+ *
+ */
+
+/**
+ * SECTION:element-vtdec_hw
+ * @title: vtdec_hw
+ *
+ * Apple VideoToolbox based HW-only decoder.
+ *
+ * ## Example launch line
+ * |[
+ * gst-launch-1.0 -v filesrc location=file.mov ! qtdemux ! queue ! h264parse ! vtdec_hw ! videoconvert ! autovideosink
  * ]|
  * Decode h264 video from a mov file.
  *
@@ -44,6 +59,10 @@
 #include "vtutil.h"
 #include "corevideobuffer.h"
 #include "coremediabuffer.h"
+#include "videotexturecache-gl.h"
+#if defined(APPLEMEDIA_MOLTENVK)
+#include "videotexturecache-vulkan.h"
+#endif
 
 GST_DEBUG_CATEGORY_STATIC (gst_vtdec_debug_category);
 #define GST_CAT_DEFAULT gst_vtdec_debug_category
@@ -53,6 +72,7 @@ enum
   /* leave some headroom for new GstVideoCodecFrameFlags flags */
   VTDEC_FRAME_FLAG_SKIP = (1 << 10),
   VTDEC_FRAME_FLAG_DROP = (1 << 11),
+  VTDEC_FRAME_FLAG_ERROR = (1 << 12),
 };
 
 static void gst_vtdec_finalize (GObject * object);
@@ -97,7 +117,9 @@ static GstStaticPadTemplate gst_vtdec_sink_template =
     GST_STATIC_CAPS ("video/x-h264, stream-format=avc, alignment=au,"
         " width=(int)[1, MAX], height=(int)[1, MAX];"
         "video/mpeg, mpegversion=2, systemstream=false, parsed=true;"
-        "image/jpeg")
+        "image/jpeg;"
+        "video/x-prores, variant = { (string)standard, (string)hq, (string)lt,"
+        " (string)proxy, (string)4444, (string)4444xq };")
     );
 
 /* define EnableHardwareAcceleratedVideoDecoder in < 10.9 */
@@ -110,11 +132,21 @@ const CFStringRef
 CFSTR ("RequireHardwareAcceleratedVideoDecoder");
 #endif
 
-#define VIDEO_SRC_CAPS \
-    GST_VIDEO_CAPS_MAKE("NV12") ";"                                     \
+#define VIDEO_SRC_CAPS_FORMATS "{ NV12, AYUV64, ARGB64_BE }"
+
+#define VIDEO_SRC_CAPS_NATIVE                                           \
+    GST_VIDEO_CAPS_MAKE(VIDEO_SRC_CAPS_FORMATS) ";"                     \
     GST_VIDEO_CAPS_MAKE_WITH_FEATURES(GST_CAPS_FEATURE_MEMORY_GL_MEMORY,\
-        "NV12") ", "                                                    \
-    "texture-target = (string) rectangle;"
+        VIDEO_SRC_CAPS_FORMATS) ", "                                    \
+    "texture-target = (string) rectangle "
+
+#if defined(APPLEMEDIA_MOLTENVK)
+#define VIDEO_SRC_CAPS VIDEO_SRC_CAPS_NATIVE "; "                           \
+    GST_VIDEO_CAPS_MAKE_WITH_FEATURES(GST_CAPS_FEATURE_MEMORY_VULKAN_IMAGE, \
+        VIDEO_SRC_CAPS_FORMATS)
+#else
+#define VIDEO_SRC_CAPS VIDEO_SRC_CAPS_NATIVE
+#endif
 
 G_DEFINE_TYPE (GstVtdec, gst_vtdec, GST_TYPE_VIDEO_DECODER);
 
@@ -129,9 +161,15 @@ gst_vtdec_class_init (GstVtdecClass * klass)
      base_class_init if you intend to subclass this class. */
   gst_element_class_add_static_pad_template (element_class,
       &gst_vtdec_sink_template);
-  gst_element_class_add_pad_template (element_class,
-      gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS,
-          gst_caps_from_string (VIDEO_SRC_CAPS)));
+
+  {
+    GstCaps *caps = gst_caps_from_string (VIDEO_SRC_CAPS);
+    /* RGBA64_LE is kCVPixelFormatType_64RGBALE, only available on macOS 11.3+ */
+    if (GST_VTUTIL_HAVE_64ARGBALE)
+      caps = gst_vtutil_caps_append_video_format (caps, "RGBA64_LE");
+    gst_element_class_add_pad_template (element_class,
+        gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS, caps));
+  }
 
   gst_element_class_set_static_metadata (element_class,
       "Apple VideoToolbox decoder",
@@ -198,12 +236,21 @@ gst_vtdec_stop (GstVideoDecoder * decoder)
     gst_vtdec_invalidate_session (vtdec);
 
   if (vtdec->texture_cache)
-    gst_video_texture_cache_free (vtdec->texture_cache);
+    g_object_unref (vtdec->texture_cache);
   vtdec->texture_cache = NULL;
 
   if (vtdec->ctxh)
     gst_gl_context_helper_free (vtdec->ctxh);
   vtdec->ctxh = NULL;
+
+  if (vtdec->format_description)
+    CFRelease (vtdec->format_description);
+  vtdec->format_description = NULL;
+
+#if defined(APPLEMEDIA_MOLTENVK)
+  gst_clear_object (&vtdec->device);
+  gst_clear_object (&vtdec->instance);
+#endif
 
   GST_DEBUG_OBJECT (vtdec, "stop");
 
@@ -211,17 +258,56 @@ gst_vtdec_stop (GstVideoDecoder * decoder)
 }
 
 static void
-setup_texture_cache (GstVtdec * vtdec, GstGLContext * context)
+setup_texture_cache (GstVtdec * vtdec, GstVideoFormat format)
 {
   GstVideoCodecState *output_state;
 
-  g_return_if_fail (vtdec->texture_cache == NULL);
-
+  GST_INFO_OBJECT (vtdec, "setting up texture cache");
   output_state = gst_video_decoder_get_output_state (GST_VIDEO_DECODER (vtdec));
-  vtdec->texture_cache = gst_video_texture_cache_new (context);
-  gst_video_texture_cache_set_format (vtdec->texture_cache,
-      GST_VIDEO_FORMAT_NV12, output_state->caps);
+  gst_video_texture_cache_set_format (vtdec->texture_cache, format,
+      output_state->caps);
   gst_video_codec_state_unref (output_state);
+}
+
+/*
+ * Unconditionally output a high bit-depth + alpha format when decoding Apple
+ * ProRes video if downstream supports it.
+ * TODO: read src_pix_fmt to get the preferred output format
+ * https://wiki.multimedia.cx/index.php/Apple_ProRes#Frame_header
+ */
+static GstVideoFormat
+get_preferred_video_format (GstStructure * s, gboolean prores)
+{
+  const GValue *list = gst_structure_get_value (s, "format");
+  guint i, size = gst_value_list_get_size (list);
+  for (i = 0; i < size; i++) {
+    const GValue *value = gst_value_list_get_value (list, i);
+    const char *fmt = g_value_get_string (value);
+    GstVideoFormat vfmt = gst_video_format_from_string (fmt);
+    switch (vfmt) {
+      case GST_VIDEO_FORMAT_NV12:
+        if (!prores)
+          return vfmt;
+        break;
+      case GST_VIDEO_FORMAT_AYUV64:
+      case GST_VIDEO_FORMAT_ARGB64_BE:
+        if (prores)
+          return vfmt;
+        break;
+      case GST_VIDEO_FORMAT_RGBA64_LE:
+        if (GST_VTUTIL_HAVE_64ARGBALE) {
+          if (prores)
+            return vfmt;
+        } else {
+          /* Codepath will never be hit on macOS older than Big Sur (11.3) */
+          g_warn_if_reached ();
+        }
+        break;
+      default:
+        break;
+    }
+  }
+  return GST_VIDEO_FORMAT_UNKNOWN;
 }
 
 static gboolean
@@ -229,13 +315,14 @@ gst_vtdec_negotiate (GstVideoDecoder * decoder)
 {
   GstVideoCodecState *output_state = NULL;
   GstCaps *peercaps = NULL, *caps = NULL, *templcaps = NULL, *prevcaps = NULL;
-  GstVideoFormat format;
-  GstStructure *structure;
-  const gchar *s;
+  GstVideoFormat format = GST_VIDEO_FORMAT_UNKNOWN;
   GstVtdec *vtdec;
   OSStatus err = noErr;
   GstCapsFeatures *features = NULL;
-  gboolean output_textures;
+  gboolean output_textures = FALSE;
+#if defined(APPLEMEDIA_MOLTENVK)
+  gboolean output_vulkan = FALSE;
+#endif
 
   vtdec = GST_VTDEC (decoder);
   if (vtdec->session)
@@ -267,9 +354,30 @@ gst_vtdec_negotiate (GstVideoDecoder * decoder)
   gst_caps_unref (peercaps);
 
   caps = gst_caps_truncate (gst_caps_make_writable (caps));
-  structure = gst_caps_get_structure (caps, 0);
-  s = gst_structure_get_string (structure, "format");
-  format = gst_video_format_from_string (s);
+
+  /* Try to use whatever video format downstream prefers */
+  {
+    GstStructure *s = gst_caps_get_structure (caps, 0);
+
+    if (gst_structure_has_field_typed (s, "format", GST_TYPE_LIST)) {
+      GstStructure *is = gst_caps_get_structure (vtdec->input_state->caps, 0);
+      const char *name = gst_structure_get_name (is);
+      format = get_preferred_video_format (s,
+          g_strcmp0 (name, "video/x-prores") == 0);
+    }
+
+    if (format == GST_VIDEO_FORMAT_UNKNOWN) {
+      const char *fmt;
+      gst_structure_fixate_field (s, "format");
+      fmt = gst_structure_get_string (s, "format");
+      if (fmt)
+        format = gst_video_format_from_string (fmt);
+      else
+        /* If all fails, just use NV12 */
+        format = GST_VIDEO_FORMAT_NV12;
+    }
+  }
+
   features = gst_caps_get_features (caps, 0);
   if (features)
     features = gst_caps_features_copy (features);
@@ -291,6 +399,12 @@ gst_vtdec_negotiate (GstVideoDecoder * decoder)
           GST_GL_TEXTURE_TARGET_2D_STR,
 #endif
           NULL);
+
+#if defined(APPLEMEDIA_MOLTENVK)
+    output_vulkan =
+        gst_caps_features_contains (features,
+        GST_CAPS_FEATURE_MEMORY_VULKAN_IMAGE);
+#endif
   }
   gst_caps_unref (caps);
 
@@ -318,30 +432,83 @@ gst_vtdec_negotiate (GstVideoDecoder * decoder)
     }
   }
 
-  if (vtdec->texture_cache != NULL && !output_textures) {
-    gst_video_texture_cache_free (vtdec->texture_cache);
+  if (vtdec->texture_cache != NULL
+      && ((GST_IS_VIDEO_TEXTURE_CACHE_GL (vtdec->texture_cache)
+              && !output_textures)
+#if defined(APPLEMEDIA_MOLTENVK)
+          || (GST_IS_VIDEO_TEXTURE_CACHE_VULKAN (vtdec->texture_cache)
+              && !output_vulkan)
+#endif
+      )) {
+    g_object_unref (vtdec->texture_cache);
     vtdec->texture_cache = NULL;
   }
 
-  if (err == noErr && output_textures) {
-    /* call this regardless of whether caps have changed or not since a new
-     * local context could have become available
-     */
-    if (!vtdec->ctxh)
-      vtdec->ctxh = gst_gl_context_helper_new (GST_ELEMENT (vtdec));
-    gst_gl_context_helper_ensure_context (vtdec->ctxh);
+  if (err == noErr) {
+    if (output_textures) {
+      GstVideoTextureCacheGL *cache_gl = NULL;
 
-    GST_INFO_OBJECT (vtdec, "pushing textures, context %p old context %p",
-        vtdec->ctxh->context,
-        vtdec->texture_cache ? vtdec->texture_cache->ctx : NULL);
+      if (vtdec->texture_cache)
+        cache_gl = GST_VIDEO_TEXTURE_CACHE_GL (vtdec->texture_cache);
 
-    if (vtdec->texture_cache
-        && vtdec->texture_cache->ctx != vtdec->ctxh->context) {
-      gst_video_texture_cache_free (vtdec->texture_cache);
-      vtdec->texture_cache = NULL;
+      /* call this regardless of whether caps have changed or not since a new
+       * local context could have become available
+       */
+      if (!vtdec->ctxh)
+        vtdec->ctxh = gst_gl_context_helper_new (GST_ELEMENT (vtdec));
+      gst_gl_context_helper_ensure_context (vtdec->ctxh);
+
+      GST_INFO_OBJECT (vtdec, "pushing GL textures, context %p old context %p",
+          vtdec->ctxh->context, cache_gl ? cache_gl->ctx : NULL);
+
+      if (cache_gl && cache_gl->ctx != vtdec->ctxh->context) {
+        g_object_unref (vtdec->texture_cache);
+        vtdec->texture_cache = NULL;
+      }
+      if (!vtdec->texture_cache) {
+        vtdec->texture_cache =
+            gst_video_texture_cache_gl_new (vtdec->ctxh->context);
+        setup_texture_cache (vtdec, format);
+      }
     }
-    if (!vtdec->texture_cache)
-      setup_texture_cache (vtdec, vtdec->ctxh->context);
+#if defined(APPLEMEDIA_MOLTENVK)
+    if (output_vulkan) {
+      GstVideoTextureCacheVulkan *cache_vulkan = NULL;
+
+      if (vtdec->texture_cache)
+        cache_vulkan = GST_VIDEO_TEXTURE_CACHE_VULKAN (vtdec->texture_cache);
+
+      gst_vulkan_ensure_element_data (GST_ELEMENT (vtdec), NULL,
+          &vtdec->instance);
+
+      if (!gst_vulkan_device_run_context_query (GST_ELEMENT (vtdec),
+              &vtdec->device)) {
+        GError *error = NULL;
+        GST_DEBUG_OBJECT (vtdec, "No device retrieved from peer elements");
+        if (!(vtdec->device =
+                gst_vulkan_instance_create_device (vtdec->instance, &error))) {
+          GST_ELEMENT_ERROR (vtdec, RESOURCE, NOT_FOUND,
+              ("Failed to create vulkan device"), ("%s", error->message));
+          g_clear_error (&error);
+          return FALSE;
+        }
+      }
+
+      GST_INFO_OBJECT (vtdec, "pushing vulkan images, device %" GST_PTR_FORMAT
+          " old device %" GST_PTR_FORMAT, vtdec->device,
+          cache_vulkan ? cache_vulkan->device : NULL);
+
+      if (cache_vulkan && cache_vulkan->device != vtdec->device) {
+        g_object_unref (vtdec->texture_cache);
+        vtdec->texture_cache = NULL;
+      }
+      if (!vtdec->texture_cache) {
+        vtdec->texture_cache =
+            gst_video_texture_cache_vulkan_new (vtdec->device);
+        setup_texture_cache (vtdec, format);
+      }
+    }
+#endif
   }
 
   if (prevcaps)
@@ -372,6 +539,16 @@ gst_vtdec_set_format (GstVideoDecoder * decoder, GstVideoCodecState * state)
     cm_format = kCMVideoCodecType_MPEG2Video;
   } else if (!strcmp (caps_name, "image/jpeg")) {
     cm_format = kCMVideoCodecType_JPEG;
+  } else if (!strcmp (caps_name, "video/x-prores")) {
+    const char *variant = gst_structure_get_string (structure, "variant");
+
+    if (variant)
+      cm_format = gst_vtutil_codec_type_from_prores_variant (variant);
+
+    if (cm_format == GST_kCMVideoCodecType_Some_AppleProRes) {
+      GST_ERROR_OBJECT (vtdec, "Invalid ProRes variant %s", variant);
+      return FALSE;
+    }
   }
 
   if (cm_format == kCMVideoCodecType_H264 && state->codec_data == NULL) {
@@ -431,7 +608,7 @@ gst_vtdec_handle_frame (GstVideoDecoder * decoder, GstVideoCodecFrame * frame)
 {
   OSStatus status;
   CMSampleBufferRef cm_sample_buffer = NULL;
-  VTDecodeFrameFlags input_flags, output_flags;
+  VTDecodeFrameFlags input_flags;
   GstVtdec *vtdec = GST_VTDEC (decoder);
   GstFlowReturn ret = GST_FLOW_OK;
   int decode_frame_number = frame->decode_frame_number;
@@ -452,7 +629,6 @@ gst_vtdec_handle_frame (GstVideoDecoder * decoder, GstVideoCodecFrame * frame)
    * reordering ourselves.
    */
   input_flags = kVTDecodeFrame_EnableAsynchronousDecompression;
-  output_flags = 0;
 
   cm_sample_buffer =
       cm_sample_buffer_from_gst_buffer (vtdec, frame->input_buffer);
@@ -502,11 +678,22 @@ gst_vtdec_create_session (GstVtdec * vtdec, GstVideoFormat format,
     case GST_VIDEO_FORMAT_NV12:
       cv_format = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange;
       break;
-    case GST_VIDEO_FORMAT_UYVY:
-      cv_format = kCVPixelFormatType_422YpCbCr8;
+    case GST_VIDEO_FORMAT_AYUV64:
+/* This is fine for now because Apple only ships LE devices */
+#if G_BYTE_ORDER != G_LITTLE_ENDIAN
+#error "AYUV64 is NE but kCVPixelFormatType_4444AYpCbCr16 is LE"
+#endif
+      cv_format = kCVPixelFormatType_4444AYpCbCr16;
       break;
-    case GST_VIDEO_FORMAT_RGBA:
-      cv_format = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange;
+    case GST_VIDEO_FORMAT_ARGB64_BE:
+      cv_format = kCVPixelFormatType_64ARGB;
+      break;
+    case GST_VIDEO_FORMAT_RGBA64_LE:
+      if (GST_VTUTIL_HAVE_64ARGBALE)
+        cv_format = kCVPixelFormatType_64RGBALE;
+      else
+        /* Codepath will never be hit on macOS older than Big Sur (11.3) */
+        g_warn_if_reached ();
       break;
     default:
       g_warn_if_reached ();
@@ -544,6 +731,9 @@ gst_vtdec_create_session (GstVtdec * vtdec, GstVideoFormat format,
   status = VTDecompressionSessionCreate (NULL, vtdec->format_description,
       videoDecoderSpecification, output_image_buffer_attrs, &callback,
       &vtdec->session);
+
+  if (videoDecoderSpecification)
+    CFRelease (videoDecoderSpecification);
 
   CFRelease (output_image_buffer_attrs);
 
@@ -606,6 +796,9 @@ create_format_description_from_codec_data (GstVtdec * vtdec,
   status = CMVideoFormatDescriptionCreate (NULL,
       cm_format, vtdec->video_info.width, vtdec->video_info.height,
       extensions, &fmt_desc);
+
+  if (extensions)
+    CFRelease (extensions);
 
   if (status == noErr)
     return fmt_desc;
@@ -841,12 +1034,16 @@ gst_vtdec_push_frames_if_needed (GstVtdec * vtdec, gboolean drain,
      * example) or we're draining/flushing
      */
     if (frame) {
-      if (flush || frame->flags & VTDEC_FRAME_FLAG_SKIP)
+      if (frame->flags & VTDEC_FRAME_FLAG_ERROR) {
         gst_video_decoder_release_frame (decoder, frame);
-      else if (frame->flags & VTDEC_FRAME_FLAG_DROP)
+        ret = GST_FLOW_ERROR;
+      } else if (flush || frame->flags & VTDEC_FRAME_FLAG_SKIP) {
+        gst_video_decoder_release_frame (decoder, frame);
+      } else if (frame->flags & VTDEC_FRAME_FLAG_DROP) {
         gst_video_decoder_drop_frame (decoder, frame);
-      else
+      } else {
         ret = gst_video_decoder_finish_frame (decoder, frame);
+      }
     }
 
     if (!frame || ret != GST_FLOW_OK)
@@ -1029,6 +1226,11 @@ gst_vtdec_set_context (GstElement * element, GstContext * context)
     vtdec->ctxh = gst_gl_context_helper_new (element);
   gst_gl_handle_set_context (element, context,
       &vtdec->ctxh->display, &vtdec->ctxh->other_context);
+
+#if defined (APPLEMEDIA_MOLTENVK)
+  gst_vulkan_handle_set_context (element, context, NULL, &vtdec->instance);
+#endif
+
   GST_ELEMENT_CLASS (gst_vtdec_parent_class)->set_context (element, context);
 }
 

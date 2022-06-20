@@ -28,13 +28,10 @@
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret;
+  gboolean ret = FALSE;
 
-  ret = gst_element_register (plugin, "autoconvert",
-      GST_RANK_NONE, GST_TYPE_AUTO_CONVERT);
-
-  ret &= gst_element_register (plugin, "autovideoconvert",
-      GST_RANK_NONE, GST_TYPE_AUTO_VIDEO_CONVERT);
+  ret |= GST_ELEMENT_REGISTER (autoconvert, plugin);
+  ret |= GST_ELEMENT_REGISTER (autovideoconvert, plugin);
 
   return ret;
 }
@@ -42,5 +39,5 @@ plugin_init (GstPlugin * plugin)
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     autoconvert,
-    "Selects convertor element based on caps",
+    "Selects converter element based on caps",
     plugin_init, VERSION, GST_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)

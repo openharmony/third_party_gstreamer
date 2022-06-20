@@ -35,21 +35,22 @@
 
 /**
  * SECTION:element-warptv
+ * @title: warptv
  *
  * WarpTV does realtime goo'ing of the video input.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * gst-launch-1.0 -v videotestsrc ! warptv ! videoconvert ! autovideosink
  * ]| This pipeline shows the effect of warptv on a test stream.
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
+#include "gsteffectv.h"
 #include <string.h>
 #include <math.h>
 
@@ -63,6 +64,7 @@
 
 #define gst_warptv_parent_class parent_class
 G_DEFINE_TYPE (GstWarpTV, gst_warptv, GST_TYPE_VIDEO_FILTER);
+GST_ELEMENT_REGISTER_DEFINE (warptv, "warptv", GST_RANK_NONE, GST_TYPE_WARPTV);
 
 static void initSinTable ();
 static void initDistTable (GstWarpTV * filter, gint width, gint height);

@@ -68,6 +68,7 @@ typedef enum {
   GST_MSDK_FLAG_MIRRORING    = 1 << 8,
   GST_MSDK_FLAG_SCALING_MODE = 1 << 9,
   GST_MSDK_FLAG_FRC          = 1 << 10,
+  GST_MSDK_FLAG_VIDEO_DIRECTION = 1 << 11,
 } GstMsdkVppFlags;
 
 struct _GstMsdkVPP
@@ -88,9 +89,9 @@ struct _GstMsdkVPP
 
   /* MFX context */
   GstMsdkContext *context;
+  GstMsdkContext *old_context;
   mfxVideoParam param;
   guint in_num_surfaces;
-  guint out_num_surfaces;
   mfxFrameAllocResponse in_alloc_resp;
   mfxFrameAllocResponse out_alloc_resp;
 
@@ -119,6 +120,11 @@ struct _GstMsdkVPP
   guint scaling_mode;
   gboolean keep_aspect;
   guint frc_algm;
+  guint video_direction;
+  guint crop_left;
+  guint crop_right;
+  guint crop_top;
+  guint crop_bottom;
 
   GstClockTime buffer_duration;
 
@@ -136,6 +142,10 @@ struct _GstMsdkVPP
   /* Extended buffers */
   mfxExtBuffer *extra_params[MAX_EXTRA_PARAMS];
   guint num_extra_params;
+
+  mfxFrameAllocRequest request[2];
+  GList* locked_in_surfaces;
+  GList* locked_out_surfaces;
 };
 
 struct _GstMsdkVPPClass

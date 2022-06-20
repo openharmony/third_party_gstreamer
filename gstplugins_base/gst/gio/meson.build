@@ -1,4 +1,5 @@
 gio_sources = ['gstgio.c',
+  'gstgioelement.c',
   'gstgiobasesink.c',
   'gstgiobasesrc.c',
   'gstgiosink.c',
@@ -16,3 +17,4 @@ gstgio = library('gstgio',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstgio, install_dir : plugins_pkgconfig_install_dir)
+plugins += [gstgio]

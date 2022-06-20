@@ -18,6 +18,13 @@
  * Boston, MA 02110-1301, USA.
  */
 
+/**
+ * SECTION:gstglfeature
+ * @short_description: OpenGL feature checking
+ * @title: GstGLFeature
+ * @see_also: #GstGLContext
+ */
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -36,7 +43,7 @@ GST_DEBUG_CATEGORY_STATIC (GST_CAT_DEFAULT);
 static void
 _init_debug (void)
 {
-  static volatile gsize _init = 0;
+  static gsize _init = 0;
 
   if (g_once_init_enter (&_init)) {
     GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "glfeature", 0,
@@ -50,7 +57,7 @@ _init_debug (void)
  * @name: the extension to search for
  * @ext: the list of possible extensions
  *
- * Returns: whether @name is in the space seperated list of @ext
+ * Returns: whether @name is in the space separated list of @ext
  */
 gboolean
 gst_gl_check_extension (const char *name, const gchar * ext)

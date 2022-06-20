@@ -2,7 +2,7 @@
  *
  * Copyright (C) 2007 Rene Stadler <mail@renestadler.de>
  * Copyright (C) 2007-2009 Sebastian Dröge <sebastian.droege@collabora.co.uk>
- * 
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
  * License as published by the Free Software Foundation; either
@@ -24,8 +24,7 @@
 #endif
 
 #include "gstgiobasesrc.h"
-
-#include <gst/base/gsttypefindhelper.h>
+#include "gstgioelements.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_gio_base_src_debug);
 #define GST_CAT_DEFAULT gst_gio_base_src_debug
@@ -76,6 +75,8 @@ gst_gio_base_src_class_init (GstGioBaseSrcClass * klass)
       GST_DEBUG_FUNCPTR (gst_gio_base_src_unlock_stop);
   gstbasesrc_class->create = GST_DEBUG_FUNCPTR (gst_gio_base_src_create);
   gstbasesrc_class->query = GST_DEBUG_FUNCPTR (gst_gio_base_src_query);
+
+  gst_type_mark_as_plugin_api (GST_TYPE_GIO_BASE_SRC, 0);
 }
 
 static void
@@ -239,7 +240,7 @@ gst_gio_base_src_get_size (GstBaseSrc * base_src, guint64 * size)
               err->message);
         g_clear_error (&err);
       } else {
-        GST_ERROR_OBJECT (src, "Seeking to the old position faile");
+        GST_ERROR_OBJECT (src, "Seeking to the old position failed");
       }
       return FALSE;
     }
@@ -326,6 +327,8 @@ gst_gio_base_src_create (GstBaseSrc * base_src, guint64 offset, guint size,
     GError *err = NULL;
     GstBuffer *newbuffer;
     GstMemory *mem;
+    gboolean waited_for_data = FALSE;
+    GstGioBaseSrcClass *klass = GST_GIO_BASE_SRC_GET_CLASS (src);
 
     newbuffer = gst_buffer_new ();
 
@@ -382,11 +385,24 @@ gst_gio_base_src_create (GstBaseSrc * base_src, guint64 offset, guint size,
     while (size - read > 0 && (res =
             g_input_stream_read (G_INPUT_STREAM (src->stream),
                 map.data + streamread, cachesize - streamread, src->cancel,
-                &err)) > 0) {
+                &err)) >= 0) {
+
       read += res;
       streamread += res;
       src->position += res;
+
+      if (res != 0)
+        continue;
+
+      if (!klass->wait_for_data || !klass->wait_for_data (src))
+        break;
+
+      waited_for_data = TRUE;
     }
+
+    if (waited_for_data && klass->waited_for_data)
+      klass->waited_for_data (src);
+
     gst_memory_unmap (mem, &map);
     gst_buffer_append_memory (src->cache, mem);
 

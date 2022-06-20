@@ -44,7 +44,7 @@
 #define __GST_QT_MUX_H__
 
 #include <gst/gst.h>
-#include <gst/base/gstcollectpads.h>
+#include <gst/base/gstaggregator.h>
 
 #include "fourcc.h"
 #include "atoms.h"
@@ -63,7 +63,8 @@ G_BEGIN_DECLS
 
 typedef struct _GstQTMux GstQTMux;
 typedef struct _GstQTMuxClass GstQTMuxClass;
-typedef struct _GstQTPad GstQTPad;
+typedef struct _GstQTMuxPad GstQTMuxPad;
+typedef struct _GstQTMuxPadClass GstQTMuxPadClass;
 
 /*
  * GstQTPadPrepareBufferFunc
@@ -75,17 +76,31 @@ typedef struct _GstQTPad GstQTPad;
  * being muxed. (Originally added for image/x-jpc support, for which buffers
  * need to be wrapped into a isom box)
  */
-typedef GstBuffer * (*GstQTPadPrepareBufferFunc) (GstQTPad * pad,
+typedef GstBuffer * (*GstQTPadPrepareBufferFunc) (GstQTMuxPad * pad,
     GstBuffer * buf, GstQTMux * qtmux);
+typedef gboolean (*GstQTPadSetCapsFunc) (GstQTMuxPad * pad, GstCaps * caps);
+typedef GstBuffer * (*GstQTPadCreateEmptyBufferFunc) (GstQTMuxPad * pad, gint64 duration);
 
-typedef gboolean (*GstQTPadSetCapsFunc) (GstQTPad * pad, GstCaps * caps);
-typedef GstBuffer * (*GstQTPadCreateEmptyBufferFunc) (GstQTPad * pad, gint64 duration);
+GType gst_qt_mux_pad_get_type (void);
 
-#define QTMUX_NO_OF_TS   10
+#define GST_TYPE_QT_MUX_PAD \
+  (gst_qt_mux_pad_get_type())
+#define GST_QT_MUX_PAD(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST ((obj), GST_TYPE_QT_MUX_PAD, GstQTMuxPad))
+#define GST_QT_MUX_PAD_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST ((klass), GST_TYPE_QT_MUX_PAD, GstQTMuxPadClass))
+#define GST_IS_QT_MUX_PAD(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GST_TYPE_QT_MUX_PAD))
+#define GST_IS_QT_MUX_PAD_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE ((klass), GST_TYPE_QT_MUX_PAD))
+#define GST_QT_MUX_PAD_CAST(obj) \
+  ((GstQTMuxPad *)(obj))
 
-struct _GstQTPad
+struct _GstQTMuxPad
 {
-  GstCollectData collect;       /* we extend the CollectData */
+  GstAggregatorPad parent;
+
+  guint32 trak_timescale;
 
   /* fourcc id of stream */
   guint32 fourcc;
@@ -113,6 +128,10 @@ struct _GstQTPad
   GstClockTime last_dts;
   guint64 sample_offset;
 
+  /* TRUE if we saw backward/missing DTS on this
+   * pad (and warned about it */
+  gboolean warned_empty_duration;
+
   /* This is compensate for CTTS */
   GstClockTime dts_adjustment;
 
@@ -121,6 +140,8 @@ struct _GstQTPad
   /* subjected to dts adjustment */
   GstClockTime first_ts;
   GstClockTime first_dts;
+
+  gint64 dts; /* the signed version of the DTS converted to running time. */
 
   /* all the atom and chunk book-keeping is delegated here
    * unowned/uncounted reference, parent MOOV owns */
@@ -154,11 +175,22 @@ struct _GstQTPad
 
   /* for keeping track in pre-fill mode */
   GArray *samples;
+  guint first_cc_sample_size;
   /* current sample */
   GstAdapter *raw_audio_adapter;
   guint64 raw_audio_adapter_offset;
   GstClockTime raw_audio_adapter_pts;
+  GstFlowReturn flow_status;
+
+  GstCaps *configured_caps;
 };
+
+struct _GstQTMuxPadClass
+{
+  GstAggregatorPadClass parent;
+};
+
+#define QTMUX_NO_OF_TS   10
 
 typedef enum _GstQTMuxState
 {
@@ -171,19 +203,29 @@ typedef enum _GstQTMuxState
 typedef enum _GstQtMuxMode {
     GST_QT_MUX_MODE_MOOV_AT_END,
     GST_QT_MUX_MODE_FRAGMENTED,
-    GST_QT_MUX_MODE_FRAGMENTED_STREAMABLE,
     GST_QT_MUX_MODE_FAST_START,
     GST_QT_MUX_MODE_ROBUST_RECORDING,
     GST_QT_MUX_MODE_ROBUST_RECORDING_PREFILL,
 } GstQtMuxMode;
 
+/**
+ * GstQTMuxFragmentMode:
+ * @GST_QT_MUX_FRAGMENT_DASH_OR_MSS: dash-or-mss
+ * @GST_QT_MUX_FRAGMENT_FIRST_MOOV_THEN_FINALISE: first-moov-then-finalise
+ * @GST_QT_MUX_FRAGMENT_STREAMABLE: streamable (private value)
+ *
+ * Since: 1.20
+ */
+typedef enum _GstQTMuxFragmentMode
+{
+  GST_QT_MUX_FRAGMENT_DASH_OR_MSS = 0,
+  GST_QT_MUX_FRAGMENT_FIRST_MOOV_THEN_FINALISE,
+  GST_QT_MUX_FRAGMENT_STREAMABLE = G_MAXUINT32, /* internal value */
+} GstQTMuxFragmentMode;
+
 struct _GstQTMux
 {
-  GstElement element;
-
-  GstPad *srcpad;
-  GstCollectPads *collect;
-  GSList *sinkpads;
+  GstAggregator parent;
 
   /* state */
   GstQTMuxState state;
@@ -191,6 +233,12 @@ struct _GstQTMux
   /* Mux mode, inferred from property
    * set in gst_qt_mux_start_file() */
   GstQtMuxMode mux_mode;
+  /* fragment_mode, controls how fragments are created.  Only if
+   * @mux_mode == GST_QT_MUX_MODE_FRAGMENTED */
+  GstQTMuxFragmentMode fragment_mode;
+
+  /* whether downstream is seekable */
+  gboolean downstream_seekable;
 
   /* size of header (prefix, atoms (ftyp, possibly moov, mdat header)) */
   guint64 header_size;
@@ -202,6 +250,10 @@ struct _GstQTMux
   /* position of mdat atom header (for later updating of size) in
    * moov-at-end, fragmented and robust-muxing modes */
   guint64 mdat_pos;
+  /* position of the mdat atom header of the latest fragment for writing
+   * the default base offset in fragmented mode first-moov-then-finalise and
+   * any other future non-streaming fragmented mode */
+  guint64 moof_mdat_pos;
 
   /* keep track of the largest chunk to fine-tune brands */
   GstClockTime longest_chunk;
@@ -213,10 +265,14 @@ struct _GstQTMux
   GstClockTime last_dts;
 
   /* Last pad we used for writing the current chunk */
-  GstQTPad *current_pad;
+  GstQTMuxPad *current_pad;
   guint64 current_chunk_size;
   GstClockTime current_chunk_duration;
   guint64 current_chunk_offset;
+
+  /* list of buffers to hold for batching inside a single mdat when downstream
+   * is not seekable */
+  GList *output_buffers;
 
   /* atom helper objects */
   AtomsContext *context;
@@ -254,7 +310,7 @@ struct _GstQTMux
   guint32 fragment_duration;
   /* Whether or not to work in 'streamable' mode and not
    * seek to rewrite headers - only valid for fragmented
-   * mode. */
+   * mode. Deprecated */
   gboolean streamable;
 
   /* Requested target maximum duration */
@@ -267,6 +323,7 @@ struct _GstQTMux
   guint64 interleave_bytes;
   GstClockTime interleave_time;
   gboolean interleave_bytes_set, interleave_time_set;
+  gboolean force_chunks;
 
   GstClockTime max_raw_audio_drift;
 
@@ -291,36 +348,7 @@ struct _GstQTMux
 
   GstClockTime start_gap_threshold;
 
-/* ohos.ext.func.0016
- * add additional features to set geographic location information in mp4 file
- * enable_geolocation is the flag to enable this feature
- * latitudex10000 is the latitude to set, multiply 10000 for the convenience of calculation.
- * longitudex10000 is the longitude to set, multiply 10000 for the convenience of calculation.
- */
-#ifdef OHOS_EXT_FUNC
-  gboolean enable_geolocation;
-  gint latitudex10000;
-  gint longitudex10000;
-#endif
-
-/* ohos.ext.func.0018
- * add additional features to set orientationHint in mp4 file.
- */
-#ifdef OHOS_EXT_FUNC
-  guint32 rotation;
-#endif
-
-/* ohos.opt.compat.0011
- * qtmux itself does not handle flush events, so in extreme cases, the buffer is discarded by gstpad
- * when it is passed forward, but qtmux thinks that the buffer writes the file successfully,
- * resulting in a file exception.
- * is_flushing: a flag to tell qtmux, in flushing progress.
- * flush_lock: is a lock to make sure the flag Operating normally.
- */
-#ifdef OHOS_OPT_COMPAT
-  GMutex flush_lock;
-  gboolean is_flushing;
-#endif
+  gboolean force_create_timecode_trak;
 
   /* for request pad naming */
   guint video_pads, audio_pads, subtitle_pads, caption_pads;
@@ -328,7 +356,7 @@ struct _GstQTMux
 
 struct _GstQTMuxClass
 {
-  GstElementClass parent_class;
+  GstAggregatorClass parent_class;
 
   GstQTMuxFormat format;
 };

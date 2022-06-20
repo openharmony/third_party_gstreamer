@@ -27,16 +27,7 @@
 
 #include <gst/gst.h>
 #include "m3u8.h"
-#include "gsthls.h"
 #include <gst/adaptivedemux/gstadaptivedemux.h>
-
-#ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0013
-#undef HAVE_OPENSSL
-#undef HAVE_NETTLE
-#undef HAVE_LIBGCRYPT
-#endif
-
 #if defined(HAVE_OPENSSL)
 #include <openssl/evp.h>
 #elif defined(HAVE_NETTLE)
@@ -115,7 +106,7 @@ struct _GstHLSDemuxStream
   EVP_CIPHER_CTX *aes_ctx;
 # endif
 #elif defined(HAVE_NETTLE)
-  struct CBC_CTX (struct aes_ctx, AES_BLOCK_SIZE) aes_ctx;
+  struct CBC_CTX (struct aes128_ctx, AES_BLOCK_SIZE) aes_ctx;
 #elif defined(HAVE_LIBGCRYPT)
   gcry_cipher_hd_t aes_ctx;
 #endif
@@ -155,6 +146,10 @@ struct _GstHLSDemux
   GstHLSMasterPlaylist *master;
 
   GstHLSVariantStream  *current_variant;
+  /* The previous variant, used to transition streams over */
+  GstHLSVariantStream  *previous_variant;
+
+  gboolean streams_aware;
 };
 
 struct _GstHLSDemuxClass

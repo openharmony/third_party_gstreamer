@@ -86,7 +86,6 @@ struct _GstMotioncells
   gint64 diff_timestamp, starttime;
   guint64 consecutive_motion;
   gint width, height;
-  GTimeVal tv;
   double framerate;
   //Video width and height are known in "gst_motion_cells_handle_sink_event",
   // but not when setting the "motionmaskcoords".
@@ -100,7 +99,7 @@ struct _GstMotioncellsClass
 
 GType gst_motion_cells_get_type (void);
 
-gboolean gst_motion_cells_plugin_init (GstPlugin * plugin);
+GST_ELEMENT_REGISTER_DECLARE (motioncells);
 
 G_END_DECLS
 #endif /* __GST_MOTION_CELLS_H__ */

@@ -45,6 +45,12 @@ struct _GstSpanPlc
   /* <private> */
   plc_state_t *plc_state;
   gint sample_rate;
+
+  /* Used to generate the 'stats' property. Protected by object lock */
+  guint64 num_pushed;
+  guint64 num_gap;
+  guint64 plc_num_samples;
+  guint64 plc_duration;
 };
 
 struct _GstSpanPlcClass
@@ -53,6 +59,7 @@ struct _GstSpanPlcClass
 };
 
 GType gst_span_plc_get_type (void);
+GST_ELEMENT_REGISTER_DECLARE (spanplc);
 
 G_END_DECLS
 

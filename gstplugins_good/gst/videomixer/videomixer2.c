@@ -20,6 +20,10 @@
 
 /**
  * SECTION:element-videomixer
+ * @title: videomixer
+ *
+ * IMPORTANT: #videomixer is deprecated in favor of #compositor, please do not
+ * use this element in newly-written code!
  *
  * Videomixer can accept AYUV, ARGB and BGRA video streams. For each of the requested
  * sink pads it will compare the incoming geometry and framerate to define the
@@ -27,12 +31,11 @@
  * biggest incoming video stream and the framerate of the fastest incoming one.
  *
  * Videomixer will do colorspace conversion.
- * 
- * Individual parameters for each input stream can be configured on the
- * #GstVideoMixer2Pad.
  *
- * <refsect2>
- * <title>Sample pipelines</title>
+ * Individual parameters for each input stream can be configured on the
+ * videomixer pads.
+ *
+ * ## Sample pipelines
  * |[
  * gst-launch-1.0 \
  *   videotestsrc pattern=1 ! \
@@ -55,7 +58,7 @@
  *   videomixer name=mix ! videoconvert ! ximagesink \
  *   videotestsrc !  \
  *   video/x-raw, framerate=\(fraction\)5/1, width=320, height=240 ! mix.
- * ]| A pipeline to demostrate bgra mixing. (This does not demonstrate alpha blending). 
+ * ]| A pipeline to demonstrate bgra mixing. (This does not demonstrate alpha blending).
  * |[
  * gst-launch-1.0 videotestsrc pattern=1 ! \
  *   video/x-raw,format =I420, framerate=\(fraction\)10/1, width=100, height=100 ! \
@@ -73,7 +76,7 @@
  *   "video/x-raw,format=AYUV,width=800,height=600,framerate=(fraction)10/1" ! \
  *   timeoverlay ! queue2 ! mixer.
  * ]| A pipeline to demonstrate synchronized mixing (the second stream starts after 3 seconds)
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -258,6 +261,7 @@ gst_videomixer2_update_src_caps (GstVideoMixer2 * mix)
       tmp = gst_caps_intersect (caps, peercaps);
       gst_caps_unref (caps);
       gst_caps_unref (peercaps);
+      peercaps = NULL;
       caps = tmp;
       if (gst_caps_is_empty (caps)) {
         GST_DEBUG_OBJECT (mix, "empty caps");
@@ -277,6 +281,8 @@ gst_videomixer2_update_src_caps (GstVideoMixer2 * mix)
       gst_structure_get_int (s, "height", &info.height);
       gst_structure_get_fraction (s, "fraction", &info.fps_n, &info.fps_d);
     }
+    if (peercaps)
+      gst_caps_unref (peercaps);
 
     gst_caps_unref (caps);
     caps = gst_video_info_to_caps (&info);
@@ -1354,7 +1360,7 @@ done_unlocked:
  *
  * We don't do synchronized mixing so this really depends on where the
  * streams where punched in and what their relative offsets are against
- * eachother which we can get from the first timestamps we see.
+ * each other which we can get from the first timestamps we see.
  *
  * When we add a new stream (or remove a stream) the duration might
  * also become invalid again and we need to post a new DURATION
@@ -2178,7 +2184,7 @@ gst_videomixer2_child_proxy_init (gpointer g_iface, gpointer iface_data)
 {
   GstChildProxyInterface *iface = g_iface;
 
-  GST_INFO ("intializing child proxy interface");
+  GST_INFO ("initializing child proxy interface");
   iface->get_child_by_index = gst_videomixer2_child_proxy_get_child_by_index;
   iface->get_children_count = gst_videomixer2_child_proxy_get_children_count;
 }
@@ -2227,11 +2233,14 @@ gst_videomixer2_class_init (GstVideoMixer2Class * klass)
 
   gst_element_class_set_static_metadata (gstelement_class, "Video mixer 2",
       "Filter/Editor/Video/Compositor",
-      "Mix multiple video streams", "Wim Taymans <wim@fluendo.com>, "
+      "Deprecated by compositor. Mix multiple video streams",
+      "Wim Taymans <wim@fluendo.com>, "
       "Sebastian Dröge <sebastian.droege@collabora.co.uk>");
 
   /* Register the pad class */
   g_type_class_ref (GST_TYPE_VIDEO_MIXER2_PAD);
+
+  gst_type_mark_as_plugin_api (GST_TYPE_VIDEO_MIXER2_BACKGROUND, 0);
 }
 
 static void

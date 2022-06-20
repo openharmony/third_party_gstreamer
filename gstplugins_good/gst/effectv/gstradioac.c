@@ -26,10 +26,11 @@
 
 /**
  * SECTION:element-radioactv
+ * @title: radioactv
  *
  * RadioacTV does *NOT* detect a radioactivity. It detects a difference
  * from previous frame and blurs it.
- * 
+ *
  * RadioacTV has 4 mode, normal, strobe1, strobe2 and trigger.
  * In trigger mode, effect appears only when the trigger property is %TRUE.
  *
@@ -37,12 +38,11 @@
  * current frame and previous frame dropped, while strobe2 mode uses the difference from
  * previous frame displayed. The effect of strobe2 is stronger than strobe1.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * gst-launch-1.0 -v videotestsrc ! radioactv ! videoconvert ! autovideosink
  * ]| This pipeline shows the effect of radioactv on a test stream.
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -135,6 +135,8 @@ static const gint swap_tab[] = { 2, 1, 0, 3 };
 
 #define gst_radioactv_parent_class parent_class
 G_DEFINE_TYPE (GstRadioacTV, gst_radioactv, GST_TYPE_VIDEO_FILTER);
+GST_ELEMENT_REGISTER_DEFINE (radioactv, "radioactv", GST_RANK_NONE,
+    GST_TYPE_RADIOACTV);
 
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
 #define CAPS_STR GST_VIDEO_CAPS_MAKE ("{ RGBx, BGRx }")
@@ -610,6 +612,9 @@ gst_radioactv_class_init (GstRadioacTVClass * klass)
       GST_DEBUG_FUNCPTR (gst_radioactv_transform_frame);
 
   makePalette ();
+
+  gst_type_mark_as_plugin_api (GST_TYPE_RADIOACTV_MODE, 0);
+  gst_type_mark_as_plugin_api (GST_TYPE_RADIOACTV_COLOR, 0);
 }
 
 static void

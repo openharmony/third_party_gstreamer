@@ -19,16 +19,17 @@
 
 /**
  * SECTION:element-cairooverlay
+ * @title: cairooverlay
  *
  * cairooverlay renders an overlay using a application provided render function.
  *
  * The full example can be found in tests/examples/cairo/cairo_overlay.c
- * <refsect2>
- * <title>Example code</title>
+ *
+ * ## Example code
  * |[
  *
- * #include &lt;gst/gst.h&gt;
- * #include &lt;gst/video/video.h&gt;
+ * #include <gst/gst.h>
+ * #include <gst/video/video.h>
  *
  * ...
  *
@@ -37,7 +38,7 @@
  *   int width;
  *   int height;
  * } CairoOverlayState;
- * 
+ *
  * ...
  *
  * static void
@@ -45,28 +46,28 @@
  * {
  *   CairoOverlayState *state = (CairoOverlayState *)user_data;
  *
- *   gst_video_format_parse_caps (caps, NULL, &amp;state-&gt;width, &amp;state-&gt;height);
- *   state-&gt;valid = TRUE;
+ *   gst_video_format_parse_caps (caps, NULL, &state->width, &state->height);
+ *   state->valid = TRUE;
  * }
  *
  * static void
- * draw_overlay (GstElement * overlay, cairo_t * cr, guint64 timestamp, 
+ * draw_overlay (GstElement * overlay, cairo_t * cr, guint64 timestamp,
  *   guint64 duration, gpointer user_data)
  * {
  *   CairoOverlayState *s = (CairoOverlayState *)user_data;
  *   double scale;
  *
- *   if (!s-&gt;valid)
+ *   if (!s->valid)
  *     return;
  *
  *   scale = 2*(((timestamp/(int)1e7) % 70)+30)/100.0;
- *   cairo_translate(cr, s-&gt;width/2, (s-&gt;height/2)-30);
+ *   cairo_translate(cr, s->width/2, (s->height/2)-30);
  *   cairo_scale (cr, scale, scale);
  *
  *   cairo_move_to (cr, 0, 0);
  *   cairo_curve_to (cr, 0,-30, -50,-30, -50,0);
  *   cairo_curve_to (cr, -50,30, 0,35, 0,60 );
- *   cairo_curve_to (cr, 0,35, 50,30, 50,0 ); *  
+ *   cairo_curve_to (cr, 0,35, 50,30, 50,0 ); *
  *   cairo_curve_to (cr, 50,-30, 0,-30, 0,0 );
  *   cairo_set_source_rgba (cr, 0.9, 0.0, 0.1, 0.7);
  *   cairo_fill (cr);
@@ -78,12 +79,12 @@
  *
  * g_signal_connect (cairo_overlay, &quot;draw&quot;, G_CALLBACK (draw_overlay),
  *   overlay_state);
- * g_signal_connect (cairo_overlay, &quot;caps-changed&quot;, 
+ * g_signal_connect (cairo_overlay, &quot;caps-changed&quot;,
  *   G_CALLBACK (prepare_overlay), overlay_state);
  * ...
  *
  * ]|
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -103,6 +104,8 @@
 #define TEMPLATE_CAPS GST_VIDEO_CAPS_MAKE("{ xRGB, ARGB, RGB16 }")
 #endif
 
+GST_DEBUG_CATEGORY (cairo_debug);
+
 static GstStaticPadTemplate gst_cairo_overlay_src_template =
 GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
@@ -118,7 +121,9 @@ GST_STATIC_PAD_TEMPLATE ("sink",
     );
 
 G_DEFINE_TYPE (GstCairoOverlay, gst_cairo_overlay, GST_TYPE_BASE_TRANSFORM);
-
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (cairooverlay, "cairooverlay",
+    GST_RANK_NONE, GST_TYPE_CAIRO_OVERLAY, GST_DEBUG_CATEGORY_INIT (cairo_debug,
+        "cairo", 0, "Cairo elements"););
 enum
 {
   PROP_0,
@@ -538,31 +543,26 @@ gst_cairo_overlay_class_init (GstCairoOverlayClass * klass)
    * @cr: Cairo context to draw to.
    * @timestamp: Timestamp (see #GstClockTime) of the current buffer.
    * @duration: Duration (see #GstClockTime) of the current buffer.
-   * 
+   *
    * This signal is emitted when the overlay should be drawn.
    */
   gst_cairo_overlay_signals[SIGNAL_DRAW] =
       g_signal_new ("draw",
       G_TYPE_FROM_CLASS (klass),
-      0,
-      0,
-      NULL,
-      NULL,
-      g_cclosure_marshal_generic,
+      0, 0, NULL, NULL, NULL,
       G_TYPE_NONE, 3, CAIRO_GOBJECT_TYPE_CONTEXT, G_TYPE_UINT64, G_TYPE_UINT64);
 
   /**
    * GstCairoOverlay::caps-changed:
    * @overlay: Overlay element emitting the signal.
    * @caps: The #GstCaps of the element.
-   * 
+   *
    * This signal is emitted when the caps of the element has changed.
    */
   gst_cairo_overlay_signals[SIGNAL_CAPS_CHANGED] =
       g_signal_new ("caps-changed",
       G_TYPE_FROM_CLASS (klass),
-      0,
-      0, NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 1, GST_TYPE_CAPS);
+      0, 0, NULL, NULL, NULL, G_TYPE_NONE, 1, GST_TYPE_CAPS);
 
   gst_element_class_set_static_metadata (element_class, "Cairo overlay",
       "Filter/Editor/Video",
