@@ -14507,7 +14507,15 @@ gst_qtdemux_handle_esds (GstQTDemux * qtdemux, QtDemuxStream * stream,
       /* Override channels and rate based on the codec_data, as it's often
        * wrong. */
       /* Only do so for basic setup without HE-AAC extension */
+#ifdef OHOS_OPT_COMPAT
+      /*
+       * ohos.opt.compat.0030
+       * sampling rate is get wrong, in special code flow
+       */
+      if (data_ptr && data_len >= 2) {
+#else
       if (data_ptr && data_len == 2) {
+#endif
         guint channels, rate;
 
         channels = gst_codec_utils_aac_get_channels (data_ptr, data_len);
