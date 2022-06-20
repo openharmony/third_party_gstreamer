@@ -1,4 +1,6 @@
 pango_sources = [
+  'gstpangoelement.c',
+  'gstpangoplugin.c',
   'gstbasetextoverlay.c',
   'gstclockoverlay.c',
   'gsttextoverlay.c',
@@ -6,7 +8,9 @@ pango_sources = [
   'gsttimeoverlay.c',
 ]
 
-pango_dep = dependency('pangocairo', version : '>=1.22.0', required : get_option('pango'))
+pango_dep = dependency('pangocairo', version : '>=1.22.0', required : get_option('pango'),
+  fallback: ['pango', 'libpangocairo_dep'],
+  default_options: ['cairo=enabled'])
 
 if pango_dep.found()
   gstpango = library('gstpango',
@@ -19,4 +23,5 @@ if pango_dep.found()
     install_dir : plugins_install_dir,
   )
   pkgconfig.generate(gstpango, install_dir : plugins_pkgconfig_install_dir)
+  plugins += [gstpango]
 endif

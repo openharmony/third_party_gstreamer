@@ -41,7 +41,7 @@
 
 #include "gstplay-enum.h"
 #include "gstrawcaps.h"
-#include "gstplayback.h"
+#include "gstplaybackelements.h"
 #include "gstplaybackutils.h"
 
 #define GST_TYPE_URI_DECODE_BIN \
@@ -95,12 +95,15 @@ struct _GstURIDecodeBin
   guint buffer_size;            /* When buffering, buffer size (bytes) */
   gboolean download;
   gboolean use_buffering;
+  gboolean force_sw_decoders;
 
   GstElement *source;
   GstElement *queue;
   GstElement *typefind;
   guint have_type_id;           /* have-type signal id from typefind */
+  /* without holding ref */
   GSList *decodebins;
+  /* Holding strong reference to decodebin */
   GSList *pending_decodebins;
   GHashTable *streams;
   guint numpads;
@@ -113,14 +116,9 @@ struct _GstURIDecodeBin
 
   gboolean async_pending;       /* async-start has been emitted */
 
-  gboolean expose_allstreams;   /* Whether to expose unknow type streams or not */
+  gboolean expose_allstreams;   /* Whether to expose unknown type streams or not */
 
   guint64 ring_buffer_max_size; /* 0 means disabled */
-#ifdef OHOS_EXT_FUNC
-  //ohos.ext.func.0012
-  gint low_percent;
-  gint high_percent;
-#endif
 };
 
 struct _GstURIDecodeBinClass
@@ -172,10 +170,6 @@ enum
   SIGNAL_AUTOPLUG_QUERY,
   SIGNAL_DRAINED,
   SIGNAL_SOURCE_SETUP,
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0028
-  SIGNAL_BITRATE_PARSE_COMPLETE,
-#endif
   LAST_SIGNAL
 };
 
@@ -185,24 +179,13 @@ enum
 #define DEFAULT_CONNECTION_SPEED    0
 #define DEFAULT_CAPS                (gst_static_caps_get (&default_raw_caps))
 #define DEFAULT_SUBTITLE_ENCODING   NULL
-#ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0012
-#define DEFAULT_BUFFER_DURATION     0
-#else
 #define DEFAULT_BUFFER_DURATION     -1
-#endif
 #define DEFAULT_BUFFER_SIZE         -1
 #define DEFAULT_DOWNLOAD            FALSE
 #define DEFAULT_USE_BUFFERING       FALSE
+#define DEFAULT_FORCE_SW_DECODERS   FALSE
 #define DEFAULT_EXPOSE_ALL_STREAMS  TRUE
 #define DEFAULT_RING_BUFFER_MAX_SIZE 0
-
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0012
-#define DEFAULT_LOW_PERCENT       10
-#define DEFAULT_HIGH_PERCENT      99
-#define DEFAULT_TIMEOUT           15
-#endif
 
 enum
 {
@@ -216,15 +199,8 @@ enum
   PROP_BUFFER_DURATION,
   PROP_DOWNLOAD,
   PROP_USE_BUFFERING,
+  PROP_FORCE_SW_DECODERS,
   PROP_EXPOSE_ALL_STREAMS,
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0012
-  PROP_LOW_PERCENT,
-  PROP_HIGH_PERCENT,
-  PROP_STATE_CHANGE,
-  PROP_EXIT_BLOCK,
-  PROP_TIMEOUT,
-#endif
   PROP_RING_BUFFER_MAX_SIZE
 };
 
@@ -233,6 +209,12 @@ static guint gst_uri_decode_bin_signals[LAST_SIGNAL] = { 0 };
 GType gst_uri_decode_bin_get_type (void);
 #define gst_uri_decode_bin_parent_class parent_class
 G_DEFINE_TYPE (GstURIDecodeBin, gst_uri_decode_bin, GST_TYPE_BIN);
+
+#define _do_init \
+    GST_DEBUG_CATEGORY_INIT (gst_uri_decode_bin_debug, "uridecodebin", 0, "URI decoder element"); \
+    playback_element_init (plugin);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (uridecodebin, "uridecodebin",
+    GST_RANK_NONE, GST_TYPE_URI_DECODE_BIN, _do_init);
 
 static void remove_decoders (GstURIDecodeBin * bin, gboolean force);
 static void gst_uri_decode_bin_set_property (GObject * object, guint prop_id,
@@ -255,8 +237,7 @@ _gst_boolean_accumulator (GSignalInvocationHint * ihint,
   gboolean myboolean;
 
   myboolean = g_value_get_boolean (handler_return);
-  if (!(ihint->run_type & G_SIGNAL_RUN_CLEANUP))
-    g_value_set_boolean (return_accu, myboolean);
+  g_value_set_boolean (return_accu, myboolean);
 
   /* stop emission if FALSE */
   return myboolean;
@@ -272,8 +253,7 @@ _gst_boolean_or_accumulator (GSignalInvocationHint * ihint,
   myboolean = g_value_get_boolean (handler_return);
   retboolean = g_value_get_boolean (return_accu);
 
-  if (!(ihint->run_type & G_SIGNAL_RUN_CLEANUP))
-    g_value_set_boolean (return_accu, myboolean || retboolean);
+  g_value_set_boolean (return_accu, myboolean || retboolean);
 
   return TRUE;
 }
@@ -285,8 +265,7 @@ _gst_array_accumulator (GSignalInvocationHint * ihint,
   gpointer array;
 
   array = g_value_get_boxed (handler_return);
-  if (!(ihint->run_type & G_SIGNAL_RUN_CLEANUP))
-    g_value_set_boxed (return_accu, array);
+  g_value_set_boxed (return_accu, array);
 
   return FALSE;
 }
@@ -298,8 +277,7 @@ _gst_select_accumulator (GSignalInvocationHint * ihint,
   GstAutoplugSelectResult res;
 
   res = g_value_get_enum (handler_return);
-  if (!(ihint->run_type & G_SIGNAL_RUN_CLEANUP))
-    g_value_set_enum (return_accu, res);
+  g_value_set_enum (return_accu, res);
 
   /* Call the next handler in the chain (if any) when the current callback
    * returns TRY. This makes it possible to register separate autoplug-select
@@ -318,8 +296,7 @@ _gst_array_hasvalue_accumulator (GSignalInvocationHint * ihint,
   gpointer array;
 
   array = g_value_get_boxed (handler_return);
-  if (!(ihint->run_type & G_SIGNAL_RUN_CLEANUP))
-    g_value_set_boxed (return_accu, array);
+  g_value_set_boxed (return_accu, array);
 
   if (array != NULL)
     return FALSE;
@@ -340,14 +317,33 @@ static void
 gst_uri_decode_bin_update_factories_list (GstURIDecodeBin * dec)
 {
   guint32 cookie;
+  GList *factories, *tmp;
 
   cookie = gst_registry_get_feature_list_cookie (gst_registry_get ());
   if (!dec->factories || dec->factories_cookie != cookie) {
     if (dec->factories)
       gst_plugin_feature_list_free (dec->factories);
-    dec->factories =
+    factories =
         gst_element_factory_list_get_elements
         (GST_ELEMENT_FACTORY_TYPE_DECODABLE, GST_RANK_MARGINAL);
+
+    if (dec->force_sw_decoders) {
+      /* filter out Hardware class elements */
+      dec->factories = NULL;
+      for (tmp = factories; tmp; tmp = g_list_next (tmp)) {
+        GstElementFactory *factory = GST_ELEMENT_FACTORY_CAST (tmp->data);
+        if (!gst_element_factory_list_is_type (factory,
+                GST_ELEMENT_FACTORY_TYPE_HARDWARE)) {
+          dec->factories = g_list_prepend (dec->factories, factory);
+        } else {
+          gst_object_unref (factory);
+        }
+      }
+      g_list_free (factories);
+    } else {
+      dec->factories = factories;
+    }
+
     dec->factories =
         g_list_sort (dec->factories, gst_playback_utils_compare_factories_func);
     dec->factories_cookie = cookie;
@@ -461,52 +457,11 @@ gst_uri_decode_bin_class_init (GstURIDecodeBinClass * klass)
           "Buffer size when buffering streams (-1 default value)",
           -1, G_MAXINT, DEFAULT_BUFFER_SIZE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0012
-  g_object_class_install_property (gobject_class, PROP_BUFFER_DURATION,
-      g_param_spec_uint64 ("buffer-duration", "Buffer duration (ns)",
-          "Buffer duration when buffering streams (-1 default value)",
-          0, G_MAXUINT64 / 1000, DEFAULT_BUFFER_DURATION,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  g_object_class_install_property (gobject_class, PROP_STATE_CHANGE,
-    g_param_spec_int ("state-change", "state-change from adaptive-demux",
-        "state-change from adaptive-demux", 0, (gint) (G_MAXINT32), 0,
-        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  g_object_class_install_property (gobject_class, PROP_EXIT_BLOCK,
-      g_param_spec_int ("exit-block", "EXIT BLOCK",
-          "souphttpsrc exit block", 0, (gint) (G_MAXINT32), 0,
-          G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
-
-  /*
-   * GstURIDecodeBin:low-percent
-   * Low threshold percent for buffering to start.
-   */
-  g_object_class_install_property (gobject_class, PROP_LOW_PERCENT,
-      g_param_spec_int ("low-percent", "Low percent",
-          "Low threshold for buffering to start", 0, 100,
-          DEFAULT_LOW_PERCENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-  /*
-   * GstURIDecodeBin:high-percent
-   * High threshold percent for buffering to finish.
-   */
-  g_object_class_install_property (gobject_class, PROP_HIGH_PERCENT,
-      g_param_spec_int ("high-percent", "High percent",
-          "High threshold for buffering to finish", 0, 100,
-          DEFAULT_HIGH_PERCENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  g_object_class_install_property (gobject_class, PROP_TIMEOUT,
-      g_param_spec_uint ("timeout", "timeout",
-          "Value in seconds to timeout a blocking I/O (0 = No timeout).", 0,
-          3600, DEFAULT_TIMEOUT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-#else
   g_object_class_install_property (gobject_class, PROP_BUFFER_DURATION,
       g_param_spec_int64 ("buffer-duration", "Buffer duration (ns)",
           "Buffer duration when buffering streams (-1 default value)",
           -1, G_MAXINT64, DEFAULT_BUFFER_DURATION,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-#endif
 
   /**
    * GstURIDecodeBin::download:
@@ -532,7 +487,21 @@ gst_uri_decode_bin_class_init (GstURIDecodeBinClass * klass)
           DEFAULT_USE_BUFFERING, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /**
-   * GstURIDecodeBin::expose-all-streams
+   * GstURIDecodeBin::force-sw-decoders:
+   *
+   * While auto-plugging, if set to %TRUE, those decoders within
+   * "Hardware" klass will be ignored. Otherwise they will be tried.
+   *
+   * Since: 1.18
+   */
+  g_object_class_install_property (gobject_class, PROP_FORCE_SW_DECODERS,
+      g_param_spec_boolean ("force-sw-decoders", "Software Docoders Only",
+          "Use only sofware decoders to process streams",
+          DEFAULT_FORCE_SW_DECODERS,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  /**
+   * GstURIDecodeBin::expose-all-streams:
    *
    * Expose streams of unknown type.
    *
@@ -548,7 +517,7 @@ gst_uri_decode_bin_class_init (GstURIDecodeBinClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /**
-   * GstURIDecodeBin::ring-buffer-max-size
+   * GstURIDecodeBin::ring-buffer-max-size:
    *
    * The maximum size of the ring buffer in kilobytes. If set to 0, the ring
    * buffer is disabled. Default is 0.
@@ -573,8 +542,7 @@ gst_uri_decode_bin_class_init (GstURIDecodeBinClass * klass)
   gst_uri_decode_bin_signals[SIGNAL_UNKNOWN_TYPE] =
       g_signal_new ("unknown-type", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstURIDecodeBinClass, unknown_type),
-      NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 2,
-      GST_TYPE_PAD, GST_TYPE_CAPS);
+      NULL, NULL, NULL, G_TYPE_NONE, 2, GST_TYPE_PAD, GST_TYPE_CAPS);
 
   /**
    * GstURIDecodeBin::autoplug-continue:
@@ -598,8 +566,7 @@ gst_uri_decode_bin_class_init (GstURIDecodeBinClass * klass)
       g_signal_new ("autoplug-continue", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstURIDecodeBinClass,
           autoplug_continue), _gst_boolean_accumulator, NULL,
-      g_cclosure_marshal_generic, G_TYPE_BOOLEAN, 2, GST_TYPE_PAD,
-      GST_TYPE_CAPS);
+      NULL, G_TYPE_BOOLEAN, 2, GST_TYPE_PAD, GST_TYPE_CAPS);
 
   /**
    * GstURIDecodeBin::autoplug-factories:
@@ -628,8 +595,7 @@ gst_uri_decode_bin_class_init (GstURIDecodeBinClass * klass)
       g_signal_new ("autoplug-factories", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstURIDecodeBinClass,
           autoplug_factories), _gst_array_accumulator, NULL,
-      g_cclosure_marshal_generic, G_TYPE_VALUE_ARRAY, 2,
-      GST_TYPE_PAD, GST_TYPE_CAPS);
+      NULL, G_TYPE_VALUE_ARRAY, 2, GST_TYPE_PAD, GST_TYPE_CAPS);
 
   /**
    * GstURIDecodeBin::autoplug-sort:
@@ -658,8 +624,8 @@ gst_uri_decode_bin_class_init (GstURIDecodeBinClass * klass)
       g_signal_new ("autoplug-sort", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstURIDecodeBinClass, autoplug_sort),
       _gst_array_hasvalue_accumulator, NULL,
-      g_cclosure_marshal_generic, G_TYPE_VALUE_ARRAY, 3, GST_TYPE_PAD,
-      GST_TYPE_CAPS, G_TYPE_VALUE_ARRAY | G_SIGNAL_TYPE_STATIC_SCOPE);
+      NULL, G_TYPE_VALUE_ARRAY, 3, GST_TYPE_PAD, GST_TYPE_CAPS,
+      G_TYPE_VALUE_ARRAY | G_SIGNAL_TYPE_STATIC_SCOPE);
 
   /**
    * GstURIDecodeBin::autoplug-select:
@@ -672,16 +638,16 @@ gst_uri_decode_bin_class_init (GstURIDecodeBinClass * klass)
    * #GstElementFactory that can be used to handle the given @caps. For each of
    * those factories, this signal is emitted.
    *
-   * The signal handler should return a #GST_TYPE_AUTOPLUG_SELECT_RESULT enum
+   * The signal handler should return a #GstAutoplugSelectResult enum
    * value indicating what decodebin should do next.
    *
-   * A value of #GST_AUTOPLUG_SELECT_TRY will try to autoplug an element from
+   * A value of #GstAutoplugSelectResult::try will try to autoplug an element from
    * @factory.
    *
-   * A value of #GST_AUTOPLUG_SELECT_EXPOSE will expose @pad without plugging
+   * A value of #GstAutoplugSelectResult::expose will expose @pad without plugging
    * any element to it.
    *
-   * A value of #GST_AUTOPLUG_SELECT_SKIP will skip @factory and move to the
+   * A value of #GstAutoplugSelectResult::skip will skip @factory and move to the
    * next factory.
    *
    * >   The signal handler will not be invoked if any of the previously
@@ -690,16 +656,15 @@ gst_uri_decode_bin_class_init (GstURIDecodeBinClass * klass)
    * >   GST_AUTOPLUG_SELECT_TRY from one signal handler, handlers that get
    * >   registered next (again, if any) can override that decision.
    *
-   * Returns: a #GST_TYPE_AUTOPLUG_SELECT_RESULT that indicates the required
+   * Returns: a #GstAutoplugSelectResult that indicates the required
    * operation. The default handler will always return
-   * #GST_AUTOPLUG_SELECT_TRY.
+   * #GstAutoplugSelectResult::try.
    */
   gst_uri_decode_bin_signals[SIGNAL_AUTOPLUG_SELECT] =
       g_signal_new ("autoplug-select", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstURIDecodeBinClass,
           autoplug_select), _gst_select_accumulator, NULL,
-      g_cclosure_marshal_generic,
-      GST_TYPE_AUTOPLUG_SELECT_RESULT, 3, GST_TYPE_PAD, GST_TYPE_CAPS,
+      NULL, GST_TYPE_AUTOPLUG_SELECT_RESULT, 3, GST_TYPE_PAD, GST_TYPE_CAPS,
       GST_TYPE_ELEMENT_FACTORY);
 
   /**
@@ -719,9 +684,8 @@ gst_uri_decode_bin_class_init (GstURIDecodeBinClass * klass)
   gst_uri_decode_bin_signals[SIGNAL_AUTOPLUG_QUERY] =
       g_signal_new ("autoplug-query", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstURIDecodeBinClass, autoplug_query),
-      _gst_boolean_or_accumulator, NULL, g_cclosure_marshal_generic,
-      G_TYPE_BOOLEAN, 3, GST_TYPE_PAD, GST_TYPE_ELEMENT,
-      GST_TYPE_QUERY | G_SIGNAL_TYPE_STATIC_SCOPE);
+      _gst_boolean_or_accumulator, NULL, NULL, G_TYPE_BOOLEAN, 3, GST_TYPE_PAD,
+      GST_TYPE_ELEMENT, GST_TYPE_QUERY | G_SIGNAL_TYPE_STATIC_SCOPE);
 
   /**
    * GstURIDecodeBin::drained:
@@ -731,8 +695,8 @@ gst_uri_decode_bin_class_init (GstURIDecodeBinClass * klass)
   gst_uri_decode_bin_signals[SIGNAL_DRAINED] =
       g_signal_new ("drained", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST,
-      G_STRUCT_OFFSET (GstURIDecodeBinClass, drained), NULL, NULL,
-      g_cclosure_marshal_generic, G_TYPE_NONE, 0, G_TYPE_NONE);
+      G_STRUCT_OFFSET (GstURIDecodeBinClass, drained), NULL, NULL, NULL,
+      G_TYPE_NONE, 0, G_TYPE_NONE);
 
   /**
    * GstURIDecodeBin::source-setup:
@@ -747,16 +711,7 @@ gst_uri_decode_bin_class_init (GstURIDecodeBinClass * klass)
    */
   gst_uri_decode_bin_signals[SIGNAL_SOURCE_SETUP] =
       g_signal_new ("source-setup", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL,
-      g_cclosure_marshal_generic, G_TYPE_NONE, 1, GST_TYPE_ELEMENT);
-
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0028
-  gst_uri_decode_bin_signals[SIGNAL_BITRATE_PARSE_COMPLETE] =
-        g_signal_new("bitrate-parse-complete",
-        G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST,
-        0, NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 2, G_TYPE_POINTER, G_TYPE_UINT);
-#endif
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 1, GST_TYPE_ELEMENT);
 
   gst_element_class_add_static_pad_template (gstelement_class, &srctemplate);
   gst_element_class_set_static_metadata (gstelement_class,
@@ -797,14 +752,9 @@ gst_uri_decode_bin_init (GstURIDecodeBin * dec)
   dec->buffer_size = DEFAULT_BUFFER_SIZE;
   dec->download = DEFAULT_DOWNLOAD;
   dec->use_buffering = DEFAULT_USE_BUFFERING;
+  dec->force_sw_decoders = DEFAULT_FORCE_SW_DECODERS;
   dec->expose_allstreams = DEFAULT_EXPOSE_ALL_STREAMS;
   dec->ring_buffer_max_size = DEFAULT_RING_BUFFER_MAX_SIZE;
-
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0012
-  dec->low_percent = DEFAULT_LOW_PERCENT;
-  dec->high_percent = DEFAULT_HIGH_PERCENT;
-#endif
 
   GST_OBJECT_FLAG_SET (dec, GST_ELEMENT_FLAG_SOURCE);
   gst_bin_set_suppressed_flags (GST_BIN (dec),
@@ -851,39 +801,6 @@ gst_uri_decode_bin_set_encoding (GstURIDecodeBin * dec, const gchar * encoding)
   GST_URI_DECODE_BIN_UNLOCK (dec);
 }
 
-#ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0012
-static void
-set_property_to_decodebin (GstURIDecodeBin *dec, guint property_id, const void *property_value)
-{
-  if (dec->decodebins == NULL) {
-    return;
-  }
-
-  GSList *walk = NULL;
-  for (walk = dec->decodebins; walk;  walk = g_slist_next (walk)) {
-    if (walk->data == NULL) {
-      continue;
-    }
-    GObject *decodebin = G_OBJECT (walk->data);
-
-    if (property_id == PROP_TIMEOUT) {
-      const guint *timeout = (const guint *) property_value;
-      g_object_set (decodebin, "timeout", *timeout, NULL);
-    } else if (property_id == PROP_STATE_CHANGE) {
-      const gint *state = (const gint *) property_value;
-      g_object_set (decodebin, "state-change", *state, NULL);
-    } else if (property_id == PROP_EXIT_BLOCK) {
-      const gint *exit_block = (const gint *) property_value;
-      g_object_set (decodebin, "exit-block", *exit_block, NULL);
-    } else if (property_id == PROP_CONNECTION_SPEED) {
-      const guint64 *con_speed = (const guint64 *) property_value;
-      g_object_set (decodebin, "connection-speed", *con_speed, NULL);
-    }
-  }
-}
-#endif
-
 static void
 gst_uri_decode_bin_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
@@ -901,11 +818,6 @@ gst_uri_decode_bin_set_property (GObject * object, guint prop_id,
       GST_OBJECT_LOCK (dec);
       dec->connection_speed = g_value_get_uint64 (value) * 1000;
       GST_OBJECT_UNLOCK (dec);
-#ifdef OHOS_EXT_FUNC
-    // ohos.ext.func.0028
-      guint64 con_speed = g_value_get_uint64 (value);
-      set_property_to_decodebin(dec, prop_id, (void *)&con_speed);
-#endif
       break;
     case PROP_CAPS:
       GST_OBJECT_LOCK (dec);
@@ -921,12 +833,7 @@ gst_uri_decode_bin_set_property (GObject * object, guint prop_id,
       dec->buffer_size = g_value_get_int (value);
       break;
     case PROP_BUFFER_DURATION:
-#ifdef OHOS_EXT_FUNC
-      // ohos.ext.func.0012
-      dec->buffer_duration = g_value_get_uint64 (value);
-#else
       dec->buffer_duration = g_value_get_int64 (value);
-#endif
       break;
     case PROP_DOWNLOAD:
       dec->download = g_value_get_boolean (value);
@@ -934,41 +841,15 @@ gst_uri_decode_bin_set_property (GObject * object, guint prop_id,
     case PROP_USE_BUFFERING:
       dec->use_buffering = g_value_get_boolean (value);
       break;
+    case PROP_FORCE_SW_DECODERS:
+      dec->force_sw_decoders = g_value_get_boolean (value);
+      break;
     case PROP_EXPOSE_ALL_STREAMS:
       dec->expose_allstreams = g_value_get_boolean (value);
       break;
     case PROP_RING_BUFFER_MAX_SIZE:
       dec->ring_buffer_max_size = g_value_get_uint64 (value);
       break;
-#ifdef OHOS_EXT_FUNC
-    // ohos.ext.func.0012
-    case PROP_TIMEOUT: {
-      guint timeout = g_value_get_uint (value);
-      g_object_set (dec->source, "timeout", timeout, NULL);
-      set_property_to_decodebin(dec, prop_id, (void *)&timeout);
-      break;
-    }
-    case PROP_STATE_CHANGE: {
-      gint state = g_value_get_int (value);
-      g_object_set (dec->source, "state-change", state, NULL);
-      set_property_to_decodebin(dec, prop_id, (void *)&state);
-      break;
-    }
-    case PROP_EXIT_BLOCK: {
-      gint exit_block = g_value_get_int (value);
-      g_object_set (dec->source, "exit-block", exit_block, NULL);
-      set_property_to_decodebin(dec, prop_id, (void *)&exit_block);
-      break;
-    }
-    case PROP_LOW_PERCENT:
-      dec->low_percent = g_value_get_int (value);
-      GST_INFO_OBJECT (dec, "gsturidecbin set property low_percent=%d", dec->low_percent);
-      break;
-    case PROP_HIGH_PERCENT:
-      dec->high_percent = g_value_get_int (value);
-      GST_INFO_OBJECT (dec, "gsturidecbin set property high_percent=%d", dec->high_percent);
-      break;
-#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1014,12 +895,7 @@ gst_uri_decode_bin_get_property (GObject * object, guint prop_id,
       break;
     case PROP_BUFFER_DURATION:
       GST_OBJECT_LOCK (dec);
-#ifdef OHOS_EXT_FUNC
-      // ohos.ext.func.0012
-      g_value_set_uint64 (value, dec->buffer_duration);
-#else
       g_value_set_int64 (value, dec->buffer_duration);
-#endif
       GST_OBJECT_UNLOCK (dec);
       break;
     case PROP_DOWNLOAD:
@@ -1028,21 +904,15 @@ gst_uri_decode_bin_get_property (GObject * object, guint prop_id,
     case PROP_USE_BUFFERING:
       g_value_set_boolean (value, dec->use_buffering);
       break;
+    case PROP_FORCE_SW_DECODERS:
+      g_value_set_boolean (value, dec->force_sw_decoders);
+      break;
     case PROP_EXPOSE_ALL_STREAMS:
       g_value_set_boolean (value, dec->expose_allstreams);
       break;
     case PROP_RING_BUFFER_MAX_SIZE:
       g_value_set_uint64 (value, dec->ring_buffer_max_size);
       break;
-#ifdef OHOS_EXT_FUNC
-    // ohos.ext.func.0012
-    case PROP_LOW_PERCENT:
-      g_value_set_int (value, dec->low_percent);
-      break;
-    case PROP_HIGH_PERCENT:
-      g_value_set_int (value, dec->high_percent);
-      break;
-#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1079,18 +949,6 @@ do_async_done (GstURIDecodeBin * dbin)
 #define DEFAULT_QUEUE_SIZE          (3 * GST_SECOND)
 #define DEFAULT_QUEUE_MIN_THRESHOLD ((DEFAULT_QUEUE_SIZE * 30) / 100)
 #define DEFAULT_QUEUE_THRESHOLD     ((DEFAULT_QUEUE_SIZE * 95) / 100)
-
-#ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0028
-static void
-bitrate_parse_complete_cb (GstElement * element, gpointer input, guint num, GstURIDecodeBin * decoder)
-{
-  if ((element == NULL) || (decoder == NULL)) {
-    return;
-  }
-  g_signal_emit (decoder, gst_uri_decode_bin_signals[SIGNAL_BITRATE_PARSE_COMPLETE], 0, input, num);
-}
-#endif
 
 static void
 unknown_type_cb (GstElement * element, GstPad * pad, GstCaps * caps,
@@ -1463,6 +1321,8 @@ static const gchar *adaptive_media[] = {
 
 /*
  * Generate and configure a source element.
+ *
+ * Returns: (transfer full): a new #GstElement
  */
 static GstElement *
 gen_source_element (GstURIDecodeBin * decoder)
@@ -1492,19 +1352,6 @@ gen_source_element (GstURIDecodeBin * decoder)
 
   GST_LOG_OBJECT (decoder, "found source type %s", G_OBJECT_TYPE_NAME (source));
 
-  query = gst_query_new_scheduling ();
-  if (gst_element_query (source, query)) {
-    gst_query_parse_scheduling (query, &flags, NULL, NULL, NULL);
-    decoder->is_stream = flags & GST_SCHEDULING_FLAG_BANDWIDTH_LIMITED;
-  } else
-    decoder->is_stream = IS_STREAM_URI (decoder->uri);
-  gst_query_unref (query);
-
-  GST_LOG_OBJECT (decoder, "source is stream: %d", decoder->is_stream);
-
-  decoder->need_queue = IS_QUEUE_URI (decoder->uri);
-  GST_LOG_OBJECT (decoder, "source needs queue: %d", decoder->need_queue);
-
   source_class = G_OBJECT_GET_CLASS (source);
 
   pspec = g_object_class_find_property (source_class, "connection-speed");
@@ -1531,7 +1378,7 @@ gen_source_element (GstURIDecodeBin * decoder)
     } else {
       GST_WARNING_OBJECT (decoder,
           "The connection speed property %" G_GUINT64_FORMAT
-          " of type %s is not usefull not setting it", speed,
+          " of type %s is not useful not setting it", speed,
           g_type_name (G_PARAM_SPEC_TYPE (pspec)));
       wrong_type = TRUE;
     }
@@ -1551,6 +1398,34 @@ gen_source_element (GstURIDecodeBin * decoder)
         "setting subtitle-encoding=%s to source element", decoder->encoding);
     g_object_set (source, "subtitle-encoding", decoder->encoding, NULL);
   }
+
+  /* Sink reference before passing it to signal handler.
+   * Language binding might otherwise sink it and then unref.
+   * A floating ref is also tricky for a native signal handler in case
+   * of a "transfer floating" call followed by unref
+   * (e.g. some container_add and then container_remove).
+   * Bottom line; best not have a floating ref boldly going into unknown code.
+   */
+  g_object_ref_sink (source);
+
+  g_signal_emit (decoder, gst_uri_decode_bin_signals[SIGNAL_SOURCE_SETUP],
+      0, source);
+
+  decoder->is_stream = IS_STREAM_URI (decoder->uri);
+
+  query = gst_query_new_scheduling ();
+  if (gst_element_query (source, query)) {
+    gst_query_parse_scheduling (query, &flags, NULL, NULL, NULL);
+    if ((flags & GST_SCHEDULING_FLAG_BANDWIDTH_LIMITED))
+      decoder->is_stream = TRUE;
+  }
+  gst_query_unref (query);
+
+  GST_LOG_OBJECT (decoder, "source is stream: %d", decoder->is_stream);
+
+  decoder->need_queue = IS_QUEUE_URI (decoder->uri);
+  GST_LOG_OBJECT (decoder, "source needs queue: %d", decoder->need_queue);
+
   return source;
 
   /* ERRORS */
@@ -1675,7 +1550,7 @@ post_missing_plugin_error (GstElement * dec, const gchar * element_name)
  * @is_dynamic: TRUE if the element will create (more) pads dynamically later
  * on.
  *
- * Returns: FALSE if a fatal error occured while scanning.
+ * Returns: FALSE if a fatal error occurred while scanning.
  */
 static gboolean
 analyse_source (GstURIDecodeBin * decoder, gboolean * is_raw,
@@ -1701,7 +1576,7 @@ analyse_source (GstURIDecodeBin * decoder, gboolean * is_raw,
     switch (gst_iterator_next (pads_iter, &item)) {
       case GST_ITERATOR_ERROR:
         res = FALSE;
-        /* FALLTROUGH */
+        /* FALLTHROUGH */
       case GST_ITERATOR_DONE:
         done = TRUE;
         break;
@@ -1714,7 +1589,7 @@ analyse_source (GstURIDecodeBin * decoder, gboolean * is_raw,
         break;
       case GST_ITERATOR_OK:
         pad = g_value_dup_object (&item);
-        /* we now officially have an ouput pad */
+        /* we now officially have an output pad */
         *have_out = TRUE;
 
         /* if FALSE, this pad has no caps and we continue with the next pad. */
@@ -1825,15 +1700,13 @@ remove_decoders (GstURIDecodeBin * bin, gboolean force)
 
       gst_element_set_state (decoder, GST_STATE_READY);
       /* add it to our list of pending decodebins */
-      g_object_ref (decoder);
+      gst_object_ref (decoder);
       gst_bin_remove (GST_BIN_CAST (bin), decoder);
       /* restore some properties we might have changed */
       g_object_set (decoder, "sink-caps", NULL, NULL);
       caps = DEFAULT_CAPS;
       g_object_set (decoder, "caps", caps, NULL);
       gst_caps_unref (caps);
-      /* make it freshly floating again */
-      g_object_force_floating (G_OBJECT (decoder));
 
       bin->pending_decodebins =
           g_slist_prepend (bin->pending_decodebins, decoder);
@@ -1947,32 +1820,12 @@ proxy_drained_signal (GstElement * decodebin, GstURIDecodeBin * dec)
   g_signal_emit (dec, gst_uri_decode_bin_signals[SIGNAL_DRAINED], 0, NULL);
 }
 
-#ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0012
-static void
-set_buffering_info (GstURIDecodeBin *decoder, GstElement *decodebin)
-{
-  /* configure sizes when buffering */
-  if (decoder->buffer_size == DEFAULT_BUFFER_SIZE) {
-    decoder->buffer_size = 2 * 1024 * 1024; //2M
-  }
-
-  if (decoder->buffer_duration == DEFAULT_BUFFER_DURATION) {
-    decoder->buffer_duration = 5 * GST_SECOND; //5s
-  }
-
-  g_object_set (decodebin, "max-size-bytes", decoder->buffer_size, "max-size-buffers",
-      (guint) 0, "max-size-time", decoder->buffer_duration, NULL);
-
-  g_object_set (decodebin, "low-percent", decoder->low_percent, "high-percent", decoder->high_percent, NULL);
-}
-#endif
-
 /* make a decodebin and connect to all the signals */
 static GstElement *
 make_decoder (GstURIDecodeBin * decoder)
 {
   GstElement *decodebin;
+  gboolean unref_dbin = FALSE;
 
   /* re-use pending decodebin */
   if (decoder->pending_decodebins) {
@@ -1981,6 +1834,7 @@ make_decoder (GstURIDecodeBin * decoder)
     decodebin = (GstElement *) first->data;
     decoder->pending_decodebins =
         g_slist_delete_link (decoder->pending_decodebins, first);
+    unref_dbin = TRUE;
   } else {
     GST_LOG_OBJECT (decoder, "making new decodebin");
 
@@ -2020,13 +1874,10 @@ make_decoder (GstURIDecodeBin * decoder)
         G_CALLBACK (no_more_pads), decoder);
     g_signal_connect (decodebin,
         "unknown-type", G_CALLBACK (unknown_type_cb), decoder);
-
-#ifdef OHOS_EXT_FUNC
-      // ohos.ext.func.0028
-    g_signal_connect (decodebin,
-        "bitrate-parse-complete", G_CALLBACK (bitrate_parse_complete_cb), decoder);
-#endif
   }
+
+  g_object_set (decodebin, "force-sw-decoders", decoder->force_sw_decoders,
+      NULL);
 
   /* configure caps if we have any */
   if (decoder->caps)
@@ -2036,23 +1887,6 @@ make_decoder (GstURIDecodeBin * decoder)
   g_object_set (decodebin, "expose-all-streams", decoder->expose_allstreams,
       "connection-speed", decoder->connection_speed / 1000, NULL);
 
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0012
-  /*
-   * modify for http buffering, If it is streaming, use buffering
-   */
-  if (!decoder->is_stream) {
-    decoder->use_buffering = FALSE;
-  }
-  /*
-   * propagate the use-buffering property but only when we are not already
-   * doing stream buffering with queue2.
-   */
-  g_object_set (decodebin, "use-buffering", decoder->use_buffering, NULL);
-  if (decoder->use_buffering) {
-    set_buffering_info(decoder, decodebin);
-  }
-#else
   if (!decoder->is_stream || decoder->is_adaptive) {
     /* propagate the use-buffering property but only when we are not already
      * doing stream buffering with queue2. FIXME, we might want to do stream
@@ -2074,7 +1908,6 @@ make_decoder (GstURIDecodeBin * decoder)
           (guint) 0, "max-size-time", max_time, NULL);
     }
   }
-#endif
 
   g_object_set_data (G_OBJECT (decodebin), "pending", GINT_TO_POINTER (1));
   g_object_set (decodebin, "subtitle-encoding", decoder->encoding, NULL);
@@ -2084,6 +1917,11 @@ make_decoder (GstURIDecodeBin * decoder)
   gst_bin_add (GST_BIN_CAST (decoder), decodebin);
 
   decoder->decodebins = g_slist_prepend (decoder->decodebins, decodebin);
+  /* Unref if this decodebin came from our pending_decodebins,
+   * since we were holding strong reference to decodebin and gst_bin_add()
+   * will increase refcount */
+  if (unref_dbin)
+    gst_object_unref (decodebin);
 
   return decodebin;
 
@@ -2176,29 +2014,18 @@ type_found (GstElement * typefind, guint probability,
       g_free (filename);
       g_free (temp_template);
     } else {
-#ifdef OHOS_EXT_FUNC
-      // ohos.ext.func.0012
-      /*
-       * modify for http buffering, queue2 setting buffer is false by default
-       */
-      g_object_set (queue, "use-buffering", FALSE, NULL);
-#else
       g_object_set (queue, "use-buffering", TRUE, NULL);
-#endif
       g_object_set (queue, "ring-buffer-max-size",
           decoder->ring_buffer_max_size, NULL);
       /* Disable max-size-buffers */
       g_object_set (queue, "max-size-buffers", 0, NULL);
     }
 
-#ifndef OHOS_EXT_FUNC
-    // ohos.ext.func.0012
     /* If buffer size or duration are set, set them on the element */
     if (decoder->buffer_size != -1)
       g_object_set (queue, "max-size-bytes", decoder->buffer_size, NULL);
     if (decoder->buffer_duration != -1)
       g_object_set (queue, "max-size-time", decoder->buffer_duration, NULL);
-#endif
 
     gst_bin_add (GST_BIN_CAST (decoder), queue);
 
@@ -2344,6 +2171,7 @@ source_new_pad (GstElement * element, GstPad * pad, GstURIDecodeBin * bin)
   GstElement *decoder;
   gboolean is_raw;
   GstCaps *rawcaps;
+  GstPad *sinkpad;
 
   GST_URI_DECODE_BIN_LOCK (bin);
   GST_DEBUG_OBJECT (bin, "Found new pad %s.%s in source element %s",
@@ -2369,10 +2197,12 @@ source_new_pad (GstElement * element, GstPad * pad, GstURIDecodeBin * bin)
     goto no_decodebin;
 
   /* and link to decoder */
-  if (!gst_element_link_pads (bin->source, NULL, decoder, "sink"))
+  sinkpad = gst_element_get_static_pad (decoder, "sink");
+  if (gst_pad_link (pad, sinkpad) != GST_PAD_LINK_OK)
     goto could_not_link;
+  gst_object_unref (sinkpad);
 
-  GST_DEBUG_OBJECT (bin, "linked decoder to new pad");
+  GST_DEBUG_OBJECT (bin, "linked decoder to new source pad");
 
   gst_element_sync_state_with_parent (decoder);
   GST_URI_DECODE_BIN_UNLOCK (bin);
@@ -2388,6 +2218,7 @@ no_decodebin:
   }
 could_not_link:
   {
+    gst_object_unref (sinkpad);
     GST_ELEMENT_ERROR (bin, CORE, NEGOTIATION,
         (NULL), ("Can't link source to decoder element"));
     GST_URI_DECODE_BIN_UNLOCK (bin);
@@ -2442,12 +2273,11 @@ setup_source (GstURIDecodeBin * decoder)
   /* state will be merged later - if file is not found, error will be
    * handled by the application right after. */
   gst_bin_add (GST_BIN_CAST (decoder), decoder->source);
+  /* bin now has a ref, but the local reference is not counted */
+  g_object_unref (decoder->source);
 
   /* notify of the new source used */
   g_object_notify (G_OBJECT (decoder), "source");
-
-  g_signal_emit (decoder, gst_uri_decode_bin_signals[SIGNAL_SOURCE_SETUP],
-      0, decoder->source);
 
   if (is_live_source (decoder->source))
     decoder->is_stream = FALSE;
@@ -2792,7 +2622,7 @@ decoder_query_duration_fold (const GValue * item, GValue * ret,
 
     gst_query_parse_duration (fold->query, NULL, &duration);
 
-    GST_DEBUG_OBJECT (item, "got duration %" G_GINT64_FORMAT, duration);
+    GST_DEBUG_OBJECT (pad, "got duration %" G_GINT64_FORMAT, duration);
 
     if (duration > fold->max)
       fold->max = duration;
@@ -2825,7 +2655,7 @@ decoder_query_position_fold (const GValue * item, GValue * ret,
 
     gst_query_parse_position (fold->query, NULL, &position);
 
-    GST_DEBUG_OBJECT (item, "got position %" G_GINT64_FORMAT, position);
+    GST_DEBUG_OBJECT (pad, "got position %" G_GINT64_FORMAT, position);
 
     if (position > fold->max)
       fold->max = position;
@@ -2905,7 +2735,7 @@ decoder_query_seeking_fold (const GValue * item, GValue * ret, QueryFold * fold)
     g_value_set_boolean (ret, TRUE);
     gst_query_parse_seeking (fold->query, NULL, &seekable, NULL, NULL);
 
-    GST_DEBUG_OBJECT (item, "got seekable %d", seekable);
+    GST_DEBUG_OBJECT (pad, "got seekable %d", seekable);
 
     if (fold->seekable)
       fold->seekable = seekable;
@@ -2934,7 +2764,7 @@ decoder_query_generic_fold (const GValue * item, GValue * ret, QueryFold * fold)
 
   if ((res = gst_pad_query (pad, fold->query))) {
     g_value_set_boolean (ret, TRUE);
-    GST_DEBUG_OBJECT (item, "answered query %p", fold->query);
+    GST_DEBUG_OBJECT (pad, "answered query %p", fold->query);
   }
 
   /* and stop as soon as we have a valid result */
@@ -3115,14 +2945,4 @@ setup_failed:
     do_async_done (decoder);
     return GST_STATE_CHANGE_FAILURE;
   }
-}
-
-gboolean
-gst_uri_decode_bin_plugin_init (GstPlugin * plugin)
-{
-  GST_DEBUG_CATEGORY_INIT (gst_uri_decode_bin_debug, "uridecodebin", 0,
-      "URI decoder element");
-
-  return gst_element_register (plugin, "uridecodebin", GST_RANK_NONE,
-      GST_TYPE_URI_DECODE_BIN);
 }

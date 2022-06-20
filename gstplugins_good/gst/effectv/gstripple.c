@@ -30,16 +30,16 @@
 
 /**
  * SECTION:element-rippletv
+ * @title: rippletv
  *
  * RippleTV does ripple mark effect on the video input. The ripple is caused
  * by motion or random rain drops.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * gst-launch-1.0 -v videotestsrc ! rippletv ! videoconvert ! autovideosink
  * ]| This pipeline shows the effect of rippletv on a test stream.
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -83,6 +83,8 @@ gst_rippletv_mode_get_type (void)
 
 #define gst_rippletv_parent_class parent_class
 G_DEFINE_TYPE (GstRippleTV, gst_rippletv, GST_TYPE_VIDEO_FILTER);
+GST_ELEMENT_REGISTER_DEFINE (rippletv, "rippletv", GST_RANK_NONE,
+    GST_TYPE_RIPPLETV);
 
 static GstStaticPadTemplate gst_rippletv_src_template =
 GST_STATIC_PAD_TEMPLATE ("src",
@@ -598,6 +600,8 @@ gst_rippletv_class_init (GstRippleTVClass * klass)
       GST_DEBUG_FUNCPTR (gst_rippletv_transform_frame);
 
   setTable ();
+
+  gst_type_mark_as_plugin_api (GST_TYPE_RIPPLETV_MODE, 0);
 }
 
 static void

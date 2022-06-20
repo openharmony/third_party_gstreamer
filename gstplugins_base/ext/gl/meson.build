@@ -1,5 +1,6 @@
 opengl_sources = [
   'gstopengl.c',
+  'gstglelement.c',
   'gstglalpha.c',
   'gstgluploadelement.c',
   'gstgldownloadelement.c',
@@ -52,6 +53,7 @@ if get_option('gl').disabled() or not gstgl_dep.found()
 endif
 
 optional_deps = []
+gl_objc_args = []
 
 if gl_dep.found() # have desktop GL
   opengl_sources += [
@@ -60,7 +62,12 @@ if gl_dep.found() # have desktop GL
   ]
 endif
 
-graphene_dep = dependency('graphene-1.0', version : '>=1.4.0', required : get_option('gl-graphene'))
+graphene_dep = dependency('graphene-gobject-1.0',
+  version : '>=1.4.0',
+  required : get_option('gl-graphene'),
+  fallback: ['graphene', 'graphene_gobject_dep'],
+  default_options: ['introspection=disabled', 'installed_tests=false', 'tests=false'])
+
 if graphene_dep.found()
   optional_deps += graphene_dep
   core_conf.set('HAVE_GRAPHENE', true)
@@ -89,13 +96,14 @@ if png_dep.found()
 endif
 
 if glconf.get('GST_GL_HAVE_WINDOW_COCOA', 0) == 1
+  corefoundation_dep = dependency('appleframeworks', modules : ['CoreFoundation'], required : false)
   foundation_dep = dependency('appleframeworks', modules : ['Foundation'], required : false)
   quartzcore_dep = dependency('appleframeworks', modules : ['QuartzCore'], required : false)
-  if foundation_dep.found() and quartzcore_dep.found() # have cocoa
+  if corefoundation_dep.found() and foundation_dep.found() and quartzcore_dep.found() # have cocoa
     opengl_sources += [
       'caopengllayersink.m',
     ]
-    optional_deps += quartzcore_dep
+    optional_deps += [quartzcore_dep, foundation_dep, corefoundation_dep]
   endif
 endif
 
@@ -112,9 +120,30 @@ if egl_dep.found() and cc.has_header('libdrm/drm_fourcc.h')
   optional_deps += allocators_dep
 endif
 
+if ['darwin', 'ios'].contains(host_system)
+  if not have_objc
+    error('No ObjC compiler found')
+  endif
+
+  objc = meson.get_compiler('objc')
+  if not objc.has_argument('-fobjc-arc')
+    error('ARC is required for building')
+  endif
+
+  gl_objc_args += ['-fobjc-arc']
+endif
+
+extra_c_args = []
+# gl_nvmm and nvbuf_utils_dep are set in gst-libs/gst/gl/meson.build
+if gl_nvmm
+  extra_c_args += ['-DHAVE_NVMM']
+  optional_deps += [nvbuf_utils_dep]
+endif
+
 gstopengl = library('gstopengl',
   opengl_sources,
-  c_args : gst_plugins_base_args,
+  c_args : gst_plugins_base_args + extra_c_args,
+  objc_args : gst_plugins_base_args + gl_objc_args + extra_c_args,
   link_args : noseh_link_args,
   include_directories : [configinc],
   dependencies : [gstgl_dep, video_dep,
@@ -123,3 +152,4 @@ gstopengl = library('gstopengl',
   install_dir : plugins_install_dir)
 
 pkgconfig.generate(gstopengl, install_dir : plugins_pkgconfig_install_dir)
+plugins += [gstopengl]

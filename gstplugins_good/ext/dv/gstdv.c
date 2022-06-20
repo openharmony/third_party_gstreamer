@@ -22,23 +22,17 @@
 #include "config.h"
 #endif
 
-#include "gstdvdec.h"
-#include "gstdvdemux.h"
+#include "gstdvelements.h"
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  dv_init (0, 0);
+  gboolean ret = FALSE;
 
-  if (!gst_element_register (plugin, "dvdemux", GST_RANK_PRIMARY,
-          gst_dvdemux_get_type ()))
-    return FALSE;
+  ret |= GST_ELEMENT_REGISTER (dvdemux, plugin);
+  ret |= GST_ELEMENT_REGISTER (dvdec, plugin);
 
-  if (!gst_element_register (plugin, "dvdec", GST_RANK_MARGINAL,
-          gst_dvdec_get_type ()))
-    return FALSE;
-
-  return TRUE;
+  return ret;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

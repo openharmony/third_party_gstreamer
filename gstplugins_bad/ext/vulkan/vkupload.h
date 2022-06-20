@@ -23,7 +23,7 @@
 
 #include <gst/gst.h>
 #include <gst/video/video.h>
-#include <vk.h>
+#include <gst/vulkan/vulkan.h>
 
 G_BEGIN_DECLS
 
@@ -65,8 +65,7 @@ struct _GstVulkanUpload
 
   GstVulkanInstance     *instance;
   GstVulkanDevice       *device;
-
-  GstVulkanDisplay      *display;
+  GstVulkanQueue        *queue;
 
   GstCaps               *in_caps;
   GstCaps               *out_caps;

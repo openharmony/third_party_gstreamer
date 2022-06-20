@@ -55,14 +55,26 @@ struct _GstRtpVP8Depay
   gboolean started;
 
   gboolean caps_sent;
+  /* In between pictures, we might store GstRTPPacketLost events instead
+   * of forwarding them immediately, we check upon reception of a new
+   * picture id whether a gap was introduced, in which case we do forward
+   * the event. This is to avoid forwarding spurious lost events for FEC
+   * packets.
+   */
+  gboolean stop_lost_events;
+  GstEvent *last_lost_event;
+  gboolean waiting_for_keyframe;
   gint last_profile;
   gint last_width;
   gint last_height;
+  guint last_picture_id;
+
+  gboolean wait_for_keyframe;
+  gboolean request_keyframe;
+  gboolean last_pushed_was_lost_event;
 };
 
 GType gst_rtp_vp8_depay_get_type (void);
-
-gboolean gst_rtp_vp8_depay_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 

@@ -28,41 +28,25 @@
 
 #include <gst/gst.h>
 
-/* ohos.ext.func.0002 */
-#ifdef OHOS_EXT_FUNC
-#include "gstsplitmuxsink.h"
-#else
 #include "gstmultifilesink.h"
 #include "gstmultifilesrc.h"
 #include "gstsplitfilesrc.h"
 #include "gstsplitmuxsink.h"
 #include "gstsplitmuxsrc.h"
-#endif
-
+#include "gstimagesequencesrc.h"
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-/* ohos.ext.func.0002: The media service need splitmuxsink element to support recording file split feature.
- * But the other elements have compilation dependence. So, only enable the compilation of necessary elements.
- */
-#ifdef OHOS_EXT_FUNC
-  if (!register_splitmuxsink (plugin))
-    return FALSE;
-#else
-  gst_element_register (plugin, "multifilesrc", GST_RANK_NONE,
-      gst_multi_file_src_get_type ());
-  gst_element_register (plugin, "multifilesink", GST_RANK_NONE,
-      gst_multi_file_sink_get_type ());
-  gst_element_register (plugin, "splitfilesrc", GST_RANK_NONE,
-      gst_split_file_src_get_type ());
-  if (!register_splitmuxsink (plugin))
-    return FALSE;
+  gboolean ret = FALSE;
 
-  if (!register_splitmuxsrc (plugin))
-    return FALSE;
-#endif
+  ret |= GST_ELEMENT_REGISTER (multifilesrc, plugin);
+  ret |= GST_ELEMENT_REGISTER (multifilesink, plugin);
+  ret |= GST_ELEMENT_REGISTER (splitfilesrc, plugin);
+  ret |= GST_ELEMENT_REGISTER (imagesequencesrc, plugin);
+  ret |= GST_ELEMENT_REGISTER (splitmuxsink, plugin);
+  ret |= GST_ELEMENT_REGISTER (splitmuxsrc, plugin);
 
-  return TRUE;
+  return ret;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

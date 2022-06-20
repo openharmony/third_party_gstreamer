@@ -7,7 +7,7 @@ endif
 
 osxvideo_opengl_dep = dependency('appleframeworks', modules : ['OpenGL'], required : get_option('osxvideo'))
 osxvideo_cocoa_dep = dependency('appleframeworks', modules : ['Cocoa'], required : get_option('osxvideo'))
-have_objc = add_languages('objc', required : get_option('osxvideo'))
+have_objc = add_languages('objc', native: false, required: get_option('osxvideo'))
 
 if have_objc and osxvideo_opengl_dep.found() and osxvideo_cocoa_dep.found()
 
@@ -24,4 +24,5 @@ if have_objc and osxvideo_opengl_dep.found() and osxvideo_cocoa_dep.found()
     install : true,
     install_dir : plugins_install_dir)
   pkgconfig.generate(gstosxvideo, install_dir : plugins_pkgconfig_install_dir)
+  plugins += [gstosxvideo]
 endif

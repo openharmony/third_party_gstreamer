@@ -21,28 +21,32 @@
 
 /**
  * SECTION:element-autoaudiosrc
+ * @title: autoaudiosrc
  * @see_also: autovideosrc, alsasrc, osssrc
  *
  * autoaudiosrc is an audio source that automatically detects an appropriate
  * audio source to use.  It does so by scanning the registry for all elements
- * that have <quote>Source</quote> and <quote>Audio</quote> in the class field
+ * that have "Source" and "Audio" in the class field
  * of their element information, and also have a non-zero autoplugging rank.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * gst-launch-1.0 -v -m autoaudiosrc ! audioconvert ! audioresample ! autoaudiosink
  * ]|
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
+#include "gstautodetectelements.h"
+#include "gstautodetect.h"
 #include "gstautoaudiosrc.h"
 
 G_DEFINE_TYPE (GstAutoAudioSrc, gst_auto_audio_src, GST_TYPE_AUTO_DETECT);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (autoaudiosrc, "autoaudiosrc",
+    GST_RANK_NONE, GST_TYPE_AUTO_AUDIO_SRC, autodetect_element_init (plugin));
 
 static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,

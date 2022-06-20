@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "gstrtpelements.h"
 #include "gstrtpjpegdepay.h"
 #include "gstrtputils.h"
 
@@ -70,6 +71,8 @@ static GstStaticPadTemplate gst_rtp_jpeg_depay_sink_template =
 #define gst_rtp_jpeg_depay_parent_class parent_class
 G_DEFINE_TYPE (GstRtpJPEGDepay, gst_rtp_jpeg_depay,
     GST_TYPE_RTP_BASE_DEPAYLOAD);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpjpegdepay, "rtpjpegdepay",
+    GST_RANK_SECONDARY, GST_TYPE_RTP_JPEG_DEPAY, rtp_element_init (plugin));
 
 static void gst_rtp_jpeg_depay_finalize (GObject * object);
 
@@ -418,7 +421,7 @@ MakeHeaders (guint8 * p, int type, int width, int height, guint8 * qt,
   *p++ = 0x11;                  /* huffman table 1 */
   *p++ = 0;                     /* first DCT coeff */
   *p++ = 63;                    /* last DCT coeff */
-  *p++ = 0;                     /* sucessive approx. */
+  *p++ = 0;                     /* successive approx. */
 
   return (p - start);
 };
@@ -627,9 +630,10 @@ gst_rtp_jpeg_depay_process (GstRTPBaseDepayload * depayload, GstRTPBuffer * rtp)
       GstCaps *outcaps;
 
       outcaps =
-          gst_caps_new_simple ("image/jpeg", "framerate", GST_TYPE_FRACTION,
-          rtpjpegdepay->frate_num, rtpjpegdepay->frate_denom, "width",
-          G_TYPE_INT, width, "height", G_TYPE_INT, height, NULL);
+          gst_caps_new_simple ("image/jpeg", "parsed", G_TYPE_BOOLEAN, TRUE,
+          "framerate", GST_TYPE_FRACTION, rtpjpegdepay->frate_num,
+          rtpjpegdepay->frate_denom, "width", G_TYPE_INT, width,
+          "height", G_TYPE_INT, height, NULL);
       gst_pad_set_caps (depayload->srcpad, outcaps);
       gst_caps_unref (outcaps);
 
@@ -788,12 +792,4 @@ gst_rtp_jpeg_depay_change_state (GstElement * element,
       break;
   }
   return ret;
-}
-
-
-gboolean
-gst_rtp_jpeg_depay_plugin_init (GstPlugin * plugin)
-{
-  return gst_element_register (plugin, "rtpjpegdepay",
-      GST_RANK_SECONDARY, GST_TYPE_RTP_JPEG_DEPAY);
 }

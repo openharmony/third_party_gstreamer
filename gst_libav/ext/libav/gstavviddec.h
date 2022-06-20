@@ -19,11 +19,11 @@
 #ifndef __GST_FFMPEGVIDDEC_H__
 #define __GST_FFMPEGVIDDEC_H__
 
-G_BEGIN_DECLS
-
 #include <gst/gst.h>
 #include <gst/video/video.h>
 #include <libavcodec/avcodec.h>
+
+G_BEGIN_DECLS
 
 typedef struct _GstFFMpegVidDec GstFFMpegVidDec;
 struct _GstFFMpegVidDec
@@ -66,9 +66,9 @@ struct _GstFFMpegVidDec
   enum AVDiscard skip_frame;
   gint lowres;
   gboolean direct_rendering;
-  gboolean debug_mv;
   int max_threads;
   gboolean output_corrupt;
+  guint thread_type;
 
   GstCaps *last_caps;
 
@@ -78,15 +78,6 @@ struct _GstFFMpegVidDec
   gint pool_height;
   enum AVPixelFormat pool_format;
   GstVideoInfo pool_info;
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: first key frame decoded cost time
-  gboolean has_send_first_key_frame;
-  gint64 send_first_key_frame_time;
-  gboolean has_recv_first_key_frame;
-#endif
-#ifdef OHOS_OPT_COMPAT
-  // ohos.opt.compat.0012
-  gboolean is_first_key_frame_after_seek;
-#endif
 };
 
 typedef struct _GstFFMpegVidDecClass GstFFMpegVidDecClass;

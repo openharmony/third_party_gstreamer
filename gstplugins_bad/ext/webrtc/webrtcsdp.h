@@ -89,6 +89,11 @@ void                                _get_ice_credentials_from_sdp_media     (con
 G_GNUC_INTERNAL
 gboolean                            _message_media_is_datachannel           (const GstSDPMessage * msg,
                                                                              guint media_id);
+G_GNUC_INTERNAL
+guint                               _message_get_datachannel_index          (const GstSDPMessage * msg);
+G_GNUC_INTERNAL
+gboolean                            _message_has_attribute_key              (const GstSDPMessage * msg,
+                                                                             const gchar * key);
 
 G_GNUC_INTERNAL
 gboolean                            _get_bundle_index                       (GstSDPMessage * sdp,
@@ -96,6 +101,17 @@ gboolean                            _get_bundle_index                       (Gst
                                                                              guint * idx);
 G_GNUC_INTERNAL
 gboolean                            _parse_bundle                           (GstSDPMessage * sdp,
-                                                                             GStrv * bundled);
+                                                                             GStrv * bundled,
+                                                                             GError ** error);
+
+G_GNUC_INTERNAL
+const gchar *                       _media_get_ice_pwd                  (const GstSDPMessage * msg,
+                                                                             guint media_idx);
+G_GNUC_INTERNAL
+const gchar *                       _media_get_ice_ufrag                (const GstSDPMessage * msg,
+                                                                             guint media_idx);
+
+G_GNUC_INTERNAL
+gboolean                            _media_is_bundle_only               (const GstSDPMedia * sdp);
 
 #endif /* __WEBRTC_UTILS_H__ */

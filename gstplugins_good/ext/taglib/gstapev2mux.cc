@@ -30,8 +30,8 @@
  * Tags sent by upstream elements will be picked up automatically (and merged
  * according to the merge mode set via the tag setter interface).
  *
- * <refsect2>
- * <title>Example pipelines</title>
+ * ## Example pipelines
+ *
  * |[
  * gst-launch-1.0 -v filesrc location=foo.ogg ! decodebin ! audioconvert ! lame ! apev2mux ! filesink location=foo.mp3
  * ]| A pipeline that transcodes a file from Ogg/Vorbis to mp3 format with an
@@ -40,13 +40,13 @@
  * |[
  * gst-launch-1.0 -m filesrc location=foo.mp3 ! apedemux ! fakesink silent=TRUE 2&gt; /dev/null | grep taglist
  * ]| Verify that tags have been written.
- * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
 
+#include "gsttaglibelements.h"
 #include "gstapev2mux.h"
 
 #include <string.h>
@@ -70,6 +70,10 @@ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_STATIC_CAPS ("ANY"));
 
 G_DEFINE_TYPE (GstApev2Mux, gst_apev2_mux, GST_TYPE_TAG_MUX);
+#define _do_init \
+  taglib_element_init (plugin);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (apev2mux, "apev2mux",
+    GST_RANK_NONE, GST_TYPE_APEV2_MUX, _do_init);
 
 static GstBuffer *gst_apev2_mux_render_start_tag (GstTagMux * mux,
     const GstTagList * taglist);

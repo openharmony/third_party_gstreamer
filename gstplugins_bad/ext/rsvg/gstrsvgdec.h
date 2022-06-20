@@ -24,7 +24,7 @@
 #include <gst/base/gstadapter.h>
 #include <gst/video/video.h>
 
-#include <cairo/cairo.h>
+#include <cairo.h>
 
 #include <librsvg/rsvg.h>
 
@@ -70,6 +70,7 @@ struct _GstRsvgDecClass
 };
 
 GType gst_rsvg_dec_get_type (void);
+GST_ELEMENT_REGISTER_DECLARE (rsvgdec);
 
 G_END_DECLS
 

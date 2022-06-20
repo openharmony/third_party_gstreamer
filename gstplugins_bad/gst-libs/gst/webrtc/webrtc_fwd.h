@@ -27,6 +27,11 @@
 
 #include <gst/gst.h>
 
+/**
+ * SECTION:webrtc_fwd.h
+ * @title: GstWebRTC Enumerations
+ */
+
 #ifndef GST_WEBRTC_API
 # ifdef BUILDING_GST_WEBRTC
 #  define GST_WEBRTC_API GST_API_EXPORT         /* from config.h */
@@ -37,30 +42,66 @@
 
 #include <gst/webrtc/webrtc-enumtypes.h>
 
+/**
+ * GstWebRTCDTLSTransport:
+ */
 typedef struct _GstWebRTCDTLSTransport GstWebRTCDTLSTransport;
 typedef struct _GstWebRTCDTLSTransportClass GstWebRTCDTLSTransportClass;
 
+/**
+ * GstWebRTCICETransport:
+ */
 typedef struct _GstWebRTCICETransport GstWebRTCICETransport;
 typedef struct _GstWebRTCICETransportClass GstWebRTCICETransportClass;
 
+/**
+ * GstWebRTCRTPReceiver:
+ *
+ * An object to track the receiving aspect of the stream
+ *
+ * Mostly matches the WebRTC RTCRtpReceiver interface.
+ */
 typedef struct _GstWebRTCRTPReceiver GstWebRTCRTPReceiver;
 typedef struct _GstWebRTCRTPReceiverClass GstWebRTCRTPReceiverClass;
 
+/**
+ * GstWebRTCRTPSender:
+ *
+ * An object to track the sending aspect of the stream
+ *
+ * Mostly matches the WebRTC RTCRtpSender interface.
+ */
 typedef struct _GstWebRTCRTPSender GstWebRTCRTPSender;
 typedef struct _GstWebRTCRTPSenderClass GstWebRTCRTPSenderClass;
 
 typedef struct _GstWebRTCSessionDescription GstWebRTCSessionDescription;
 
+/**
+ * GstWebRTCRTPTransceiver:
+ *
+ * Mostly matches the WebRTC RTCRtpTransceiver interface.
+ */
 typedef struct _GstWebRTCRTPTransceiver GstWebRTCRTPTransceiver;
 typedef struct _GstWebRTCRTPTransceiverClass GstWebRTCRTPTransceiverClass;
 
 /**
+ * GstWebRTCDataChannel:
+ *
+ * Since: 1.18
+ */
+typedef struct _GstWebRTCDataChannel GstWebRTCDataChannel;
+typedef struct _GstWebRTCDataChannelClass GstWebRTCDataChannelClass;
+
+typedef struct _GstWebRTCSCTPTransport GstWebRTCSCTPTransport;
+typedef struct _GstWebRTCSCTPTransportClass GstWebRTCSCTPTransportClass;
+
+/**
  * GstWebRTCDTLSTransportState:
- * GST_WEBRTC_DTLS_TRANSPORT_STATE_NEW: new
- * GST_WEBRTC_DTLS_TRANSPORT_STATE_CLOSED: closed
- * GST_WEBRTC_DTLS_TRANSPORT_STATE_FAILED: failed
- * GST_WEBRTC_DTLS_TRANSPORT_STATE_CONNECTING: connecting
- * GST_WEBRTC_DTLS_TRANSPORT_STATE_CONNECTED: connected
+ * @GST_WEBRTC_DTLS_TRANSPORT_STATE_NEW: new
+ * @GST_WEBRTC_DTLS_TRANSPORT_STATE_CLOSED: closed
+ * @GST_WEBRTC_DTLS_TRANSPORT_STATE_FAILED: failed
+ * @GST_WEBRTC_DTLS_TRANSPORT_STATE_CONNECTING: connecting
+ * @GST_WEBRTC_DTLS_TRANSPORT_STATE_CONNECTED: connected
  */
 typedef enum /*< underscore_name=gst_webrtc_dtls_transport_state >*/
 {
@@ -73,11 +114,11 @@ typedef enum /*< underscore_name=gst_webrtc_dtls_transport_state >*/
 
 /**
  * GstWebRTCICEGatheringState:
- * GST_WEBRTC_ICE_GATHERING_STATE_NEW: new
- * GST_WEBRTC_ICE_GATHERING_STATE_GATHERING: gathering
- * GST_WEBRTC_ICE_GATHERING_STATE_COMPLETE: complete
+ * @GST_WEBRTC_ICE_GATHERING_STATE_NEW: new
+ * @GST_WEBRTC_ICE_GATHERING_STATE_GATHERING: gathering
+ * @GST_WEBRTC_ICE_GATHERING_STATE_COMPLETE: complete
  *
- * See <ulink url="http://w3c.github.io/webrtc-pc/#dom-rtcicegatheringstate">http://w3c.github.io/webrtc-pc/#dom-rtcicegatheringstate</ulink>
+ * See <http://w3c.github.io/webrtc-pc/#dom-rtcicegatheringstate>
  */
 typedef enum /*< underscore_name=gst_webrtc_ice_gathering_state >*/
 {
@@ -88,15 +129,15 @@ typedef enum /*< underscore_name=gst_webrtc_ice_gathering_state >*/
 
 /**
  * GstWebRTCICEConnectionState:
- * GST_WEBRTC_ICE_CONNECTION_STATE_NEW: new
- * GST_WEBRTC_ICE_CONNECTION_STATE_CHECKING: checking
- * GST_WEBRTC_ICE_CONNECTION_STATE_CONNECTED: connected
- * GST_WEBRTC_ICE_CONNECTION_STATE_COMPLETED: completed
- * GST_WEBRTC_ICE_CONNECTION_STATE_FAILED: failed
- * GST_WEBRTC_ICE_CONNECTION_STATE_DISCONNECTED: disconnected
- * GST_WEBRTC_ICE_CONNECTION_STATE_CLOSED: closed
+ * @GST_WEBRTC_ICE_CONNECTION_STATE_NEW: new
+ * @GST_WEBRTC_ICE_CONNECTION_STATE_CHECKING: checking
+ * @GST_WEBRTC_ICE_CONNECTION_STATE_CONNECTED: connected
+ * @GST_WEBRTC_ICE_CONNECTION_STATE_COMPLETED: completed
+ * @GST_WEBRTC_ICE_CONNECTION_STATE_FAILED: failed
+ * @GST_WEBRTC_ICE_CONNECTION_STATE_DISCONNECTED: disconnected
+ * @GST_WEBRTC_ICE_CONNECTION_STATE_CLOSED: closed
  *
- * See <ulink url="http://w3c.github.io/webrtc-pc/#dom-rtciceconnectionstate">http://w3c.github.io/webrtc-pc/#dom-rtciceconnectionstate</ulink>
+ * See <http://w3c.github.io/webrtc-pc/#dom-rtciceconnectionstate>
  */
 typedef enum /*< underscore_name=gst_webrtc_ice_connection_state >*/
 {
@@ -111,14 +152,14 @@ typedef enum /*< underscore_name=gst_webrtc_ice_connection_state >*/
 
 /**
  * GstWebRTCSignalingState:
- * GST_WEBRTC_SIGNALING_STATE_STABLE: stable
- * GST_WEBRTC_SIGNALING_STATE_CLOSED: closed
- * GST_WEBRTC_SIGNALING_STATE_HAVE_LOCAL_OFFER: have-local-offer
- * GST_WEBRTC_SIGNALING_STATE_HAVE_REMOTE_OFFER: have-remote-offer
- * GST_WEBRTC_SIGNALING_STATE_HAVE_LOCAL_PRANSWER: have-local-pranswer
- * GST_WEBRTC_SIGNALING_STATE_HAVE_REMOTE_PRANSWER: have-remote-pranswer
+ * @GST_WEBRTC_SIGNALING_STATE_STABLE: stable
+ * @GST_WEBRTC_SIGNALING_STATE_CLOSED: closed
+ * @GST_WEBRTC_SIGNALING_STATE_HAVE_LOCAL_OFFER: have-local-offer
+ * @GST_WEBRTC_SIGNALING_STATE_HAVE_REMOTE_OFFER: have-remote-offer
+ * @GST_WEBRTC_SIGNALING_STATE_HAVE_LOCAL_PRANSWER: have-local-pranswer
+ * @GST_WEBRTC_SIGNALING_STATE_HAVE_REMOTE_PRANSWER: have-remote-pranswer
  *
- * See <ulink url="http://w3c.github.io/webrtc-pc/#dom-rtcsignalingstate">http://w3c.github.io/webrtc-pc/#dom-rtcsignalingstate</ulink>
+ * See <http://w3c.github.io/webrtc-pc/#dom-rtcsignalingstate>
  */
 typedef enum /*< underscore_name=gst_webrtc_signaling_state >*/
 {
@@ -132,14 +173,14 @@ typedef enum /*< underscore_name=gst_webrtc_signaling_state >*/
 
 /**
  * GstWebRTCPeerConnectionState:
- * GST_WEBRTC_PEER_CONNECTION_STATE_NEW: new
- * GST_WEBRTC_PEER_CONNECTION_STATE_CONNECTING: connecting
- * GST_WEBRTC_PEER_CONNECTION_STATE_CONNECTED: connected
- * GST_WEBRTC_PEER_CONNECTION_STATE_DISCONNECTED: disconnected
- * GST_WEBRTC_PEER_CONNECTION_STATE_FAILED: failed
- * GST_WEBRTC_PEER_CONNECTION_STATE_CLOSED: closed
+ * @GST_WEBRTC_PEER_CONNECTION_STATE_NEW: new
+ * @GST_WEBRTC_PEER_CONNECTION_STATE_CONNECTING: connecting
+ * @GST_WEBRTC_PEER_CONNECTION_STATE_CONNECTED: connected
+ * @GST_WEBRTC_PEER_CONNECTION_STATE_DISCONNECTED: disconnected
+ * @GST_WEBRTC_PEER_CONNECTION_STATE_FAILED: failed
+ * @GST_WEBRTC_PEER_CONNECTION_STATE_CLOSED: closed
  *
- * See <ulink url="http://w3c.github.io/webrtc-pc/#dom-rtcpeerconnectionstate">http://w3c.github.io/webrtc-pc/#dom-rtcpeerconnectionstate</ulink>
+ * See <http://w3c.github.io/webrtc-pc/#dom-rtcpeerconnectionstate>
  */
 typedef enum /*< underscore_name=gst_webrtc_peer_connection_state >*/
 {
@@ -153,8 +194,8 @@ typedef enum /*< underscore_name=gst_webrtc_peer_connection_state >*/
 
 /**
  * GstWebRTCICERole:
- * GST_WEBRTC_ICE_ROLE_CONTROLLED: controlled
- * GST_WEBRTC_ICE_ROLE_CONTROLLING: controlling
+ * @GST_WEBRTC_ICE_ROLE_CONTROLLED: controlled
+ * @GST_WEBRTC_ICE_ROLE_CONTROLLING: controlling
  */
 typedef enum /*< underscore_name=gst_webrtc_ice_role >*/
 {
@@ -164,8 +205,8 @@ typedef enum /*< underscore_name=gst_webrtc_ice_role >*/
 
 /**
  * GstWebRTCICEComponent:
- * GST_WEBRTC_ICE_COMPONENT_RTP,
- * GST_WEBRTC_ICE_COMPONENT_RTCP,
+ * @GST_WEBRTC_ICE_COMPONENT_RTP: RTP component
+ * @GST_WEBRTC_ICE_COMPONENT_RTCP: RTCP component
  */
 typedef enum /*< underscore_name=gst_webrtc_ice_component >*/
 {
@@ -175,12 +216,12 @@ typedef enum /*< underscore_name=gst_webrtc_ice_component >*/
 
 /**
  * GstWebRTCSDPType:
- * GST_WEBRTC_SDP_TYPE_OFFER: offer
- * GST_WEBRTC_SDP_TYPE_PRANSWER: pranswer
- * GST_WEBRTC_SDP_TYPE_ANSWER: answer
- * GST_WEBRTC_SDP_TYPE_ROLLBACK: rollback
+ * @GST_WEBRTC_SDP_TYPE_OFFER: offer
+ * @GST_WEBRTC_SDP_TYPE_PRANSWER: pranswer
+ * @GST_WEBRTC_SDP_TYPE_ANSWER: answer
+ * @GST_WEBRTC_SDP_TYPE_ROLLBACK: rollback
  *
- * See <ulink url="http://w3c.github.io/webrtc-pc/#rtcsdptype">http://w3c.github.io/webrtc-pc/#rtcsdptype</ulink>
+ * See <http://w3c.github.io/webrtc-pc/#rtcsdptype>
  */
 typedef enum /*< underscore_name=gst_webrtc_sdp_type >*/
 {
@@ -191,12 +232,12 @@ typedef enum /*< underscore_name=gst_webrtc_sdp_type >*/
 } GstWebRTCSDPType;
 
 /**
- * GstWebRTCRtpTransceiverDirection:
- * GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_NONE: none
- * GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_INACTIVE: inactive
- * GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_SENDONLY: sendonly
- * GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_RECVONLY: recvonly
- * GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_SENDRECV: sendrecv
+ * GstWebRTCRTPTransceiverDirection:
+ * @GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_NONE: none
+ * @GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_INACTIVE: inactive
+ * @GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_SENDONLY: sendonly
+ * @GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_RECVONLY: recvonly
+ * @GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_SENDRECV: sendrecv
  */
 typedef enum /*< underscore_name=gst_webrtc_rtp_transceiver_direction >*/
 {
@@ -209,10 +250,10 @@ typedef enum /*< underscore_name=gst_webrtc_rtp_transceiver_direction >*/
 
 /**
  * GstWebRTCDTLSSetup:
- * GST_WEBRTC_DTLS_SETUP_NONE: none
- * GST_WEBRTC_DTLS_SETUP_ACTPASS: actpass
- * GST_WEBRTC_DTLS_SETUP_ACTIVE: sendonly
- * GST_WEBRTC_DTLS_SETUP_PASSIVE: recvonly
+ * @GST_WEBRTC_DTLS_SETUP_NONE: none
+ * @GST_WEBRTC_DTLS_SETUP_ACTPASS: actpass
+ * @GST_WEBRTC_DTLS_SETUP_ACTIVE: sendonly
+ * @GST_WEBRTC_DTLS_SETUP_PASSIVE: recvonly
  */
 typedef enum /*< underscore_name=gst_webrtc_dtls_setup >*/
 {
@@ -224,20 +265,20 @@ typedef enum /*< underscore_name=gst_webrtc_dtls_setup >*/
 
 /**
  * GstWebRTCStatsType:
- * GST_WEBRTC_STATS_CODEC: codec
- * GST_WEBRTC_STATS_INBOUND_RTP: inbound-rtp
- * GST_WEBRTC_STATS_OUTBOUND_RTP: outbound-rtp
- * GST_WEBRTC_STATS_REMOTE_INBOUND_RTP: remote-inbound-rtp
- * GST_WEBRTC_STATS_REMOTE_OUTBOUND_RTP: remote-outbound-rtp
- * GST_WEBRTC_STATS_CSRC: csrc
- * GST_WEBRTC_STATS_PEER_CONNECTION: peer-connectiion
- * GST_WEBRTC_STATS_DATA_CHANNEL: data-channel
- * GST_WEBRTC_STATS_STREAM: stream
- * GST_WEBRTC_STATS_TRANSPORT: transport
- * GST_WEBRTC_STATS_CANDIDATE_PAIR: candidate-pair
- * GST_WEBRTC_STATS_LOCAL_CANDIDATE: local-candidate
- * GST_WEBRTC_STATS_REMOTE_CANDIDATE: remote-candidate
- * GST_WEBRTC_STATS_CERTIFICATE: certificate
+ * @GST_WEBRTC_STATS_CODEC: codec
+ * @GST_WEBRTC_STATS_INBOUND_RTP: inbound-rtp
+ * @GST_WEBRTC_STATS_OUTBOUND_RTP: outbound-rtp
+ * @GST_WEBRTC_STATS_REMOTE_INBOUND_RTP: remote-inbound-rtp
+ * @GST_WEBRTC_STATS_REMOTE_OUTBOUND_RTP: remote-outbound-rtp
+ * @GST_WEBRTC_STATS_CSRC: csrc
+ * @GST_WEBRTC_STATS_PEER_CONNECTION: peer-connectiion
+ * @GST_WEBRTC_STATS_DATA_CHANNEL: data-channel
+ * @GST_WEBRTC_STATS_STREAM: stream
+ * @GST_WEBRTC_STATS_TRANSPORT: transport
+ * @GST_WEBRTC_STATS_CANDIDATE_PAIR: candidate-pair
+ * @GST_WEBRTC_STATS_LOCAL_CANDIDATE: local-candidate
+ * @GST_WEBRTC_STATS_REMOTE_CANDIDATE: remote-candidate
+ * @GST_WEBRTC_STATS_CERTIFICATE: certificate
  */
 typedef enum /*< underscore_name=gst_webrtc_stats_type >*/
 {
@@ -272,12 +313,12 @@ typedef enum /*< underscore_name=gst_webrtc_fec_type >*/
 
 /**
  * GstWebRTCSCTPTransportState:
- * GST_WEBRTC_SCTP_TRANSPORT_STATE_NEW: new
- * GST_WEBRTC_SCTP_TRANSPORT_STATE_CONNECTING: connecting
- * GST_WEBRTC_SCTP_TRANSPORT_STATE_CONNECTED: connected
- * GST_WEBRTC_SCTP_TRANSPORT_STATE_CLOSED: closed
+ * @GST_WEBRTC_SCTP_TRANSPORT_STATE_NEW: new
+ * @GST_WEBRTC_SCTP_TRANSPORT_STATE_CONNECTING: connecting
+ * @GST_WEBRTC_SCTP_TRANSPORT_STATE_CONNECTED: connected
+ * @GST_WEBRTC_SCTP_TRANSPORT_STATE_CLOSED: closed
  *
- * See <ulink url="http://w3c.github.io/webrtc-pc/#dom-rtcsctptransportstate">http://w3c.github.io/webrtc-pc/#dom-rtcsctptransportstate</ulink>
+ * See <http://w3c.github.io/webrtc-pc/#dom-rtcsctptransportstate>
  *
  * Since: 1.16
  */
@@ -291,12 +332,12 @@ typedef enum /*< underscore_name=gst_webrtc_sctp_transport_state >*/
 
 /**
  * GstWebRTCPriorityType:
- * GST_WEBRTC_PRIORITY_TYPE_VERY_LOW: very-low
- * GST_WEBRTC_PRIORITY_TYPE_LOW: low
- * GST_WEBRTC_PRIORITY_TYPE_MEDIUM: medium
- * GST_WEBRTC_PRIORITY_TYPE_HIGH: high
+ * @GST_WEBRTC_PRIORITY_TYPE_VERY_LOW: very-low
+ * @GST_WEBRTC_PRIORITY_TYPE_LOW: low
+ * @GST_WEBRTC_PRIORITY_TYPE_MEDIUM: medium
+ * @GST_WEBRTC_PRIORITY_TYPE_HIGH: high
  *
- * See <ulink url="http://w3c.github.io/webrtc-pc/#dom-rtcprioritytype">http://w3c.github.io/webrtc-pc/#dom-rtcprioritytype</ulink>
+ * See <http://w3c.github.io/webrtc-pc/#dom-rtcprioritytype>
  *
  * Since: 1.16
  */
@@ -310,13 +351,13 @@ typedef enum /*< underscore_name=gst_webrtc_priority_type >*/
 
 /**
  * GstWebRTCDataChannelState:
- * GST_WEBRTC_DATA_CHANNEL_STATE_NEW: new
- * GST_WEBRTC_DATA_CHANNEL_STATE_CONNECTING: connection
- * GST_WEBRTC_DATA_CHANNEL_STATE_OPEN: open
- * GST_WEBRTC_DATA_CHANNEL_STATE_CLOSING: closing
- * GST_WEBRTC_DATA_CHANNEL_STATE_CLOSED: closed
+ * @GST_WEBRTC_DATA_CHANNEL_STATE_NEW: new
+ * @GST_WEBRTC_DATA_CHANNEL_STATE_CONNECTING: connection
+ * @GST_WEBRTC_DATA_CHANNEL_STATE_OPEN: open
+ * @GST_WEBRTC_DATA_CHANNEL_STATE_CLOSING: closing
+ * @GST_WEBRTC_DATA_CHANNEL_STATE_CLOSED: closed
  *
- * See <ulink url="http://w3c.github.io/webrtc-pc/#dom-rtcdatachannelstate">http://w3c.github.io/webrtc-pc/#dom-rtcdatachannelstate</ulink>
+ * See <http://w3c.github.io/webrtc-pc/#dom-rtcdatachannelstate>
  *
  * Since: 1.16
  */
@@ -331,10 +372,10 @@ typedef enum /*< underscore_name=gst_webrtc_data_channel_state >*/
 
 /**
  * GstWebRTCBundlePolicy:
- * GST_WEBRTC_BUNDLE_POLICY_NONE: none
- * GST_WEBRTC_BUNDLE_POLICY_BALANCED: balanced
- * GST_WEBRTC_BUNDLE_POLICY_MAX_COMPAT: max-compat
- * GST_WEBRTC_BUNDLE_POLICY_MAX_BUNDLE: max-bundle
+ * @GST_WEBRTC_BUNDLE_POLICY_NONE: none
+ * @GST_WEBRTC_BUNDLE_POLICY_BALANCED: balanced
+ * @GST_WEBRTC_BUNDLE_POLICY_MAX_COMPAT: max-compat
+ * @GST_WEBRTC_BUNDLE_POLICY_MAX_BUNDLE: max-bundle
  *
  * See https://tools.ietf.org/html/draft-ietf-rtcweb-jsep-24#section-4.1.1
  * for more information.
@@ -351,8 +392,8 @@ typedef enum /*<underscore_name=gst_webrtc_bundle_policy>*/
 
 /**
  * GstWebRTCICETransportPolicy:
- * GST_WEBRTC_ICE_TRANSPORT_POLICY_ALL: all
- * GST_WEBRTC_ICE_TRANSPORT_POLICY_RELAY: relay
+ * @GST_WEBRTC_ICE_TRANSPORT_POLICY_ALL: all
+ * @GST_WEBRTC_ICE_TRANSPORT_POLICY_RELAY: relay
  *
  * See https://tools.ietf.org/html/draft-ietf-rtcweb-jsep-24#section-4.1.1
  * for more information.
@@ -364,5 +405,63 @@ typedef enum /*<underscore_name=gst_webrtc_ice_transport_policy>*/
   GST_WEBRTC_ICE_TRANSPORT_POLICY_ALL,
   GST_WEBRTC_ICE_TRANSPORT_POLICY_RELAY,
 } GstWebRTCICETransportPolicy;
+
+/**
+ * GstWebRTCKind:
+ * @GST_WEBRTC_KIND_UNKNOWN: Kind has not yet been set
+ * @GST_WEBRTC_KIND_AUDIO: Kind is audio
+ * @GST_WEBRTC_KIND_VIDEO: Kind is audio
+ *
+ * https://w3c.github.io/mediacapture-main/#dom-mediastreamtrack-kind
+ *
+ * Since: 1.20
+ */
+typedef enum /*<underscore_name=gst_webrtc_kind>*/
+{
+  GST_WEBRTC_KIND_UNKNOWN,
+  GST_WEBRTC_KIND_AUDIO,
+  GST_WEBRTC_KIND_VIDEO,
+} GstWebRTCKind;
+
+
+GST_WEBRTC_API
+GQuark gst_webrtc_error_quark (void);
+
+/**
+ * GST_WEBRTC_ERROR:
+ *
+ * Since: 1.20
+ */
+#define GST_WEBRTC_ERROR gst_webrtc_error_quark ()
+
+/**
+ * GstWebRTCError:
+ * @GST_WEBRTC_ERROR_DATA_CHANNEL_FAILURE: data-channel-failure
+ * @GST_WEBRTC_ERROR_DTLS_FAILURE: dtls-failure
+ * @GST_WEBRTC_ERROR_FINGERPRINT_FAILURE: fingerprint-failure
+ * @GST_WEBRTC_ERROR_SCTP_FAILURE: sctp-failure
+ * @GST_WEBRTC_ERROR_SDP_SYNTAX_ERROR: sdp-syntax-error
+ * @GST_WEBRTC_ERROR_HARDWARE_ENCODER_NOT_AVAILABLE: hardware-encoder-not-available
+ * @GST_WEBRTC_ERROR_ENCODER_ERROR: encoder-error
+ * @GST_WEBRTC_ERROR_INVALID_STATE: invalid-state (part of WebIDL specification)
+ * @GST_WEBRTC_ERROR_INTERNAL_FAILURE: GStreamer-specific failure, not matching any other value from the specification
+ *
+ * See <https://www.w3.org/TR/webrtc/#dom-rtcerrordetailtype> for more information.
+ *
+ * Since: 1.20
+ */
+typedef enum /*<underscore_name=gst_webrtc_error>*/
+{
+  GST_WEBRTC_ERROR_DATA_CHANNEL_FAILURE,
+  GST_WEBRTC_ERROR_DTLS_FAILURE,
+  GST_WEBRTC_ERROR_FINGERPRINT_FAILURE,
+  GST_WEBRTC_ERROR_SCTP_FAILURE,
+  GST_WEBRTC_ERROR_SDP_SYNTAX_ERROR,
+  GST_WEBRTC_ERROR_HARDWARE_ENCODER_NOT_AVAILABLE,
+  GST_WEBRTC_ERROR_ENCODER_ERROR,
+  GST_WEBRTC_ERROR_INVALID_STATE,
+  GST_WEBRTC_ERROR_INTERNAL_FAILURE
+} GstWebRTCError;
+
 
 #endif /* __GST_WEBRTC_FWD_H__ */

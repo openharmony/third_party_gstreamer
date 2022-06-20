@@ -55,8 +55,17 @@ struct _GstOpenJPEGEnc
   gboolean is_jp2c;
 
   void (*fill_image) (opj_image_t * image, GstVideoFrame *frame);
+  GstFlowReturn (*encode_frame) (GstVideoEncoder * encoder, GstVideoCodecFrame *frame);
 
   opj_cparameters_t params;
+  gint num_stripes;
+
+  guint available_threads;
+  GQueue messages;
+
+  GCond messages_cond;
+
+  OpenJPEGErrorCode last_error;
 };
 
 struct _GstOpenJPEGEncClass
@@ -65,6 +74,8 @@ struct _GstOpenJPEGEncClass
 };
 
 GType gst_openjpeg_enc_get_type (void);
+
+GST_ELEMENT_REGISTER_DECLARE (openjpegenc);
 
 G_END_DECLS
 

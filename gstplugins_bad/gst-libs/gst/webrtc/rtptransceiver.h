@@ -22,8 +22,6 @@
 
 #include <gst/gst.h>
 #include <gst/webrtc/webrtc_fwd.h>
-#include <gst/webrtc/rtpsender.h>
-#include <gst/webrtc/rtpreceiver.h>
 
 G_BEGIN_DECLS
 
@@ -36,34 +34,7 @@ GType gst_webrtc_rtp_transceiver_get_type(void);
 #define GST_IS_WEBRTC_RTP_TRANSCEIVER_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE((klass) ,GST_TYPE_WEBRTC_RTP_TRANSCEIVER))
 #define GST_WEBRTC_RTP_TRANSCEIVER_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS((obj) ,GST_TYPE_WEBRTC_RTP_TRANSCEIVER,GstWebRTCRTPTransceiverClass))
 
-struct _GstWebRTCRTPTransceiver
-{
-  GstObject                         parent;
-  guint                             mline;
-  gchar                            *mid;
-  gboolean                          stopped;
-
-  GstWebRTCRTPSender               *sender;
-  GstWebRTCRTPReceiver             *receiver;
-
-  GstWebRTCRTPTransceiverDirection  direction;
-  GstWebRTCRTPTransceiverDirection  current_direction;
-
-  GstCaps                          *codec_preferences;
-
-  gpointer                          _padding[GST_PADDING];
-};
-
-struct _GstWebRTCRTPTransceiverClass
-{
-  GstObjectClass        parent_class;
-
-  gpointer              _padding[GST_PADDING];
-};
-
-#ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GstWebRTCRTPTransceiver, gst_object_unref)
-#endif
 
 G_END_DECLS
 

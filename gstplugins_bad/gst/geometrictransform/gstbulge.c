@@ -79,6 +79,9 @@ enum
 
 #define gst_bulge_parent_class parent_class
 G_DEFINE_TYPE (GstBulge, gst_bulge, GST_TYPE_CIRCLE_GEOMETRIC_TRANSFORM);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (bulge, "bulge", GST_RANK_NONE,
+    GST_TYPE_BULGE, GST_DEBUG_CATEGORY_INIT (gst_bulge_debug, "bulge", 0,
+        "bulge"));
 
 static void
 gst_bulge_set_property (GObject * object, guint prop_id, const GValue * value,
@@ -139,7 +142,7 @@ bulge_map (GstGeometricTransform * gt, gint x, gint y, gdouble * in_x,
   gdouble width = gt->width;
   gdouble height = gt->height;
 
-  /* normalize in ((-1.0, -1.0), (1.0, 1.0) and traslate the center */
+  /* normalize in ((-1.0, -1.0), (1.0, 1.0) and translate the center */
   norm_x = 2.0 * (x / width - cgt->x_center);
   norm_y = 2.0 * (y / height - cgt->y_center);
 
@@ -207,12 +210,4 @@ gst_bulge_init (GstBulge * filter)
 
   filter->zoom = DEFAULT_ZOOM;
   gt->off_edge_pixels = GST_GT_OFF_EDGES_PIXELS_CLAMP;
-}
-
-gboolean
-gst_bulge_plugin_init (GstPlugin * plugin)
-{
-  GST_DEBUG_CATEGORY_INIT (gst_bulge_debug, "bulge", 0, "bulge");
-
-  return gst_element_register (plugin, "bulge", GST_RANK_NONE, GST_TYPE_BULGE);
 }

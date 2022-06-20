@@ -22,6 +22,7 @@
 #endif
 
 #include <gst/check/gstcheck.h>
+#include <gst/check/gstharness.h>
 
 #include <string.h>
 
@@ -488,6 +489,13 @@ GST_START_TEST (test_webvtt)
     ,
   };
 
+  /* Test with no hour component */
+  SubParseInputChunk webvtt_input1[] = {
+    {
+          "1\n00:01.000 --> 00:02.000 D:vertical T:50%\nNo hour component\n\n",
+        1 * GST_SECOND, 2 * GST_SECOND, "No hour component"}
+  };
+
   /* Test with no newline at the end */
   SubParseInputChunk webvtt_input2[] = {
     {
@@ -497,6 +505,7 @@ GST_START_TEST (test_webvtt)
   };
 
   test_vtt_do_test (webvtt_input, 0, G_N_ELEMENTS (webvtt_input));
+  test_vtt_do_test (webvtt_input1, 0, G_N_ELEMENTS (webvtt_input1));
   test_vtt_do_test (webvtt_input2, 0, G_N_ELEMENTS (webvtt_input2));
 }
 
@@ -1036,6 +1045,33 @@ GST_START_TEST (test_lrc)
 
 GST_END_TEST;
 
+GST_START_TEST (test_raw_conversion)
+{
+  GstHarness *h;
+  GstBuffer *buffer;
+  GstMapInfo map;
+
+  h = gst_harness_new ("subparse");
+
+  gst_harness_set_src_caps_str (h, "application/x-subtitle");
+  gst_harness_set_sink_caps_str (h, "text/x-raw, format=utf8");
+
+  buffer = buffer_from_static_string (srt_input[5].in);
+
+  buffer = gst_harness_push_and_pull (h, buffer);
+
+  gst_buffer_map (buffer, &map, GST_MAP_READ);
+  fail_unless_equals_int (map.size, 3);
+  fail_unless_equals_string ((gchar *) map.data, "Six");
+  gst_buffer_unmap (buffer, &map);
+
+  gst_clear_buffer (&buffer);
+
+  gst_harness_teardown (h);
+}
+
+GST_END_TEST;
+
 /* TODO:
  *  - add/modify tests so that lines aren't dogfed to the parsers in complete
  *    lines or sets of complete lines, but rather in random chunks
@@ -1071,6 +1107,7 @@ subparse_suite (void)
   tcase_add_test (tc_chain, test_sami_bad_entities);
   tcase_add_test (tc_chain, test_sami_comment);
   tcase_add_test (tc_chain, test_lrc);
+  tcase_add_test (tc_chain, test_raw_conversion);
   return s;
 }
 

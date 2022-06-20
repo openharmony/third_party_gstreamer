@@ -144,6 +144,8 @@ print_structure_field (GQuark field_id, const GValue * value,
   if (G_VALUE_HOLDS_UINT (value)) {
     val = g_strdup_printf ("%u (0x%08x)", g_value_get_uint (value),
         g_value_get_uint (value));
+  } else if (G_VALUE_HOLDS_STRING (value)) {
+    val = g_value_dup_string (value);
   } else {
     val = gst_value_serialize (value);
   }
@@ -156,6 +158,16 @@ print_structure_field (GQuark field_id, const GValue * value,
 
   g_free (val);
 
+  return TRUE;
+}
+
+static gboolean
+print_field (GQuark field, const GValue * value, gpointer unused)
+{
+  gchar *str = gst_value_serialize (value);
+
+  g_print (", %s=%s", g_quark_to_string (field), str);
+  g_free (str);
   return TRUE;
 }
 
@@ -180,9 +192,20 @@ print_device (GstDevice * device, gboolean modified)
   g_print ("\tclass : %s\n", device_class);
   for (i = 0; i < size; ++i) {
     GstStructure *s = gst_caps_get_structure (caps, i);
-    str = gst_structure_to_string (s);
-    g_print ("\t%s %s\n", (i == 0) ? "caps  :" : "       ", str);
-    g_free (str);
+    GstCapsFeatures *features = gst_caps_get_features (caps, i);
+
+    g_print ("\t%s %s", (i == 0) ? "caps  :" : "       ",
+        gst_structure_get_name (s));
+    if (features && (gst_caps_features_is_any (features) ||
+            !gst_caps_features_is_equal (features,
+                GST_CAPS_FEATURES_MEMORY_SYSTEM_MEMORY))) {
+      gchar *features_string = gst_caps_features_to_string (features);
+
+      g_print ("(%s)", features_string);
+      g_free (features_string);
+    }
+    gst_structure_foreach (s, print_field, NULL);
+    g_print ("\n");
   }
   if (props) {
     g_print ("\tproperties:");
@@ -193,8 +216,13 @@ print_device (GstDevice * device, gboolean modified)
   str = get_launch_line (device);
   if (gst_device_has_classes (device, "Source"))
     g_print ("\tgst-launch-1.0 %s ! ...\n", str);
-  if (gst_device_has_classes (device, "Sink"))
+  else if (gst_device_has_classes (device, "Sink"))
     g_print ("\tgst-launch-1.0 ... ! %s\n", str);
+  else if (gst_device_has_classes (device, "CameraSource")) {
+    g_print ("\tgst-launch-1.0 %s.vfsrc name=camerasrc ! ... "
+        "camerasrc.vidsrc ! [video/x-h264] ... \n", str);
+  }
+
   g_free (str);
   g_print ("\n");
 
@@ -247,6 +275,13 @@ bus_msg_handler (GstBus * bus, GstMessage * msg, gpointer user_data)
   return TRUE;
 }
 
+static gboolean
+quit_loop (GMainLoop * loop)
+{
+  g_main_loop_quit (loop);
+  return G_SOURCE_REMOVE;
+}
+
 int
 main (int argc, char **argv)
 {
@@ -254,6 +289,7 @@ main (int argc, char **argv)
   GError *err = NULL;
   gchar **arg, **args = NULL;
   gboolean follow = FALSE;
+  gboolean include_hidden = FALSE;
   GOptionContext *ctx;
   GOptionEntry options[] = {
     {"version", 0, 0, G_OPTION_ARG_NONE, &print_version,
@@ -261,13 +297,14 @@ main (int argc, char **argv)
     {"follow", 'f', 0, G_OPTION_ARG_NONE, &follow,
         N_("Don't exit after showing the initial device list, but wait "
               "for devices to added/removed."), NULL},
+    {"include-hidden", 'i', 0, G_OPTION_ARG_NONE, &include_hidden,
+        N_("Include devices from hidden device providers."), NULL},
     {G_OPTION_REMAINING, 0, 0, G_OPTION_ARG_STRING_ARRAY, &args, NULL},
     {NULL}
   };
   GTimer *timer;
   DevMonApp app;
   GstBus *bus;
-  GList *devices;
 
   setlocale (LC_ALL, "");
 
@@ -308,6 +345,7 @@ main (int argc, char **argv)
 
   app.loop = g_main_loop_new (NULL, FALSE);
   app.monitor = gst_device_monitor_new ();
+  gst_device_monitor_set_show_all_devices (app.monitor, include_hidden);
 
   bus = gst_device_monitor_get_bus (app.monitor);
   app.bus_watch_id = gst_bus_add_watch (bus, bus_msg_handler, &app);
@@ -344,24 +382,15 @@ main (int argc, char **argv)
 
   GST_INFO ("Took %.2f seconds", g_timer_elapsed (timer, NULL));
 
-  devices = gst_device_monitor_get_devices (app.monitor);
-  if (devices != NULL) {
-    while (devices != NULL) {
-      GstDevice *device = devices->data;
-
-      print_device (device, FALSE);
-      gst_object_unref (device);
-      devices = g_list_delete_link (devices, devices);
-    }
+  if (!follow) {
+    /* Consume all the messages pending on the bus and exit */
+    g_idle_add ((GSourceFunc) quit_loop, app.loop);
   } else {
-    g_print ("No devices found!\n");
-  }
-
-  if (follow) {
     g_print ("Monitoring devices, waiting for devices to be removed or "
         "new devices to be added...\n");
-    g_main_loop_run (app.loop);
   }
+
+  g_main_loop_run (app.loop);
 
   gst_device_monitor_stop (app.monitor);
   gst_object_unref (app.monitor);

@@ -1,4 +1,5 @@
 avi_sources = [
+  'gstavielement.c',
   'gstavi.c',
   'gstavimux.c',
   'gstavidemux.c',
@@ -14,3 +15,4 @@ gstavi = library('gstavi',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstavi, install_dir : plugins_pkgconfig_install_dir)
+plugins += [gstavi]

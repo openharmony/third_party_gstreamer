@@ -35,12 +35,13 @@
 #include "config.h"
 #endif
 
+#include "gstglelements.h"
 #include "gstglvideoflip.h"
 
 #define GST_CAT_DEFAULT gst_gl_video_flip_debug
 GST_DEBUG_CATEGORY_STATIC (GST_CAT_DEFAULT);
 
-#define DEFAULT_METHOD GST_GL_VIDEO_FLIP_METHOD_IDENTITY
+#define DEFAULT_METHOD GST_VIDEO_ORIENTATION_IDENTITY
 
 enum
 {
@@ -71,18 +72,18 @@ static GstStaticPadTemplate _src_template = GST_STATIC_PAD_TEMPLATE ("src",
 
 #define GST_TYPE_GL_VIDEO_FLIP_METHOD (gst_video_flip_method_get_type())
 static const GEnumValue video_flip_methods[] = {
-  {GST_GL_VIDEO_FLIP_METHOD_IDENTITY, "Identity (no rotation)", "none"},
-  {GST_GL_VIDEO_FLIP_METHOD_90R, "Rotate clockwise 90 degrees", "clockwise"},
-  {GST_GL_VIDEO_FLIP_METHOD_180, "Rotate 180 degrees", "rotate-180"},
-  {GST_GL_VIDEO_FLIP_METHOD_90L, "Rotate counter-clockwise 90 degrees",
+  {GST_VIDEO_ORIENTATION_IDENTITY, "Identity (no rotation)", "none"},
+  {GST_VIDEO_ORIENTATION_90R, "Rotate clockwise 90 degrees", "clockwise"},
+  {GST_VIDEO_ORIENTATION_180, "Rotate 180 degrees", "rotate-180"},
+  {GST_VIDEO_ORIENTATION_90L, "Rotate counter-clockwise 90 degrees",
       "counterclockwise"},
-  {GST_GL_VIDEO_FLIP_METHOD_FLIP_HORIZ, "Flip horizontally", "horizontal-flip"},
-  {GST_GL_VIDEO_FLIP_METHOD_FLIP_VERT, "Flip vertically", "vertical-flip"},
-  {GST_GL_VIDEO_FLIP_METHOD_FLIP_UL_LR,
+  {GST_VIDEO_ORIENTATION_HORIZ, "Flip horizontally", "horizontal-flip"},
+  {GST_VIDEO_ORIENTATION_VERT, "Flip vertically", "vertical-flip"},
+  {GST_VIDEO_ORIENTATION_UL_LR,
       "Flip across upper left/lower right diagonal", "upper-left-diagonal"},
-  {GST_GL_VIDEO_FLIP_METHOD_FLIP_UR_LL,
+  {GST_VIDEO_ORIENTATION_UR_LL,
       "Flip across upper right/lower left diagonal", "upper-right-diagonal"},
-  {GST_GL_VIDEO_FLIP_METHOD_AUTO,
+  {GST_VIDEO_ORIENTATION_AUTO,
       "Select flip method based on image-orientation tag", "automatic"},
   {0, NULL, NULL},
 };
@@ -120,6 +121,8 @@ G_DEFINE_TYPE_WITH_CODE (GstGLVideoFlip, gst_gl_video_flip,
         "glvideoflip", 0, "glvideoflip element");
     G_IMPLEMENT_INTERFACE (GST_TYPE_VIDEO_DIRECTION,
         gst_gl_video_flip_video_direction_interface_init););
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (glvideoflip, "glvideoflip",
+    GST_RANK_NONE, GST_TYPE_GL_VIDEO_FLIP, gl_element_init (plugin));
 
 static void
 gst_gl_video_flip_video_direction_interface_init (GstVideoDirectionInterface
@@ -156,6 +159,8 @@ gst_gl_video_flip_class_init (GstGLVideoFlipClass * klass)
   gst_element_class_set_metadata (element_class, "OpenGL video flip filter",
       "Filter/Effect/Video", "Flip video on the GPU",
       "Matthew Waters <matthew@centricular.com>");
+
+  gst_type_mark_as_plugin_api (GST_TYPE_GL_VIDEO_FLIP_METHOD, 0);
 }
 
 static void
@@ -428,35 +433,12 @@ _input_sink_probe (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
     switch (GST_EVENT_TYPE (event)) {
       case GST_EVENT_TAG:{
         GstTagList *taglist;
-        gchar *orientation;
+        GstVideoOrientationMethod method;
 
         gst_event_parse_tag (event, &taglist);
 
-        if (gst_tag_list_get_string (taglist, "image-orientation",
-                &orientation)) {
-          if (!g_strcmp0 ("rotate-0", orientation))
-            gst_gl_video_flip_set_method (vf, GST_VIDEO_ORIENTATION_IDENTITY,
-                TRUE);
-          else if (!g_strcmp0 ("rotate-90", orientation))
-            gst_gl_video_flip_set_method (vf, GST_VIDEO_ORIENTATION_90R, TRUE);
-          else if (!g_strcmp0 ("rotate-180", orientation))
-            gst_gl_video_flip_set_method (vf, GST_VIDEO_ORIENTATION_180, TRUE);
-          else if (!g_strcmp0 ("rotate-270", orientation))
-            gst_gl_video_flip_set_method (vf, GST_VIDEO_ORIENTATION_90L, TRUE);
-          else if (!g_strcmp0 ("flip-rotate-0", orientation))
-            gst_gl_video_flip_set_method (vf,
-                GST_VIDEO_ORIENTATION_HORIZ, TRUE);
-          else if (!g_strcmp0 ("flip-rotate-90", orientation))
-            gst_gl_video_flip_set_method (vf,
-                GST_VIDEO_ORIENTATION_UR_LL, TRUE);
-          else if (!g_strcmp0 ("flip-rotate-180", orientation))
-            gst_gl_video_flip_set_method (vf, GST_VIDEO_ORIENTATION_VERT, TRUE);
-          else if (!g_strcmp0 ("flip-rotate-270", orientation))
-            gst_gl_video_flip_set_method (vf,
-                GST_VIDEO_ORIENTATION_UL_LR, TRUE);
-
-          g_free (orientation);
-        }
+        if (gst_video_orientation_from_tag (taglist, &method))
+          gst_gl_video_flip_set_method (vf, method, TRUE);
         break;
       }
       case GST_EVENT_CAPS:{

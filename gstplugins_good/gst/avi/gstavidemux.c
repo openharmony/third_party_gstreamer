@@ -22,21 +22,21 @@
 
 /**
  * SECTION:element-avidemux
+ * @title: avidemux
  *
  * Demuxes an .avi file into raw or compressed audio and/or video streams.
  *
  * This element supports both push and pull-based scheduling, depending on the
  * capabilities of the upstream elements.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * gst-launch-1.0 filesrc location=test.avi ! avidemux name=demux  demux.audio_00 ! decodebin ! audioconvert ! audioresample ! autoaudiosink   demux.video_00 ! queue ! decodebin ! videoconvert ! videoscale ! autovideosink
  * ]| Play (parse and decode) an .avi file and try to output it to
  * an automatically detected soundcard and videosink. If the AVI file contains
  * compressed audio or video data, this will only work if you have the
  * right decoder elements/plugins installed.
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -47,6 +47,7 @@
 #include <stdio.h>
 
 #include "gst/riff/riff-media.h"
+#include "gstavielements.h"
 #include "gstavidemux.h"
 #include "avi-ids.h"
 #include <gst/gst-i18n-plugin.h>
@@ -132,6 +133,8 @@ static void parse_tag_value (GstAviDemux * avi, GstTagList * taglist,
 
 #define gst_avi_demux_parent_class parent_class
 G_DEFINE_TYPE (GstAviDemux, gst_avi_demux, GST_TYPE_ELEMENT);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (avidemux, "avidemux", GST_RANK_PRIMARY,
+    GST_TYPE_AVI_DEMUX, avi_element_init (plugin));
 
 static void
 gst_avi_demux_class_init (GstAviDemuxClass * klass)
@@ -1965,37 +1968,36 @@ gst_avi_demux_check_caps (GstAviDemux * avi, GstAviStream * stream,
       gst_structure_remove_field (s, "palette_data");
       return caps;
     }
-  } else if (!gst_structure_has_name (s, "video/x-h264")) {
-    return caps;
-  }
+  } else if (gst_structure_has_name (s, "video/x-h264")) {
+    GST_DEBUG_OBJECT (avi, "checking caps %" GST_PTR_FORMAT, caps);
 
-  GST_DEBUG_OBJECT (avi, "checking caps %" GST_PTR_FORMAT, caps);
+    /* some muxers put invalid bytestream stuff in h264 extra data */
+    val = gst_structure_get_value (s, "codec_data");
+    if (val && (buf = gst_value_get_buffer (val))) {
+      guint8 *data;
+      gint size;
+      GstMapInfo map;
 
-  /* some muxers put invalid bytestream stuff in h264 extra data */
-  val = gst_structure_get_value (s, "codec_data");
-  if (val && (buf = gst_value_get_buffer (val))) {
-    guint8 *data;
-    gint size;
-    GstMapInfo map;
+      gst_buffer_map (buf, &map, GST_MAP_READ);
+      data = map.data;
+      size = map.size;
+      if (size >= 4) {
+        guint32 h = GST_READ_UINT32_BE (data);
 
-    gst_buffer_map (buf, &map, GST_MAP_READ);
-    data = map.data;
-    size = map.size;
-    if (size >= 4) {
-      guint32 h = GST_READ_UINT32_BE (data);
-      gst_buffer_unmap (buf, &map);
-      if (h == 0x01) {
-        /* can hardly be valid AVC codec data */
-        GST_DEBUG_OBJECT (avi,
-            "discarding invalid codec_data containing byte-stream");
-        /* so do not pretend to downstream that it is packetized avc */
-        gst_structure_remove_field (s, "codec_data");
-        /* ... but rather properly parsed bytestream */
-        gst_structure_set (s, "stream-format", G_TYPE_STRING, "byte-stream",
-            "alignment", G_TYPE_STRING, "au", NULL);
+        gst_buffer_unmap (buf, &map);
+        if (h == 0x01 || (h >> 8) == 0x01) {
+          /* can hardly be valid AVC codec data */
+          GST_DEBUG_OBJECT (avi,
+              "discarding invalid codec_data containing byte-stream");
+          /* so do not pretend to downstream that it is packetized avc */
+          gst_structure_remove_field (s, "codec_data");
+          /* ... but rather properly parsed bytestream */
+          gst_structure_set (s, "stream-format", G_TYPE_STRING, "byte-stream",
+              "alignment", G_TYPE_STRING, "au", NULL);
+        }
+      } else {
+        gst_buffer_unmap (buf, &map);
       }
-    } else {
-      gst_buffer_unmap (buf, &map);
     }
   }
 
@@ -2227,7 +2229,8 @@ gst_avi_demux_parse_stream (GstAviDemux * avi, GstBuffer * buf)
         }
         break;
       case GST_RIFF_TAG_strn:
-        g_free (stream->name);
+      {
+        gchar *stream_name = NULL;
 
         gst_buffer_map (sub, &map, GST_MAP_READ);
 
@@ -2237,12 +2240,16 @@ gst_avi_demux_parse_stream (GstAviDemux * avi, GstBuffer * buf)
             map.data, map.size);
 
         if (gst_tag_list_get_string (avi->globaltags, GST_TAG_TITLE,
-                &stream->name))
-          GST_DEBUG_OBJECT (avi, "stream name: %s", stream->name);
+                &stream_name)) {
+          GST_DEBUG_OBJECT (avi, "stream name: %s", stream_name);
+          g_free (stream->name);
+          stream->name = stream_name;
+        }
 
         gst_buffer_unmap (sub, &map);
         gst_buffer_unref (sub);
         sub = NULL;
+      }
         break;
       case GST_RIFF_IDIT:
         gst_avi_demux_parse_idit (avi, sub);
@@ -2864,7 +2871,7 @@ gst_avi_demux_stream_index (GstAviDemux * avi)
   if (map.size < 8)
     goto too_small;
 
-  /* check tag first before blindy trying to read 'size' bytes */
+  /* check tag first before blindly trying to read 'size' bytes */
   tag = GST_READ_UINT32_LE (map.data);
   size = GST_READ_UINT32_LE (map.data + 4);
   if (tag == GST_RIFF_TAG_LIST) {
@@ -3377,7 +3384,7 @@ gst_avi_demux_stream_header_push (GstAviDemux * avi)
         if (!gst_avi_demux_parse_avih (avi, sub, &avi->avih))
           goto header_wrong_avih;
 
-        GST_DEBUG_OBJECT (avi, "AVI header ok, reading elemnts from header");
+        GST_DEBUG_OBJECT (avi, "AVI header ok, reading elements from header");
 
         /* now, read the elements from the header until the end */
         while (gst_riff_parse_chunk (GST_ELEMENT_CAST (avi), buf, &offset, &tag,
@@ -4966,17 +4973,8 @@ swap_line (guint8 * d1, guint8 * d2, guint8 * tmp, gint bytes)
 static GstBuffer *
 gst_avi_demux_invert (GstAviStream * stream, GstBuffer * buf)
 {
-#ifdef OHOS_OPT_CVE
- /*
-  * ohos.opt.cve.0001
-  * CVE-2022-1921 : https://gstreamer.freedesktop.org/security/sa-2022-0001.html
-  */
   guint y, w, h;
   guint bpp, stride;
-#else
-  gint y, w, h;
-  gint bpp, stride;
-#endif
   guint8 *tmp = NULL;
   GstMapInfo map;
   guint32 fourcc;
@@ -5003,11 +5001,6 @@ gst_avi_demux_invert (GstAviStream * stream, GstBuffer * buf)
   h = stream->strf.vids->height;
   w = stream->strf.vids->width;
   bpp = stream->strf.vids->bit_cnt ? stream->strf.vids->bit_cnt : 8;
-#ifdef OHOS_OPT_CVE
-  /*
-   * ohos.opt.cve.0001
-   * CVE-2022-1921 : https://gstreamer.freedesktop.org/security/sa-2022-0001.html
-   */
   if ((guint64) w * ((guint64) bpp / 8) > G_MAXUINT - 4) {
     GST_WARNING ("Width x stride overflows");
     return buf;
@@ -5018,21 +5011,12 @@ gst_avi_demux_invert (GstAviStream * stream, GstBuffer * buf)
     return buf;
   }
 
-#endif
   stride = GST_ROUND_UP_4 (w * (bpp / 8));
 
   buf = gst_buffer_make_writable (buf);
 
   gst_buffer_map (buf, &map, GST_MAP_READWRITE);
-#ifdef OHOS_OPT_CVE
-  /*
-   * ohos.opt.cve.0001
-   * CVE-2022-1921 : https://gstreamer.freedesktop.org/security/sa-2022-0001.html
-   */
   if (map.size < ((guint64) stride * (guint64) h)) {
-#else
-  if (map.size < (stride * h)) {
-#endif
     GST_WARNING ("Buffer is smaller than reported Width x Height x Depth");
     gst_buffer_unmap (buf, &map);
     return buf;
@@ -5300,7 +5284,7 @@ gst_avi_demux_loop_data (GstAviDemux * avi)
     }
 
     if (avi->segment.rate > 0.0) {
-      /* only check this for fowards playback for now */
+      /* only check this for forwards playback for now */
       if (keyframe && GST_CLOCK_TIME_IS_VALID (avi->segment.stop)
           && (timestamp > avi->segment.stop)) {
         goto eos_stop;

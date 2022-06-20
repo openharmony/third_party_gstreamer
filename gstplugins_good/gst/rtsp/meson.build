@@ -1,4 +1,5 @@
 rtsp_sources = [
+  'gstrtspelement.c',
   'gstrtsp.c',
   'gstrtspsrc.c',
   'gstrtpdec.c',
@@ -14,3 +15,4 @@ gstrtsp = library('gstrtsp',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstrtsp, install_dir : plugins_pkgconfig_install_dir)
+plugins += [gstrtsp]

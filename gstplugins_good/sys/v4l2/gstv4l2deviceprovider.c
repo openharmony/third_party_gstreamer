@@ -32,6 +32,7 @@
 
 #include "gstv4l2object.h"
 #include "v4l2-utils.h"
+#include "gstv4l2elements.h"
 
 #ifdef HAVE_GUDEV
 #include <gudev/gudev.h>
@@ -44,6 +45,8 @@ static GstV4l2Device *gst_v4l2_device_new (const gchar * device_path,
 
 G_DEFINE_TYPE (GstV4l2DeviceProvider, gst_v4l2_device_provider,
     GST_TYPE_DEVICE_PROVIDER);
+GST_DEVICE_PROVIDER_REGISTER_DEFINE (v4l2deviceprovider, "v4l2deviceprovider",
+    GST_RANK_PRIMARY, GST_TYPE_V4L2_DEVICE_PROVIDER);
 
 static void gst_v4l2_device_provider_finalize (GObject * object);
 static GList *gst_v4l2_device_provider_probe (GstDeviceProvider * provider);
@@ -116,7 +119,7 @@ gst_v4l2_device_provider_probe_device (GstV4l2DeviceProvider * provider,
   v4l2obj = gst_v4l2_object_new (NULL, GST_OBJECT (provider),
       V4L2_BUF_TYPE_VIDEO_CAPTURE, device_path, NULL, NULL, NULL);
 
-  if (!gst_v4l2_open (v4l2obj))
+  if (!gst_v4l2_open (v4l2obj, NULL))
     goto destroy;
 
   gst_structure_set (props, "device.api", G_TYPE_STRING, "v4l2", NULL);

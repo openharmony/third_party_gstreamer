@@ -19,6 +19,7 @@
 
 /**
  * SECTION:element-pushfilesrc
+ * @title: pushfilesrc
  * @see_also: filesrc
  *
  * This element is only useful for debugging purposes. It implements an URI
@@ -28,19 +29,19 @@
  * connection with the playbin element (which creates a source based on the
  * URI passed).
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * gst-launch-1.0 -m playbin uri=pushfile:///home/you/some/file.ogg
  * ]| This plays back the given file using playbin, with the demuxer operating
  * push-based.
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
+#include "gstdebugutilselements.h"
 #include "gstpushfilesrc.h"
 
 #include <gst/gst.h>
@@ -84,6 +85,8 @@ static void gst_push_file_src_uri_handler_init (gpointer g_iface,
 G_DEFINE_TYPE_WITH_CODE (GstPushFileSrc, gst_push_file_src, GST_TYPE_BIN,
     G_IMPLEMENT_INTERFACE (GST_TYPE_URI_HANDLER,
         gst_push_file_src_uri_handler_init));
+GST_ELEMENT_REGISTER_DEFINE (pushfilesrc, "pushfilesrc",
+    GST_RANK_NONE, gst_push_file_src_get_type ());
 
 static void
 gst_push_file_src_dispose (GObject * obj)

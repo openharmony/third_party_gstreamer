@@ -79,6 +79,8 @@ struct _GstBPMDetectPrivate
 
 #define gst_bpm_detect_parent_class parent_class
 G_DEFINE_TYPE_WITH_PRIVATE (GstBPMDetect, gst_bpm_detect, GST_TYPE_AUDIO_FILTER);
+GST_ELEMENT_REGISTER_DEFINE (bpmdetect, "bpmdetect", GST_RANK_NONE,
+    GST_TYPE_BPM_DETECT);
 
 static void gst_bpm_detect_finalize (GObject * object);
 static gboolean gst_bpm_detect_stop (GstBaseTransform * trans);
@@ -258,7 +260,7 @@ gst_bpm_detect_transform_ip (GstBaseTransform * trans, GstBuffer * in)
         bpm, (void *) NULL);
     gst_pad_push_event (trans->srcpad, gst_event_new_tag (tags));
 
-    GST_INFO_OBJECT (bpm_detect, "Detected BPM: %lf\n", bpm);
+    GST_INFO_OBJECT (bpm_detect, "Detected BPM: %lf", bpm);
     bpm_detect->bpm = bpm;
   }
 

@@ -99,7 +99,7 @@
 #include <gst/pbutils/pbutils.h>
 
 #include "gstplay-enum.h"
-#include "gstplayback.h"
+#include "gstplaybackelements.h"
 #include "gstrawcaps.h"
 #include "gstplaybackutils.h"
 
@@ -149,6 +149,7 @@ struct _GstDecodeBin
   GstCaps *caps;                /* caps on which to stop decoding */
   gchar *encoding;              /* encoding of subtitles */
   gboolean use_buffering;       /* configure buffering on multiqueues */
+  gboolean force_sw_decoders;
   gint low_percent;
   gint high_percent;
   guint max_size_bytes;
@@ -180,7 +181,7 @@ struct _GstDecodeBin
   gboolean shutdown;            /* if we are shutting down */
   GList *blocked_pads;          /* pads that have set to block */
 
-  gboolean expose_allstreams;   /* Whether to expose unknow type streams or not */
+  gboolean expose_allstreams;   /* Whether to expose unknown type streams or not */
 
   GList *filtered;              /* elements for which error messages are filtered */
   GList *filtered_errors;       /* filtered error messages */
@@ -195,11 +196,6 @@ struct _GstDecodeBin
                                  * before stopping the element.
                                  * Protected by the object lock */
   GList *cleanup_groups;        /* List of groups to free  */
-
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0013
-  guint mq_num_use_buffering;
-#endif
 };
 
 struct _GstDecodeBinClass
@@ -240,28 +236,25 @@ enum
   SIGNAL_AUTOPLUG_SORT,
   SIGNAL_AUTOPLUG_QUERY,
   SIGNAL_DRAINED,
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0028
-  SIGNAL_BITRATE_PARSE_COMPLETE,
-#endif
   LAST_SIGNAL
 };
 
-/* automatic sizes, while prerolling we buffer up to 2MB, we ignore time
+/* automatic sizes, while prerolling we buffer up to 8MB, we ignore time
  * and buffers in this case. */
-#define AUTO_PREROLL_SIZE_BYTES                  2 * 1024 * 1024
+#define AUTO_PREROLL_SIZE_BYTES                  8 * 1024 * 1024
 #define AUTO_PREROLL_SIZE_BUFFERS                0
 #define AUTO_PREROLL_NOT_SEEKABLE_SIZE_TIME      10 * GST_SECOND
 #define AUTO_PREROLL_SEEKABLE_SIZE_TIME          0
 
-/* when playing, keep a max of 2MB of data but try to keep the number of buffers
+/* when playing, keep a max of 8MB of data but try to keep the number of buffers
  * as low as possible (try to aim for 5 buffers) */
-#define AUTO_PLAY_SIZE_BYTES        2 * 1024 * 1024
+#define AUTO_PLAY_SIZE_BYTES        8 * 1024 * 1024
 #define AUTO_PLAY_SIZE_BUFFERS      5
 #define AUTO_PLAY_SIZE_TIME         0
 
 #define DEFAULT_SUBTITLE_ENCODING NULL
 #define DEFAULT_USE_BUFFERING     FALSE
+#define DEFAULT_FORCE_SW_DECODERS FALSE
 #define DEFAULT_LOW_PERCENT       10
 #define DEFAULT_HIGH_PERCENT      99
 /* by default we use the automatic values above */
@@ -272,11 +265,6 @@ enum
 #define DEFAULT_EXPOSE_ALL_STREAMS  TRUE
 #define DEFAULT_CONNECTION_SPEED    0
 
-#ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0013
-#define DEFAULT_TIMEOUT              15
-#endif
-
 /* Properties */
 enum
 {
@@ -285,6 +273,7 @@ enum
   PROP_SUBTITLE_ENCODING,
   PROP_SINK_CAPS,
   PROP_USE_BUFFERING,
+  PROP_FORCE_SW_DECODERS,
   PROP_LOW_PERCENT,
   PROP_HIGH_PERCENT,
   PROP_MAX_SIZE_BYTES,
@@ -292,13 +281,6 @@ enum
   PROP_MAX_SIZE_TIME,
   PROP_POST_STREAM_TOPOLOGY,
   PROP_EXPOSE_ALL_STREAMS,
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0013
-  PROP_MQ_NUM_USE_BUFFRING,
-  PROP_TIMEOUT,
-  PROP_STATE_CHANGE,
-  PROP_EXIT_BLOCK,
-#endif
   PROP_CONNECTION_SPEED
 };
 
@@ -420,17 +402,6 @@ static void unblock_pads (GstDecodeBin * dbin);
 		    g_thread_self ());					\
     g_mutex_unlock (&GST_DECODE_BIN_CAST(dbin)->buffering_lock);		\
 } G_STMT_END
-
-#ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0028
-#define GET_ELEMENT_FAC(ele) gst_element_get_factory (ele)
-
-#define GET_ELEMENT_DEMUX(ele) \
-  gst_plugin_feature_get_name (GST_PLUGIN_FEATURE_CAST (GET_ELEMENT_FAC (ele)))
-
-#define IS_ADAPTIVE_DEMUX(ele) \
-  ((GET_ELEMENT_DEMUX (ele)) && (!strcasecmp ((GET_ELEMENT_DEMUX (ele)), "hlsdemux")))
-#endif
 
 struct _GstPendingPad
 {
@@ -613,37 +584,29 @@ static GstPadProbeReturn pad_event_cb (GstPad * pad, GstPadProbeInfo * info,
  * Standard GObject boilerplate *
  ********************************/
 
-static void gst_decode_bin_class_init (GstDecodeBinClass * klass);
-static void gst_decode_bin_init (GstDecodeBin * decode_bin);
 static void gst_decode_bin_dispose (GObject * object);
 static void gst_decode_bin_finalize (GObject * object);
 
-static GType
-gst_decode_bin_get_type (void)
-{
-  static GType gst_decode_bin_type = 0;
+/* Register some quarks here for the stream topology message */
+static GQuark topology_structure_name = 0;
+static GQuark topology_caps = 0;
+static GQuark topology_next = 0;
+static GQuark topology_pad = 0;
+static GQuark topology_element_srcpad = 0;
 
-  if (!gst_decode_bin_type) {
-    static const GTypeInfo gst_decode_bin_info = {
-      sizeof (GstDecodeBinClass),
-      NULL,
-      NULL,
-      (GClassInitFunc) gst_decode_bin_class_init,
-      NULL,
-      NULL,
-      sizeof (GstDecodeBin),
-      0,
-      (GInstanceInitFunc) gst_decode_bin_init,
-      NULL
-    };
+GType gst_decode_bin_get_type (void);
+G_DEFINE_TYPE (GstDecodeBin, gst_decode_bin, GST_TYPE_BIN);
+#define _do_init \
+    GST_DEBUG_CATEGORY_INIT (gst_decode_bin_debug, "decodebin", 0, "decoder bin");\
+    topology_structure_name = g_quark_from_static_string ("stream-topology"); \
+    topology_caps = g_quark_from_static_string ("caps");\
+    topology_next = g_quark_from_static_string ("next");\
+    topology_pad = g_quark_from_static_string ("pad");\
+    topology_element_srcpad = g_quark_from_static_string ("element-srcpad");\
+    playback_element_init (plugin);\
 
-    gst_decode_bin_type =
-        g_type_register_static (GST_TYPE_BIN, "GstDecodeBin",
-        &gst_decode_bin_info, 0);
-  }
-
-  return gst_decode_bin_type;
-}
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (decodebin, "decodebin", GST_RANK_NONE,
+    GST_TYPE_DECODE_BIN, _do_init);
 
 static gboolean
 _gst_boolean_accumulator (GSignalInvocationHint * ihint,
@@ -652,8 +615,7 @@ _gst_boolean_accumulator (GSignalInvocationHint * ihint,
   gboolean myboolean;
 
   myboolean = g_value_get_boolean (handler_return);
-  if (!(ihint->run_type & G_SIGNAL_RUN_CLEANUP))
-    g_value_set_boolean (return_accu, myboolean);
+  g_value_set_boolean (return_accu, myboolean);
 
   /* stop emission if FALSE */
   return myboolean;
@@ -669,8 +631,7 @@ _gst_boolean_or_accumulator (GSignalInvocationHint * ihint,
   myboolean = g_value_get_boolean (handler_return);
   retboolean = g_value_get_boolean (return_accu);
 
-  if (!(ihint->run_type & G_SIGNAL_RUN_CLEANUP))
-    g_value_set_boolean (return_accu, myboolean || retboolean);
+  g_value_set_boolean (return_accu, myboolean || retboolean);
 
   return TRUE;
 }
@@ -683,8 +644,7 @@ _gst_array_accumulator (GSignalInvocationHint * ihint,
   gpointer array;
 
   array = g_value_get_boxed (handler_return);
-  if (!(ihint->run_type & G_SIGNAL_RUN_CLEANUP))
-    g_value_set_boxed (return_accu, array);
+  g_value_set_boxed (return_accu, array);
 
   return FALSE;
 }
@@ -696,8 +656,7 @@ _gst_select_accumulator (GSignalInvocationHint * ihint,
   GstAutoplugSelectResult res;
 
   res = g_value_get_enum (handler_return);
-  if (!(ihint->run_type & G_SIGNAL_RUN_CLEANUP))
-    g_value_set_enum (return_accu, res);
+  g_value_set_enum (return_accu, res);
 
   /* Call the next handler in the chain (if any) when the current callback
    * returns TRY. This makes it possible to register separate autoplug-select
@@ -716,8 +675,7 @@ _gst_array_hasvalue_accumulator (GSignalInvocationHint * ihint,
   gpointer array;
 
   array = g_value_get_boxed (handler_return);
-  if (!(ihint->run_type & G_SIGNAL_RUN_CLEANUP))
-    g_value_set_boxed (return_accu, array);
+  g_value_set_boxed (return_accu, array);
 
   if (array != NULL)
     return FALSE;
@@ -756,8 +714,7 @@ gst_decode_bin_class_init (GstDecodeBinClass * klass)
   gst_decode_bin_signals[SIGNAL_UNKNOWN_TYPE] =
       g_signal_new ("unknown-type", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstDecodeBinClass, unknown_type),
-      NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 2,
-      GST_TYPE_PAD, GST_TYPE_CAPS);
+      NULL, NULL, NULL, G_TYPE_NONE, 2, GST_TYPE_PAD, GST_TYPE_CAPS);
 
   /**
    * GstDecodeBin::autoplug-continue:
@@ -780,8 +737,8 @@ gst_decode_bin_class_init (GstDecodeBinClass * klass)
   gst_decode_bin_signals[SIGNAL_AUTOPLUG_CONTINUE] =
       g_signal_new ("autoplug-continue", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstDecodeBinClass, autoplug_continue),
-      _gst_boolean_accumulator, NULL, g_cclosure_marshal_generic,
-      G_TYPE_BOOLEAN, 2, GST_TYPE_PAD, GST_TYPE_CAPS);
+      _gst_boolean_accumulator, NULL, NULL, G_TYPE_BOOLEAN, 2, GST_TYPE_PAD,
+      GST_TYPE_CAPS);
 
   /**
    * GstDecodeBin::autoplug-factories:
@@ -810,8 +767,7 @@ gst_decode_bin_class_init (GstDecodeBinClass * klass)
       g_signal_new ("autoplug-factories", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstDecodeBinClass,
           autoplug_factories), _gst_array_accumulator, NULL,
-      g_cclosure_marshal_generic, G_TYPE_VALUE_ARRAY, 2,
-      GST_TYPE_PAD, GST_TYPE_CAPS);
+      NULL, G_TYPE_VALUE_ARRAY, 2, GST_TYPE_PAD, GST_TYPE_CAPS);
 
   /**
    * GstDecodeBin::autoplug-sort:
@@ -840,8 +796,8 @@ gst_decode_bin_class_init (GstDecodeBinClass * klass)
       g_signal_new ("autoplug-sort", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstDecodeBinClass, autoplug_sort),
       _gst_array_hasvalue_accumulator, NULL,
-      g_cclosure_marshal_generic, G_TYPE_VALUE_ARRAY, 3, GST_TYPE_PAD,
-      GST_TYPE_CAPS, G_TYPE_VALUE_ARRAY | G_SIGNAL_TYPE_STATIC_SCOPE);
+      NULL, G_TYPE_VALUE_ARRAY, 3, GST_TYPE_PAD, GST_TYPE_CAPS,
+      G_TYPE_VALUE_ARRAY | G_SIGNAL_TYPE_STATIC_SCOPE);
 
   /**
    * GstDecodeBin::autoplug-select:
@@ -854,16 +810,16 @@ gst_decode_bin_class_init (GstDecodeBinClass * klass)
    * #GstElementFactory that can be used to handle the given @caps. For each of
    * those factories, this signal is emitted.
    *
-   * The signal handler should return a #GST_TYPE_AUTOPLUG_SELECT_RESULT enum
+   * The signal handler should return a #GstAutoplugSelectResult enum
    * value indicating what decodebin should do next.
    *
-   * A value of #GST_AUTOPLUG_SELECT_TRY will try to autoplug an element from
+   * A value of #GstAutoplugSelectResult::try will try to autoplug an element from
    * @factory.
    *
-   * A value of #GST_AUTOPLUG_SELECT_EXPOSE will expose @pad without plugging
+   * A value of #GstAutoplugSelectResult::expose will expose @pad without plugging
    * any element to it.
    *
-   * A value of #GST_AUTOPLUG_SELECT_SKIP will skip @factory and move to the
+   * A value of #GstAutoplugSelectResult::skip will skip @factory and move to the
    * next factory.
    *
    * >   The signal handler will not be invoked if any of the previously
@@ -872,16 +828,15 @@ gst_decode_bin_class_init (GstDecodeBinClass * klass)
    * >   GST_AUTOPLUG_SELECT_TRY from one signal handler, handlers that get
    * >   registered next (again, if any) can override that decision.
    *
-   * Returns: a #GST_TYPE_AUTOPLUG_SELECT_RESULT that indicates the required
+   * Returns: a #GstAutoplugSelectResult that indicates the required
    * operation. the default handler will always return
-   * #GST_AUTOPLUG_SELECT_TRY.
+   * #GstAutoplugSelectResult::try.
    */
   gst_decode_bin_signals[SIGNAL_AUTOPLUG_SELECT] =
       g_signal_new ("autoplug-select", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstDecodeBinClass, autoplug_select),
       _gst_select_accumulator, NULL,
-      g_cclosure_marshal_generic,
-      GST_TYPE_AUTOPLUG_SELECT_RESULT, 3, GST_TYPE_PAD, GST_TYPE_CAPS,
+      NULL, GST_TYPE_AUTOPLUG_SELECT_RESULT, 3, GST_TYPE_PAD, GST_TYPE_CAPS,
       GST_TYPE_ELEMENT_FACTORY);
 
   /**
@@ -901,9 +856,8 @@ gst_decode_bin_class_init (GstDecodeBinClass * klass)
   gst_decode_bin_signals[SIGNAL_AUTOPLUG_QUERY] =
       g_signal_new ("autoplug-query", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstDecodeBinClass, autoplug_query),
-      _gst_boolean_or_accumulator, NULL, g_cclosure_marshal_generic,
-      G_TYPE_BOOLEAN, 3, GST_TYPE_PAD, GST_TYPE_ELEMENT,
-      GST_TYPE_QUERY | G_SIGNAL_TYPE_STATIC_SCOPE);
+      _gst_boolean_or_accumulator, NULL, NULL, G_TYPE_BOOLEAN, 3, GST_TYPE_PAD,
+      GST_TYPE_ELEMENT, GST_TYPE_QUERY | G_SIGNAL_TYPE_STATIC_SCOPE);
 
   /**
    * GstDecodeBin::drained
@@ -914,15 +868,7 @@ gst_decode_bin_class_init (GstDecodeBinClass * klass)
   gst_decode_bin_signals[SIGNAL_DRAINED] =
       g_signal_new ("drained", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstDecodeBinClass, drained),
-      NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 0, G_TYPE_NONE);
-
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0028
-  gst_decode_bin_signals[SIGNAL_BITRATE_PARSE_COMPLETE] =
-        g_signal_new("bitrate-parse-complete",
-            G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST,
-            0, NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 2, G_TYPE_POINTER, G_TYPE_UINT);
-#endif
+      NULL, NULL, NULL, G_TYPE_NONE, 0, G_TYPE_NONE);
 
   g_object_class_install_property (gobject_klass, PROP_CAPS,
       g_param_spec_boxed ("caps", "Caps", "The caps on which to stop decoding.",
@@ -951,6 +897,20 @@ gst_decode_bin_class_init (GstDecodeBinClass * klass)
       g_param_spec_boolean ("use-buffering", "Use Buffering",
           "Emit GST_MESSAGE_BUFFERING based on low-/high-percent thresholds",
           DEFAULT_USE_BUFFERING, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  /**
+   * GstDecodeBin::force-sw-decoders:
+   *
+   * While auto-plugging, if set to %TRUE, those decoders within
+   * "Hardware" klass will be ignored. Otherwise they will be tried.
+   *
+   * Since: 1.18
+   */
+  g_object_class_install_property (gobject_klass, PROP_FORCE_SW_DECODERS,
+      g_param_spec_boolean ("force-sw-decoders", "Software Docoders Only",
+          "Use only sofware decoders to process streams",
+          DEFAULT_FORCE_SW_DECODERS,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /**
    * GstDecodeBin:low-percent
@@ -1040,28 +1000,7 @@ gst_decode_bin_class_init (GstDecodeBinClass * klass)
           0, G_MAXUINT64 / 1000, DEFAULT_CONNECTION_SPEED,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0012
-  g_object_class_install_property (gobject_klass, PROP_MQ_NUM_USE_BUFFRING,
-      g_param_spec_uint ("mq-num-use-buffering", "Mq num use buffering",
-          "multiqueue number of use buffering", 0, 100,
-          0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_klass, PROP_TIMEOUT,
-      g_param_spec_uint ("timeout", "timeout",
-          "Value in seconds to timeout a blocking I/O (0 = No timeout).", 0,
-          3600, DEFAULT_TIMEOUT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  g_object_class_install_property (gobject_klass, PROP_STATE_CHANGE,
-    g_param_spec_int ("state-change", "state-change from adaptive-demux",
-        "state-change from adaptive-demux", 0, (gint) (G_MAXINT32), 0,
-        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  g_object_class_install_property (gobject_klass, PROP_EXIT_BLOCK,
-      g_param_spec_int ("exit-block", "EXIT BLOCK",
-          "souphttpsrc exit block", 0, (gint) (G_MAXINT32), 0,
-          G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
-#endif
 
   klass->autoplug_continue =
       GST_DEBUG_FUNCPTR (gst_decode_bin_autoplug_continue);
@@ -1092,6 +1031,8 @@ gst_decode_bin_class_init (GstDecodeBinClass * klass)
       GST_DEBUG_FUNCPTR (gst_decode_bin_remove_element);
 
   g_type_class_ref (GST_TYPE_DECODE_PAD);
+
+  gst_type_mark_as_plugin_api (GST_TYPE_AUTOPLUG_SELECT_RESULT, 0);
 }
 
 /* Must be called with factories lock! */
@@ -1099,14 +1040,33 @@ static void
 gst_decode_bin_update_factories_list (GstDecodeBin * dbin)
 {
   guint cookie;
+  GList *factories, *tmp;
 
   cookie = gst_registry_get_feature_list_cookie (gst_registry_get ());
   if (!dbin->factories || dbin->factories_cookie != cookie) {
     if (dbin->factories)
       gst_plugin_feature_list_free (dbin->factories);
-    dbin->factories =
+    factories =
         gst_element_factory_list_get_elements
         (GST_ELEMENT_FACTORY_TYPE_DECODABLE, GST_RANK_MARGINAL);
+
+    if (dbin->force_sw_decoders) {
+      /* filter out Hardware class elements */
+      dbin->factories = NULL;
+      for (tmp = factories; tmp; tmp = g_list_next (tmp)) {
+        GstElementFactory *factory = GST_ELEMENT_FACTORY_CAST (tmp->data);
+        if (!gst_element_factory_list_is_type (factory,
+                GST_ELEMENT_FACTORY_TYPE_HARDWARE)) {
+          dbin->factories = g_list_prepend (dbin->factories, factory);
+        } else {
+          gst_object_unref (factory);
+        }
+      }
+      g_list_free (factories);
+    } else {
+      dbin->factories = factories;
+    }
+
     dbin->factories =
         g_list_sort (dbin->factories,
         gst_playback_utils_compare_factories_func);
@@ -1168,6 +1128,7 @@ gst_decode_bin_init (GstDecodeBin * decode_bin)
   decode_bin->encoding = g_strdup (DEFAULT_SUBTITLE_ENCODING);
   decode_bin->caps = gst_static_caps_get (&default_raw_caps);
   decode_bin->use_buffering = DEFAULT_USE_BUFFERING;
+  decode_bin->force_sw_decoders = DEFAULT_FORCE_SW_DECODERS;
   decode_bin->low_percent = DEFAULT_LOW_PERCENT;
   decode_bin->high_percent = DEFAULT_HIGH_PERCENT;
 
@@ -1177,10 +1138,6 @@ gst_decode_bin_init (GstDecodeBin * decode_bin)
 
   decode_bin->expose_allstreams = DEFAULT_EXPOSE_ALL_STREAMS;
   decode_bin->connection_speed = DEFAULT_CONNECTION_SPEED;
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0013
-  decode_bin->mq_num_use_buffering = 0;
-#endif
 }
 
 static void
@@ -1324,55 +1281,6 @@ gst_decode_bin_get_subs_encoding (GstDecodeBin * dbin)
   return encoding;
 }
 
-#ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0012
-static void
-set_property_handle_to_element (GstDecodeBin *dbin, guint property_id, const void *property_value)
-{
-  GList *walk = NULL;
-  GstBin *bin = (GstBin *) dbin;
-
-  for (walk = bin->children; walk != NULL; walk = g_list_next (walk)) {
-    GObject *element = G_OBJECT (walk->data);
-    if ((element == NULL) || !GST_IS_ELEMENT (element)) {
-      continue;
-    }
-
-    GstElementFactory *fac = gst_element_get_factory ((GstElement *)element);
-    if (fac == NULL) {
-      continue;
-    }
-    gboolean is_demux = gst_element_factory_list_is_type (fac, GST_ELEMENT_FACTORY_TYPE_DEMUXER);
-    if (!is_demux) {
-      continue;
-    }
-    GObjectClass *theclass = g_type_class_peek (gst_element_factory_get_element_type (fac));
-    if (property_id == PROP_TIMEOUT) {
-      const guint *timeout = (const guint *) property_value;
-      if ((theclass != NULL) && g_object_class_find_property (theclass, "timeout")) {
-        g_object_set (element, "timeout", *timeout, NULL);
-      }
-    } else if (property_id == PROP_STATE_CHANGE) {
-      const gint *state = (const gint *) property_value;
-      if ((theclass != NULL) && g_object_class_find_property (theclass, "state-change")) {
-        g_object_set (element, "state-change", *state, NULL);
-      }
-    } else if (property_id == PROP_EXIT_BLOCK) {
-      const gint *exit_block = (const gint *) property_value;
-      if ((theclass != NULL) && g_object_class_find_property (theclass, "exit-block")) {
-        g_object_set (element, "exit-block", *exit_block, NULL);
-      }
-    } else if (property_id == PROP_CONNECTION_SPEED) {
-      const guint64 *con_speed = (const guint64 *) property_value;
-      if ((theclass != NULL) && g_object_class_find_property (theclass, "connection-speed")) {
-        g_object_set (element, "connection-speed", *con_speed, NULL);
-      }
-    }
-  }
-  return;
-}
-#endif
-
 static void
 gst_decode_bin_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
@@ -1393,6 +1301,9 @@ gst_decode_bin_set_property (GObject * object, guint prop_id,
       break;
     case PROP_USE_BUFFERING:
       dbin->use_buffering = g_value_get_boolean (value);
+      break;
+    case PROP_FORCE_SW_DECODERS:
+      dbin->force_sw_decoders = g_value_get_boolean (value);
       break;
     case PROP_LOW_PERCENT:
       dbin->low_percent = g_value_get_int (value);
@@ -1419,30 +1330,7 @@ gst_decode_bin_set_property (GObject * object, guint prop_id,
       GST_OBJECT_LOCK (dbin);
       dbin->connection_speed = g_value_get_uint64 (value) * 1000;
       GST_OBJECT_UNLOCK (dbin);
-#ifdef OHOS_EXT_FUNC
-    // ohos.ext.func.0028
-      guint64 con_speed = g_value_get_uint64 (value);
-      set_property_handle_to_element (dbin, prop_id, (void *)&con_speed);
-#endif
       break;
-#ifdef OHOS_EXT_FUNC
-    // ohos.ext.func.0013
-    case PROP_TIMEOUT: {
-      guint timeout = g_value_get_uint (value);
-      set_property_handle_to_element (dbin, prop_id, (void *)&timeout);
-      break;
-    }
-    case PROP_STATE_CHANGE: {
-      gint state = g_value_get_int (value);
-      set_property_handle_to_element (dbin, prop_id, (void *)&state);
-      break;
-    }
-    case PROP_EXIT_BLOCK: {
-      gint exit_block = g_value_get_int (value);
-      set_property_handle_to_element (dbin, prop_id, (void *)&exit_block);
-      break;
-    }
-#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1468,6 +1356,9 @@ gst_decode_bin_get_property (GObject * object, guint prop_id,
       break;
     case PROP_USE_BUFFERING:
       g_value_set_boolean (value, dbin->use_buffering);
+      break;
+    case PROP_FORCE_SW_DECODERS:
+      g_value_set_boolean (value, dbin->force_sw_decoders);
       break;
     case PROP_LOW_PERCENT:
       g_value_set_int (value, dbin->low_percent);
@@ -1495,14 +1386,6 @@ gst_decode_bin_get_property (GObject * object, guint prop_id,
       g_value_set_uint64 (value, dbin->connection_speed / 1000);
       GST_OBJECT_UNLOCK (dbin);
       break;
-#ifdef OHOS_EXT_FUNC
-    // ohos.ext.func.0013
-    case PROP_MQ_NUM_USE_BUFFRING:
-      CHAIN_MUTEX_LOCK (dbin->decode_chain);
-      g_value_set_uint64 (value, dbin->mq_num_use_buffering);
-      CHAIN_MUTEX_UNLOCK (dbin->decode_chain);
-      break;
-#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -2219,22 +2102,6 @@ typedef struct
   GstPad *pad;
 } PadExposeData;
 
-#ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0028
-static void
-bitrate_parse_complete_cb (GstElement * element, gpointer input, guint num, GstDecodeChain * chain)
-{
-  if ((element == NULL) || (chain == NULL) || (chain->dbin == NULL)) {
-    return;
-  }
-
-  GstDecodeBin *dbin = chain->dbin;
-  GST_INFO_OBJECT (dbin, "in manifest parse complete");
-  g_signal_emit (dbin, gst_decode_bin_signals[SIGNAL_BITRATE_PARSE_COMPLETE], 0, input, num);
-  GST_INFO_OBJECT (dbin, "out manifest parse complete");
-
-}
-#endif
 /* connect_pad:
  *
  * Try to connect the given pad to an element created from one of the factories,
@@ -2607,7 +2474,7 @@ connect_pad (GstDecodeBin * dbin, GstElement * src, GstDecodePad * dpad,
         } else {
           GST_WARNING_OBJECT (dbin,
               "The connection speed property %" G_GUINT64_FORMAT " of type %s"
-              " is not usefull not setting it", speed,
+              " is not useful not setting it", speed,
               g_type_name (G_PARAM_SPEC_TYPE (pspec)));
           wrong_type = TRUE;
         }
@@ -2620,13 +2487,6 @@ connect_pad (GstDecodeBin * dbin, GstElement * src, GstDecodePad * dpad,
         }
       }
     }
-
-#ifdef OHOS_EXT_FUNC
-    // ohos.ext.func.0028
-    if (IS_ADAPTIVE_DEMUX(element)) {
-        g_signal_connect (element, "bitrate-parse-complete", G_CALLBACK (bitrate_parse_complete_cb), chain);
-    }
-#endif
 
     /* try to configure the subtitle encoding property when we can */
     pspec = g_object_class_find_property (G_OBJECT_GET_CLASS (element),
@@ -3411,19 +3271,10 @@ gst_decode_bin_reset_buffering (GstDecodeBin * dbin)
   if (!dbin->use_buffering)
     return;
 
-  GST_DEBUG_OBJECT (dbin, "Reseting multiqueues buffering");
+  GST_DEBUG_OBJECT (dbin, "Resetting multiqueues buffering");
   if (dbin->decode_chain) {
     CHAIN_MUTEX_LOCK (dbin->decode_chain);
     gst_decode_chain_reset_buffering (dbin->decode_chain);
-
-#ifdef OHOS_EXT_FUNC
-    // ohos.ext.func.0013
-    GstMessage *msg_mq_num_use_buffering =
-      gst_message_new_mq_num_use_buffering (GST_OBJECT_CAST (dbin), dbin->mq_num_use_buffering);
-    if (msg_mq_num_use_buffering != NULL) {
-      gst_element_post_message (GST_ELEMENT_CAST (dbin), msg_mq_num_use_buffering);
-    }
-#endif
     CHAIN_MUTEX_UNLOCK (dbin->decode_chain);
   }
 }
@@ -3589,20 +3440,8 @@ gst_decode_chain_free_internal (GstDecodeChain * chain, gboolean hide)
       }
     }
 
-#ifdef OHOS_OPT_COMPAT
-    /* OHOS_OPT_COMPAT.0024
-      When changing the codec, the hardware plug-in is removed but does not stop,
-      which will cause the newly created hardware plug-in to report that there is still a buffer outside
-      when negotiating the pool with the surfacesink, resulting in the failure of the negotiation pool */
-    if (GST_OBJECT_PARENT (element) == GST_OBJECT_CAST (chain->dbin)) {
-      gst_element_set_state (element, GST_STATE_NULL);
-      gst_bin_remove (GST_BIN_CAST (chain->dbin), element);
-    }
-#else
     if (GST_OBJECT_PARENT (element) == GST_OBJECT_CAST (chain->dbin))
       gst_bin_remove (GST_BIN_CAST (chain->dbin), element);
-#endif
-
     if (!hide) {
       set_to_null = g_list_append (set_to_null, gst_object_ref (element));
     }
@@ -4077,7 +3916,8 @@ gst_decode_group_control_demuxer_pad (GstDecodeGroup * group, GstPad * pad)
   if (G_UNLIKELY (!group->multiqueue))
     return NULL;
 
-  if (!(sinkpad = gst_element_get_request_pad (group->multiqueue, "sink_%u"))) {
+  if (!(sinkpad =
+          gst_element_request_pad_simple (group->multiqueue, "sink_%u"))) {
     GST_ERROR_OBJECT (dbin, "Couldn't get sinkpad from multiqueue");
     return NULL;
   }
@@ -4399,7 +4239,7 @@ beach:
 
   *drained = chain->drained;
 
-  if (*drained)
+  if (*drained && !chain->parent)       /* only emit signal from top chain */
     g_signal_emit (dbin, gst_decode_bin_signals[SIGNAL_DRAINED], 0, NULL);
 
   return handled;
@@ -4553,19 +4393,9 @@ gst_decode_group_reset_buffering (GstDecodeGroup * group)
     /* all chains are buffering already, no need to do it here */
     g_object_set (group->multiqueue, "use-buffering", FALSE, NULL);
   } else {
-#ifdef OHOS_EXT_FUNC
-    // ohos.ext.func.0013
-    g_object_set (group->multiqueue, "use-buffering", TRUE,
-        "low-percent", group->dbin->low_percent,
-        "high-percent", group->dbin->high_percent,
-        "mq-num-id", group->dbin->mq_num_use_buffering, NULL);
-
-	  group->dbin->mq_num_use_buffering++;
-#else
     g_object_set (group->multiqueue, "use-buffering", TRUE,
         "low-percent", group->dbin->low_percent,
         "high-percent", group->dbin->high_percent, NULL);
-#endif
   }
 
   GST_DEBUG_OBJECT (group->dbin, "Setting %s buffering to %d",
@@ -4684,12 +4514,6 @@ _gst_element_get_linked_caps (GstElement * src, GstElement * sink,
 
   return caps;
 }
-
-static GQuark topology_structure_name = 0;
-static GQuark topology_caps = 0;
-static GQuark topology_next = 0;
-static GQuark topology_pad = 0;
-static GQuark topology_element_srcpad = 0;
 
 /* FIXME: Invent gst_structure_take_structure() to prevent all the
  * structure copying for nothing
@@ -5381,7 +5205,6 @@ gst_decode_pad_new (GstDecodeBin * dbin, GstDecodeChain * chain)
   dpad =
       g_object_new (GST_TYPE_DECODE_PAD, "direction", GST_PAD_SRC,
       "template", pad_tmpl, NULL);
-  gst_ghost_pad_construct (GST_GHOST_PAD_CAST (dpad));
   dpad->chain = chain;
   dpad->dbin = dbin;
   gst_object_unref (pad_tmpl);
@@ -5862,20 +5685,4 @@ gst_decode_bin_remove_element (GstBin * bin, GstElement * element)
   g_mutex_unlock (&dbin->buffering_post_lock);
 
   return GST_BIN_CLASS (parent_class)->remove_element (bin, element);
-}
-
-gboolean
-gst_decode_bin_plugin_init (GstPlugin * plugin)
-{
-  GST_DEBUG_CATEGORY_INIT (gst_decode_bin_debug, "decodebin", 0, "decoder bin");
-
-  /* Register some quarks here for the stream topology message */
-  topology_structure_name = g_quark_from_static_string ("stream-topology");
-  topology_caps = g_quark_from_static_string ("caps");
-  topology_next = g_quark_from_static_string ("next");
-  topology_pad = g_quark_from_static_string ("pad");
-  topology_element_srcpad = g_quark_from_static_string ("element-srcpad");
-
-  return gst_element_register (plugin, "decodebin", GST_RANK_NONE,
-      GST_TYPE_DECODE_BIN);
 }

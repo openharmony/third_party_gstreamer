@@ -19,6 +19,7 @@
 
 /**
  * SECTION:element-gdkpixbufsink
+ * @title: gdkpixbufsink
  *
  * This sink element takes RGB or RGBA images as input and wraps them into
  * #GdkPixbuf objects, for easy saving to file via the
@@ -27,23 +28,18 @@
  *
  * There are two ways to use this element and obtain the #GdkPixbuf objects
  * created:
- * <itemizedlist>
- * <listitem>
- * Watching for element messages named <classname>&quot;preroll-pixbuf&quot;
- * </classname> or <classname>&quot;pixbuf&quot;</classname> on the bus, which
+ *
+ * * Watching for element messages named `preroll-pixbuf` or `pixbuf` on the bus, which
  * will be posted whenever an image would usually be rendered. See below for
  * more details on these messages and how to extract the pixbuf object
  * contained in them.
- * </listitem>
- * <listitem>
- * Retrieving the current pixbuf via the #GstGdkPixbufSink:last-pixbuf property
+ *
+ * * Retrieving the current pixbuf via the #GstGdkPixbufSink:last-pixbuf property
  * when needed. This is the easiest way to get at pixbufs for snapshotting
  * purposes - just wait until the pipeline is prerolled (ASYNC_DONE message
  * on the bus), then read the property. If you use this method, you may want
  * to disable message posting by setting the #GstGdkPixbufSink:post-messages
  * property to %FALSE. This avoids unnecessary memory overhead.
- * </listitem>
- * </itemizedlist>
  *
  * The primary purpose of this element is to abstract away the #GstBuffer to
  * #GdkPixbuf conversion. Other than that it's very similar to the fakesink
@@ -52,22 +48,19 @@
  * This element is meant for easy no-hassle video snapshotting. It is not
  * suitable for video playback or video display at high framerates. Use
  * ximagesink, xvimagesink or some other suitable video sink in connection
- * with the #GstXOverlay interface instead if you want to do video playback.
+ * with the #GstVideoOverlay interface instead if you want to do video playback.
  *
- * <refsect2>
- * <title>Message details</title>
+ * ## Message details
+ *
  * As mentioned above, this element will by default post element messages
- * containing structures named <classname>&quot;preroll-pixbuf&quot;
- * </classname> or <classname>&quot;pixbuf&quot;</classname> on the bus (this
+ * containing structures named `preroll-pixbuf`
+ * ` or `pixbuf` on the bus (this
  * can be disabled by setting the #GstGdkPixbufSink:post-messages property
  * to %FALSE though). The element message structure has the following fields:
- * <itemizedlist>
- * <listitem>
- *   <classname>&quot;pixbuf&quot;</classname>: the #GdkPixbuf object
- * </listitem>
- * <listitem>
- *   <classname>&quot;pixel-aspect-ratio&quot;</classname>: the pixel aspect
- *   ratio (PAR) of the input image (this field contains a #GstFraction); the
+ *
+ * * `pixbuf`: the #GdkPixbuf object
+ * * `pixel-aspect-ratio`: the pixel aspect ratio (PAR) of the input image
+ *   (this field contains a value of type #GST_TYPE_FRACTION); the
  *   PAR is usually 1:1 for images, but is often something non-1:1 in the case
  *   of video input. In this case the image may be distorted and you may need
  *   to rescale it accordingly before saving it to file or displaying it. This
@@ -76,26 +69,22 @@
  *   according to the size of the output window, in which case it is much more
  *   efficient to only scale once rather than twice). You can put a videoscale
  *   element and a capsfilter element with
- *   <literal>video/x-raw-rgb,pixel-aspect-ratio=(fraction)1/1</literal> caps
+ *   `video/x-raw-rgb,pixel-aspect-ratio=(fraction)1/1` caps
  *   in front of this element to make sure the pixbufs always have a 1:1 PAR.
- * </listitem>
- * </itemizedlist>
- * </refsect2>
  *
- * <refsect2>
- * <title>Example pipeline</title>
+ * ## Example pipeline
  * |[
  * gst-launch-1.0 -m -v videotestsrc num-buffers=1 ! gdkpixbufsink
  * ]| Process one single test image as pixbuf (note that the output you see will
  * be slightly misleading. The message structure does contain a valid pixbuf
  * object even if the structure string says &apos;(NULL)&apos;).
- * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
+#include "gstgdkpixbufelements.h"
 #include "gstgdkpixbufsink.h"
 
 #include <gst/video/video.h>
@@ -113,6 +102,8 @@ enum
 
 
 G_DEFINE_TYPE (GstGdkPixbufSink, gst_gdk_pixbuf_sink, GST_TYPE_VIDEO_SINK);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (gdkpixbufsink, "gdkpixbufsink",
+    GST_RANK_NONE, GST_TYPE_GDK_PIXBUF_SINK, gdk_pixbuf_element_init (plugin));
 
 static void gst_gdk_pixbuf_sink_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);

@@ -56,6 +56,7 @@ struct _GstV4l2Src
   GstV4l2Object * v4l2object;
 
   guint64 offset;
+  gboolean next_offset_same;
 
   /* offset adjust after renegotiation */
   guint64 renegotiation_adjust;
@@ -67,6 +68,9 @@ struct _GstV4l2Src
   /* Timestamp sanity check */
   GstClockTime last_timestamp;
   gboolean has_bad_timestamp;
+
+  /* maintain signal status, updated during negotiation */
+  gboolean no_signal;
 };
 
 struct _GstV4l2SrcClass

@@ -25,6 +25,7 @@
 #include <gst/gst-i18n-plugin.h>
 #include <gst/audio/audio.h>
 
+#include "gstsfelements.h"
 #include "gstsfdec.h"
 
 #define FORMATS \
@@ -62,7 +63,8 @@ static gboolean gst_sf_dec_stop (GstSFDec * bsrc);
     GST_DEBUG_CATEGORY_INIT (gst_sf_dec_debug, "sfdec", 0, "sfdec element");
 #define gst_sf_dec_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstSFDec, gst_sf_dec, GST_TYPE_ELEMENT, _do_init);
-
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (sfdec, "sfdec", GST_RANK_MARGINAL,
+    GST_TYPE_SF_DEC, sf_element_init (plugin));
 /* sf virtual io */
 
 static sf_count_t
@@ -126,7 +128,7 @@ static sf_count_t
 gst_sf_vio_write (const void *ptr, sf_count_t count, void *user_data)
 {
   GstSFDec *self = GST_SF_DEC (user_data);
-  GstBuffer *buffer = gst_buffer_new_wrapped (g_memdup (ptr, count), count);
+  GstBuffer *buffer = gst_buffer_new_memdup (ptr, count);
 
   if (gst_pad_push (self->srcpad, buffer) == GST_FLOW_OK) {
     return count;
