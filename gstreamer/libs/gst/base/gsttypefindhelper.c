@@ -402,10 +402,6 @@ gst_type_find_helper_get_range_full (GstObject * obj, GstObject * parent,
   find.data = &helper;
   find.peek = helper_find_peek;
   find.suggest = helper_find_suggest;
-#ifdef OHOS_OPT_COMPAT
-  // ohos.opt.compat.0004
-  find.need_typefind_again = FALSE;
-#endif
 
   if (size == 0 || size == (guint64) - 1) {
     find.get_length = NULL;
@@ -455,12 +451,7 @@ gst_type_find_helper_get_range_full (GstObject * obj, GstObject * parent,
     /* Some typefinder might've tried to read too much, if we
      * didn't get any meaningful caps because of that this is
      * just a normal error */
-#ifdef OHOS_OPT_COMPAT
-// ohos.opt.compat.0005
-    helper.flow_ret = helper.best_probability > 0 ? GST_FLOW_OK : GST_FLOW_ERROR;
-#else
     helper.flow_ret = GST_FLOW_ERROR;
-#endif
   }
 
   GST_LOG_OBJECT (obj, "Returning %" GST_PTR_FORMAT " (probability = %u)",
@@ -608,42 +599,6 @@ gst_type_find_helper_for_data (GstObject * obj, const guint8 * data, gsize size,
       prob);
 }
 
-#ifdef OHOS_OPT_COMPAT
-// ohos.opt.compat.0004
-static gboolean
-gst_type_find_helper_is_support_retypefind (GstObject * obj)
-{
-  gboolean support = FALSE;
-  if (obj == NULL) {
-    return support;
-  }
-
-  GParamSpec *pspec = g_object_class_find_property (G_OBJECT_GET_CLASS(obj), "re-typefind-factory-list");
-  if (pspec != NULL && G_PARAM_SPEC_TYPE (pspec) == G_TYPE_PARAM_POINTER) {
-    support = TRUE;
-  }
-  return support;
-}
-
-static GList *
-gst_type_find_helper_get_type_list (GstObject * obj, gboolean support_retypefind)
-{
-  GList *type_list = NULL;
-  if (support_retypefind && obj != NULL) {
-    g_object_get (obj, "re-typefind-factory-list", &type_list, NULL);
-    if (type_list == NULL) {
-      GST_INFO_OBJECT (obj,
-        "there is no re_typefind factory list, get type_list from registered typefind factories");
-      type_list = gst_type_find_factory_get_list ();
-    }
-  } else {
-    type_list = gst_type_find_factory_get_list ();
-  }
-
-  return type_list;
-}
-#endif
-
 /**
  * gst_type_find_helper_for_data_with_extension:
  * @obj: (allow-none): object doing the typefinding, or %NULL (used for logging)
@@ -685,11 +640,6 @@ gst_type_find_helper_for_data_with_extension (GstObject * obj,
   GstTypeFindBufHelper helper;
   GstTypeFind find;
   GList *l, *type_list;
-#ifdef OHOS_OPT_COMPAT
-  // ohos.opt.compat.0004
-  GList *re_typefind_factory_list = NULL;
-  gboolean support_retypefind = FALSE;
-#endif
   GstCaps *result = NULL;
 
   g_return_val_if_fail (data != NULL, NULL);
@@ -707,19 +657,8 @@ gst_type_find_helper_for_data_with_extension (GstObject * obj,
   find.peek = buf_helper_find_peek;
   find.suggest = buf_helper_find_suggest;
   find.get_length = NULL;
-#ifdef OHOS_OPT_COMPAT
-  // ohos.opt.compat.0004
-  find.need_typefind_again = FALSE;
-#endif
 
-#ifdef OHOS_OPT_COMPAT
-  // ohos.opt.compat.0004
-  support_retypefind = gst_type_find_helper_is_support_retypefind (obj);
-  type_list = gst_type_find_helper_get_type_list (obj, support_retypefind);
-#else
   type_list = gst_type_find_factory_get_list ();
-#endif
-
   type_list = prioritize_extension (obj, type_list, extension);
 
   for (l = type_list; l; l = l->next) {
@@ -727,26 +666,7 @@ gst_type_find_helper_for_data_with_extension (GstObject * obj,
     gst_type_find_factory_call_function (helper.factory, &find);
     if (helper.best_probability >= GST_TYPE_FIND_MAXIMUM)
       break;
-
-#ifdef OHOS_OPT_COMPAT
-    // ohos.opt.compat.0004:if current factory need typefind again, we add it to list
-    if (support_retypefind && find.need_typefind_again) {
-      GST_INFO_OBJECT (obj, "need_typefind_again, name:%s", gst_plugin_feature_get_name (helper.factory));
-      re_typefind_factory_list = g_list_append (re_typefind_factory_list, gst_object_ref (helper.factory));
-      find.need_typefind_again = FALSE;
-    }
-#endif
   }
-
-#ifdef OHOS_OPT_COMPAT
-  // ohos.opt.compat.0004:set the list to the object doing the typefinding
-  if (obj != NULL && support_retypefind && helper.best_probability < GST_TYPE_FIND_MAXIMUM) {
-    g_object_set (obj, "re-typefind-factory-list", re_typefind_factory_list, NULL);
-  }
-  if (re_typefind_factory_list) {
-    g_list_free_full (re_typefind_factory_list, gst_object_unref);
-  }
-#endif
   gst_plugin_feature_list_free (type_list);
 
   if (helper.best_probability > 0)

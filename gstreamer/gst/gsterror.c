@@ -19,16 +19,22 @@
 
 /**
  * SECTION:gsterror
- * @title: GstError
+ * @title: GstGError
  * @short_description: Categorized error messages
  * @see_also: #GstMessage
+ * @symbols:
+ * - gst_error_get_message
+ * - gst_stream_error_quark
+ * - gst_core_error_quark
+ * - gst_resource_error_quark
+ * - gst_library_error_quark
  *
  * GStreamer elements can throw non-fatal warnings and fatal errors.
  * Higher-level elements and applications can programmatically filter
  * the ones they are interested in or can recover from,
  * and have a default handler handle the rest of them.
  *
- * The rest of this section will use the term <quote>error</quote>
+ * The rest of this section will use the term "error"
  * to mean both (non-fatal) warnings and (fatal) errors; they are treated
  * similarly.
  *
@@ -223,11 +229,6 @@ gst_error_get_resource_error (GstResourceError code)
       return _("No space left on the resource.");
     case GST_RESOURCE_ERROR_NOT_AUTHORIZED:
       return _("Not authorized to access resource.");
-#ifdef OHOS_EXT_FUNC
-    // ohos.ext.func.0012
-    case GST_RESOURCE_ERROR_TIME_OUT:
-      return _("Could not open resource for reading time out.");
-#endif
     case GST_RESOURCE_ERROR_NUM_ERRORS:
     default:
       break;

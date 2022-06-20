@@ -129,8 +129,8 @@ GST_START_TEST (test_launch_lines)
   fail_unless (efac != NULL);
   type = gst_element_factory_get_element_type (efac);
   fail_unless (type != 0);
-  g_object_unref (efac);
-  g_object_unref (efac);
+  gst_object_unref (efac);
+  gst_object_unref (efac);
   fail_unless (gst_element_register (NULL, "1__dentity", GST_RANK_NONE, type));
 
   for (s = test_lines; *s != NULL; s++) {
@@ -321,9 +321,9 @@ static const gchar *expected_failures[] = {
   "fakesrc ! video/raw,format=(antwerp)monkeys ! fakesink silent=true",
   /* checks: Empty pipeline is invalid */
   "",
-  /* checks: Link without sink element failes */
+  /* checks: Link without sink element fails */
   "fakesrc ! ",
-  /* checks: Link without src element failes */
+  /* checks: Link without src element fails */
   " ! fakesink silent=true",
   /* checks: Source URI for which no element exists is a failure */
   "borky://fdaffd ! fakesink silent=true",
@@ -419,6 +419,7 @@ run_delayed_test (const gchar * pipe_str, const gchar * peer,
 {
   GstElement *pipe, *src, *sink;
   GstPad *srcpad, *sinkpad, *peerpad = NULL;
+  GstStateChangeReturn ret;
 
   pipe = setup_pipeline (pipe_str);
 
@@ -434,11 +435,22 @@ run_delayed_test (const gchar * pipe_str, const gchar * peer,
 
   /* Set the state to PAUSED and wait until the src at least reaches that
    * state */
-  fail_if (gst_element_set_state (pipe, GST_STATE_PAUSED) ==
-      GST_STATE_CHANGE_FAILURE);
+  ret = gst_element_set_state (pipe, GST_STATE_PAUSED);
 
-  fail_if (gst_element_get_state (src, NULL, NULL, GST_CLOCK_TIME_NONE) ==
-      GST_STATE_CHANGE_FAILURE);
+  if (expect_link) {
+    fail_if (ret == GST_STATE_CHANGE_FAILURE);
+  } else {
+    fail_unless (ret == GST_STATE_CHANGE_FAILURE
+        || ret == GST_STATE_CHANGE_ASYNC);
+  }
+
+  ret = gst_element_get_state (pipe, NULL, NULL, GST_CLOCK_TIME_NONE);
+
+  if (expect_link) {
+    fail_if (ret == GST_STATE_CHANGE_FAILURE);
+  } else {
+    fail_unless (ret == GST_STATE_CHANGE_FAILURE);
+  }
 
   /* Now, the source element should have a src pad, and if "peer" was passed, 
    * then the src pad should have gotten linked to the 'sink' pad of that 
@@ -658,6 +670,24 @@ GST_START_TEST (test_missing_elements)
 
 GST_END_TEST;
 
+GST_START_TEST (test_preset)
+{
+  GstElement *element;
+  GError *err = NULL;
+
+  /* missing preset */
+  element =
+      gst_parse_launch
+      ("fakesrc ! identity @preset=\"Wrong preset\" ! fakesink", &err);
+  fail_unless (err != NULL, "expected error");
+  fail_unless_equals_int (err->code, GST_PARSE_ERROR_COULD_NOT_SET_PROPERTY);
+  fail_unless (element != NULL, "Doesn't NULL return without FATAL_ERRORS");
+  gst_clear_object (&element);
+  g_clear_error (&err);
+}
+
+GST_END_TEST;
+
 GST_START_TEST (test_flags)
 {
   GstElement *element;
@@ -722,6 +752,7 @@ parse_suite (void)
   tcase_add_test (tc_chain, test_flags);
   tcase_add_test (tc_chain, test_missing_elements);
   tcase_add_test (tc_chain, test_parsing);
+  tcase_add_test (tc_chain, test_preset);
   return s;
 }
 

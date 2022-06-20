@@ -43,7 +43,7 @@
  * container using gst_element_post_message().
  */
 
-
+#define GST_DISABLE_MINIOBJECT_INLINE_FUNCTIONS
 #include "gst_private.h"
 #include <string.h>             /* memcpy */
 #include "gsterror.h"
@@ -112,6 +112,7 @@ static GstMessageQuarks message_quarks[] = {
   {GST_MESSAGE_STREAM_COLLECTION, "stream-collection", 0},
   {GST_MESSAGE_STREAMS_SELECTED, "streams-selected", 0},
   {GST_MESSAGE_REDIRECT, "redirect", 0},
+  {GST_MESSAGE_INSTANT_RATE_REQUEST, "instant-rate-request", 0},
   {0, NULL, 0}
 };
 
@@ -1239,7 +1240,7 @@ gst_message_has_name (GstMessage * message, const gchar * name)
  *     case GST_MESSAGE_TAG: {
  *       GstTagList *tags = NULL;
  *
- *       gst_message_parse_tag (msg, &amp;tags);
+ *       gst_message_parse_tag (msg, &tags);
  *       g_print ("Got tags from element %s\n", GST_OBJECT_NAME (msg->src));
  *       handle_tags (tags);
  *       gst_tag_list_unref (tags);
@@ -1284,152 +1285,6 @@ gst_message_parse_buffering (GstMessage * message, gint * percent)
         g_value_get_int (gst_structure_id_get_value (GST_MESSAGE_STRUCTURE
             (message), GST_QUARK (BUFFER_PERCENT)));
 }
-
-#ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0012
-/**
- * gst_message_new_buffering_time:
- * @src: (transfer none) (allow-none): The object originating the message.
- * @buffering_time: The buffering time
- * @mq_num_id: The multiqueue id
- *
- * Create a new buffering time message. This message can be posted by a multiqueue that
- * needs to report buffering time
- *
- * MT safe.
- *
- * Returns: (transfer full) (nullable): The new buffering time message.
- */
-GstMessage *
-gst_message_new_buffering_time (GstObject * src, gint64 buffering_time, guint mq_num_id)
-{
-  GstMessage *message;
-  GstStructure *structure;
-
-  structure = gst_structure_new ("message-buffering-time",
-      "buffering-time", G_TYPE_INT64, buffering_time,
-      "mq-num-id", G_TYPE_UINT, mq_num_id, NULL);
-  message = gst_message_new_custom (GST_MESSAGE_ELEMENT, src, structure);
-
-  return message;
-}
-
-/**
- * gst_message_parse_buffering_time:
- * @message: A valid #GstMessage of type GST_QUARK_MESSAGE_BUFFERING_TIME.
- * @buffering_time: (out) (allow-none): The buffering time, or %NULL
- * @mq_num_id: (out) (allow-none): The multiqueue id, or %NULL
- *
- * Extracts the buffering time values from @message.
- */
-void
-gst_message_parse_buffering_time (GstMessage * message, gint64 * buffering_time, guint * mq_num_id)
-{
-  GstStructure *structure;
-
-  g_return_if_fail (GST_MESSAGE_TYPE (message) == GST_MESSAGE_ELEMENT);
-
-  structure = GST_MESSAGE_STRUCTURE (message);
-  if (buffering_time) {
-    (void)gst_structure_get_int64(structure, "buffering-time", buffering_time);
-  }
-
-  if (mq_num_id) {
-    (void)gst_structure_get_uint(structure, "mq-num-id", mq_num_id);
-  }
-}
-
-// ohos.ext.func.0013
-/**
- * gst_message_new_mq_num_use_buffering:
- * @src: (transfer none) (allow-none): The object originating the message.
- * @mq_num_use_buffering: The number of multiqueue use buffering
- *
- * Create a new multiqueue num use buffering message. This message can be posted by a multiqueue that
- * needs to report the number of multiqueue use buffering
- *
- * MT safe.
- *
- * Returns: (transfer full) (nullable): The new multiqueue num use buffering message.
- */
-GstMessage *
-gst_message_new_mq_num_use_buffering (GstObject * src, guint mq_num_use_buffering)
-{
-  GstMessage *message;
-  GstStructure *structure;
-
-  structure = gst_structure_new ("message-mq-num-use-buffering",
-            "mq_num_use_buffering", G_TYPE_UINT, mq_num_use_buffering, NULL);
-  message = gst_message_new_custom (GST_MESSAGE_ELEMENT, src, structure);
-
-  return message;
-}
-
-/**
- * gst_message_parse_mq_num_use_buffering:
- * @message: A valid #GstMessage of type mq_num_use_buffering.
- * @mq_num_use_buffering: (out) (allow-none): The number of multiqueue use bufferig, or %NULL
- *
- * Extracts the multiqueue num use buffering values from @message.
- */
-void
-gst_message_parse_mq_num_use_buffering (GstMessage * message, guint * mq_num_use_buffering)
-{
-  GstStructure *structure;
-
-  g_return_if_fail (GST_MESSAGE_TYPE (message) == GST_MESSAGE_ELEMENT);
-
-  structure = GST_MESSAGE_STRUCTURE (message);
-  if (mq_num_use_buffering) {
-    (void)gst_structure_get_uint(structure, "mq_num_use_buffering", mq_num_use_buffering);
-  }
-}
-
-// ohos.ext.func.0014
-/**
- * gst_message_new_resolution_changed:
- * @src: (transfer none) (allow-none): The object originating the message.
- * @width: video of width
- * @height: video of height
- *
- * Create a new resolution changed message. This message can be posted by demux that
- * needs to report the resolution changed
- *
- * MT safe.
- *
- * Returns: (transfer full) (nullable): The new resolution changed message.
- */
-GstMessage *
-gst_message_new_resolution_changed (GstObject * src, gint width, gint height)
-{
-  GstMessage *message;
-  GstStructure *structure;
-  structure = gst_structure_new ("resolution-changed",
-            "width", G_TYPE_INT, width, "height", G_TYPE_INT, height, NULL);
-  message = gst_message_new_custom (GST_MESSAGE_ELEMENT, src, structure);
-  return message;
-}
-
-/**
- * gst_message_parse_resulution_changed:
- * @message: A valid #GstMessage of type resolution-changed.
- * @width: (out) (allow-none): video of width, or %NULL
- * @height: (out) (allow-none): video of height, or %NULL
- *
- * Extracts the resolution changed values from @message.
- */
-void
-gst_message_parse_resulution_changed (GstMessage * message, gint * width, gint * height)
-{
-  GstStructure *structure;
-  g_return_if_fail (GST_MESSAGE_TYPE (message) == GST_MESSAGE_ELEMENT);
-  structure = GST_MESSAGE_STRUCTURE (message);
-  if (width && height) {
-    (void)gst_structure_get_int(structure, "width", width);
-    (void)gst_structure_get_int(structure, "height", height);
-  }
-}
-#endif
 
 /**
  * gst_message_set_buffering_stats:
@@ -1508,7 +1363,7 @@ gst_message_parse_buffering_stats (GstMessage * message,
  *     case GST_MESSAGE_STATE_CHANGED: {
  *       GstState old_state, new_state;
  *
- *       gst_message_parse_state_changed (msg, &amp;old_state, &amp;new_state, NULL);
+ *       gst_message_parse_state_changed (msg, &old_state, &new_state, NULL);
  *       g_print ("Element %s changed state from %s to %s.\n",
  *           GST_OBJECT_NAME (msg->src),
  *           gst_element_state_get_name (old_state),
@@ -1696,7 +1551,7 @@ gst_message_parse_structure_change (GstMessage * message,
  *       GError *err = NULL;
  *       gchar *dbg_info = NULL;
  *
- *       gst_message_parse_error (msg, &amp;err, &amp;dbg_info);
+ *       gst_message_parse_error (msg, &err, &dbg_info);
  *       g_printerr ("ERROR from element %s: %s\n",
  *           GST_OBJECT_NAME (msg->src), err->message);
  *       g_printerr ("Debugging info: %s\n", (dbg_info) ? dbg_info : "none");
@@ -2499,6 +2354,8 @@ gst_message_new_reset_time (GstObject * src, GstClockTime running_time)
   GstMessage *message;
   GstStructure *structure;
 
+  g_return_val_if_fail (GST_CLOCK_TIME_IS_VALID (running_time), NULL);
+
   structure = gst_structure_new_id (GST_QUARK (MESSAGE_RESET_TIME),
       GST_QUARK (RUNNING_TIME), G_TYPE_UINT64, running_time, NULL);
   message = gst_message_new_custom (GST_MESSAGE_RESET_TIME, src, structure);
@@ -2581,6 +2438,7 @@ gst_message_set_group_id (GstMessage * message, guint group_id)
   g_return_if_fail (GST_IS_MESSAGE (message));
   g_return_if_fail (GST_MESSAGE_TYPE (message) == GST_MESSAGE_STREAM_START);
   g_return_if_fail (gst_message_is_writable (message));
+  g_return_if_fail (group_id != GST_GROUP_ID_INVALID);
 
   structure = GST_MESSAGE_STRUCTURE (message);
   gst_structure_id_set (structure, GST_QUARK (GROUP_ID), G_TYPE_UINT, group_id,
@@ -2613,6 +2471,8 @@ gst_message_parse_group_id (GstMessage * message, guint * group_id)
 
   if (!group_id)
     return TRUE;
+
+  *group_id = 0;
 
   structure = GST_MESSAGE_STRUCTURE (message);
 
@@ -3196,8 +3056,8 @@ gst_message_parse_streams_selected (GstMessage * message,
  * such as bitrate statistics for the given location.
  *
  * By default, message recipients should treat entries in the order they are
- * stored. The recipient should therefore try entry #0 first, and if this
- * entry is not acceptable or working, try entry #1 etc. Senders must make
+ * stored. The recipient should therefore try entry \#0 first, and if this
+ * entry is not acceptable or working, try entry \#1 etc. Senders must make
  * sure that they add entries in this order. However, recipients are free to
  * ignore the order and pick an entry that is "best" for them. One example
  * would be a recipient that scans the entries for the one with the highest
@@ -3411,4 +3271,169 @@ gst_message_get_num_redirect_entries (GstMessage * message)
       && (size == gst_value_list_get_size (entry_taglists_gvalue)), 0);
 
   return size;
+}
+
+/**
+ * gst_message_new_instant_rate_request:
+ * @src: The #GstObject that posted the message
+ * @rate_multiplier: the rate multiplier factor that should be applied
+ *
+ * Creates a new instant-rate-request message. Elements handling the
+ * instant-rate-change event must post this message. The message is
+ * handled at the pipeline, and allows the pipeline to select the
+ * running time when the rate change should happen and to send an
+ * @GST_EVENT_INSTANT_RATE_SYNC_TIME event to notify the elements
+ * in the pipeline.
+ *
+ * Returns: a newly allocated #GstMessage
+ *
+ * Since: 1.18
+ */
+GstMessage *
+gst_message_new_instant_rate_request (GstObject * src, gdouble rate_multiplier)
+{
+  GstStructure *structure;
+  GstMessage *message;
+
+  g_return_val_if_fail (rate_multiplier != 0.0, NULL);
+
+  structure = gst_structure_new_id (GST_QUARK (MESSAGE_INSTANT_RATE_REQUEST),
+      GST_QUARK (RATE), G_TYPE_DOUBLE, rate_multiplier, NULL);
+  message =
+      gst_message_new_custom (GST_MESSAGE_INSTANT_RATE_REQUEST, src, structure);
+
+  return message;
+}
+
+/**
+ * gst_message_parse_instant_rate_request:
+ * @message: a #GstMessage of type %GST_MESSAGE_INSTANT_RATE_REQUEST
+ * @rate_multiplier: (out) (allow-none): return location for the rate, or %NULL
+ *
+ * Parses the rate_multiplier from the instant-rate-request message.
+ *
+ * Since: 1.18
+ */
+void
+gst_message_parse_instant_rate_request (GstMessage * message,
+    gdouble * rate_multiplier)
+{
+  GstStructure *structure;
+
+  g_return_if_fail (GST_IS_MESSAGE (message));
+  g_return_if_fail (GST_MESSAGE_TYPE (message) ==
+      GST_MESSAGE_INSTANT_RATE_REQUEST);
+
+  structure = GST_MESSAGE_STRUCTURE (message);
+  gst_structure_id_get (structure, GST_QUARK (RATE), G_TYPE_DOUBLE,
+      rate_multiplier, NULL);
+}
+
+/**
+ * gst_message_ref: (skip)
+ * @msg: the message to ref
+ *
+ * Convenience macro to increase the reference count of the message.
+ *
+ * Returns: @msg (for convenience when doing assignments)
+ */
+GstMessage *
+gst_message_ref (GstMessage * msg)
+{
+  return (GstMessage *) gst_mini_object_ref (GST_MINI_OBJECT_CAST (msg));
+}
+
+/**
+ * gst_message_unref: (skip)
+ * @msg: the message to unref
+ *
+ * Convenience macro to decrease the reference count of the message, possibly
+ * freeing it.
+ */
+void
+gst_message_unref (GstMessage * msg)
+{
+  gst_mini_object_unref (GST_MINI_OBJECT_CAST (msg));
+}
+
+/**
+ * gst_clear_message: (skip)
+ * @msg_ptr: a pointer to a #GstMessage reference
+ *
+ * Clears a reference to a #GstMessage.
+ *
+ * @msg_ptr must not be %NULL.
+ *
+ * If the reference is %NULL then this function does nothing. Otherwise, the
+ * reference count of the message is decreased and the pointer is set to %NULL.
+ *
+ * Since: 1.16
+ */
+void
+gst_clear_message (GstMessage ** msg_ptr)
+{
+  gst_clear_mini_object ((GstMiniObject **) msg_ptr);
+}
+
+/**
+ * gst_message_copy: (skip)
+ * @msg: the message to copy
+ *
+ * Creates a copy of the message. Returns a copy of the message.
+ *
+ * Returns: (transfer full): a new copy of @msg.
+ *
+ * MT safe
+ */
+GstMessage *
+gst_message_copy (const GstMessage * msg)
+{
+  return
+      GST_MESSAGE_CAST (gst_mini_object_copy (GST_MINI_OBJECT_CONST_CAST
+          (msg)));
+}
+
+/**
+ * gst_message_replace: (skip)
+ * @old_message: (inout) (transfer full) (nullable): pointer to a
+ *     pointer to a #GstMessage to be replaced.
+ * @new_message: (allow-none) (transfer none): pointer to a #GstMessage that will
+ *     replace the message pointed to by @old_message.
+ *
+ * Modifies a pointer to a #GstMessage to point to a different #GstMessage. The
+ * modification is done atomically (so this is useful for ensuring thread safety
+ * in some cases), and the reference counts are updated appropriately (the old
+ * message is unreffed, the new one is reffed).
+ *
+ * Either @new_message or the #GstMessage pointed to by @old_message may be %NULL.
+ *
+ * Returns: %TRUE if @new_message was different from @old_message
+ */
+gboolean
+gst_message_replace (GstMessage ** old_message, GstMessage * new_message)
+{
+  return gst_mini_object_replace ((GstMiniObject **) old_message,
+      (GstMiniObject *) new_message);
+}
+
+/**
+ * gst_message_take:
+ * @old_message: (inout) (transfer full): pointer to a pointer to a #GstMessage
+ *     to be replaced.
+ * @new_message: (transfer full) (allow-none): pointer to a #GstMessage that
+ *     will replace the message pointed to by @old_message.
+ *
+ * Modifies a pointer to a #GstMessage to point to a different #GstMessage. This
+ * function is similar to gst_message_replace() except that it takes ownership
+ * of @new_message.
+ *
+ * Returns: %TRUE if @new_message was different from @old_message
+ *
+ * Since: 1.16
+ */
+gboolean
+gst_message_take (GstMessage ** old_message, GstMessage * new_message)
+{
+  return gst_mini_object_take ((GstMiniObject **) old_message,
+      (GstMiniObject *) new_message);
 }
