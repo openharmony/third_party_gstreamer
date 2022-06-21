@@ -372,14 +372,70 @@ gst_adaptive_demux_get_instance_private (GstAdaptiveDemux * self)
   return (G_STRUCT_MEMBER_P (self, private_offset));
 }
 
+#ifdef OHOS_OPT_COMPAT
+// ohos.ext.func.0029
+static void
+gst_adaptive_demux_set_exit_block (GstAdaptiveDemux *demux, const GValue *value)
+{
+  gint exit_block = g_value_get_int (value);
+  GST_INFO ("adaptive exit_block :%d", exit_block);
+  if (demux->priv == NULL) {
+    GST_WARNING_OBJECT (demux, "adaptive exit_block :%d, demux->priv is null", exit_block);
+    return;
+  }
+  if (exit_block != 1) {
+    return;
+  }
+  GList *iter = NULL;
+  /* stop update task */
+  if (demux->priv->updates_task != NULL) {
+    gst_task_stop (demux->priv->updates_task);
+    demux->priv->updates_task = NULL;
+  }
+  g_mutex_lock (&demux->priv->updates_timed_lock);
+  demux->priv->stop_updates_task = TRUE;
+  g_cond_signal (&demux->priv->updates_timed_cond);
+  g_mutex_unlock (&demux->priv->updates_timed_lock);
+  if (demux->downloader != NULL) {
+    gst_uri_downloader_cancel (demux->downloader);
+  }
+  /* stop download tasks */
+  for (iter = demux->streams; iter != NULL; iter = g_list_next (iter)) {
+    GstAdaptiveDemuxStream *stream = iter->data;
+    if (stream == NULL) {
+      GST_WARNING_OBJECT (demux, "stream is null");
+      continue;
+    }
+
+    if (stream->download_task != NULL) {
+      gst_task_stop (stream->download_task);
+    }
+    g_mutex_lock (&stream->fragment_download_lock);
+    stream->cancelled = TRUE;
+    g_cond_signal (&stream->fragment_download_cond);
+    g_mutex_unlock (&stream->fragment_download_lock);
+  }
+  /* set exit_block to src element */
+  set_property_to_src_and_download (demux, PROP_EXIT_BLOCK, (void *) &exit_block);
+}
+#endif
+
 static void
 gst_adaptive_demux_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
   GstAdaptiveDemux *demux = GST_ADAPTIVE_DEMUX (object);
 
-  GST_API_LOCK (demux);
-  GST_MANIFEST_LOCK (demux);
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0029
+  if (prop_id != PROP_EXIT_BLOCK) {
+#endif
+    GST_API_LOCK (demux);
+    GST_MANIFEST_LOCK (demux);
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0029
+  }
+#endif
 
   switch (prop_id) {
     case PROP_CONNECTION_SPEED:
@@ -408,8 +464,7 @@ gst_adaptive_demux_set_property (GObject * object, guint prop_id,
       break;
     }
     case PROP_EXIT_BLOCK: {
-      gint exit_block = g_value_get_int (value);
-      set_property_to_src_and_download(demux, prop_id, (void *)&exit_block);
+      gst_adaptive_demux_set_exit_block(demux, value);
       break;
     }
 #endif
@@ -418,8 +473,16 @@ gst_adaptive_demux_set_property (GObject * object, guint prop_id,
       break;
   }
 
-  GST_MANIFEST_UNLOCK (demux);
-  GST_API_UNLOCK (demux);
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0029
+  if (prop_id != PROP_EXIT_BLOCK) {
+#endif
+    GST_MANIFEST_UNLOCK (demux);
+    GST_API_UNLOCK (demux);
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0029
+  }
+#endif
 }
 
 static void
