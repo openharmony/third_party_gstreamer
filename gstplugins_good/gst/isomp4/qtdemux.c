@@ -1872,6 +1872,9 @@ _create_stream (GstQTDemux * demux, guint32 track_id)
   stream->ref_count = 1;
   /* consistent default for push based mode */
   gst_segment_init (&stream->segment, GST_FORMAT_TIME);
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: demux push first audio/video frame
+  stream->has_push_first_frame = FALSE;
+#endif
   return stream;
 }
 
@@ -2542,6 +2545,9 @@ gst_qtdemux_stream_clear (QtDemuxStream * stream)
   stream->redirect_uri = NULL;
   stream->sent_eos = FALSE;
   stream->protected = FALSE;
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: demux push first audio/video frame
+  stream->has_push_first_frame = FALSE;
+#endif
   if (stream->protection_scheme_info) {
     if (stream->protection_scheme_type == FOURCC_cenc
         || stream->protection_scheme_type == FOURCC_cbcs) {
@@ -5846,6 +5852,24 @@ gst_qtdemux_process_buffer_wvtt (GstQTDemux * qtdemux, QtDemuxStream * stream,
   return outbuf;
 }
 
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: demux push first audio/video frame
+static void
+kpi_log_demux_push_first_frame (GstQTDemux *qtdemux, QtDemuxStream *stream)
+{
+  if (stream->has_push_first_frame) {
+    return;
+  }
+
+  if (stream->subtype == FOURCC_vide && stream->on_keyframe) {
+    stream->has_push_first_frame = TRUE;
+    GST_WARNING_OBJECT(qtdemux, "KPI-TRACE: FIRST-VIDEO-FRAME demux push first video keyframe");
+  } else if (stream->subtype == FOURCC_soun) {
+    stream->has_push_first_frame = TRUE;
+    GST_WARNING_OBJECT(qtdemux, "KPI-TRACE: demux push first audio frame");
+  }
+}
+#endif
+
 static GstFlowReturn
 gst_qtdemux_push_buffer (GstQTDemux * qtdemux, QtDemuxStream * stream,
     GstBuffer * buf)
@@ -5938,6 +5962,9 @@ gst_qtdemux_push_buffer (GstQTDemux * qtdemux, QtDemuxStream * stream,
   pts = GST_BUFFER_PTS (buf);
   duration = GST_BUFFER_DURATION (buf);
 
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
+  kpi_log_demux_push_first_frame (qtdemux, stream);
+#endif
   ret = gst_pad_push (stream->pad, buf);
 
   if (GST_CLOCK_TIME_IS_VALID (pts) && GST_CLOCK_TIME_IS_VALID (duration)) {

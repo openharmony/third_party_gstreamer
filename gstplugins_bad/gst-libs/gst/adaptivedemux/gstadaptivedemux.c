@@ -132,6 +132,11 @@ GST_DEBUG_CATEGORY (adaptivedemux_debug);
 #define SRC_QUEUE_MAX_BYTES 20 * 1024 * 1024    /* For safety. Large enough to hold a segment. */
 #define NUM_LOOKBACK_FRAGMENTS 3
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0013
+#define DEFAULT_TIMEOUT              15
+#endif
+
 #define GST_MANIFEST_GET_LOCK(d) (&(GST_ADAPTIVE_DEMUX_CAST(d)->priv->manifest_lock))
 #define GST_MANIFEST_LOCK(d) G_STMT_START { \
     GST_TRACE("Locking from thread %p", g_thread_self()); \
@@ -157,8 +162,24 @@ enum
   PROP_0,
   PROP_CONNECTION_SPEED,
   PROP_BITRATE_LIMIT,
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0013
+  PROP_STATE_CHANGE,
+  PROP_TIMEOUT,
+  PROP_EXIT_BLOCK,
+#endif
   PROP_LAST
 };
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0028
+enum {
+  SIGNAL_BITRATE_PARSE_COMPLETE,
+  LAST_SIGNALS
+};
+
+static guint g_gst_adaptive_demux_signals[LAST_SIGNALS] = {0};
+#endif
 
 /* Internal, so not using GST_FLOW_CUSTOM_SUCCESS_N */
 #define GST_ADAPTIVE_DEMUX_FLOW_SWITCH (GST_FLOW_CUSTOM_SUCCESS_2 + 1)
@@ -307,6 +328,13 @@ static gboolean
 gst_adaptive_demux_requires_periodical_playlist_update_default (GstAdaptiveDemux
     * demux);
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0013
+static void set_property_to_element (GstObject *elem, guint property_id, const void *property_value);
+static void set_property_to_src_element (const GList *stream_list, guint property_id, const void *value);
+static void set_property_to_src_and_download (GstAdaptiveDemux *demux, guint property_id, const void *property_value);
+#endif
+
 /* we can't use G_DEFINE_ABSTRACT_TYPE because we need the klass in the _init
  * method to get to the padtemplates */
 GType
@@ -412,13 +440,36 @@ gst_adaptive_demux_set_property (GObject * object, guint prop_id,
 
   switch (prop_id) {
     case PROP_CONNECTION_SPEED:
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0028
+      demux->connection_speed = g_value_get_uint (value);
+#else
       demux->connection_speed = g_value_get_uint (value) * 1000;
+#endif
       GST_DEBUG_OBJECT (demux, "Connection speed set to %u",
           demux->connection_speed);
       break;
     case PROP_BITRATE_LIMIT:
       demux->bitrate_limit = g_value_get_float (value);
       break;
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0013
+    case PROP_TIMEOUT: {
+      guint timeout = g_value_get_uint (value);
+      set_property_to_src_and_download(demux, prop_id, (void *)&timeout);
+      break;
+    }
+    case PROP_STATE_CHANGE: {
+      gint state = g_value_get_int (value);
+      set_property_to_src_and_download(demux, prop_id, (void *)&state);
+      break;
+    }
+    case PROP_EXIT_BLOCK: {
+      // ohos.ext.func.0029
+      gst_adaptive_demux_set_exit_block(demux, value);
+      break;
+    }
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -482,11 +533,20 @@ gst_adaptive_demux_class_init (GstAdaptiveDemuxClass * klass)
   gobject_class->get_property = gst_adaptive_demux_get_property;
   gobject_class->finalize = gst_adaptive_demux_finalize;
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0028
+  g_object_class_install_property (gobject_class, PROP_CONNECTION_SPEED,
+      g_param_spec_uint ("connection-speed", "Connection Speed",
+          "Network connection speed in kbps (0 = calculate from downloaded"
+          " fragments)", 0, G_MAXUINT, DEFAULT_CONNECTION_SPEED,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#else
   g_object_class_install_property (gobject_class, PROP_CONNECTION_SPEED,
       g_param_spec_uint ("connection-speed", "Connection Speed",
           "Network connection speed in kbps (0 = calculate from downloaded"
           " fragments)", 0, G_MAXUINT / 1000, DEFAULT_CONNECTION_SPEED,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#endif
 
   /* FIXME 2.0: rename this property to bandwidth-usage or any better name */
   g_object_class_install_property (gobject_class, PROP_BITRATE_LIMIT,
@@ -495,6 +555,32 @@ gst_adaptive_demux_class_init (GstAdaptiveDemuxClass * klass)
           "Limit of the available bitrate to use when switching to alternates.",
           0, 1, DEFAULT_BITRATE_LIMIT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0013
+  g_object_class_install_property (gobject_class, PROP_TIMEOUT,
+      g_param_spec_uint ("timeout", "timeout",
+          "Value in seconds to timeout a blocking I/O (0 = No timeout).", 0,
+          3600, DEFAULT_TIMEOUT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_STATE_CHANGE,
+      g_param_spec_int ("state-change", "state-change from adaptive-demux",
+          "state-change from adaptive-demux", 0, (gint) (G_MAXINT32), 0,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_EXIT_BLOCK,
+      g_param_spec_int ("exit-block", "EXIT BLOCK",
+          "souphttpsrc exit block", 0, (gint) (G_MAXINT32), 0,
+          G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+#endif
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0028
+  g_gst_adaptive_demux_signals[SIGNAL_BITRATE_PARSE_COMPLETE] =
+        g_signal_new("bitrate-parse-complete",
+            G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST,
+            0, NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 2, G_TYPE_POINTER, G_TYPE_UINT);
+#endif
 
   gstelement_class->change_state = gst_adaptive_demux_change_state;
 
@@ -621,6 +707,77 @@ gst_adaptive_demux_finalize (GObject * object)
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0013
+static void
+set_property_to_element (GstObject *elem, guint property_id, const void *property_value)
+{
+  if ((elem == NULL) || (property_value == NULL)) {
+    return;
+  }
+
+  if (property_id == PROP_STATE_CHANGE) {
+    const gint *state_change = (const gint *) property_value;
+    g_object_set (elem, "state-change", *state_change, NULL);
+  } else if (property_id == PROP_TIMEOUT) {
+    const guint *timeout = (const guint *) property_value;
+    g_object_set (elem, "timeout", *timeout, NULL);
+  } else if (property_id == PROP_EXIT_BLOCK) {
+    const gint *exit_block = (const gint *) property_value;
+    g_object_set (elem, "exit-block", *exit_block, NULL);
+   }
+}
+
+static void
+set_property_to_src_element (const GList *stream_list, guint property_id, const void *property_value)
+{
+  GstAdaptiveDemuxStream *stream = NULL;
+  GstIterator *iter = NULL;
+
+  if (property_value == NULL) {
+    GST_WARNING ("value is NULL, set_property_to_src_element failed!");
+    return;
+  }
+
+  for (; stream_list != NULL; stream_list = g_list_next (stream_list)) {
+    GValue data = { 0, };
+
+    stream = stream_list->data;
+    if ((stream == NULL) || (stream->src == NULL)) {
+      continue;
+    }
+
+    iter = gst_bin_iterate_sources ((GstBin *) stream->src);
+    if (iter == NULL) {
+      continue;
+    }
+    if (gst_iterator_next (iter, &data) == GST_ITERATOR_OK) {
+      GstElement *uri_src = g_value_get_object (&data);
+      if (uri_src != NULL) {
+        set_property_to_element ((GstObject *) uri_src, property_id, property_value);
+      }
+    }
+    if (G_IS_VALUE (&data)) {
+      g_value_unset (&data);
+    }
+    gst_iterator_free (iter);
+    iter = NULL;
+  }
+}
+
+static void
+set_property_to_src_and_download (GstAdaptiveDemux *demux, guint property_id, const void *property_value)
+{
+  if ((demux == NULL) || (property_value == NULL)) {
+    GST_WARNING ("input parameter is error");
+    return;
+  }
+
+  set_property_to_src_element (demux->streams, property_id, property_value);
+  //set_property_to_element ((GstObject *) demux->downloader, property_id, property_value);
+}
+#endif
+
 static GstStateChangeReturn
 gst_adaptive_demux_change_state (GstElement * element,
     GstStateChange transition)
@@ -667,6 +824,36 @@ gst_adaptive_demux_change_state (GstElement * element,
 
   return result;
 }
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0028
+static void
+gst_adaptive_demux_update_bitrate (GstAdaptiveDemux *demux)
+{
+  GstAdaptiveDemuxBitrateInfo stream_bitrate_info;
+  stream_bitrate_info.bitrate_list = NULL;
+  stream_bitrate_info.bitrate_num = 0;
+  GstAdaptiveDemuxClass *demux_class = GST_ADAPTIVE_DEMUX_GET_CLASS (demux);
+  if ((demux_class->get_bitrate_info) == NULL) {
+    return;
+  }
+
+  gboolean ret = demux_class->get_bitrate_info(demux, &stream_bitrate_info);
+  if (!ret) {
+    return;
+  }
+
+  GST_INFO_OBJECT (demux, "Send to user, bitrate num = %u", stream_bitrate_info.bitrate_num);
+  g_signal_emit (GST_ELEMENT(demux), g_gst_adaptive_demux_signals[SIGNAL_BITRATE_PARSE_COMPLETE],
+    0, stream_bitrate_info.bitrate_list, stream_bitrate_info.bitrate_num);
+
+  if (stream_bitrate_info.bitrate_list != NULL) {
+    g_free (stream_bitrate_info.bitrate_list);
+    stream_bitrate_info.bitrate_list = NULL;
+    stream_bitrate_info.bitrate_num = 0;
+  }
+}
+#endif
 
 static gboolean
 gst_adaptive_demux_sink_event (GstPad * pad, GstObject * parent,
@@ -757,6 +944,13 @@ gst_adaptive_demux_sink_event (GstPad * pad, GstObject * parent,
       } else {
         g_atomic_int_set (&demux->priv->have_manifest, TRUE);
       }
+
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0028
+      if (ret) {
+        gst_adaptive_demux_update_bitrate(demux);
+      }
+#endif
       gst_buffer_unref (manifest_buffer);
 
       gst_element_post_message (GST_ELEMENT_CAST (demux),
@@ -1909,6 +2103,19 @@ gst_adaptive_demux_handle_seek_event (GstAdaptiveDemux * demux, GstPad * pad,
     gst_adaptive_demux_update_streams_segment (demux, demux->prepared_streams,
         period_start, start_type, stop_type);
     GST_ADAPTIVE_DEMUX_SEGMENT_UNLOCK (demux);
+
+#ifdef OHOS_OPT_COMPAT
+/* ohos.opt.compat.0028
+   In the variable resolution, if the changing path is still in the prepare stream state,
+   if seek continues to play at a certain location, the cancel of the prepare stream in will be set to true.
+   When switching to the main thread of the prepare stream, it is determined that when cancel is true,
+   no data will be pulled from the server, the prepare stream will be released first*/
+    if (demux->streams && demux->prepared_streams) {
+      g_list_free_full (demux->prepared_streams,
+          (GDestroyNotify) gst_adaptive_demux_stream_free);
+      demux->prepared_streams = NULL;
+    }
+#endif
 
     /* Restart the demux */
     gst_adaptive_demux_start_tasks (demux, FALSE);
@@ -3592,6 +3799,16 @@ again:
       last_status_code, stream->download_error_count);
 
   live = gst_adaptive_demux_is_live (demux);
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0013
+  if (last_status_code == 408) {
+    GST_WARNING_OBJECT (stream->pad, "Receive error of souphttpsrc, status_code is %u", last_status_code);
+    stream->download_error_count = MAX_DOWNLOAD_ERROR_COUNT;
+    return GST_FLOW_ERROR;
+  }
+#endif
+
   if (!retried_once && ((last_status_code / 100 == 4 && live)
           || last_status_code / 100 == 5)) {
     /* 4xx/5xx */
@@ -4035,6 +4252,18 @@ gst_adaptive_demux_stream_download_loop (GstAdaptiveDemuxStream * stream)
 end_of_manifest:
   if (G_UNLIKELY (ret == GST_FLOW_EOS)) {
     if (GST_OBJECT_PARENT (stream->pad) != NULL) {
+#ifdef OHOS_OPT_COMPAT
+/* ohos.opt.compat.0027
+   In the variable resolution, if the changing path is still in the prepare stream state,
+   then if seek to duraion, the EOS message will be erroneously lost, resulting in the failed to failed state */
+      if ((demux->next_streams == NULL && demux->prepared_streams == NULL) || (stream->last_ret == GST_FLOW_EOS)) {
+        GST_DEBUG_OBJECT (stream->src, "Pushing EOS on pad");
+        gst_adaptive_demux_stream_push_event (stream, gst_event_new_eos ());
+      } else {
+        GST_DEBUG_OBJECT (stream->src,
+            "Stream is EOS, but we're switching fragments. Not sending.");
+      }
+#else
       if (demux->next_streams == NULL && demux->prepared_streams == NULL) {
         GST_DEBUG_OBJECT (stream->src, "Pushing EOS on pad");
         gst_adaptive_demux_stream_push_event (stream, gst_event_new_eos ());
@@ -4042,6 +4271,7 @@ end_of_manifest:
         GST_DEBUG_OBJECT (stream->src,
             "Stream is EOS, but we're switching fragments. Not sending.");
       }
+#endif
     } else {
       GST_ERROR_OBJECT (demux, "Can't push EOS on non-exposed pad");
       goto download_error;

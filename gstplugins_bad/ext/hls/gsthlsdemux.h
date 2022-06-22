@@ -28,6 +28,14 @@
 #include <gst/gst.h>
 #include "m3u8.h"
 #include <gst/adaptivedemux/gstadaptivedemux.h>
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0013
+#undef HAVE_OPENSSL
+#undef HAVE_NETTLE
+#undef HAVE_LIBGCRYPT
+#endif
+
 #if defined(HAVE_OPENSSL)
 #include <openssl/evp.h>
 #elif defined(HAVE_NETTLE)

@@ -172,6 +172,14 @@ typedef struct
   gboolean need_preroll;        /* if we need preroll after this step */
 } GstStepInfo;
 
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: define sink type
+typedef enum {
+  SINK_TYPE_VIDEO = 0,
+  SINK_TYPE_AUDIO,
+  SINK_TYPE_UNKNOWN,
+} SINK_TYPE;
+#endif
+
 struct _GstBaseSinkPrivate
 {
   gint qos_enabled;             /* ATOMIC */
@@ -334,11 +342,6 @@ enum
   PROP_MAX_BITRATE,
   PROP_PROCESSING_DEADLINE,
   PROP_STATS,
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
-  PROP_AUDIO_SINK, // add prop to get av sync diff time
-  PROP_LAST_RENDER_PTS, // add prop to get av sync diff time
-  PROP_ENABLE_KPI_AVSYNC_LOG, // add prop to get av sync diff time
-#endif
   PROP_LAST
 };
 
@@ -593,15 +596,6 @@ gst_base_sink_class_init (GstBaseSinkClass * klass)
       g_param_spec_uint64 ("processing-deadline", "Processing deadline",
           "Maximum processing time for a buffer in nanoseconds", 0,
           G_MAXUINT64, DEFAULT_PROCESSING_DEADLINE,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  /* add prop to get av sync diff time */
-  g_object_class_install_property (gobject_class, PROP_LAST_RENDER_PTS,
-      g_param_spec_int64 ("last-render-pts", "last-render-pts", "last-render-pts", 0, G_MAXINT64,
-          0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  g_object_class_install_property (gobject_class, PROP_ENABLE_KPI_AVSYNC_LOG,
-      g_param_spec_boolean ("enable-kpi-avsync-log", "Enable KPI AV sync log", "Enable KPI AV sync log", FALSE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   /**
    * GstBaseSink:stats:
@@ -2502,7 +2496,11 @@ gst_base_sink_wait_preroll (GstBaseSink * sink)
   if (G_UNLIKELY (sink->priv->step_unlock))
     goto step_unlocked;
   GST_DEBUG_OBJECT (sink, "continue after preroll");
-
+// ohos.ext.func.0009
+#ifdef OHOS_EXT_FUNC
+  } while ((GST_STATE(sink) == GST_STATE_PAUSED && GST_STATE_TARGET(sink) != GST_STATE_PLAYING)
+    || GST_STATE_TARGET(sink) == GST_STATE_PAUSED);
+#endif
   return GST_FLOW_OK;
 
   /* ERRORS */
@@ -4201,6 +4199,30 @@ preroll_failed:
   }
 }
 
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
+static void
+kpi_log_recv_first_frame(GstBaseSink *basesink)
+{
+  GstBaseSinkPrivate *priv = basesink->priv;
+  if (priv->has_recv_first_frame) {
+    return;
+  }
+
+  priv->has_recv_first_frame = TRUE;
+
+  /* get sink type by caps */
+  gchar *sink_type = get_sink_type_by_caps(basesink);
+  if (strncmp(sink_type, "video", strlen("video")) == 0) {
+    priv->sink_type = SINK_TYPE_VIDEO;
+  } else if (strncmp(sink_type, "audio", strlen("audio")) == 0) {
+    priv->sink_type = SINK_TYPE_AUDIO;
+  } else {
+    priv->sink_type = SINK_TYPE_UNKNOWN;
+  }
+  GST_WARNING_OBJECT (basesink, "KPI-TRACE: recv first %s frame", sink_type);
+}
+#endif
+
 /* with STREAM_LOCK
  */
 static GstFlowReturn
@@ -4213,6 +4235,9 @@ gst_base_sink_chain_main (GstBaseSink * basesink, GstPad * pad, gpointer obj,
     goto wrong_mode;
 
   GST_BASE_SINK_PREROLL_LOCK (basesink);
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
+  kpi_log_recv_first_frame(basesink);
+#endif
   result = gst_base_sink_chain_unlocked (basesink, pad, obj, is_list);
   GST_BASE_SINK_PREROLL_UNLOCK (basesink);
 
@@ -5832,6 +5857,10 @@ gst_base_sink_change_state (GstElement * element, GstStateChange transition)
       priv->segment_seqnum = GST_SEQNUM_INVALID;
       priv->instant_rate_offset = 0;
       priv->last_anchor_running_time = 0;
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
+      priv->has_render_first_frame = FALSE;
+      priv->has_recv_first_frame = FALSE;
+#endif
       if (priv->async_enabled) {
         GST_DEBUG_OBJECT (basesink, "doing async state change");
         /* when async enabled, post async-start message and return ASYNC from

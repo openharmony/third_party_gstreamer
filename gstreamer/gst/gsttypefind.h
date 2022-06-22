@@ -172,6 +172,11 @@ struct _GstTypeFind {
   /* optional */
   guint64         (* get_length) (gpointer data);
 
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0004
+  gboolean need_typefind_again;
+#endif
+
   /* <private> */
   gpointer _gst_reserved[GST_PADDING];
 };

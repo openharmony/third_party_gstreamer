@@ -29,6 +29,15 @@ plugin_init (GstPlugin * plugin)
 {
   gboolean ret = FALSE;
 
+/* ohos.ext.func.0022:
+ * we only need gsth264parse element. However, gstreamer will build all parser elemenet together, which make the
+ * memory bigger than expect.
+ * To avoid this, we do not make other parser elements.
+ */
+/* ohos.ext.func.0026:
+ * The avmuxer need mpeg4videoparse, so mpeg4videoparse needs to be registered
+ */
+#ifndef OHOS_EXT_FUNC
   ret |= GST_ELEMENT_REGISTER (h263parse, plugin);
   ret |= GST_ELEMENT_REGISTER (h264parse, plugin);
   ret |= GST_ELEMENT_REGISTER (diracparse, plugin);
@@ -50,7 +59,10 @@ plugin_init (GstPlugin * plugin)
    * Since: 1.20
    */
   ret |= GST_ELEMENT_REGISTER (av1parse, plugin);
-
+#else
+  ret |= GST_ELEMENT_REGISTER (h264parse, plugin);
+  ret |= GST_ELEMENT_REGISTER (mpeg4videoparse, plugin);
+#endif
   return ret;
 }
 

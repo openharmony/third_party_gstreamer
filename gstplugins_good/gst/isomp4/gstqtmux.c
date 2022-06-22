@@ -330,6 +330,22 @@ enum
   PROP_MAX_RAW_AUDIO_DRIFT,
   PROP_START_GAP_THRESHOLD,
   PROP_FORCE_CREATE_TIMECODE_TRAK,
+/* ohos.ext.func.0016
+ * add additional features to set geographic location information in mp4 file.
+ * PROP_SET_LATITUDE is the property to set latitude.
+ * PROP_SET_LONGITUDE is the property to set longitude.
+ */
+#ifdef OHOS_EXT_FUNC
+  PROP_SET_LATITUDE,
+  PROP_SET_LONGITUDE,
+#endif
+/* ohos.ext.func.0018
+ * add additional features to set orientationHint in mp4 file.
+ * PROP_ROTAION_ANGLE is the angle to set, must be{0, 90, 180, 270}.
+ */
+#ifdef OHOS_EXT_FUNC
+  PROP_ROTAION_ANGLE,
+#endif
   PROP_FRAGMENT_MODE,
 };
 
@@ -620,6 +636,36 @@ gst_qt_mux_class_init (GstQTMuxClass * klass)
           GST_TYPE_QT_MUX_FRAGMENT_MODE, DEFAULT_FRAGMENT_MODE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+/* ohos.ext.func.0016
+ * add additional features to set geographic location information in mp4 file.
+ * PROP_SET_LATITUDE is the property to set latitude.
+ * PROP_SET_LONGITUDE is the property to set longitude.
+ */
+#ifdef OHOS_EXT_FUNC
+    g_object_class_install_property (gobject_class, PROP_SET_LATITUDE,
+        g_param_spec_int ("set-latitude", "Set Latitude",
+            "set the latitude in geolocation, here multiplying 10000",
+            G_MININT32, G_MAXINT32, 0,
+            G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+    g_object_class_install_property (gobject_class, PROP_SET_LONGITUDE,
+        g_param_spec_int ("set-longitude", "Set Longitude",
+            "set the longitude in geolocation, here multiplying 10000",
+            G_MININT32, G_MAXINT32, 0,
+            G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+#endif
+
+/* ohos.ext.func.0018
+ * add additional features to set orientationHint in mp4 file.
+ * PROP_ROTAION_ANGLE is the angle to set, must be{0, 90, 180, 270}.
+ */
+#ifdef OHOS_EXT_FUNC
+    g_object_class_install_property (gobject_class, PROP_ROTAION_ANGLE,
+        g_param_spec_uint ("orientation-hint", "Orientation Hint",
+            "set the rotation angle in mp4 file",
+            0, 270, 0,
+            G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+#endif
+
   gstelement_class->request_new_pad =
       GST_DEBUG_FUNCPTR (gst_qt_mux_request_new_pad);
   gstelement_class->release_pad = GST_DEBUG_FUNCPTR (gst_qt_mux_release_pad);
@@ -853,6 +899,26 @@ gst_qt_mux_init (GstQTMux * qtmux, GstQTMuxClass * qtmux_klass)
   qtmux->start_gap_threshold = DEFAULT_START_GAP_THRESHOLD;
   qtmux->force_create_timecode_trak = DEFAULT_FORCE_CREATE_TIMECODE_TRAK;
 
+/* ohos.ext.func.0016
+ * add additional features to set geographic location information in mp4 file
+ * the feature is default disable.
+ */
+#ifdef OHOS_EXT_FUNC
+  qtmux->enable_geolocation = FALSE;
+#endif
+
+/* ohos.opt.compat.0011
+ * qtmux itself does not handle flush events, so in extreme cases, the buffer is discarded by gstpad
+ * when it is passed forward, but qtmux thinks that the buffer writes the file successfully,
+ * resulting in a file exception.
+ * is_flushing: a flag to tell qtmux, in flushing progress.
+ * flush_lock: is a lock to make sure the flag Operating normally.
+ */
+#ifdef OHOS_OPT_COMPAT
+  g_mutex_init(&qtmux->flush_lock);
+  qtmux->is_flushing = FALSE;
+#endif
+
   /* always need this */
   qtmux->context =
       atoms_context_new (gst_qt_mux_map_format_to_flavor (qtmux_klass->format),
@@ -872,6 +938,17 @@ gst_qt_mux_finalize (GObject * object)
 
   g_free (qtmux->fast_start_file_path);
   g_free (qtmux->moov_recov_file_path);
+
+/* ohos.opt.compat.0011
+ * qtmux itself does not handle flush events, so in extreme cases, the buffer is discarded by gstpad
+ * when it is passed forward, but qtmux thinks that the buffer writes the file successfully,
+ * resulting in a file exception.
+ * is_flushing: a flag to tell qtmux, in flushing progress.
+ * flush_lock: is a lock to make sure the flag Operating normally.
+ */
+#ifdef OHOS_OPT_COMPAT
+  g_mutex_clear(&qtmux->flush_lock);
+#endif
 
   atoms_context_free (qtmux->context);
 
@@ -1885,6 +1962,20 @@ gst_qt_mux_send_buffer (GstQTMux * qtmux, GstBuffer * buf, guint64 * offset,
   size = gst_buffer_get_size (buf);
   GST_LOG_OBJECT (qtmux, "sending buffer size %" G_GSIZE_FORMAT, size);
 
+/* ohos.opt.compat.0011
+ * qtmux itself does not handle flush events, so in extreme cases, the buffer is discarded by gstpad
+ * when it is passed forward, but qtmux thinks that the buffer writes the file successfully,
+ * resulting in a file exception.
+ */
+#ifdef OHOS_OPT_COMPAT
+  g_mutex_lock(&qtmux->flush_lock);
+  if (qtmux->is_flushing) {
+      g_mutex_unlock(&qtmux->flush_lock);
+      GST_INFO_OBJECT(qtmux, "drop buffer size %" G_GSIZE_FORMAT, size);
+      return GST_FLOW_FLUSHING;
+  }
+#endif
+
   if (mind_fast && qtmux->fast_start_file) {
     GstMapInfo map;
     gint ret;
@@ -1915,6 +2006,15 @@ gst_qt_mux_send_buffer (GstQTMux * qtmux, GstBuffer * buf, guint64 * offset,
 
   if (G_LIKELY (offset))
     *offset += size;
+
+/* ohos.opt.compat.0011
+ * qtmux itself does not handle flush events, so in extreme cases, the buffer is discarded by gstpad
+ * when it is passed forward, but qtmux thinks that the buffer writes the file successfully,
+ * resulting in a file exception.
+ */
+#ifdef OHOS_OPT_COMPAT
+  g_mutex_unlock(&qtmux->flush_lock);
+#endif
 
   return res;
 
@@ -2324,7 +2424,46 @@ gst_qt_mux_send_moov (GstQTMux * qtmux, guint64 * _offset,
 
     qtpad->trak->mdia.mdhd.time_info.modification_time = current_time;
     qtpad->trak->tkhd.modification_time = current_time;
+
+/* ohos.ext.func.0018
+ * add additional features to set orientationHint in mp4 file.
+ * { 0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000 }
+ */
+#ifdef OHOS_EXT_FUNC
+    switch (qtmux->rotation) {
+    case 90:
+        qtpad->trak->tkhd.matrix[0] = 0;
+        qtpad->trak->tkhd.matrix[1] = 1 << 16;
+        qtpad->trak->tkhd.matrix[3] = 65535 << 16;
+        qtpad->trak->tkhd.matrix[4] = 0;
+        break;
+    case 180:
+        qtpad->trak->tkhd.matrix[0] = 65535 << 16;
+        qtpad->trak->tkhd.matrix[4] = 65535 << 16;
+        break;
+    case 270:
+        qtpad->trak->tkhd.matrix[0] = 0;
+        qtpad->trak->tkhd.matrix[1] = 65535 << 16;
+        qtpad->trak->tkhd.matrix[3] = 1 << 16;
+        qtpad->trak->tkhd.matrix[4] = 0;
+        break;
+    default:
+        break;
+    }
+#endif
   }
+
+/* ohos.ext.func.0016
+ * add additional features to set geographic location information in mp4 file
+ * the feature is default disable.
+ */
+#ifdef OHOS_EXT_FUNC
+  if (qtmux->enable_geolocation) {
+      qtmux->moov->udta.set_location = TRUE;
+      qtmux->moov->udta.latitude = qtmux->latitudex10000;
+      qtmux->moov->udta.longitude = qtmux->longitudex10000;
+  }
+#endif
   GST_OBJECT_UNLOCK (qtmux);
 
   /* serialize moov */
@@ -6962,6 +7101,25 @@ gst_qt_mux_sink_event (GstAggregator * agg, GstAggregatorPad * agg_pad,
       ret = TRUE;
       break;
     }
+/* ohos.opt.compat.0011
+ * qtmux itself does not handle flush events, so in extreme cases, the buffer is discarded by gstpad
+ * when it is passed forward, but qtmux thinks that the buffer writes the file successfully,
+ * resulting in a file exception.
+ */
+#ifdef OHOS_OPT_COMPAT
+    case GST_EVENT_FLUSH_START: {
+      g_mutex_lock(&qtmux->flush_lock);
+      qtmux->is_flushing = TRUE;
+      g_mutex_unlock(&qtmux->flush_lock);
+      break;
+    }
+    case GST_EVENT_FLUSH_STOP: {
+      g_mutex_lock(&qtmux->flush_lock);
+      qtmux->is_flushing = FALSE;
+      g_mutex_unlock(&qtmux->flush_lock);
+      break;
+    }
+#endif
     default:
       break;
   }
@@ -7292,6 +7450,30 @@ gst_qt_mux_set_property (GObject * object,
         qtmux->fragment_mode = mode;
       break;
     }
+/* ohos.ext.func.0016
+ * add additional features to set geographic location information in mp4 file
+ * enable_geolocation is the flag to enable this feature
+ * latitudex10000 is the latitude to set, multiply 10000 for the convenience of calculation.
+ * longitudex10000 is the longitude to set, multiply 10000 for the convenience of calculation.
+ */
+#ifdef OHOS_EXT_FUNC
+    case PROP_SET_LATITUDE:
+      qtmux->latitudex10000 = g_value_get_int(value);
+      qtmux->enable_geolocation = TRUE;
+      break;
+    case PROP_SET_LONGITUDE:
+      qtmux->longitudex10000 = g_value_get_int(value);
+      break;
+#endif
+/* ohos.ext.func.0018
+ * add additional features to set orientationHint in mp4 file.
+ * PROP_ROTAION_ANGLE is the angle to set, must be{0, 90, 180, 270}.
+ */
+#ifdef OHOS_EXT_FUNC
+    case PROP_ROTAION_ANGLE:
+      qtmux->rotation = g_value_get_uint(value);
+      break;
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;

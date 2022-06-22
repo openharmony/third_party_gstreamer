@@ -119,6 +119,11 @@ struct _GstURIDecodeBin
   gboolean expose_allstreams;   /* Whether to expose unknown type streams or not */
 
   guint64 ring_buffer_max_size; /* 0 means disabled */
+#ifdef OHOS_EXT_FUNC
+  //ohos.ext.func.0012
+  gint low_percent;
+  gint high_percent;
+#endif
 };
 
 struct _GstURIDecodeBinClass
@@ -170,6 +175,10 @@ enum
   SIGNAL_AUTOPLUG_QUERY,
   SIGNAL_DRAINED,
   SIGNAL_SOURCE_SETUP,
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0028
+  SIGNAL_BITRATE_PARSE_COMPLETE,
+#endif
   LAST_SIGNAL
 };
 
@@ -179,13 +188,25 @@ enum
 #define DEFAULT_CONNECTION_SPEED    0
 #define DEFAULT_CAPS                (gst_static_caps_get (&default_raw_caps))
 #define DEFAULT_SUBTITLE_ENCODING   NULL
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0012
+#define DEFAULT_BUFFER_DURATION     0
+#else
 #define DEFAULT_BUFFER_DURATION     -1
+#endif
 #define DEFAULT_BUFFER_SIZE         -1
 #define DEFAULT_DOWNLOAD            FALSE
 #define DEFAULT_USE_BUFFERING       FALSE
 #define DEFAULT_FORCE_SW_DECODERS   FALSE
 #define DEFAULT_EXPOSE_ALL_STREAMS  TRUE
 #define DEFAULT_RING_BUFFER_MAX_SIZE 0
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+#define DEFAULT_LOW_PERCENT       10
+#define DEFAULT_HIGH_PERCENT      99
+#define DEFAULT_TIMEOUT           15
+#endif
 
 enum
 {
@@ -201,6 +222,14 @@ enum
   PROP_USE_BUFFERING,
   PROP_FORCE_SW_DECODERS,
   PROP_EXPOSE_ALL_STREAMS,
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  PROP_LOW_PERCENT,
+  PROP_HIGH_PERCENT,
+  PROP_STATE_CHANGE,
+  PROP_EXIT_BLOCK,
+  PROP_TIMEOUT,
+#endif
   PROP_RING_BUFFER_MAX_SIZE
 };
 
@@ -457,11 +486,52 @@ gst_uri_decode_bin_class_init (GstURIDecodeBinClass * klass)
           "Buffer size when buffering streams (-1 default value)",
           -1, G_MAXINT, DEFAULT_BUFFER_SIZE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  g_object_class_install_property (gobject_class, PROP_BUFFER_DURATION,
+      g_param_spec_uint64 ("buffer-duration", "Buffer duration (ns)",
+          "Buffer duration when buffering streams (-1 default value)",
+          0, G_MAXUINT64 / 1000, DEFAULT_BUFFER_DURATION,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_STATE_CHANGE,
+    g_param_spec_int ("state-change", "state-change from adaptive-demux",
+        "state-change from adaptive-demux", 0, (gint) (G_MAXINT32), 0,
+        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_EXIT_BLOCK,
+      g_param_spec_int ("exit-block", "EXIT BLOCK",
+          "souphttpsrc exit block", 0, (gint) (G_MAXINT32), 0,
+          G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+
+  /*
+   * GstURIDecodeBin:low-percent
+   * Low threshold percent for buffering to start.
+   */
+  g_object_class_install_property (gobject_class, PROP_LOW_PERCENT,
+      g_param_spec_int ("low-percent", "Low percent",
+          "Low threshold for buffering to start", 0, 100,
+          DEFAULT_LOW_PERCENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  /*
+   * GstURIDecodeBin:high-percent
+   * High threshold percent for buffering to finish.
+   */
+  g_object_class_install_property (gobject_class, PROP_HIGH_PERCENT,
+      g_param_spec_int ("high-percent", "High percent",
+          "High threshold for buffering to finish", 0, 100,
+          DEFAULT_HIGH_PERCENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_TIMEOUT,
+      g_param_spec_uint ("timeout", "timeout",
+          "Value in seconds to timeout a blocking I/O (0 = No timeout).", 0,
+          3600, DEFAULT_TIMEOUT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#else
   g_object_class_install_property (gobject_class, PROP_BUFFER_DURATION,
       g_param_spec_int64 ("buffer-duration", "Buffer duration (ns)",
           "Buffer duration when buffering streams (-1 default value)",
           -1, G_MAXINT64, DEFAULT_BUFFER_DURATION,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#endif
 
   /**
    * GstURIDecodeBin::download:
@@ -713,6 +783,14 @@ gst_uri_decode_bin_class_init (GstURIDecodeBinClass * klass)
       g_signal_new ("source-setup", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 1, GST_TYPE_ELEMENT);
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0028
+  gst_uri_decode_bin_signals[SIGNAL_BITRATE_PARSE_COMPLETE] =
+      g_signal_new("bitrate-parse-complete",
+      G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST,
+      0, NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 2, G_TYPE_POINTER, G_TYPE_UINT);
+#endif
+
   gst_element_class_add_static_pad_template (gstelement_class, &srctemplate);
   gst_element_class_set_static_metadata (gstelement_class,
       "URI Decoder", "Generic/Bin/Decoder",
@@ -755,6 +833,12 @@ gst_uri_decode_bin_init (GstURIDecodeBin * dec)
   dec->force_sw_decoders = DEFAULT_FORCE_SW_DECODERS;
   dec->expose_allstreams = DEFAULT_EXPOSE_ALL_STREAMS;
   dec->ring_buffer_max_size = DEFAULT_RING_BUFFER_MAX_SIZE;
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  dec->low_percent = DEFAULT_LOW_PERCENT;
+  dec->high_percent = DEFAULT_HIGH_PERCENT;
+#endif
 
   GST_OBJECT_FLAG_SET (dec, GST_ELEMENT_FLAG_SOURCE);
   gst_bin_set_suppressed_flags (GST_BIN (dec),
@@ -801,6 +885,39 @@ gst_uri_decode_bin_set_encoding (GstURIDecodeBin * dec, const gchar * encoding)
   GST_URI_DECODE_BIN_UNLOCK (dec);
 }
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0012
+static void
+set_property_to_decodebin (GstURIDecodeBin *dec, guint property_id, const void *property_value)
+{
+  if (dec->decodebins == NULL) {
+    return;
+  }
+
+  GSList *walk = NULL;
+  for (walk = dec->decodebins; walk;  walk = g_slist_next (walk)) {
+    if (walk->data == NULL) {
+      continue;
+    }
+    GObject *decodebin = G_OBJECT (walk->data);
+
+    if (property_id == PROP_TIMEOUT) {
+      const guint *timeout = (const guint *) property_value;
+      g_object_set (decodebin, "timeout", *timeout, NULL);
+    } else if (property_id == PROP_STATE_CHANGE) {
+      const gint *state = (const gint *) property_value;
+      g_object_set (decodebin, "state-change", *state, NULL);
+    } else if (property_id == PROP_EXIT_BLOCK) {
+      const gint *exit_block = (const gint *) property_value;
+      g_object_set (decodebin, "exit-block", *exit_block, NULL);
+    } else if (property_id == PROP_CONNECTION_SPEED) {
+      const guint64 *con_speed = (const guint64 *) property_value;
+      g_object_set (decodebin, "connection-speed", *con_speed, NULL);
+    }
+  }
+}
+#endif
+
 static void
 gst_uri_decode_bin_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
@@ -818,6 +935,11 @@ gst_uri_decode_bin_set_property (GObject * object, guint prop_id,
       GST_OBJECT_LOCK (dec);
       dec->connection_speed = g_value_get_uint64 (value) * 1000;
       GST_OBJECT_UNLOCK (dec);
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0028
+      guint64 con_speed = g_value_get_uint64 (value);
+      set_property_to_decodebin(dec, prop_id, (void *)&con_speed);
+#endif
       break;
     case PROP_CAPS:
       GST_OBJECT_LOCK (dec);
@@ -833,7 +955,12 @@ gst_uri_decode_bin_set_property (GObject * object, guint prop_id,
       dec->buffer_size = g_value_get_int (value);
       break;
     case PROP_BUFFER_DURATION:
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0012
+      dec->buffer_duration = g_value_get_uint64 (value);
+#else
       dec->buffer_duration = g_value_get_int64 (value);
+#endif
       break;
     case PROP_DOWNLOAD:
       dec->download = g_value_get_boolean (value);
@@ -850,6 +977,35 @@ gst_uri_decode_bin_set_property (GObject * object, guint prop_id,
     case PROP_RING_BUFFER_MAX_SIZE:
       dec->ring_buffer_max_size = g_value_get_uint64 (value);
       break;
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0012
+    case PROP_TIMEOUT: {
+      guint timeout = g_value_get_uint (value);
+      g_object_set (dec->source, "timeout", timeout, NULL);
+      set_property_to_decodebin(dec, prop_id, (void *)&timeout);
+      break;
+    }
+    case PROP_STATE_CHANGE: {
+      gint state = g_value_get_int (value);
+      g_object_set (dec->source, "state-change", state, NULL);
+      set_property_to_decodebin(dec, prop_id, (void *)&state);
+      break;
+    }
+    case PROP_EXIT_BLOCK: {
+      gint exit_block = g_value_get_int (value);
+      g_object_set (dec->source, "exit-block", exit_block, NULL);
+      set_property_to_decodebin(dec, prop_id, (void *)&exit_block);
+      break;
+    }
+    case PROP_LOW_PERCENT:
+      dec->low_percent = g_value_get_int (value);
+      GST_INFO_OBJECT (dec, "gsturidecbin set property low_percent=%d", dec->low_percent);
+      break;
+    case PROP_HIGH_PERCENT:
+      dec->high_percent = g_value_get_int (value);
+      GST_INFO_OBJECT (dec, "gsturidecbin set property high_percent=%d", dec->high_percent);
+      break;
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -895,7 +1051,12 @@ gst_uri_decode_bin_get_property (GObject * object, guint prop_id,
       break;
     case PROP_BUFFER_DURATION:
       GST_OBJECT_LOCK (dec);
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0012
+      g_value_set_uint64 (value, dec->buffer_duration);
+#else
       g_value_set_int64 (value, dec->buffer_duration);
+#endif
       GST_OBJECT_UNLOCK (dec);
       break;
     case PROP_DOWNLOAD:
@@ -913,6 +1074,15 @@ gst_uri_decode_bin_get_property (GObject * object, guint prop_id,
     case PROP_RING_BUFFER_MAX_SIZE:
       g_value_set_uint64 (value, dec->ring_buffer_max_size);
       break;
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0012
+    case PROP_LOW_PERCENT:
+      g_value_set_int (value, dec->low_percent);
+      break;
+    case PROP_HIGH_PERCENT:
+      g_value_set_int (value, dec->high_percent);
+      break;
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -949,6 +1119,18 @@ do_async_done (GstURIDecodeBin * dbin)
 #define DEFAULT_QUEUE_SIZE          (3 * GST_SECOND)
 #define DEFAULT_QUEUE_MIN_THRESHOLD ((DEFAULT_QUEUE_SIZE * 30) / 100)
 #define DEFAULT_QUEUE_THRESHOLD     ((DEFAULT_QUEUE_SIZE * 95) / 100)
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0028
+static void
+bitrate_parse_complete_cb (GstElement * element, gpointer input, guint num, GstURIDecodeBin * decoder)
+{
+  if ((element == NULL) || (decoder == NULL)) {
+    return;
+  }
+  g_signal_emit (decoder, gst_uri_decode_bin_signals[SIGNAL_BITRATE_PARSE_COMPLETE], 0, input, num);
+}
+#endif
 
 static void
 unknown_type_cb (GstElement * element, GstPad * pad, GstCaps * caps,
@@ -1820,6 +2002,27 @@ proxy_drained_signal (GstElement * decodebin, GstURIDecodeBin * dec)
   g_signal_emit (dec, gst_uri_decode_bin_signals[SIGNAL_DRAINED], 0, NULL);
 }
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0012
+static void
+set_buffering_info (GstURIDecodeBin *decoder, GstElement *decodebin)
+{
+  /* configure sizes when buffering */
+  if (decoder->buffer_size == DEFAULT_BUFFER_SIZE) {
+    decoder->buffer_size = 2 * 1024 * 1024; //2M
+  }
+
+  if (decoder->buffer_duration == DEFAULT_BUFFER_DURATION) {
+    decoder->buffer_duration = 5 * GST_SECOND; //5s
+  }
+
+  g_object_set (decodebin, "max-size-bytes", decoder->buffer_size, "max-size-buffers",
+      (guint) 0, "max-size-time", decoder->buffer_duration, NULL);
+
+  g_object_set (decodebin, "low-percent", decoder->low_percent, "high-percent", decoder->high_percent, NULL);
+}
+#endif
+
 /* make a decodebin and connect to all the signals */
 static GstElement *
 make_decoder (GstURIDecodeBin * decoder)
@@ -1874,6 +2077,12 @@ make_decoder (GstURIDecodeBin * decoder)
         G_CALLBACK (no_more_pads), decoder);
     g_signal_connect (decodebin,
         "unknown-type", G_CALLBACK (unknown_type_cb), decoder);
+
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0028
+    g_signal_connect (decodebin,
+        "bitrate-parse-complete", G_CALLBACK (bitrate_parse_complete_cb), decoder);
+#endif
   }
 
   g_object_set (decodebin, "force-sw-decoders", decoder->force_sw_decoders,
@@ -1887,6 +2096,23 @@ make_decoder (GstURIDecodeBin * decoder)
   g_object_set (decodebin, "expose-all-streams", decoder->expose_allstreams,
       "connection-speed", decoder->connection_speed / 1000, NULL);
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  /*
+   * modify for http buffering, If it is streaming, use buffering
+   */
+  if (!decoder->is_stream) {
+    decoder->use_buffering = FALSE;
+  }
+  /*
+   * propagate the use-buffering property but only when we are not already
+   * doing stream buffering with queue2.
+   */
+  g_object_set (decodebin, "use-buffering", decoder->use_buffering, NULL);
+  if (decoder->use_buffering) {
+    set_buffering_info(decoder, decodebin);
+  }
+#else
   if (!decoder->is_stream || decoder->is_adaptive) {
     /* propagate the use-buffering property but only when we are not already
      * doing stream buffering with queue2. FIXME, we might want to do stream
@@ -1908,6 +2134,7 @@ make_decoder (GstURIDecodeBin * decoder)
           (guint) 0, "max-size-time", max_time, NULL);
     }
   }
+#endif
 
   g_object_set_data (G_OBJECT (decodebin), "pending", GINT_TO_POINTER (1));
   g_object_set (decodebin, "subtitle-encoding", decoder->encoding, NULL);
@@ -2014,18 +2241,29 @@ type_found (GstElement * typefind, guint probability,
       g_free (filename);
       g_free (temp_template);
     } else {
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0012
+      /*
+       * modify for http buffering, queue2 setting buffer is false by default
+       */
+      g_object_set (queue, "use-buffering", FALSE, NULL);
+#else
       g_object_set (queue, "use-buffering", TRUE, NULL);
+#endif
       g_object_set (queue, "ring-buffer-max-size",
           decoder->ring_buffer_max_size, NULL);
       /* Disable max-size-buffers */
       g_object_set (queue, "max-size-buffers", 0, NULL);
     }
 
+#ifndef OHOS_EXT_FUNC
+    // ohos.ext.func.0012
     /* If buffer size or duration are set, set them on the element */
     if (decoder->buffer_size != -1)
       g_object_set (queue, "max-size-bytes", decoder->buffer_size, NULL);
     if (decoder->buffer_duration != -1)
       g_object_set (queue, "max-size-time", decoder->buffer_duration, NULL);
+#endif
 
     gst_bin_add (GST_BIN_CAST (decoder), queue);
 

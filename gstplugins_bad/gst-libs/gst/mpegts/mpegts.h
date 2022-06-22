@@ -38,7 +38,10 @@
 #include <gst/mpegts/gst-atsc-section.h>
 #include <gst/mpegts/gst-dvb-section.h>
 #include <gst/mpegts/gst-scte-section.h>
+#ifndef OHOS_EXT_FUNC
+// ohos.ext.func.0013
 #include <gst/mpegts/gstmpegts-enumtypes.h>
+#endif
 #include <gst/mpegts/gst-hdmv-section.h>
 
 G_BEGIN_DECLS

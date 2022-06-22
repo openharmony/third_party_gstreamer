@@ -114,6 +114,10 @@ enum
   PROP_CAPS,
   PROP_MINIMUM,
   PROP_FORCE_CAPS,
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0004
+  PROP_RE_TYPEFIND_FACTORY_LIST,
+#endif
   PROP_LAST
 };
 enum
@@ -263,6 +267,12 @@ gst_type_find_element_class_init (GstTypeFindElementClass * typefind_class)
       g_param_spec_boxed ("force-caps", _("force caps"),
           _("force caps without doing a typefind"), GST_TYPE_CAPS,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0004
+  g_object_class_install_property (gobject_class, PROP_RE_TYPEFIND_FACTORY_LIST,
+      g_param_spec_pointer ("re-typefind-factory-list", _("re-typefind-factory-list"),
+          _("re-typefind-factory-list"), G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#endif
   /**
    * GstTypeFindElement::have-type:
    * @typefind: the typefind instance
@@ -334,6 +344,12 @@ gst_type_find_element_init (GstTypeFindElement * typefind)
   typefind->min_probability = 1;
 
   typefind->adapter = gst_adapter_new ();
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0004
+  typefind->re_typefind_factory_list = NULL;
+  typefind->pre_prebability = (guint) GST_TYPE_FIND_NONE;
+  typefind->pre_find_caps = NULL;
+#endif
 }
 
 static void
@@ -346,6 +362,18 @@ gst_type_find_element_dispose (GObject * object)
 
   G_OBJECT_CLASS (parent_class)->dispose (object);
 }
+
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0004
+static void
+gst_type_find_element_free_re_typefind_factory_list (GstTypeFindElement *typefind)
+{
+  if (typefind->re_typefind_factory_list != NULL) {
+    g_list_free_full (typefind->re_typefind_factory_list , gst_object_unref);
+    typefind->re_typefind_factory_list = NULL;
+  }
+}
+#endif
 
 static void
 gst_type_find_element_set_property (GObject * object, guint prop_id,
@@ -364,6 +392,16 @@ gst_type_find_element_set_property (GObject * object, guint prop_id,
       gst_caps_take (&typefind->force_caps, g_value_dup_boxed (value));
       GST_OBJECT_UNLOCK (typefind);
       break;
+#ifdef OHOS_OPT_COMPAT
+    // ohos.opt.compat.0004
+    case PROP_RE_TYPEFIND_FACTORY_LIST:
+      gst_type_find_element_free_re_typefind_factory_list (typefind);
+      typefind->re_typefind_factory_list =
+        g_list_copy_deep (g_value_get_pointer (value), (GCopyFunc) gst_object_ref, NULL);
+      GST_INFO_OBJECT (typefind, "get re_typefind_factory_list, len=%u",
+        g_list_length (typefind->re_typefind_factory_list));
+      break;
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -392,6 +430,13 @@ gst_type_find_element_get_property (GObject * object, guint prop_id,
       g_value_set_boxed (value, typefind->force_caps);
       GST_OBJECT_UNLOCK (typefind);
       break;
+#ifdef OHOS_OPT_COMPAT
+    // ohos.opt.compat.0004
+    case PROP_RE_TYPEFIND_FACTORY_LIST:
+      g_value_set_pointer (value,
+        g_list_copy_deep (typefind->re_typefind_factory_list, (GCopyFunc) gst_object_ref, NULL));
+      break;
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -941,6 +986,55 @@ gst_type_find_element_chain (GstPad * pad, GstObject * parent,
   return res;
 }
 
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0004
+static gboolean
+gst_type_find_element_need_do_typefind_again (GstTypeFindElement * typefind,
+  GstTypeFindProbability current_probability, GstCaps * current_caps, gboolean at_eos, gboolean have_max)
+{
+  if (typefind->re_typefind_factory_list == NULL) {
+    return FALSE;
+  }
+
+  GST_INFO_OBJECT(typefind,
+    "list_len=%u, current_caps=%" GST_PTR_FORMAT ", pre_find_caps %"GST_PTR_FORMAT
+    ", current_probability=%u, pre_prebability=%u",
+    g_list_length (typefind->re_typefind_factory_list), current_caps, typefind->pre_find_caps,
+    current_probability, typefind->pre_prebability);
+  if (current_probability > typefind->pre_prebability) {
+    if (typefind->pre_find_caps != NULL) {
+      gst_caps_unref (typefind->pre_find_caps);
+      typefind->pre_find_caps = NULL;
+    }
+    typefind->pre_prebability = current_probability;
+    typefind->pre_find_caps = gst_caps_ref (current_caps);
+  }
+
+  if (at_eos || have_max) {
+    GST_INFO_OBJECT(typefind, "eos(%d) or have_max(%d), can not do typefind again!", at_eos, have_max);
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+static void
+gst_type_find_element_update_prebability_and_caps (GstTypeFindElement * typefind,
+  GstTypeFindProbability *current_probability, GstCaps **current_caps)
+{
+  GST_INFO_OBJECT (typefind, "current_probability=%u, pre_prebability=%u, current_probability=%" GST_PTR_FORMAT "pre_find_caps=%" GST_PTR_FORMAT,
+    *current_probability, typefind->pre_prebability, *current_caps, typefind->pre_find_caps);
+  if (*current_probability < typefind->pre_prebability) {
+    if (*current_caps != NULL) {
+      gst_caps_unref (*current_caps);
+    }
+    *current_caps = gst_caps_ref (typefind->pre_find_caps);
+    *current_probability = typefind->pre_prebability;
+  }
+  typefind->pre_prebability = *current_probability;
+}
+#endif
+
 static GstFlowReturn
 gst_type_find_element_chain_do_typefinding (GstTypeFindElement * typefind,
     gboolean check_avail, gboolean at_eos)
@@ -975,10 +1069,34 @@ gst_type_find_element_chain_do_typefinding (GstTypeFindElement * typefind,
     ext = gst_type_find_get_extension (typefind, typefind->sink);
     /* map all available data */
     data = gst_adapter_map (typefind->adapter, avail);
+#ifdef OHOS_OPT_COMPAT
+
+    /* ohos.opt.compat.0004: In gst_type_find_helper_for_data_with_extension,
+     * we set re_type_find_list to typefindelement by g_object_set.
+     * It will be deadlock if we do not unlock the typefindelement_locknlock.
+     * To avoid this, we must unlock typefind before gst_type_find_helper_for_data_with_extension.
+     * when gst_type_find_helper_for_data_with_extension finish, we lock typefind again
+     */
+    GST_OBJECT_UNLOCK (typefind);
+#endif
     caps = gst_type_find_helper_for_data_with_extension (GST_OBJECT (typefind),
         data, avail, ext, &probability);
+#ifdef OHOS_OPT_COMPAT
+    // ohos.opt.compat.0004
+    GST_OBJECT_LOCK (typefind);
+#endif
     gst_adapter_unmap (typefind->adapter);
     g_free (ext);
+
+#ifdef OHOS_OPT_COMPAT
+    // ohos.opt.compat.0004
+    if (gst_type_find_element_need_do_typefind_again (typefind, probability, caps, at_eos, have_max)) {
+      gst_caps_unref (caps);
+      caps = NULL;
+      goto not_enough_data;
+    }
+    gst_type_find_element_update_prebability_and_caps (typefind, &probability, &caps);
+#endif
 
     if (caps == NULL && have_max)
       goto no_type_found;
@@ -1361,6 +1479,14 @@ gst_type_find_element_change_state (GstElement * element,
       g_list_foreach (typefind->cached_events,
           (GFunc) gst_mini_object_unref, NULL);
       g_list_free (typefind->cached_events);
+#ifdef OHOS_OPT_COMPAT
+      // ohos.opt.compat.0004
+      gst_type_find_element_free_re_typefind_factory_list (typefind);
+      if (typefind->pre_find_caps != NULL) {
+        gst_caps_unref (typefind->pre_find_caps);
+        typefind->pre_find_caps = NULL;
+      }
+#endif
       typefind->cached_events = NULL;
       typefind->mode = MODE_TYPEFIND;
       GST_OBJECT_UNLOCK (typefind);

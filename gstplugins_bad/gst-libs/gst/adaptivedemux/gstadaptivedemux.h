@@ -93,6 +93,15 @@ typedef struct _GstAdaptiveDemux GstAdaptiveDemux;
 typedef struct _GstAdaptiveDemuxClass GstAdaptiveDemuxClass;
 typedef struct _GstAdaptiveDemuxPrivate GstAdaptiveDemuxPrivate;
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0028
+typedef struct _GstAdaptiveDemuxBitrateInfo GstAdaptiveDemuxBitrateInfo;
+struct _GstAdaptiveDemuxBitrateInfo {
+  guint *bitrate_list;
+  guint bitrate_num;
+};
+#endif
+
 struct _GstAdaptiveDemuxStreamFragment
 {
   GstClockTime timestamp;
@@ -482,6 +491,11 @@ struct _GstAdaptiveDemuxClass
    * Return: %TRUE if the playlist needs to be refreshed periodically by the demuxer.
    */
   gboolean (*requires_periodical_playlist_update) (GstAdaptiveDemux * demux);
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0028
+  gboolean (*get_bitrate_info) (GstAdaptiveDemux *demux, GstAdaptiveDemuxBitrateInfo * bitrate_info);
+#endif
 };
 
 GST_ADAPTIVE_DEMUX_API

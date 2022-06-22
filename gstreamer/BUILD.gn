@@ -40,7 +40,7 @@ config("gst_config") {
     "-Wall",
     "-Werror",
     "-DBUILDING_GST",
-    "-DG_LOG_DOMAIN=g_log_domain_gstreamer",
+    "-DG_LOG_DOMAIN=\"Gstreamer\"",
     "-DGST_DISABLE_DEPRECATED",
     "-DHAVE_CONFIG_H",
     "-DOHOS_EXT_FUNC",
@@ -151,6 +151,7 @@ config("gstprintf_config") {
     "-fno-strict-aliasing",
     "-Wno-sign-compare",
     "-Wno-builtin-requires-header",
+    "-DG_LOG_DOMAIN=\"GStreamer\"",
   ]
 }
 
@@ -205,6 +206,7 @@ config("gstbase_config") {
     "-DOHOS_OPT_COMPAT",
     "-DOHOS_OPT_PERFORMANCE",
     "-DOHOS_GLIB_COMPATIBLE",
+    "-DG_LOG_DOMAIN=\"GStreamer\"",
   ]
 }
 
@@ -223,8 +225,6 @@ ohos_source_set("gstbase_source") {
     "libs/gst/base/gstcollectpads.c",
     "libs/gst/base/gstdataqueue.c",
     "libs/gst/base/gstflowcombiner.c",
-    "libs/gst/base/gstindex.c",
-    "libs/gst/base/gstmemindex.c",
     "libs/gst/base/gstpushsrc.c",
     "libs/gst/base/gstqueuearray.c",
     "libs/gst/base/gsttypefindhelper.c",
@@ -265,16 +265,18 @@ config("gstcoreelements_config") {
     "-Wno-error=incompatible-pointer-types",
     "-DOHOS_OPT_COMPAT",
     "-DOHOS_EXT_FUNC",
+    "-DG_LOG_DOMAIN=\"GStreamer\"",
   ]
 }
 
 ohos_source_set("gstcoreelements_source") {
   sources = [
     "plugins/elements/gstcapsfilter.c",
+    "plugins/elements/gstclocksync.c",
     "plugins/elements/gstconcat.c",
     "plugins/elements/gstdataurisrc.c",
     "plugins/elements/gstdownloadbuffer.c",
-    "plugins/elements/gstelements.c",
+    "plugins/elements/gstcoreelementsplugin.c",
     "plugins/elements/gstelements_private.c",
     "plugins/elements/gstfakesink.c",
     "plugins/elements/gstfakesrc.c",
@@ -333,6 +335,7 @@ config("gstcoretracers_config") {
     "-Wno-builtin-requires-header",
     "-Wno-undefined-internal",
     "-Wno-unused-function",
+    "-DG_LOG_DOMAIN=\"GStreamer\"",
   ]
 }
 
@@ -344,6 +347,7 @@ ohos_source_set("gstcoretracers_source") {
     "plugins/tracers/gstrusage.c",
     "plugins/tracers/gststats.c",
     "plugins/tracers/gsttracers.c",
+    "plugins/tracers/gstfactories.c",
   ]
 
   configs = [ ":gstcoretracers_config" ]
@@ -380,6 +384,7 @@ config("gsttools_config") {
     "-Wno-sign-compare",
     "-Wno-builtin-requires-header",
     "-Wno-error=incompatible-pointer-types",
+    "-DG_LOG_DOMAIN=\"GStreamer\"",
   ]
 }
 

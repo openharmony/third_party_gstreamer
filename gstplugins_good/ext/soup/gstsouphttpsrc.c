@@ -196,6 +196,12 @@ enum
   PROP_RETRIES,
   PROP_METHOD,
   PROP_TLS_INTERACTION,
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  PROP_STATE_CHANGE,
+  PROP_EXIT_BLOCK,
+  PROP_TIME_OUT,
+#endif
 };
 
 #define DEFAULT_USER_AGENT           "GStreamer souphttpsrc " PACKAGE_VERSION " "
@@ -208,9 +214,25 @@ enum
 #define DEFAULT_SSL_USE_SYSTEM_CA_FILE TRUE
 #define DEFAULT_TLS_DATABASE         NULL
 #define DEFAULT_TLS_INTERACTION      NULL
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0012
+#define DEFAULT_TIMEOUT              3
+#define DEFAULT_RETRIES              5
+#else
 #define DEFAULT_TIMEOUT              15
 #define DEFAULT_RETRIES              3
+#endif
 #define DEFAULT_SOUP_METHOD          NULL
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0012
+#define DEFAULT_WAIT_STEP            20000 // 20ms
+#define SOUP_HTTP_SRC_RETRY_COUNT_ONCE 1
+#define SOUP_HTTP_SRC_BUFFERING_TIME (-1)
+#define POINTER_MASK  0x00FFFF00U
+#define FAKE_POINTER(addr) ((uintptr_t) (addr) & POINTER_MASK)
+#define SOUPHTTPSRC_INVALID_VALUE (-1)
+#endif
 
 #define GROW_BLOCKSIZE_LIMIT 1
 #define GROW_BLOCKSIZE_COUNT 1
@@ -350,6 +372,18 @@ gst_soup_http_src_class_init (GstSoupHTTPSrcClass * klass)
           "Enable internet radio mode (ask server to send shoutcast/icecast "
           "metadata interleaved with the actual stream data)",
           DEFAULT_IRADIO_MODE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  g_object_class_install_property (gobject_class, PROP_STATE_CHANGE,
+      g_param_spec_int ("state-change", "state-change from adaptive-demux",
+          "state-change from adaptive-demux", 0, (gint) (G_MAXINT32), 0,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_EXIT_BLOCK,
+      g_param_spec_int ("exit-block", "EXIT BLOCK",
+          "souphttpsrc exit block", 0, (gint) (G_MAXINT32), 0, G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+#endif
 
  /**
    * GstSoupHTTPSrc::http-log-level:
@@ -533,12 +567,24 @@ gst_soup_http_src_reset (GstSoupHTTPSrc * src)
   src->read_position = 0;
   src->request_position = 0;
   src->stop_position = -1;
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0017
+  /* Solve the problem of seek probability directly stuck to the end */
+  src->content_size = -1;
+#else
   src->content_size = 0;
+#endif
   src->have_body = FALSE;
 
   src->reduce_blocksize_count = 0;
   src->increase_blocksize_count = 0;
   src->last_socket_read_time = 0;
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  src->wait_already = 0;
+  src->error_code = 0;
+#endif
 
   g_cancellable_reset (src->cancellable);
 
@@ -558,6 +604,12 @@ gst_soup_http_src_init (GstSoupHTTPSrc * src)
 
   g_mutex_init (&src->session_mutex);
   g_cond_init (&src->session_cond);
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  g_mutex_init (&src->wait_lock);
+  g_cond_init (&src->wait_cond);
+#endif
   src->cancellable = g_cancellable_new ();
   src->location = NULL;
   src->redirection_uri = NULL;
@@ -583,6 +635,18 @@ gst_soup_http_src_init (GstSoupHTTPSrc * src)
   src->max_retries = DEFAULT_RETRIES;
   src->method = DEFAULT_SOUP_METHOD;
   src->minimum_blocksize = gst_base_src_get_blocksize (GST_BASE_SRC_CAST (src));
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  src->last_status_code = 0;
+  src->exit_block = FALSE;
+  src->buffering_time = 0;
+  src->wait_time = DEFAULT_TIMEOUT * GST_MSECOND;
+  src->trickmode_key_units = -1;
+  src->has_sent_first_request = FALSE;
+  src->has_received_first_response = FALSE;
+  src->playerState = GST_PLAYER_STATUS_IDLE;
+#endif
+
   proxy = g_getenv ("http_proxy");
   if (!gst_soup_http_src_set_proxy (src, proxy)) {
     GST_WARNING_OBJECT (src,
@@ -616,6 +680,11 @@ gst_soup_http_src_finalize (GObject * gobject)
 
   GST_DEBUG_OBJECT (src, "finalize");
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  g_mutex_clear (&src->wait_lock);
+  g_cond_clear (&src->wait_cond);
+#endif
   g_mutex_clear (&src->session_mutex);
   g_cond_clear (&src->session_cond);
   g_object_unref (src->cancellable);
@@ -765,6 +834,26 @@ gst_soup_http_src_set_property (GObject * object, guint prop_id,
         src->ssl_use_system_ca_file = g_value_get_boolean (value);
       }
       break;
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0012
+    case PROP_STATE_CHANGE:
+      GST_DEBUG_OBJECT (src, "set g_value_get_int = %d ", g_value_get_int (value));
+      src->wait_time = src->timeout * GST_MSECOND;
+      src->playerState = g_value_get_int (value);
+      break;
+    case PROP_EXIT_BLOCK: {
+      gint exit_block = g_value_get_int (value);
+      if (exit_block == 1) {
+        GST_INFO_OBJECT (src, "exit_block come, broadcast wait_cond and don't wait anymore");
+        g_mutex_lock (&src->wait_lock);
+        src->exit_block = TRUE;
+        g_cond_broadcast (&src->wait_cond);
+        g_mutex_unlock (&src->wait_lock);
+      }
+      GST_DEBUG_OBJECT (src, "souphttpsrc exit_block :%d", exit_block);
+      break;
+    }
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -996,7 +1085,11 @@ thread_func (gpointer user_data)
    * source */
   session->session =
       _soup_session_new_with_options ("user-agent", NULL,
+#ifdef OHOS_EXT_FUNC
+      "timeout", DEFAULT_TIMEOUT, "tls-interaction", src->tls_interaction,
+#else
       "timeout", src->timeout, "tls-interaction", src->tls_interaction,
+#endif
       /* Unset the limit the number of maximum allowed connections */
       "max-conns", src->session_is_shared ? G_MAXINT : 10,
       "max-conns-per-host", src->session_is_shared ? G_MAXINT : 2, NULL);
@@ -1377,7 +1470,20 @@ gst_soup_http_src_got_headers (GstSoupHTTPSrc * src, SoupMessage * msg)
       _soup_message_get_response_headers (msg);
   SoupStatus status_code = _soup_message_get_status (msg);
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  if (src->has_received_first_response == FALSE) {
+    src->has_received_first_response = TRUE;
+  }
+
+  GST_INFO_OBJECT (src, "got headers, status code %d", status_code);
+  if ((src->last_status_code != status_code) && (status_code >= SOUP_STATUS_MULTIPLE_CHOICES) &&
+      (status_code <= SOUP_STATUS_NOT_EXTENDED)) {
+    src->last_status_code = status_code;
+  }
+#else
   GST_INFO_OBJECT (src, "got headers");
+#endif
 
   if (status_code == SOUP_STATUS_PROXY_AUTHENTICATION_REQUIRED &&
       src->proxy_id && src->proxy_pw) {
@@ -1602,6 +1708,189 @@ gst_soup_http_src_alloc_buffer (GstSoupHTTPSrc * src)
              "http-redirect-uri", G_TYPE_STRING, GST_STR_NULL ((src)->redirection_uri), NULL)); \
   } while(0)
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0012
+#define SOUP_HTTP_SRC_ERROR_HTTP_STANDARD_ERRORS(src, soup_msg, http_error_code, cat, code, error_message) \
+G_STMT_START { \
+  GST_ELEMENT_ERROR_WITH_DETAILS ((src), cat, code, ("%s", error_message), \
+      ("%s (%d), URL: %s, Redirect to: %s", _soup_message_get_reason_phrase (soup_msg), \
+           http_error_code, (src)->location, GST_STR_NULL ((src)->redirection_uri)), \
+      ("http-status-code", G_TYPE_UINT, http_error_code, \
+          "http-redirect-uri", G_TYPE_STRING, GST_STR_NULL ((src)->redirection_uri), NULL)); \
+} G_STMT_END
+
+static void
+wait_for_connect_exit (GstSoupHTTPSrc *src, SoupMessage *msg)
+{
+  g_mutex_lock (&src->wait_lock);
+  if (!src->exit_block) {
+    SOUP_HTTP_SRC_ERROR_HTTP_STANDARD_ERRORS (src, msg, SOUP_STATUS_REQUEST_TIMEOUT, RESOURCE, TIME_OUT,
+        _("Could not establish connection to server."));
+    src->headers_ret = GST_FLOW_CUSTOM_SUCCESS;
+  } else {
+    /* if return GST_FLOW_ERROR, basesrc will report internal stream error, which we should not */
+    GST_INFO_OBJECT (src, "now it's reset, don't post timeout msg!, return EOS");
+    src->headers_ret = GST_FLOW_EOS;
+  }
+
+  src->wait_time = -1;
+  src->wait_already = 0;
+  src->exit_block = FALSE;
+  g_mutex_unlock (&src->wait_lock);
+}
+
+static gint
+proc_buffering_time (GstSoupHTTPSrc *src, gint64 timeout)
+{
+  g_mutex_lock (&src->wait_lock);
+  if ((timeout <= 0) || src->exit_block) {
+    GST_INFO_OBJECT (src, "wait time out, or should quit immediately"
+        " timeout:%"G_GUINT64_FORMAT", src->exit_block:%d", timeout, src->exit_block);
+    g_mutex_unlock (&src->wait_lock);
+    return SOUPHTTPSRC_INVALID_VALUE;
+  }
+
+  if (src->retry_count == SOUP_HTTP_SRC_RETRY_COUNT_ONCE) {
+    src->buffering_time = g_get_monotonic_time ();
+    GST_INFO_OBJECT (src, "can not connect before start,begin to time:%"G_GUINT64_FORMAT" ", src->buffering_time);
+  } else if ((src->buffering_time == SOUP_HTTP_SRC_BUFFERING_TIME) && (src->trickmode_key_units != 1)) {
+    GST_INFO_OBJECT (src, "souphttpsrc not in buffering, sleep 20ms wait for buffering, "
+        "src->retry_count:%d, src->buffering_time:%"G_GUINT64_FORMAT"\n", src->retry_count, src->buffering_time);
+    if (src->exit_block || g_cond_wait_until (&src->wait_cond, &src->wait_lock,
+        (g_get_monotonic_time () + DEFAULT_WAIT_STEP))) {
+      g_mutex_unlock (&src->wait_lock);
+      return SOUPHTTPSRC_INVALID_VALUE;
+    }
+    g_mutex_unlock (&src->wait_lock);
+    src->retry_count = 0;
+    src->headers_ret = GST_FLOW_CUSTOM_ERROR;
+    return 0;
+  } else if ((src->buffering_time == SOUP_HTTP_SRC_BUFFERING_TIME) && (src->trickmode_key_units == 1)) {
+    src->buffering_time = g_get_monotonic_time ();
+    GST_INFO_OBJECT (src, "it's trickmode key units,begin to time:%"G_GUINT64_FORMAT" ", src->buffering_time);
+    src->retry_count = 1;
+  }
+  g_mutex_unlock (&src->wait_lock);
+  return 1;
+}
+
+/* timeout : us */
+static void
+wait_for_connect (GstSoupHTTPSrc *src, SoupMessage *msg, gint64 timeout)
+{
+  if ((src == NULL) || (msg == NULL)) {
+    return;
+  }
+
+  gint ret = proc_buffering_time (src, timeout);
+  if (ret == 0) {
+    return;
+  } else if (ret == SOUPHTTPSRC_INVALID_VALUE) {
+    wait_for_connect_exit (src, msg);
+    return;
+  }
+
+  gint64 time_diff_us = (g_get_monotonic_time () - src->buffering_time);
+  if (src->retry_count == SOUP_HTTP_SRC_RETRY_COUNT_ONCE) {
+    src->max_retries = (timeout - time_diff_us) / DEFAULT_WAIT_STEP + 1;
+  }
+
+  GST_DEBUG_OBJECT (src, "max_retries:%d, timeout:%"G_GUINT64_FORMAT" time_diff_us = %"G_GUINT64_FORMAT" %"G_GUINT64_FORMAT" %"G_GUINT64_FORMAT"",
+    src->max_retries, timeout, time_diff_us, g_get_monotonic_time (), src->buffering_time);
+
+  if (time_diff_us >= timeout) {
+    GST_ERROR_OBJECT (src, "now wait time is %"G_GUINT64_FORMAT" us, timeout:%"G_GUINT64_FORMAT", and quit", time_diff_us, timeout);
+    wait_for_connect_exit (src, msg);
+    return;
+  }
+
+  GST_INFO_OBJECT (src, "retry_count:%d, and sleep :%d us, timeout:%"G_GUINT64_FORMAT"", src->retry_count, DEFAULT_WAIT_STEP, timeout);
+  g_mutex_lock (&src->wait_lock);
+  if (src->exit_block || g_cond_wait_until (&src->wait_cond, &src->wait_lock,
+      (g_get_monotonic_time () + DEFAULT_WAIT_STEP))) {
+    g_mutex_unlock (&src->wait_lock);
+    wait_for_connect_exit (src, msg);
+    return;
+  }
+  g_mutex_unlock (&src->wait_lock);
+  src->headers_ret = GST_FLOW_CUSTOM_ERROR;
+  return;
+}
+
+static GstFlowReturn
+gst_soup_http_src_handle_connect_fail_ohos (SoupMessage * msg, GstSoupHTTPSrc * src)
+{
+  /* ohos.ext.func.0012
+   The network is disconnected and reconnected. The time-out is 3 seconds after starting broadcasting,
+   and the time-out is 15 seconds after interruption during broadcasting
+   */
+  if (!src->exit_block) {
+      if (src->playerState == GST_PLAYER_STATUS_PAUSED || src->playerState == GST_PLAYER_STATUS_PLAYING) {
+        src->retry_count = 0;
+        return GST_FLOW_CUSTOM_ERROR;
+    }
+  }
+
+  if (_soup_message_get_status (msg) == SOUP_STATUS_IO_ERROR && src->playerState != GST_PLAYER_STATUS_BUFFERING) {
+    wait_for_connect (src, msg, 0);
+  } else {
+    wait_for_connect (src, msg, (gint64) src->wait_time - (gint64) src->wait_already);
+  }
+
+  if (src->max_retries == -1 || src->retry_count < src->max_retries)
+    return GST_FLOW_CUSTOM_ERROR;
+
+  return GST_FLOW_OK;
+}
+
+static GstFlowReturn
+gst_soup_http_src_parse_status_ohos (SoupMessage * msg, GstSoupHTTPSrc * src)
+{
+  SoupStatus status_code = _soup_message_get_status (msg);
+  GstFlowReturn ret = GST_FLOW_ERROR;
+
+  switch (status_code) {
+    case SOUP_STATUS_CANT_RESOLVE:
+    case SOUP_STATUS_CANT_RESOLVE_PROXY: {
+      if ((ret = gst_soup_http_src_handle_connect_fail_ohos(msg, src)) != GST_FLOW_OK) {
+        break;
+      }
+      SOUP_HTTP_SRC_ERROR (src, msg, RESOURCE, NOT_FOUND, _("Could not resolve server name."));
+      ret = GST_FLOW_ERROR;
+      break;
+    }
+    case SOUP_STATUS_CANT_CONNECT:
+    case SOUP_STATUS_CANT_CONNECT_PROXY: {
+      if ((ret = gst_soup_http_src_handle_connect_fail_ohos(msg, src)) != GST_FLOW_OK) {
+        break;
+      }
+      SOUP_HTTP_SRC_ERROR (src, msg, RESOURCE, OPEN_READ, _("Could not establish connection to server."));
+      ret = GST_FLOW_ERROR;
+      break;
+    }
+    case SOUP_STATUS_IO_ERROR: {
+      if ((ret = gst_soup_http_src_handle_connect_fail_ohos(msg, src)) != GST_FLOW_OK) {
+        break;
+      }
+      SOUP_HTTP_SRC_ERROR (src, msg, RESOURCE, READ,
+          _("A network error occurred, or the server closed the connection unexpectedly."));
+      ret = GST_FLOW_ERROR;
+      break;
+    }
+    case SOUP_STATUS_MALFORMED:
+      SOUP_HTTP_SRC_ERROR_HTTP_STANDARD_ERRORS (src, msg, SOUP_STATUS_BAD_REQUEST, RESOURCE, READ,
+          _("Server sent bad data."));
+      break;
+    default:
+      // return ok means not care, need the original gstsouphttpsrc code to process.
+      ret = GST_FLOW_OK;
+      break;
+  }
+
+  return ret;
+}
+#endif
+
 static GstFlowReturn
 gst_soup_http_src_parse_status (SoupMessage * msg, GstSoupHTTPSrc * src)
 {
@@ -1616,6 +1905,13 @@ gst_soup_http_src_parse_status (SoupMessage * msg, GstSoupHTTPSrc * src)
   /* SOUP_STATUS_IS_TRANSPORT_ERROR was replaced with GError in libsoup-3.0 */
 #if !defined(STATIC_SOUP) || STATIC_SOUP == 2
   if (SOUP_STATUS_IS_TRANSPORT_ERROR (status_code)) {
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0012
+    GstFlowReturn ret = gst_soup_http_src_parse_status_ohos (msg, src);
+    if (ret != GST_FLOW_OK) {
+      return ret;
+    }
+#endif
     switch (status_code) {
       case SOUP_STATUS_CANT_RESOLVE:
       case SOUP_STATUS_CANT_RESOLVE_PROXY:
@@ -1681,13 +1977,25 @@ gst_soup_http_src_parse_status (SoupMessage * msg, GstSoupHTTPSrc * src)
      */
     if (status_code == SOUP_STATUS_NOT_FOUND) {
       SOUP_HTTP_SRC_ERROR (src, msg, RESOURCE, NOT_FOUND, (reason_phrase));
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0012
+      return GST_FLOW_CUSTOM_SUCCESS;
+#endif
     } else if (status_code == SOUP_STATUS_UNAUTHORIZED
         || status_code == SOUP_STATUS_PAYMENT_REQUIRED
         || status_code == SOUP_STATUS_FORBIDDEN
         || status_code == SOUP_STATUS_PROXY_AUTHENTICATION_REQUIRED) {
       SOUP_HTTP_SRC_ERROR (src, msg, RESOURCE, NOT_AUTHORIZED, (reason_phrase));
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0012
+      return GST_FLOW_EOS;
+#endif
     } else {
       SOUP_HTTP_SRC_ERROR (src, msg, RESOURCE, OPEN_READ, (reason_phrase));
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0012
+      return GST_FLOW_ERROR;
+#endif
     }
     return GST_FLOW_ERROR;
   }
@@ -1802,6 +2110,30 @@ gst_soup_http_src_build_message (GstSoupHTTPSrc * src, const gchar * method)
   return TRUE;
 }
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0012
+static gint
+send_message_wait (GstSoupHTTPSrc *src, const GError *err)
+{
+  if (err == NULL) {
+    return 0;
+  }
+
+  if (g_error_matches (err, G_IO_ERROR, G_IO_ERROR_TIMED_OUT) &&
+      (_soup_message_get_status (src->msg) == SOUP_STATUS_NONE)) {
+    GST_ERROR_OBJECT (src, "G_IO_ERROR_TIMED_OUT wait begin");
+    wait_for_connect (src, src->msg, (gint64) src->wait_time - (gint64) src->wait_already);
+    return -1;
+  } else if (g_error_matches (err, G_IO_ERROR, G_IO_ERROR_CONNECTION_CLOSED)) {
+    /* if connection closed, still retry */
+    src->headers_ret = GST_FLOW_CUSTOM_ERROR;
+    return -1;
+  }
+
+  return 0;
+}
+#endif
+
 struct GstSoupSendSrc
 {
   GstSoupHTTPSrc *src;
@@ -1820,6 +2152,13 @@ _session_send_cb (GObject * source, GAsyncResult * res, gpointer user_data)
   src->input_stream = _soup_session_send_finish (src->session->session,
       res, &error);
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0012
+  if (src->has_sent_first_request == FALSE) {
+    src->has_sent_first_request = TRUE;
+  }
+#endif
+
   if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED)) {
     src->headers_ret = GST_FLOW_FLUSHING;
   } else {
@@ -1828,9 +2167,22 @@ _session_send_cb (GObject * source, GAsyncResult * res, gpointer user_data)
 
   if (!src->input_stream) {
     GST_DEBUG_OBJECT (src, "Sending message failed: %s", error->message);
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0012
+    if (send_message_wait (src, error) != 0) {
+      if (error != NULL) {
+        g_error_free (error);
+      }
+      goto done;
+    }
+#endif
     msrc->error = error;
   }
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0012
+done:
+#endif
   g_cond_broadcast (&src->session_cond);
   g_mutex_unlock (&src->session_mutex);
 }
@@ -1907,7 +2259,13 @@ gst_soup_http_src_do_request (GstSoupHTTPSrc * src, const gchar * method)
 
   src->retry_count++;
   /* EOS immediately if we have an empty segment */
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0017
+  /* Solve the problem of seek probability directly stuck to the end */
+  if (src->request_position == src->stop_position || src->request_position >= src->content_size)
+#else
   if (src->request_position == src->stop_position)
+#endif
     return GST_FLOW_EOS;
 
   GST_LOG_OBJECT (src, "Running request for method: %s", method);
@@ -2201,7 +2559,14 @@ _session_stream_clear_cb (gpointer user_data)
 
   g_clear_object (&src->input_stream);
 
+#ifndef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  g_cond_broadcast (&src->session_cond);
+  src->retry_count = 0;
+#else
   g_cond_signal (&src->session_cond);
+#endif
+
   g_mutex_unlock (&src->session_mutex);
 
   return FALSE;
@@ -2339,6 +2704,24 @@ gst_soup_http_src_change_state (GstElement * element, GstStateChange transition)
     case GST_STATE_CHANGE_READY_TO_NULL:
       gst_soup_http_src_session_close (src);
       break;
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0012
+    case GST_STATE_CHANGE_PAUSED_TO_READY:{
+      GST_DEBUG_OBJECT (src, "souphttpsrc paused_to_ready");
+      src->has_sent_first_request = FALSE;
+      src->has_received_first_response = FALSE;
+      break;
+    }
+    case GST_STATE_CHANGE_READY_TO_PAUSED:{
+      GST_DEBUG_OBJECT (src, "souphttpsrc ready_to_paused");
+      src->has_sent_first_request = FALSE;
+      src->has_received_first_response = FALSE;
+      g_mutex_lock (&src->wait_lock);
+      src->exit_block = FALSE;
+      g_mutex_unlock (&src->wait_lock);
+      break;
+    }
+#endif
     default:
       break;
   }
@@ -2596,7 +2979,12 @@ gst_soup_http_src_uri_get_type (GType type)
 static const gchar *const *
 gst_soup_http_src_uri_get_protocols (GType type)
 {
+#ifdef OHOS_EXT_FUNC
+  /* ohos.ext.func.0025 disable https, https will be supported with curlhttpsrc */
+  static const gchar *protocols[] = { "http", "icy", "icyx", NULL };
+#else
   static const gchar *protocols[] = { "http", "https", "icy", "icyx", NULL };
+#endif
 
   return protocols;
 }

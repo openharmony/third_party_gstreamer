@@ -28,7 +28,9 @@ plugin_init (GstPlugin * plugin)
   gboolean ret = FALSE;
 
   ret |= GST_ELEMENT_REGISTER (souphttpsrc, plugin);
+#ifndef OHOS_EXT_FUNC // ohos.ext.func.0007
   ret |= GST_ELEMENT_REGISTER (souphttpclientsink, plugin);
+#endif
 
   return ret;
 }

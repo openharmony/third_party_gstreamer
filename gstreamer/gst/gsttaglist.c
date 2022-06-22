@@ -407,6 +407,19 @@ _priv_gst_tag_initialize (void)
   gst_tag_register_static (GST_TAG_MIDI_BASE_NOTE, GST_TAG_FLAG_META,
       G_TYPE_UINT,
       _("midi-base-note"), _("Midi note number of the audio track."), NULL);
+/**
+ * ohos.ext.func.0010
+ *
+ * The original gstreamer does not support the author's tag, but the
+ * author label is avaiable for id3, vorbiscomment, etc. So, add the
+ * GST_TAG_AUTHOR for supporting to retrieve the author metadata.
+ */
+#ifdef OHOS_EXT_FUNC
+  gst_tag_register_static (GST_TAG_AUTHOR, GST_TAG_FLAG_META,
+      G_TYPE_STRING,
+      _("author"),
+      _("Author about the people who write the lyrics"), gst_tag_merge_strings_with_comma);
+#endif
   gst_tag_register_static (GST_TAG_PRIVATE_DATA, GST_TAG_FLAG_META,
       GST_TYPE_SAMPLE,
       _("private-data"), _("Private data"), gst_tag_merge_use_first);
