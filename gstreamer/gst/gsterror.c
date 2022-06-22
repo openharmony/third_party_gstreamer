@@ -229,6 +229,11 @@ gst_error_get_resource_error (GstResourceError code)
       return _("No space left on the resource.");
     case GST_RESOURCE_ERROR_NOT_AUTHORIZED:
       return _("Not authorized to access resource.");
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0012
+    case GST_RESOURCE_ERROR_TIME_OUT:
+      return _("Could not open resource for reading time out.");
+#endif
     case GST_RESOURCE_ERROR_NUM_ERRORS:
     default:
       break;

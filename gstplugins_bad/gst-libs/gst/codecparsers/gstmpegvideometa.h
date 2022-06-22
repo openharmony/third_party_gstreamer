@@ -79,7 +79,7 @@ struct _GstMpegVideoMeta {
 
 GST_CODEC_PARSERS_API
 GstMpegVideoMeta *
-gst_buffer_add_mpeg_video_meta (GstBuffer * buffer, 
+gst_buffer_add_mpeg_video_meta (GstBuffer * buffer,
                                 const GstMpegVideoSequenceHdr *seq_hdr,
                                 const GstMpegVideoSequenceExt *seq_ext,
                                 const GstMpegVideoSequenceDisplayExt *disp_ext,

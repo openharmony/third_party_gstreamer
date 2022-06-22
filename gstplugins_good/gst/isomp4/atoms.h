@@ -691,6 +691,18 @@ typedef struct _AtomUDTA
   AtomMETA *meta;
 
   AtomsContext *context;
+
+/* ohos.ext.func.0016
+ * add additional features to set geographic location information in mp4 file
+ * set_location is the flag to enable this feature
+ * latitude is the latitude to set, multiply 10000 for the convenience of calculation.
+ * longitude is the longitude to set, multiply 10000 for the convenience of calculation.
+ */
+#ifdef OHOS_EXT_FUNC
+  gboolean set_location;
+  gint latitude;
+  gint longitude;
+#endif
 } AtomUDTA;
 
 enum TrFlags

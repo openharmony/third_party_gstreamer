@@ -1156,6 +1156,19 @@ gst_audio_encoder_push_buffers (GstAudioEncoder * enc, gboolean force)
     }
   }
 
+/* ohos.ext.func.0003: The media recorder service must support bypassing the abnormal streams to continue
+ * recording normal streams. However, the gstpipeline cannot work properly if an error message is reported.
+ * Some error messages are changed to warning messages. Then the media recording service can detects abnormal
+ * streams by matching expected warning messages.
+ */
+#ifdef OHOS_EXT_FUNC
+  if ((ret != GST_FLOW_OK) && (ret != GST_FLOW_EOS)) {
+    GST_ELEMENT_WARNING (enc, STREAM, ENCODE, (NULL),
+        ("stream encode or push failed"));
+    ret = GST_FLOW_ERROR;
+  }
+#endif
+
   return ret;
 }
 

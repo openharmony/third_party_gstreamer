@@ -121,8 +121,16 @@ plugin_init (GstPlugin * plugin)
   GST_TYPE_FIND_REGISTER (mpeg_video_stream, plugin);
   GST_TYPE_FIND_REGISTER (mpeg4_video, plugin);
   GST_TYPE_FIND_REGISTER (h263_video, plugin);
+#ifdef OHOS_OPT_COMPAT
+/*
+ * ohos.opt.compat.0015
+ * mp3: mpeg audio stream is incorrectly identified as video:h264 or video:h265 video stream,
+ * which causes playback failure and lowers the score
+ */
+#else
   GST_TYPE_FIND_REGISTER (h264_video, plugin);
   GST_TYPE_FIND_REGISTER (h265_video, plugin);
+#endif
   GST_TYPE_FIND_REGISTER (nuv, plugin);
   /* ISO formats */
   GST_TYPE_FIND_REGISTER (m4a, plugin);

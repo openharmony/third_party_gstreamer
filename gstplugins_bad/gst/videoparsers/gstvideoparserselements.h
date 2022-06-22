@@ -31,6 +31,12 @@
 
 void videoparsers_element_init (GstPlugin * plugin);
 
+/* ohos.ext.func.0022:
+ * we only need gsth264parse element. However, gstreamer will build all parser elemenet together, which make the
+ * memory bigger than expect.
+ * To avoid this, we do not make other parser elements.
+ */
+#ifndef OHOS_EXT_FUNC
 GST_ELEMENT_REGISTER_DECLARE (av1parse);
 GST_ELEMENT_REGISTER_DECLARE (diracparse);
 GST_ELEMENT_REGISTER_DECLARE (h263parse);
@@ -42,5 +48,9 @@ GST_ELEMENT_REGISTER_DECLARE (mpegvideoparse);
 GST_ELEMENT_REGISTER_DECLARE (pngparse);
 GST_ELEMENT_REGISTER_DECLARE (vc1parse);
 GST_ELEMENT_REGISTER_DECLARE (vp9parse);
+#else
+GST_ELEMENT_REGISTER_DECLARE (h264parse);
+GST_ELEMENT_REGISTER_DECLARE (mpeg4videoparse);
+#endif
 
 #endif /* __GST_VIDEOPARSERS_ELEMENTS_H__ */

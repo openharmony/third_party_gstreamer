@@ -29,11 +29,17 @@
 
 void curl_element_init (GstPlugin * plugin);
 
+#ifndef OHOS_EXT_FUNC
+/* ohos.ext.func.0024 support https:
+ */
 GST_ELEMENT_REGISTER_DECLARE (curlfilesink);
 GST_ELEMENT_REGISTER_DECLARE (curlftpsink);
 GST_ELEMENT_REGISTER_DECLARE (curlhttpsink);
 GST_ELEMENT_REGISTER_DECLARE (curlhttpsrc);
 GST_ELEMENT_REGISTER_DECLARE (curlsftpsink);
 GST_ELEMENT_REGISTER_DECLARE (curlsmtpsink);
+#else
+GST_ELEMENT_REGISTER_DECLARE (curlhttpsrc);
+#endif
 
 #endif /* __GST_CURL_ELEMENT_H__ */

@@ -64,6 +64,7 @@ config("gst_plugins_config") {
     "-DOHOS_OPT_CVE",
     "-DOHOS_EXT_FUNC",
     "-DOHOS_OPT_PERFORMANCE",
+    "-DG_LOG_DOMAIN=\"GStreamer\"",
   ]
 }
 
@@ -103,10 +104,11 @@ ohos_shared_library("gstaudioparsers") {
 
 ohos_source_set("autodetect_source") {
   sources = [
-    "gst/audioparsers/gstaacparse.c",
     "gst/autodetect/gstautoaudiosink.c",
     "gst/autodetect/gstautoaudiosrc.c",
     "gst/autodetect/gstautodetect.c",
+    "gst/autodetect/gstautodetectplugin.c",
+    "gst/autodetect/gstautodetectelement.c",
     "gst/autodetect/gstautovideosink.c",
     "gst/autodetect/gstautovideosrc.c",
   ]
@@ -163,16 +165,19 @@ ohos_source_set("isomp4_source") {
     "gst/isomp4/descriptors.c",
     "gst/isomp4/gstisoff.c",
     "gst/isomp4/gstqtmoovrecover.c",
-    "gst/isomp4/gstqtmux-doc.c",
     "gst/isomp4/gstqtmux.c",
     "gst/isomp4/gstqtmuxmap.c",
     "gst/isomp4/gstrtpxqtdepay.c",
     "gst/isomp4/isomp4-plugin.c",
+    "gst/isomp4/gstisomp4element.c",
     "gst/isomp4/properties.c",
     "gst/isomp4/qtdemux.c",
     "gst/isomp4/qtdemux_dump.c",
     "gst/isomp4/qtdemux_lang.c",
     "gst/isomp4/qtdemux_types.c",
+    "gst/isomp4/qtdemux_tags.c",
+    "gst/isomp4/qtdemux_tree.c",
+    "gst/isomp4/qtdemux-webvtt.c"
   ]
 
   configs = [ ":gst_plugins_config" ]
@@ -305,10 +310,10 @@ ohos_shared_library("gstaudiofx") {
 ohos_source_set("gstsoup_source") {
   sources = [
     "ext/soup/gstsoup.c",
+    "ext/soup/gstsoupelement.c",
     "ext/soup/gstsouphttpsrc.c",
     "ext/soup/gstsouputils.c",
-
-    #"ext/soup/gstsouphttpclientsink.c",
+    "ext/soup/gstsouploader.c"
   ]
 
   configs = [ ":gst_plugins_config" ]
@@ -335,6 +340,7 @@ ohos_source_set("matroska_source") {
   sources = [
     "gst/matroska/ebml-read.c",
     "gst/matroska/ebml-write.c",
+    "gst/matroska/gstmatroskaelement.c",
     "gst/matroska/lzo.c",
     "gst/matroska/matroska-demux.c",
     "gst/matroska/matroska-ids.c",

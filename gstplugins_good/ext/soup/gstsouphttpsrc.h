@@ -10,7 +10,7 @@
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more 
+ * Library General Public License for more
  */
 
 #ifndef __GST_SOUP_HTTP_SRC_H__
@@ -44,6 +44,16 @@ typedef enum {
   GST_SOUP_HTTP_SRC_SESSION_IO_STATUS_RUNNING,
   GST_SOUP_HTTP_SRC_SESSION_IO_STATUS_CANCELLED,
 } GstSoupHTTPSrcSessionIOStatus;
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0012
+typedef enum {
+  GST_PLAYER_STATUS_IDLE,
+  GST_PLAYER_STATUS_BUFFERING,
+  GST_PLAYER_STATUS_PAUSED,
+  GST_PLAYER_STATUS_PLAYING,
+} GstPlayerStatus;
+#endif
 
 /* opaque from here, implementation detail */
 typedef struct _GstSoupSession GstSoupSession;
@@ -124,6 +134,23 @@ struct _GstSoupHTTPSrc {
   GstEvent *http_headers_event;
 
   gint64 last_socket_read_time;
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0012
+  guint last_status_code;
+  gint64 buffering_time;
+  gint64 last_try_time;
+  gint64 wait_time;
+  gint64 wait_already;
+  GMutex wait_lock;
+  GCond wait_cond;
+  gboolean exit_block;
+  guint32 error_code;
+  gint trickmode_key_units;
+  gboolean has_sent_first_request;
+  gboolean has_received_first_response;
+  gint64 playerState;
+#endif
 };
 
 struct _GstSoupHTTPSrcClass {

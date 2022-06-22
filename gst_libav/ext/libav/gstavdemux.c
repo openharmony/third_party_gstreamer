@@ -35,6 +35,12 @@
 #include "gstavcodecmap.h"
 #include "gstavutils.h"
 #include "gstavprotocol.h"
+#ifdef OHOS_EXT_FUNC
+/**
+ * ohos.ext.func.0019
+ */
+#include "gst/tag/tag.h"
+#endif
 
 #define MAX_STREAMS 20
 
@@ -468,7 +474,7 @@ gst_ffmpegdemux_do_seek (GstFFMpegDemux * demux, GstSegment * segment)
   GST_LOG_OBJECT (demux, "do seek to time %" GST_TIME_FORMAT,
       GST_TIME_ARGS (target));
 
-  /* if we need to land on a keyframe, try to do so, we don't try to do a 
+  /* if we need to land on a keyframe, try to do so, we don't try to do a
    * keyframe seek if we are not absolutely sure we have an index.*/
   if (segment->flags & GST_SEEK_FLAG_KEY_UNIT) {
     gint keyframeidx;
@@ -574,6 +580,35 @@ gst_ffmpegdemux_perform_seek (GstFFMpegDemux * demux, GstEvent * event)
 
   flush = flags & GST_SEEK_FLAG_FLUSH;
 
+/* ohos.opt.compat.0003: the demux of gstplayer does not process mp3 seek scenario correctly.
+ * As a result, when flush first and the loop pause second, the demux will seek failed.
+ * Now, we pause before flush start, this problem will not again.
+ */
+#ifdef OHOS_OPT_COMPAT
+  if (flush) {
+    /* send flush start to downstream */
+    gst_ffmpegdemux_push_event (demux, gst_event_new_flush_start ());
+  }
+
+  GST_INFO_OBJECT (demux, "will pause demux sinkpad task");
+  gst_pad_pause_task (demux->sinkpad);
+  GST_INFO_OBJECT (demux, "demux sinkpad task paused");
+
+  if (flush) {
+    /* mark flushing so that the streaming thread can react on it */
+    GST_OBJECT_LOCK (demux);
+    demux->flushing = TRUE;
+    GST_OBJECT_UNLOCK (demux);
+  }
+
+  /* send flush start to up stream */
+  if (flush) {
+    GST_INFO_OBJECT (demux, "send flush start to upstream.");
+    gst_pad_push_event (demux->sinkpad, gst_event_new_flush_start ());
+  }
+
+  GST_INFO_OBJECT (demux, "GST_PAD_STREAM_LOCK");
+#else
   /* send flush start */
   if (flush) {
     /* mark flushing so that the streaming thread can react on it */
@@ -585,6 +620,7 @@ gst_ffmpegdemux_perform_seek (GstFFMpegDemux * demux, GstEvent * event)
   } else {
     gst_pad_pause_task (demux->sinkpad);
   }
+#endif
 
   /* grab streaming lock, this should eventually be possible, either
    * because the task is paused or our streaming thread stopped
@@ -917,6 +953,73 @@ gst_ffmpegdemux_create_padname (const gchar * templ, gint n)
   return g_string_free (string, FALSE);
 }
 
+#ifdef OHOS_EXT_FUNC
+/**
+ * ohos.ext.func.0019
+ * FFmpeg generate one stream for one image, rather than treated it as the metadata. Transfer it
+ * to gst tag for unified manner to resolve album art picture.
+ */
+static GstTagList *
+gst_ffmpegdemux_add_image_tag (GstFFMpegDemux * demux, GstTagList * taglist)
+{
+  if (taglist == NULL) {
+    taglist = gst_tag_list_new_empty();
+    if (taglist == NULL) {
+      GST_WARNING_OBJECT(demux, "create taglist failed");
+      return NULL;
+    }
+  }
+
+  GstFFStream * stream = NULL;
+  AVStream * avstream = NULL;
+
+  for (gint i = 0; i < MAX_STREAMS; i++) {
+    stream = demux->streams[i];
+    if (stream == NULL || stream->avstream == NULL) {
+      continue;
+    }
+    avstream = stream->avstream;
+
+    if (!(avstream->disposition & AV_DISPOSITION_ATTACHED_PIC)) {
+      continue;
+    }
+
+    if (avstream->attached_pic.data == NULL || avstream->attached_pic.size <= 0) {
+      continue;
+    }
+
+    GST_INFO_OBJECT (demux, "stream %d has attached pic, size: %d",
+        avstream->index, avstream->attached_pic.size);
+
+    /**
+     * We ignore the differences between different picture types except for the Front Conver.
+     */
+    GstTagImageType imageType = GST_TAG_IMAGE_TYPE_NONE;
+    AVDictionaryEntry * av_tag = av_dict_get (avstream->metadata, "comment", NULL, AV_DICT_MATCH_CASE);
+    if (av_tag != NULL) {
+      if (!strcmp (av_tag->value, "Cover (front)")) {
+        GST_INFO_OBJECT (demux, "stream %d has Cover (front) image", avstream->index);
+        imageType = GST_TAG_IMAGE_TYPE_FRONT_COVER;
+      }
+    }
+
+    GstSample * image = gst_tag_image_data_to_image_sample (
+        avstream->attached_pic.data,
+        avstream->attached_pic.size,
+        imageType);
+    if (image == NULL) {
+      GST_WARNING_OBJECT (demux, "stream %d convert image data to image sample failed", avstream->index);
+      return taglist;
+    }
+
+    gst_tag_list_add (taglist, GST_TAG_MERGE_APPEND, GST_TAG_IMAGE, image, NULL);
+    gst_sample_unref (image);
+  }
+
+  return taglist;
+}
+#endif
+
 static GstFFStream *
 gst_ffmpegdemux_get_stream (GstFFMpegDemux * demux, AVStream * avstream)
 {
@@ -1102,6 +1205,15 @@ static const struct
   "album", GST_TAG_ALBUM}, {
   "album_artist", GST_TAG_ALBUM_ARTIST}, {
   "artist", GST_TAG_ARTIST}, {
+/**
+ * ohos.ext.func.0010
+ *
+ * add the mapping from ffmpeg's author label to GST_TAG_AUTHOR
+ * for retrieving the author metadata from the media file.
+ */
+#ifdef OHOS_EXT_FUNC
+  "author", GST_TAG_AUTHOR}, {
+#endif
   "comment", GST_TAG_COMMENT}, {
   "composer", GST_TAG_COMPOSER}, {
   "copyright", GST_TAG_COPYRIGHT}, {
@@ -1124,10 +1236,27 @@ static const gchar *
 match_tag_name (gchar * ffmpeg_tag_name)
 {
   gint i;
+/**
+ * ohos.opt.compat.0007
+ * The tag's name obtained from the media file maybe not lowercase, ensure the
+ * tag's name is all lowercase before comparing it with the hard-coded tag name.
+ */
+#ifdef OHOS_OPT_COMPAT
+  gchar *real_ffmpeg_tag_name;
+
+  g_return_val_if_fail(ffmpeg_tag_name != NULL, NULL);
+
+  real_ffmpeg_tag_name = g_ascii_strdown(ffmpeg_tag_name, -1);
+  for (i = 0; i < G_N_ELEMENTS (tagmapping); i++) {
+    if (!g_strcmp0 (tagmapping[i].ffmpeg_tag_name, real_ffmpeg_tag_name))
+      return tagmapping[i].gst_tag_name;
+  }
+#else
   for (i = 0; i < G_N_ELEMENTS (tagmapping); i++) {
     if (!g_strcmp0 (tagmapping[i].ffmpeg_tag_name, ffmpeg_tag_name))
       return tagmapping[i].gst_tag_name;
   }
+#endif
   return NULL;
 }
 
@@ -1226,8 +1355,15 @@ gst_ffmpegdemux_open (GstFFMpegDemux * demux)
   GstTagList *tags;
   GstEvent *event;
   GList *cached_events;
+#ifndef OHOS_EXT_FUNC
+  /**
+   * ohos.ext.func.0030
+   * we use the gstreamer's src element to process uri donwload, no need to use the ffmpeg's protocal
+   * process capability.
+   */
   GstQuery *query;
   gchar *uri = NULL;
+#endif
 
   /* to be sure... */
   gst_ffmpegdemux_close (demux);
@@ -1241,6 +1377,10 @@ gst_ffmpegdemux_open (GstFFMpegDemux * demux)
   if (res < 0)
     goto beach;
 
+#ifndef OHOS_EXT_FUNC
+  /**
+   * ohos.ext.func.0030
+   */
   query = gst_query_new_uri ();
   if (gst_pad_peer_query (demux->sinkpad, query)) {
     gchar *query_uri, *redirect_uri;
@@ -1261,12 +1401,19 @@ gst_ffmpegdemux_open (GstFFMpegDemux * demux)
   gst_query_unref (query);
 
   GST_DEBUG_OBJECT (demux, "Opening context with URI %s", GST_STR_NULL (uri));
+#endif
 
   demux->context = avformat_alloc_context ();
   demux->context->pb = iocontext;
+
+#ifdef OHOS_EXT_FUNC
+  /* ohos.ext.func.0030 */
+  res = avformat_open_input (&demux->context, NULL, oclass->in_plugin, NULL);
+#else
   res = avformat_open_input (&demux->context, uri, oclass->in_plugin, NULL);
 
   g_free (uri);
+#endif
 
   GST_DEBUG_OBJECT (demux, "av_open_input returned %d", res);
   if (res < 0)
@@ -1335,6 +1482,19 @@ gst_ffmpegdemux_open (GstFFMpegDemux * demux)
     GST_INFO_OBJECT (demux, "global tags: %" GST_PTR_FORMAT, tags);
   }
 
+#ifdef OHOS_EXT_FUNC
+  /**
+   * ohos.ext.func.0019
+   *
+   * Only add the image to global tags. The ffmpeg will create a new stream for each
+   * image, but it is a fake stream, the decodebin maybe not able to autoplug a downstream
+   * pipeline for it. Thus, we can not add the image to the stream tags, the tags from
+   * the fake stream can not be sended to downstream.
+   */
+  tags = gst_ffmpegdemux_add_image_tag(demux, tags);
+  gst_tag_list_set_scope(tags, GST_TAG_SCOPE_GLOBAL);
+#endif
+
   /* now handle the stream tags */
   for (i = 0; i < n_streams; i++) {
     GstFFStream *stream;
@@ -1371,6 +1531,19 @@ beach:
 
 #define GST_FFMPEG_TYPE_FIND_SIZE 4096
 #define GST_FFMPEG_TYPE_FIND_MIN_SIZE 256
+#ifdef OHOS_OPT_COMPAT
+/* ohos.opt.compat.0005
+ * Insufficient data read by the avdemux during the typefind process in the MP3 format.
+ * As a result, the device is mistakenly identified as video/h264.
+ * In the typefind of ffmpeg, if the score is 25 and the format is mp3,
+ * obtain more data and re-judge. In the typefindhelper,
+ * data may have been obtained but subsequent flows may not be obtained.
+ * As a result, EOS is returned. Check the EOS. If prob exists, change the value to ok.
+ * Otherwise, the value is error.
+ */
+#define GST_FFMPEG_TYPE_FIND_MAX_SIZE (2UL<<20)
+#define GST_FFMPEG_MP3_INCOMPLETE_SCORE 25
+#endif
 
 static void
 gst_ffmpegdemux_type_find (GstTypeFind * tf, gpointer priv)
@@ -1384,6 +1557,10 @@ gst_ffmpegdemux_type_find (GstTypeFind * tf, gpointer priv)
   /* We want GST_FFMPEG_TYPE_FIND_SIZE bytes, but if the file is shorter than
    * that we'll give it a try... */
   length = gst_type_find_get_length (tf);
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0005
+  guint64 realLen = MIN (length, GST_FFMPEG_TYPE_FIND_MAX_SIZE);
+#endif
   if (length == 0 || length > GST_FFMPEG_TYPE_FIND_SIZE)
     length = GST_FFMPEG_TYPE_FIND_SIZE;
 
@@ -1397,8 +1574,19 @@ gst_ffmpegdemux_type_find (GstTypeFind * tf, gpointer priv)
   }
 
   GST_LOG ("typefinding %" G_GUINT64_FORMAT " bytes", length);
+#ifdef OHOS_OPT_COMPAT
+  /*
+   * ohos.opt.compat.0016
+   * obtaining parsed data fails due to insufficient data
+   */
+  data = gst_type_find_peek (tf, 0, length);
+  if (data == NULL) {
+    tf->need_typefind_again = TRUE;
+  } else if (in_plugin->read_probe && data != NULL) {
+#else
   if (in_plugin->read_probe &&
       (data = gst_type_find_peek (tf, 0, length)) != NULL) {
+#endif
     AVProbeData probe_data;
 
     probe_data.filename = "";
@@ -1408,6 +1596,19 @@ gst_ffmpegdemux_type_find (GstTypeFind * tf, gpointer priv)
     res = in_plugin->read_probe (&probe_data);
     if (res > 0) {
       res = MAX (1, res * GST_TYPE_FIND_MAXIMUM / AVPROBE_SCORE_MAX);
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0005
+      if (g_str_has_prefix (in_plugin->name, "mp3") && res == GST_FFMPEG_MP3_INCOMPLETE_SCORE &&
+        (data = gst_type_find_peek (tf, 0, realLen)) != NULL) {
+        probe_data.filename = "";
+        probe_data.buf = (guint8 *) data;
+        probe_data.buf_size = realLen;
+        gint res_real = in_plugin->read_probe (&probe_data);
+        res_real = MAX (1, res_real * GST_TYPE_FIND_MAXIMUM / AVPROBE_SCORE_MAX);
+        GST_DEBUG ("change res from %d to %d", res, res_real);
+        res = MAX (res, res_real);
+      }
+#endif
       /* Restrict the probability for MPEG-TS streams, because there is
        * probably a better version in plugins-base, if the user has a recent
        * plugins-base (in fact we shouldn't even get here for ffmpeg mpegts or
@@ -1507,6 +1708,16 @@ gst_ffmpegdemux_loop (GstFFMpegDemux * demux)
 #endif
 
   if (GST_CLOCK_TIME_IS_VALID (timestamp)) {
+/* ohos.opt.compat.0002: the demux of gstplayer does not accurately parse audio resources in the aac format.
+ * As a result, the duration value cannot be obtained in the preparation phase.
+ * Use the demux and typefind of ffmpeg to process audio resources in aac format.
+ */
+#ifdef OHOS_OPT_COMPAT
+    if (!(GST_CLOCK_TIME_IS_VALID (demux->start_time)) &&
+        demux->start_time == -1) {
+        demux->start_time = timestamp;
+    }
+#endif
     /* start_time should be the ts of the first frame but it may actually be
      * higher because of rounding when converting to gst ts. */
     if (demux->start_time >= timestamp)
@@ -1678,6 +1889,24 @@ drop:
   }
 }
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0007
+static gboolean
+gst_ffmpegdemux_is_bytes_segment (GstEvent * event)
+{
+  if (GST_EVENT_TYPE (event) != GST_EVENT_SEGMENT) {
+    return FALSE;
+  }
+
+  GstSegment segment;
+  gst_event_copy_segment(event, &segment);
+  if (segment.format == GST_FORMAT_BYTES) {
+    return TRUE;
+  }
+
+  return FALSE;
+}
+#endif
 
 static gboolean
 gst_ffmpegdemux_sink_event (GstPad * sinkpad, GstObject * parent,
@@ -1754,6 +1983,14 @@ gst_ffmpegdemux_sink_event (GstPad * sinkpad, GstObject * parent,
             GST_FFMPEG_PIPE_WAIT (ffpipe);
           GST_FFMPEG_PIPE_MUTEX_UNLOCK (ffpipe);
         } else {
+#ifdef OHOS_EXT_FUNC
+          // ohos.ext.func.0007
+          if (gst_ffmpegdemux_is_bytes_segment(event)) {
+            GST_DEBUG_OBJECT (demux, "drop segment event: %" GST_PTR_FORMAT, event);
+            gst_event_unref (event);
+            goto done;
+          }
+#endif
           /* queue events and send them later (esp. tag events) */
           GST_OBJECT_LOCK (demux);
           demux->cached_events = g_list_append (demux->cached_events, event);
@@ -1832,7 +2069,10 @@ gst_ffmpegdemux_sink_activate (GstPad * sinkpad, GstObject * parent)
 {
   GstQuery *query;
   gboolean pull_mode;
+#ifndef OHOS_EXT_FUNC
+  // ohos.ext.func.0007
   GstSchedulingFlags flags;
+#endif
 
   query = gst_query_new_scheduling ();
 
@@ -1844,9 +2084,12 @@ gst_ffmpegdemux_sink_activate (GstPad * sinkpad, GstObject * parent)
   pull_mode = gst_query_has_scheduling_mode_with_flags (query,
       GST_PAD_MODE_PULL, GST_SCHEDULING_FLAG_SEEKABLE);
 
+#ifndef OHOS_EXT_FUNC
+  // ohos.ext.func.0007:use pull mode
   gst_query_parse_scheduling (query, &flags, NULL, NULL, NULL);
   if (flags & GST_SCHEDULING_FLAG_SEQUENTIAL)
     pull_mode = FALSE;
+#endif
 
   gst_query_unref (query);
 
@@ -2027,7 +2270,12 @@ gst_ffmpegdemux_register (GstPlugin * plugin)
         in_plugin->name, in_plugin->long_name);
 
     /* no emulators */
-    if (in_plugin->long_name != NULL) {
+/* ohos.opt.compat.0002 */
+#ifdef OHOS_OPT_COMPAT
+    if(in_plugin->long_name != NULL && strncmp (in_plugin->name, "aac", 4)) {
+#else
+    if(in_plugin->long_name != NULL) {
+#endif
       if (!strncmp (in_plugin->long_name, "raw ", 4) ||
           !strncmp (in_plugin->long_name, "pcm ", 4)
           )
@@ -2062,8 +2310,14 @@ gst_ffmpegdemux_register (GstPlugin * plugin)
 
     /* these don't do what one would expect or
      * are only partially functional/useful */
-    if (!strcmp (in_plugin->name, "aac") ||
-        !strcmp (in_plugin->name, "wv") ||
+    if (!strcmp (in_plugin->name, "wv") ||
+/* ohos.opt.compat.0002: the demux of gstplayer does not accurately parse audio resources in the aac format.
+ * As a result, the duration value cannot be obtained in the preparation phase.
+ * Use the demux and typefind of ffmpeg to process audio resources in aac format.
+ */
+#ifndef OHOS_OPT_COMPAT
+        !strcmp (in_plugin->name, "aac") ||
+#endif
         !strcmp (in_plugin->name, "ass") ||
         !strcmp (in_plugin->name, "ffmetadata"))
       continue;
@@ -2075,7 +2329,13 @@ gst_ffmpegdemux_register (GstPlugin * plugin)
         !strcmp (in_plugin->name, "avi") ||
         !strcmp (in_plugin->name, "asf") ||
         !strcmp (in_plugin->name, "mpegvideo") ||
+/* ohos.opt.compat.0001: The demux of gstplayer does not accurately parse audio resources in the MP3 format.
+ * As a result, the duration value cannot be obtained in the preparation phase.
+ * Use the demux and typefind of ffmpeg to process audio resources in MP3 format.
+ */
+#ifndef OHOS_OPT_COMPAT
         !strcmp (in_plugin->name, "mp3") ||
+#endif
         !strcmp (in_plugin->name, "matroska") ||
         !strcmp (in_plugin->name, "matroska_webm") ||
         !strcmp (in_plugin->name, "matroska,webm") ||
@@ -2137,6 +2397,17 @@ gst_ffmpegdemux_register (GstPlugin * plugin)
         !strcmp (in_plugin->name, "ffm") ||
         !strcmp (in_plugin->name, "ea") ||
         !strcmp (in_plugin->name, "daud") ||
+/* ohos.opt.compat.0001: add avdemux_ogg
+ * add avdemux_mp3
+ * ohos.opt.compat.0002: add avdemux_aac */
+#ifdef OHOS_OPT_COMPAT
+        /* enable to use avdemux_ogg */
+        !strcmp (in_plugin->name, "ogg") ||
+        /* enable to use avdemux_mp3 */
+        !strcmp (in_plugin->name, "mp3") ||
+        /*enable to use avdemux_aac*/
+        !strcmp (in_plugin->name, "aac") ||
+#endif
         !strcmp (in_plugin->name, "avs") ||
         !strcmp (in_plugin->name, "aiff") ||
         !strcmp (in_plugin->name, "xwma") ||

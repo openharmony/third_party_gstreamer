@@ -108,6 +108,15 @@ static const GstTagEntryMatch tag_matches[] = {
      The Vorbis comment packet used in those streams uses ENCODER as the name
      of the encoding program, which GStreamer calls application-name. */
   {GST_TAG_APPLICATION_NAME, "ENCODER"},
+/**
+ * ohos.ext.func.0010
+ *
+ * add the mapping from vorbiscomment's author label to GST_TAG_AUTHOR
+ * for retrieving the author metadata from vorbis tags.
+ */
+#ifdef OHOS_EXT_FUNC
+  {GST_TAG_AUTHOR, "AUTHOR"},
+#endif
   {NULL, NULL}
 };
 

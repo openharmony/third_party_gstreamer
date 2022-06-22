@@ -28,6 +28,10 @@ plugin_init (GstPlugin * plugin)
 {
   gboolean ret = FALSE;
 
+#ifndef OHOS_EXT_FUNC
+  /* ohos.ext.func.0024 support https:
+   * disable not used element.
+   */
   ret |= GST_ELEMENT_REGISTER (curlhttpsink, plugin);
   ret |= GST_ELEMENT_REGISTER (curlfilesink, plugin);
   ret |= GST_ELEMENT_REGISTER (curlftpsink, plugin);
@@ -35,6 +39,7 @@ plugin_init (GstPlugin * plugin)
 
 #ifdef HAVE_SSH2
   ret |= GST_ELEMENT_REGISTER (curlsftpsink, plugin);
+#endif
 #endif
   ret |= GST_ELEMENT_REGISTER (curlhttpsrc, plugin);
 

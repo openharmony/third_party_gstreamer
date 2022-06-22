@@ -63,6 +63,8 @@ config("gst_plugins_config") {
     "-DOHOS_OPT_CVE",
     "-DOHOS_OPT_PERFORMANCE",
     "-DOHOS_GLIB_COMPATIBLE",
+    "-Wno-implicit-fallthrough",
+    "-DG_LOG_DOMAIN=\"GStreamer\"",
   ]
 }
 
@@ -72,7 +74,8 @@ ohos_source_set("gstplayback_source") {
     "gst/playback/gstdecodebin3.c",
     "gst/playback/gstparsebin.c",
     "gst/playback/gstplay-enum.c",
-    "gst/playback/gstplayback.c",
+    "gst/playback/gstplaybackplugin.c",
+    "gst/playback/gstplaybackelement.c",
     "gst/playback/gstplaybackutils.c",
     "gst/playback/gstplaybin2.c",
     "gst/playback/gstplaybin3.c",
@@ -216,6 +219,7 @@ ohos_source_set("gstvideo_source") {
     "gst-libs/gst/video/colorbalancechannel.c",
     "gst-libs/gst/video/convertframe.c",
     "gst-libs/gst/video/gstvideoaffinetransformationmeta.c",
+    "gst-libs/gst/video/gstvideocodecalphameta.c",
     "gst-libs/gst/video/gstvideoaggregator.c",
     "gst-libs/gst/video/gstvideodecoder.c",
     "gst-libs/gst/video/gstvideoencoder.c",
@@ -237,6 +241,7 @@ ohos_source_set("gstvideo_source") {
     "gst-libs/gst/video/video-event.c",
     "gst-libs/gst/video/video-format.c",
     "gst-libs/gst/video/video-frame.c",
+    "gst-libs/gst/video/video-hdr.c",
     "gst-libs/gst/video/video-info.c",
     "gst-libs/gst/video/video-multiview.c",
     "gst-libs/gst/video/video-orc-dist.c",
@@ -340,7 +345,13 @@ ohos_shared_library("gstaudioconvert") {
 }
 
 ohos_source_set("typefind_source") {
-  sources = [ "gst/typefind/gsttypefindfunctions.c" ]
+  sources = [
+    "gst/typefind/gsttypefindfunctions.c",
+    "gst/typefind/gsttypefindfunctionsdata.c",
+    "gst/typefind/gsttypefindfunctionsplugin.c",
+    "gst/typefind/gsttypefindfunctionsriff.c",
+    "gst/typefind/gsttypefindfunctionsstartwith.c",
+  ]
 
   configs = [ ":gst_plugins_config" ]
 }
@@ -369,6 +380,8 @@ ohos_source_set("subparse_source") {
     "gst/subparse/qttextparse.c",
     "gst/subparse/samiparse.c",
     "gst/subparse/tmplayerparse.c",
+    "gst/subparse/gstsubparseelement.c",
+    "gst/subparse/gstsubparseplugin.c",
   ]
 
   configs = [ ":gst_plugins_config" ]
@@ -438,6 +451,7 @@ ohos_source_set("audiomixer_source") {
     "gst/audiomixer/gstaudiointerleave.c",
     "gst/audiomixer/gstaudiomixer.c",
     "gst/audiomixer/gstaudiomixerorc-dist.c",
+    "gst/audiomixer/gstaudiomixerelement.c",
   ]
 
   configs = [ ":gst_plugins_config" ]
@@ -600,6 +614,8 @@ ohos_source_set("app_source") {
     "gst-libs/gst/app/app-enumtypes.c",
     "gst-libs/gst/app/gstappsink.c",
     "gst-libs/gst/app/gstappsrc.c",
+    "gst/app/gstappsink.c",
+    "gst/app/gstappsrc.c",
     "gst/app/gstapp.c",
   ]
 

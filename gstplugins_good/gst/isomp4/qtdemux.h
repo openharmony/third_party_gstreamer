@@ -512,6 +512,9 @@ struct _QtDemuxStream
   GstClockTime last_keyframe_dts;
 
   gint ref_count;               /* atomic */
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: demux push first audio/video frame
+  gboolean has_push_first_frame;
+#endif
 };
 
 G_END_DECLS

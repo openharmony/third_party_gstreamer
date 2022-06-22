@@ -933,6 +933,13 @@ static GstStaticCaps id3_caps = GST_STATIC_CAPS ("application/x-id3");
 static void
 id3v2_type_find (GstTypeFind * tf, gpointer unused)
 {
+/* ohos.opt.compat.0001: The demux of gstplayer does not accurately parse audio resources in the MP3 format.
+ * As a result, the duration value cannot be obtained in the preparation phase.
+ * Use the demux and typefind of ffmpeg to process audio resources in MP3 format.
+ */
+#ifdef OHOS_OPT_COMPAT
+  return;
+#endif
   const guint8 *data = gst_type_find_peek (tf, 0, 10);
 
   if (data && memcmp (data, "ID3", 3) == 0 &&
@@ -946,6 +953,13 @@ id3v2_type_find (GstTypeFind * tf, gpointer unused)
 static void
 id3v1_type_find (GstTypeFind * tf, gpointer unused)
 {
+/* ohos.opt.compat.0001: The demux of gstplayer does not accurately parse audio resources in the MP3 format.
+ * As a result, the duration value cannot be obtained in the preparation phase.
+ * Use the demux and typefind of ffmpeg to process audio resources in MP3 format.
+ */
+#ifdef OHOS_OPT_COMPAT
+  return;
+#endif
   const guint8 *data = gst_type_find_peek (tf, -128, 3);
 
   if (data && memcmp (data, "TAG", 3) == 0) {
@@ -1177,6 +1191,13 @@ static GstStaticCaps aac_caps = GST_STATIC_CAPS ("audio/mpeg, "
 static void
 aac_type_find (GstTypeFind * tf, gpointer unused)
 {
+/* ohos.opt.compat.0002: the demux of gstplayer does not accurately parse audio resources in the aac format.
+ * As a result, the duration value cannot be obtained in the preparation phase.
+ * Use the demux and typefind of ffmpeg to process audio resources in aac format.
+ */
+#ifdef OHOS_OPT_COMPAT
+  return;
+#endif
   DataScanCtx c = { 0, NULL, 0 };
   GstTypeFindProbability best_probability = GST_TYPE_FIND_NONE;
   GstCaps *best_caps = NULL;
@@ -1640,6 +1661,13 @@ mp3_type_find_at_offset (GstTypeFind * tf, guint64 start_off,
 static void
 mp3_type_find (GstTypeFind * tf, gpointer unused)
 {
+/* ohos.opt.compat.0001: The demux of gstplayer does not accurately parse audio resources in the MP3 format.
+ * As a result, the duration value cannot be obtained in the preparation phase.
+ * Use the demux and typefind of ffmpeg to process audio resources in MP3 format.
+ */
+#ifdef OHOS_OPT_COMPAT
+  return;
+#endif
   GstTypeFindProbability prob, mid_prob;
   const guint8 *data;
   guint layer, mid_layer;
@@ -2728,8 +2756,16 @@ mpeg4_video_type_find (GstTypeFind * tf, gpointer unused)
     else if (num_vop_headers > 0)
       probability = GST_TYPE_FIND_POSSIBLE - 10;
     else if (seen_vos && seen_vol)
+#ifdef OHOS_OPT_COMPAT
+      /*
+       * ohos.opt.compat.0015
+       * mp3: mpeg audio stream is incorrectly identified as video: mpeg4 video stream,
+       * which causes playback failure and lowers the score
+       */
+      probability = GST_TYPE_FIND_POSSIBLE - 40;
+#else
       probability = GST_TYPE_FIND_POSSIBLE - 20;
-
+#endif
     gst_type_find_suggest (tf, probability, MPEG4_VIDEO_CAPS);
   }
 }
@@ -2755,8 +2791,17 @@ h263_video_type_find (GstTypeFind * tf, gpointer unused)
   guint pc_type, pb_mode;
 
   while (c.offset < H263_MAX_PROBE_LENGTH) {
+#ifdef OHOS_OPT_COMPAT
+    // ohos.opt.compat.0004
+    if (G_UNLIKELY (!data_scan_ctx_ensure_data (tf, &c, 4))) {
+      GST_INFO ("h263 need_typefind_again");
+      tf->need_typefind_again = TRUE;
+      break;
+    }
+#else
     if (G_UNLIKELY (!data_scan_ctx_ensure_data (tf, &c, 4)))
       break;
+#endif
 
     /* Find the picture start code */
     data = (data << 8) + c.data[0];
@@ -2788,12 +2833,30 @@ h263_video_type_find (GstTypeFind * tf, gpointer unused)
 
   GST_LOG ("good: %d, bad: %d", good, bad);
 
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0004
+  if (good > 2 * bad) {
+    if (!tf->need_typefind_again) {
+      gst_type_find_suggest (tf, GST_TYPE_FIND_POSSIBLE, H263_VIDEO_CAPS);
+    }
+  } else {
+    tf->need_typefind_again = FALSE;
+  }
+#else
   if (good > 2 * bad)
     gst_type_find_suggest (tf, GST_TYPE_FIND_POSSIBLE, H263_VIDEO_CAPS);
+#endif
 
   return;
 }
 
+#ifdef OHOS_OPT_COMPAT
+/*
+ * ohos.opt.compat.0015
+ * mp3: mpeg audio stream is incorrectly identified as video:h264 or video:h265 video stream,
+ * which causes playback failure and lowers the score
+ */
+#else
 /*** video/x-h264 H264 elementary video stream ***/
 
 static GstStaticCaps h264_video_caps =
@@ -2820,8 +2883,17 @@ h264_video_type_find (GstTypeFind * tf, gpointer unused)
   int bad = 0;
 
   while (c.offset < H264_MAX_PROBE_LENGTH) {
+#ifdef OHOS_OPT_COMPAT
+    // ohos.opt.compat.0004
+    if (G_UNLIKELY (!data_scan_ctx_ensure_data (tf, &c, 4))) {
+      GST_INFO ("h264_video_type_find need_typefind_again");
+      tf->need_typefind_again = TRUE;
+      break;
+    }
+#else
     if (G_UNLIKELY (!data_scan_ctx_ensure_data (tf, &c, 4)))
       break;
+#endif
 
     if (IS_MPEG_HEADER (c.data)) {
       nut = c.data[3] & 0x9f;   /* forbiden_zero_bit | nal_unit_type */
@@ -2886,6 +2958,20 @@ h264_video_type_find (GstTypeFind * tf, gpointer unused)
   GST_LOG ("good:%d, bad:%d, pps:%d, sps:%d, idr:%d ssps=%d", good, bad,
       seen_pps, seen_sps, seen_idr, seen_ssps);
 
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0004
+  if (good >= 2 && bad == 0) {
+    GstTypeFindProbability probability = GST_TYPE_FIND_POSSIBLE;
+
+    if (seen_pps && seen_sps)
+      probability = GST_TYPE_FIND_LIKELY;
+    if (!tf->need_typefind_again) {
+      gst_type_find_suggest (tf, probability, H264_VIDEO_CAPS);
+    }
+  } else {
+    tf->need_typefind_again = FALSE;
+  }
+else
   if (good >= 2 && bad == 0) {
     GstTypeFindProbability probability = GST_TYPE_FIND_POSSIBLE;
 
@@ -2894,6 +2980,7 @@ h264_video_type_find (GstTypeFind * tf, gpointer unused)
 
     gst_type_find_suggest (tf, probability, H264_VIDEO_CAPS);
   }
+#endif
 }
 
 /*** video/x-h265 H265 elementary video stream ***/
@@ -2993,6 +3080,7 @@ h265_video_type_find (GstTypeFind * tf, gpointer unused)
     gst_type_find_suggest (tf, probability, H265_VIDEO_CAPS);
   }
 }
+#endif
 
 /*** video/mpeg video stream ***/
 
@@ -3091,10 +3179,22 @@ mpeg_video_stream_type_find (GstTypeFind * tf, gpointer unused)
       probability = GST_TYPE_FIND_POSSIBLE;
     else if (seen_seq && found > 0)
       probability = GST_TYPE_FIND_POSSIBLE - 5;
+#ifdef OHOS_OPT_COMPAT
+    /*
+     * ohos.opt.compat.0015
+     * mp3: mpeg audio stream is incorrectly identified as video: mpeg video stream,
+     * which causes playback failure and lowers the score
+     */
+    else if (found > 0)
+      probability = GST_TYPE_FIND_POSSIBLE - 40;
+    else if (seen_seq)
+      probability = GST_TYPE_FIND_POSSIBLE - 45;
+#else
     else if (found > 0)
       probability = GST_TYPE_FIND_POSSIBLE - 10;
     else if (seen_seq)
       probability = GST_TYPE_FIND_POSSIBLE - 20;
+#endif
 
     gst_type_find_suggest_simple (tf, probability, "video/mpeg",
         "systemstream", G_TYPE_BOOLEAN, FALSE,
@@ -6011,10 +6111,18 @@ GST_TYPE_FIND_REGISTER_DEFINE (mpeg4_video, "video/mpeg4", GST_RANK_PRIMARY,
     mpeg4_video_type_find, "m4v", MPEG_VIDEO_CAPS, NULL, NULL);
 GST_TYPE_FIND_REGISTER_DEFINE (h263_video, "video/x-h263", GST_RANK_SECONDARY,
     h263_video_type_find, "h263,263", H263_VIDEO_CAPS, NULL, NULL);
+#ifdef OHOS_OPT_COMPAT
+/*
+ * ohos.opt.compat.0015
+ * mp3: mpeg audio stream is incorrectly identified as video:h264 or video:h265 video stream,
+ * which causes playback failure and lowers the score
+ */
+#else
 GST_TYPE_FIND_REGISTER_DEFINE (h264_video, "video/x-h264", GST_RANK_PRIMARY,
     h264_video_type_find, "h264,x264,264", H264_VIDEO_CAPS, NULL, NULL);
 GST_TYPE_FIND_REGISTER_DEFINE (h265_video, "video/x-h265", GST_RANK_PRIMARY,
     h265_video_type_find, "h265,x265,265", H265_VIDEO_CAPS, NULL, NULL);
+#endif
 GST_TYPE_FIND_REGISTER_DEFINE (nuv, "video/x-nuv", GST_RANK_SECONDARY,
     nuv_type_find, "nuv", NUV_CAPS, NULL, NULL);
 /* ISO formats */

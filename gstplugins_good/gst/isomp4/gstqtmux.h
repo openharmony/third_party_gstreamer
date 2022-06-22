@@ -352,6 +352,37 @@ struct _GstQTMux
 
   /* for request pad naming */
   guint video_pads, audio_pads, subtitle_pads, caption_pads;
+
+/* ohos.ext.func.0016
+ * add additional features to set geographic location information in mp4 file
+ * enable_geolocation is the flag to enable this feature
+ * latitudex10000 is the latitude to set, multiply 10000 for the convenience of calculation.
+ * longitudex10000 is the longitude to set, multiply 10000 for the convenience of calculation.
+ */
+#ifdef OHOS_EXT_FUNC
+  gboolean enable_geolocation;
+  gint latitudex10000;
+  gint longitudex10000;
+#endif
+
+/* ohos.ext.func.0018
+ * add additional features to set orientationHint in mp4 file.
+ */
+#ifdef OHOS_EXT_FUNC
+  guint32 rotation;
+#endif
+
+/* ohos.opt.compat.0011
+ * qtmux itself does not handle flush events, so in extreme cases, the buffer is discarded by gstpad
+ * when it is passed forward, but qtmux thinks that the buffer writes the file successfully,
+ * resulting in a file exception.
+ * is_flushing: a flag to tell qtmux, in flushing progress.
+ * flush_lock: is a lock to make sure the flag Operating normally.
+ */
+#ifdef OHOS_OPT_COMPAT
+  GMutex flush_lock;
+  gboolean is_flushing;
+#endif
 };
 
 struct _GstQTMuxClass

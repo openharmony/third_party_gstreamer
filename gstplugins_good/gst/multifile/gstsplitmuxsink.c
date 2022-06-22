@@ -2899,6 +2899,14 @@ handle_mq_input (GstPad * pad, GstPadProbeInfo * info, MqStreamCtx * ctx)
       GST_TIME_FORMAT ")", GST_TIME_ARGS (ts), GST_TIME_ARGS (pts),
       GST_TIME_ARGS (dts));
 
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0018
+// to avoid when buffer take too many time in src,
+// cause pst comes to clock none.
+  GST_BUFFER_PTS (buf) = ts;
+  GST_BUFFER_DTS (buf) = ts;
+#endif
+
   GST_SPLITMUX_LOCK (splitmux);
 
   if (splitmux->input_state == SPLITMUX_INPUT_STATE_STOPPED) {

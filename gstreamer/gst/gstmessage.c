@@ -1286,6 +1286,152 @@ gst_message_parse_buffering (GstMessage * message, gint * percent)
             (message), GST_QUARK (BUFFER_PERCENT)));
 }
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0012
+/**
+ * gst_message_new_buffering_time:
+ * @src: (transfer none) (allow-none): The object originating the message.
+ * @buffering_time: The buffering time
+ * @mq_num_id: The multiqueue id
+ *
+ * Create a new buffering time message. This message can be posted by a multiqueue that
+ * needs to report buffering time
+ *
+ * MT safe.
+ *
+ * Returns: (transfer full) (nullable): The new buffering time message.
+ */
+GstMessage *
+gst_message_new_buffering_time (GstObject * src, gint64 buffering_time, guint mq_num_id)
+{
+  GstMessage *message;
+  GstStructure *structure;
+
+  structure = gst_structure_new ("message-buffering-time",
+      "buffering-time", G_TYPE_INT64, buffering_time,
+      "mq-num-id", G_TYPE_UINT, mq_num_id, NULL);
+  message = gst_message_new_custom (GST_MESSAGE_ELEMENT, src, structure);
+
+  return message;
+}
+
+/**
+ * gst_message_parse_buffering_time:
+ * @message: A valid #GstMessage of type GST_QUARK_MESSAGE_BUFFERING_TIME.
+ * @buffering_time: (out) (allow-none): The buffering time, or %NULL
+ * @mq_num_id: (out) (allow-none): The multiqueue id, or %NULL
+ *
+ * Extracts the buffering time values from @message.
+ */
+void
+gst_message_parse_buffering_time (GstMessage * message, gint64 * buffering_time, guint * mq_num_id)
+{
+  GstStructure *structure;
+
+  g_return_if_fail (GST_MESSAGE_TYPE (message) == GST_MESSAGE_ELEMENT);
+
+  structure = GST_MESSAGE_STRUCTURE (message);
+  if (buffering_time) {
+    (void)gst_structure_get_int64(structure, "buffering-time", buffering_time);
+  }
+
+  if (mq_num_id) {
+    (void)gst_structure_get_uint(structure, "mq-num-id", mq_num_id);
+  }
+}
+
+// ohos.ext.func.0013
+/**
+ * gst_message_new_mq_num_use_buffering:
+ * @src: (transfer none) (allow-none): The object originating the message.
+ * @mq_num_use_buffering: The number of multiqueue use buffering
+ *
+ * Create a new multiqueue num use buffering message. This message can be posted by a multiqueue that
+ * needs to report the number of multiqueue use buffering
+ *
+ * MT safe.
+ *
+ * Returns: (transfer full) (nullable): The new multiqueue num use buffering message.
+ */
+GstMessage *
+gst_message_new_mq_num_use_buffering (GstObject * src, guint mq_num_use_buffering)
+{
+  GstMessage *message;
+  GstStructure *structure;
+
+  structure = gst_structure_new ("message-mq-num-use-buffering",
+            "mq_num_use_buffering", G_TYPE_UINT, mq_num_use_buffering, NULL);
+  message = gst_message_new_custom (GST_MESSAGE_ELEMENT, src, structure);
+
+  return message;
+}
+
+/**
+ * gst_message_parse_mq_num_use_buffering:
+ * @message: A valid #GstMessage of type mq_num_use_buffering.
+ * @mq_num_use_buffering: (out) (allow-none): The number of multiqueue use bufferig, or %NULL
+ *
+ * Extracts the multiqueue num use buffering values from @message.
+ */
+void
+gst_message_parse_mq_num_use_buffering (GstMessage * message, guint * mq_num_use_buffering)
+{
+  GstStructure *structure;
+
+  g_return_if_fail (GST_MESSAGE_TYPE (message) == GST_MESSAGE_ELEMENT);
+
+  structure = GST_MESSAGE_STRUCTURE (message);
+  if (mq_num_use_buffering) {
+    (void)gst_structure_get_uint(structure, "mq_num_use_buffering", mq_num_use_buffering);
+  }
+}
+
+// ohos.ext.func.0014
+/**
+ * gst_message_new_resolution_changed:
+ * @src: (transfer none) (allow-none): The object originating the message.
+ * @width: video of width
+ * @height: video of height
+ *
+ * Create a new resolution changed message. This message can be posted by demux that
+ * needs to report the resolution changed
+ *
+ * MT safe.
+ *
+ * Returns: (transfer full) (nullable): The new resolution changed message.
+ */
+GstMessage *
+gst_message_new_resolution_changed (GstObject * src, gint width, gint height)
+{
+  GstMessage *message;
+  GstStructure *structure;
+  structure = gst_structure_new ("resolution-changed",
+            "width", G_TYPE_INT, width, "height", G_TYPE_INT, height, NULL);
+  message = gst_message_new_custom (GST_MESSAGE_ELEMENT, src, structure);
+  return message;
+}
+
+/**
+ * gst_message_parse_resulution_changed:
+ * @message: A valid #GstMessage of type resolution-changed.
+ * @width: (out) (allow-none): video of width, or %NULL
+ * @height: (out) (allow-none): video of height, or %NULL
+ *
+ * Extracts the resolution changed values from @message.
+ */
+void
+gst_message_parse_resulution_changed (GstMessage * message, gint * width, gint * height)
+{
+  GstStructure *structure;
+  g_return_if_fail (GST_MESSAGE_TYPE (message) == GST_MESSAGE_ELEMENT);
+  structure = GST_MESSAGE_STRUCTURE (message);
+  if (width && height) {
+    (void)gst_structure_get_int(structure, "width", width);
+    (void)gst_structure_get_int(structure, "height", height);
+  }
+}
+#endif
+
 /**
  * gst_message_set_buffering_stats:
  * @message: A valid #GstMessage of type GST_MESSAGE_BUFFERING.

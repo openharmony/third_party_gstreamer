@@ -41,8 +41,6 @@
 
 #define HAVE_ALARM 1
 
-#define HAVE_BACKTRACE 1
-
 #define HAVE_CLOCK_GETTIME 1
 
 #define HAVE_CLOCK_NANOSLEEP 1
@@ -125,7 +123,7 @@
 
 #define HAVE_SYS_PARAM_H 1
 
-#define HAVE_SYS_POLL_H 1
+#define HAVE_POLL_H 1
 
 #define HAVE_SYS_PRCTL_H 1
 
@@ -159,7 +157,7 @@
 #define LIBDIR "/system/lib64"
 #else
 #define LIBDIR "/system/lib"
-#end
+#endif
 
 #define LOCALEDIR "/usr/local/share/locale"
 
@@ -189,7 +187,7 @@
 #define TARGET_CPU "aarch64"
 #else
 #define TARGET_CPU "arm"
-#end
+#endif
 
 #undef USE_POISONING
 
