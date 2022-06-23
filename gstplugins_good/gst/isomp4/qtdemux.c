@@ -7699,10 +7699,30 @@ qtdemux_inflate (void *z_buffer, guint z_length, guint * length)
       break;
     }
 
+#ifdef OHOS_OPT_COMPAT
+    /*
+     * ohos.opt.compat.0031
+     * CVE-2022-2122
+     */
+    if (*length > G_MAXUINT - 4096 || *length > QTDEMUX_MAX_SAMPLE_INDEX_SIZE) {
+      GST_WARNING ("too big decompressed data");
+      ret = Z_MEM_ERROR;
+      break;
+    }
+
+#endif
     *length += 4096;
     buffer = (guint8 *) g_realloc (buffer, *length);
     z.next_out = (Bytef *) (buffer + z.total_out);
+#ifdef OHOS_OPT_COMPAT
+    /*
+     * ohos.opt.compat.0031
+     * CVE-2022-2122
+     */
+    z.avail_out += *length - z.total_out;
+#else
     z.avail_out += 4096;
+#endif
   } while (z.avail_in > 0);
 
   if (ret != Z_STREAM_END) {

@@ -3748,7 +3748,16 @@ gst_matroska_demux_add_wvpk_header (GstElement * element,
   } else {
     guint8 *outdata = NULL;
     gsize buf_size, size;
+#ifdef OHOS_OPT_COMPAT
+    /*
+     * ohos.opt.compat.0031
+     * CVE-2022-1920
+     */
+    guint32 block_samples, flags, crc;
+    gsize blocksize;
+#else
     guint32 block_samples, flags, crc, blocksize;
+#endif
     GstAdapter *adapter;
 
     adapter = gst_adapter_new ();
@@ -3763,7 +3772,19 @@ gst_matroska_demux_add_wvpk_header (GstElement * element,
       g_object_unref (adapter);
       return GST_FLOW_ERROR;
     }
+#ifdef OHOS_OPT_COMPAT
+     /*
+      * ohos.opt.compat.0031
+      * CVE-2022-1920
+      */
+      if (blocksize > G_MAXSIZE - WAVPACK4_HEADER_SIZE) {
+        GST_ERROR_OBJECT (element, "Too big wavpack buffer");
+        gst_buffer_unmap (*buf, &map);
+        g_object_unref (adapter);
+        return GST_FLOW_ERROR;
+      }
 
+#endif
     data = buf_data;
     size = buf_size;
 
