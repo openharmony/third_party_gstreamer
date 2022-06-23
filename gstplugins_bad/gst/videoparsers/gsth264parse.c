@@ -164,9 +164,14 @@ gst_h264_parse_init (GstH264Parse * h264parse)
   gst_base_parse_set_pts_interpolation (GST_BASE_PARSE (h264parse), FALSE);
   GST_PAD_SET_ACCEPT_INTERSECT (GST_BASE_PARSE_SINK_PAD (h264parse));
   GST_PAD_SET_ACCEPT_TEMPLATE (GST_BASE_PARSE_SINK_PAD (h264parse));
-
+#ifdef OHOS_OPT_COMPAT
+// ohos.ext.func.0031
+  h264parse->aud_needed = FALSE;
+  h264parse->aud_insert = FALSE;
+#else
   h264parse->aud_needed = TRUE;
   h264parse->aud_insert = TRUE;
+#endif
 }
 
 
@@ -195,7 +200,12 @@ gst_h264_parse_reset_frame (GstH264Parse * h264parse)
   h264parse->keyframe = FALSE;
   h264parse->header = FALSE;
   h264parse->frame_start = FALSE;
+#ifdef OHOS_OPT_COMPAT
+// ohos.ext.func.0031
+  h264parse->aud_insert = FALSE;
+#else
   h264parse->aud_insert = TRUE;
+#endif
   h264parse->have_sps_in_frame = FALSE;
   h264parse->have_pps_in_frame = FALSE;
   gst_adapter_clear (h264parse->frame_out);
