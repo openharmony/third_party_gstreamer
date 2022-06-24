@@ -4966,9 +4966,9 @@ swap_line (guint8 * d1, guint8 * d2, guint8 * tmp, gint bytes)
 static GstBuffer *
 gst_avi_demux_invert (GstAviStream * stream, GstBuffer * buf)
 {
-#ifdef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_CVE
  /*
-  * ohos.opt.compat.0031
+  * ohos.opt.cve.0001
   * CVE-2022-1921 : https://gstreamer.freedesktop.org/security/sa-2022-0001.html
   */
   guint y, w, h;
@@ -5003,9 +5003,9 @@ gst_avi_demux_invert (GstAviStream * stream, GstBuffer * buf)
   h = stream->strf.vids->height;
   w = stream->strf.vids->width;
   bpp = stream->strf.vids->bit_cnt ? stream->strf.vids->bit_cnt : 8;
-#ifdef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_CVE
   /*
-   * ohos.opt.compat.0031
+   * ohos.opt.cve.0001
    * CVE-2022-1921 : https://gstreamer.freedesktop.org/security/sa-2022-0001.html
    */
   if ((guint64) w * ((guint64) bpp / 8) > G_MAXUINT - 4) {
@@ -5024,9 +5024,9 @@ gst_avi_demux_invert (GstAviStream * stream, GstBuffer * buf)
   buf = gst_buffer_make_writable (buf);
 
   gst_buffer_map (buf, &map, GST_MAP_READWRITE);
-#ifdef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_CVE
   /*
-   * ohos.opt.compat.0031
+   * ohos.opt.cve.0001
    * CVE-2022-1921 : https://gstreamer.freedesktop.org/security/sa-2022-0001.html
    */
   if (map.size < ((guint64) stride * (guint64) h)) {
