@@ -70,6 +70,16 @@ typedef struct
   gboolean audio_only;
 } TargetTypeContext;
 
+#ifdef OHOS_OPT_CVE
+/*
+ * ohos.opt.cve.0001
+ * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
+ */
+/* 120MB as maximum decompressed data size. Anything bigger is likely
+ * pathological, and like this we avoid out of memory situations in many cases
+ */
+#define MAX_DECOMPRESS_SIZE (120 * 1024 * 1024)
+#endif
 
 static gboolean
 gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
@@ -77,19 +87,49 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
     GstMatroskaTrackCompressionAlgorithm algo)
 {
   guint8 *new_data = NULL;
+#ifdef OHOS_OPT_CVE
+ /*
+  * ohos.opt.cve.0001
+  * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
+  */
+  gsize new_size = 0;
+  guint8 *data = *data_out;
+  const gsize size = *size_out;
+#else
   guint new_size = 0;
   guint8 *data = *data_out;
   guint size = *size_out;
+#endif
   gboolean ret = TRUE;
 
+#ifdef OHOS_OPT_CVE
+ /*
+  * ohos.opt.cve.0001
+  * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
+  */
+  if (size > G_MAXUINT32) {
+    GST_WARNING ("too large compressed data buffer.");
+    ret = FALSE;
+    goto out;
+  }
+
+#endif
   if (algo == GST_MATROSKA_TRACK_COMPRESSION_ALGORITHM_ZLIB) {
 #ifdef HAVE_ZLIB
     /* zlib encoded data */
     z_stream zstream;
+#ifdef OHOS_OPT_CVE
+    /*
+     * ohos.opt.cve.0001
+     * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
+     */
+    int result;
+#else
     guint orig_size;
     int result;
 
     orig_size = size;
+#endif
     zstream.zalloc = (alloc_func) 0;
     zstream.zfree = (free_func) 0;
     zstream.opaque = (voidpf) 0;
@@ -99,8 +139,17 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
       goto out;
     }
     zstream.next_in = (Bytef *) data;
+#ifdef OHOS_OPT_CVE
+    /*
+     * ohos.opt.cve.0001
+     * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
+     */
+    zstream.avail_in = size;
+    new_size = size;
+#else
     zstream.avail_in = orig_size;
     new_size = orig_size;
+#endif
     new_data = g_malloc (new_size);
     zstream.avail_out = new_size;
     zstream.next_out = (Bytef *) new_data;
@@ -114,10 +163,32 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
         break;
       }
 
+#ifdef OHOS_OPT_CVE
+      /*
+       * ohos.opt.cve.0001
+       * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
+       */
+      if (new_size > G_MAXSIZE - 4096 || new_size + 4096 > MAX_DECOMPRESS_SIZE) {
+        GST_WARNING ("too big decompressed data");
+        result = Z_MEM_ERROR;
+        break;
+      }
+
+#endif
       new_size += 4096;
       new_data = g_realloc (new_data, new_size);
       zstream.next_out = (Bytef *) (new_data + zstream.total_out);
+#ifdef OHOS_OPT_CVE
+      /*
+       * ohos.opt.cve.0001
+       * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
+       */
+      /* avail_out is an unsigned int */
+      g_assert (new_size - zstream.total_out <= G_MAXUINT);
+      zstream.avail_out = new_size - zstream.total_out;
+#else
       zstream.avail_out += 4096;
+#endif
     } while (zstream.avail_in > 0);
 
     if (result != Z_STREAM_END) {
@@ -137,6 +208,18 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
 #ifdef HAVE_BZ2
     /* bzip2 encoded data */
     bz_stream bzstream;
+#ifdef OHOS_OPT_CVE
+    /*
+     * ohos.opt.cve.0001
+     * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
+     */
+    int result;
+
+    bzstream.bzalloc = NULL;
+    bzstream.bzfree = NULL;
+    bzstream.opaque = NULL;
+
+#else
     guint orig_size;
     int result;
 
@@ -145,6 +228,7 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
     bzstream.opaque = NULL;
     orig_size = size;
 
+#endif
     if (BZ2_bzDecompressInit (&bzstream, 0, 0) != BZ_OK) {
       GST_WARNING ("bzip2 initialization failed.");
       ret = FALSE;
@@ -152,8 +236,17 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
     }
 
     bzstream.next_in = (char *) data;
+#ifdef OHOS_OPT_CVE
+    /*
+     * ohos.opt.cve.0001
+     * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
+     */
+    bzstream.avail_in = size;
+    new_size = size;
+#else
     bzstream.avail_in = orig_size;
     new_size = orig_size;
+#endif
     new_data = g_malloc (new_size);
     bzstream.avail_out = new_size;
     bzstream.next_out = (char *) new_data;
@@ -167,17 +260,50 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
         break;
       }
 
+#ifdef OHOS_OPT_CVE
+      /*
+       * ohos.opt.cve.0001
+       * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
+       */
+      if (new_size > G_MAXSIZE - 4096 || new_size + 4096 > MAX_DECOMPRESS_SIZE) {
+        GST_WARNING ("too big decompressed data");
+        result = BZ_MEM_ERROR;
+        break;
+      }
+
+      new_size += 4096;
+      new_data = g_realloc (new_data, new_size);
+      bzstream.next_out =
+          (char *) (new_data + ((guint64) bzstream.total_out_hi32 << 32) +
+          bzstream.total_out_lo32);
+      /* avail_out is an unsigned int */
+      g_assert (new_size - ((guint64) bzstream.total_out_hi32 << 32) +
+          bzstream.total_out_lo32 <= G_MAXUINT);
+      bzstream.avail_out =
+          new_size - ((guint64) bzstream.total_out_hi32 << 32) +
+          bzstream.total_out_lo32;
+#else
       new_size += 4096;
       new_data = g_realloc (new_data, new_size);
       bzstream.next_out = (char *) (new_data + bzstream.total_out_lo32);
       bzstream.avail_out += 4096;
+#endif
     } while (bzstream.avail_in > 0);
 
     if (result != BZ_STREAM_END) {
       ret = FALSE;
       g_free (new_data);
     } else {
+#ifdef OHOS_OPT_CVE
+      /*
+       * ohos.opt.cve.0001
+       * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
+       */
+      new_size =
+          ((guint64) bzstream.total_out_hi32 << 32) + bzstream.total_out_lo32;
+#else
       new_size = bzstream.total_out_lo32;
+#endif
     }
     BZ2_bzDecompressEnd (&bzstream);
 
@@ -189,7 +315,22 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
   } else if (algo == GST_MATROSKA_TRACK_COMPRESSION_ALGORITHM_LZO1X) {
     /* lzo encoded data */
     int result;
+#ifdef OHOS_OPT_CVE
+    /*
+     * ohos.opt.cve.0001
+     * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
+     */
+    gint orig_size, out_size;
+
+    if (size > G_MAXINT) {
+      GST_WARNING ("too large compressed data buffer.");
+      ret = FALSE;
+      goto out;
+    }
+
+#else
     int orig_size, out_size;
+#endif
 
     orig_size = size;
     out_size = size;
@@ -203,6 +344,17 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
       result = lzo1x_decode (new_data, &out_size, data, &orig_size);
 
       if (orig_size > 0) {
+#ifdef OHOS_OPT_CVE
+        /*
+        * ohos.opt.cve.0001
+        * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
+        */
+        if (new_size > G_MAXINT - 4096 || new_size + 4096 > MAX_DECOMPRESS_SIZE) {
+          GST_WARNING ("too big decompressed data");
+          result = LZO_ERROR;
+          break;
+        }
+#endif
         new_size += 4096;
         new_data = g_realloc (new_data, new_size);
       }
@@ -221,6 +373,19 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
   } else if (algo == GST_MATROSKA_TRACK_COMPRESSION_ALGORITHM_HEADERSTRIP) {
     /* header stripped encoded data */
     if (enc->comp_settings_length > 0) {
+#ifdef OHOS_OPT_CVE
+      /*
+       * ohos.opt.cve.0001
+       * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
+       */
+      if (size > G_MAXSIZE - enc->comp_settings_length
+          || size + enc->comp_settings_length > MAX_DECOMPRESS_SIZE) {
+        GST_WARNING ("too big decompressed data");
+        ret = FALSE;
+        goto out;
+      }
+
+#endif
       new_data = g_malloc (size + enc->comp_settings_length);
       new_size = size + enc->comp_settings_length;
 
