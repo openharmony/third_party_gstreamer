@@ -637,6 +637,7 @@ static GstStateChangeReturn gst_play_bin_change_state (GstElement * element,
 static void gst_play_bin_handle_message (GstBin * bin, GstMessage * message);
 static void gst_play_bin_deep_element_added (GstBin * playbin, GstBin * sub_bin,
     GstElement * child);
+
 static gboolean gst_play_bin_query (GstElement * element, GstQuery * query);
 static void gst_play_bin_set_context (GstElement * element,
     GstContext * context);
