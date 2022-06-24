@@ -3748,9 +3748,9 @@ gst_matroska_demux_add_wvpk_header (GstElement * element,
   } else {
     guint8 *outdata = NULL;
     gsize buf_size, size;
-#ifdef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_CVE
     /*
-     * ohos.opt.compat.0031
+     * ohos.opt.cve.0001
      * CVE-2022-1920 : https://gstreamer.freedesktop.org/security/sa-2022-0004.html
      */
     guint32 block_samples, flags, crc;
@@ -3797,9 +3797,9 @@ gst_matroska_demux_add_wvpk_header (GstElement * element,
         g_object_unref (adapter);
         return GST_FLOW_ERROR;
       }
-#ifdef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_CVE
      /*
-      * ohos.opt.compat.0031
+      * ohos.opt.cve.0001
       * CVE-2022-1920 : https://gstreamer.freedesktop.org/security/sa-2022-0004.html
       */
       if (blocksize > G_MAXSIZE - WAVPACK4_HEADER_SIZE) {

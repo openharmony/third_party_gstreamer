@@ -70,9 +70,9 @@ typedef struct
   gboolean audio_only;
 } TargetTypeContext;
 
-#ifdef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_CVE
 /*
- * ohos.opt.compat.0031
+ * ohos.opt.cve.0001
  * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
  */
 /* 120MB as maximum decompressed data size. Anything bigger is likely
@@ -87,9 +87,9 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
     GstMatroskaTrackCompressionAlgorithm algo)
 {
   guint8 *new_data = NULL;
-#ifdef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_CVE
  /*
-  * ohos.opt.compat.0031
+  * ohos.opt.cve.0001
   * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
   */
   gsize new_size = 0;
@@ -102,9 +102,9 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
 #endif
   gboolean ret = TRUE;
 
-#ifdef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_CVE
  /*
-  * ohos.opt.compat.0031
+  * ohos.opt.cve.0001
   * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
   */
   if (size > G_MAXUINT32) {
@@ -118,9 +118,9 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
 #ifdef HAVE_ZLIB
     /* zlib encoded data */
     z_stream zstream;
-#ifdef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_CVE
     /*
-     * ohos.opt.compat.0031
+     * ohos.opt.cve.0001
      * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
      */
     int result;
@@ -139,9 +139,9 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
       goto out;
     }
     zstream.next_in = (Bytef *) data;
-#ifdef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_CVE
     /*
-     * ohos.opt.compat.0031
+     * ohos.opt.cve.0001
      * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
      */
     zstream.avail_in = size;
@@ -163,9 +163,9 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
         break;
       }
 
-#ifdef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_CVE
       /*
-       * ohos.opt.compat.0031
+       * ohos.opt.cve.0001
        * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
        */
       if (new_size > G_MAXSIZE - 4096 || new_size + 4096 > MAX_DECOMPRESS_SIZE) {
@@ -178,9 +178,9 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
       new_size += 4096;
       new_data = g_realloc (new_data, new_size);
       zstream.next_out = (Bytef *) (new_data + zstream.total_out);
-#ifdef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_CVE
       /*
-       * ohos.opt.compat.0031
+       * ohos.opt.cve.0001
        * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
        */
       /* avail_out is an unsigned int */
@@ -208,9 +208,9 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
 #ifdef HAVE_BZ2
     /* bzip2 encoded data */
     bz_stream bzstream;
-#ifdef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_CVE
     /*
-     * ohos.opt.compat.0031
+     * ohos.opt.cve.0001
      * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
      */
     int result;
@@ -236,9 +236,9 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
     }
 
     bzstream.next_in = (char *) data;
-#ifdef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_CVE
     /*
-     * ohos.opt.compat.0031
+     * ohos.opt.cve.0001
      * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
      */
     bzstream.avail_in = size;
@@ -260,9 +260,9 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
         break;
       }
 
-#ifdef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_CVE
       /*
-       * ohos.opt.compat.0031
+       * ohos.opt.cve.0001
        * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
        */
       if (new_size > G_MAXSIZE - 4096 || new_size + 4096 > MAX_DECOMPRESS_SIZE) {
@@ -294,9 +294,9 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
       ret = FALSE;
       g_free (new_data);
     } else {
-#ifdef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_CVE
       /*
-       * ohos.opt.compat.0031
+       * ohos.opt.cve.0001
        * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
        */
       new_size =
@@ -315,9 +315,9 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
   } else if (algo == GST_MATROSKA_TRACK_COMPRESSION_ALGORITHM_LZO1X) {
     /* lzo encoded data */
     int result;
-#ifdef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_CVE
     /*
-     * ohos.opt.compat.0031
+     * ohos.opt.cve.0001
      * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
      */
     gint orig_size, out_size;
@@ -344,9 +344,9 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
       result = lzo1x_decode (new_data, &out_size, data, &orig_size);
 
       if (orig_size > 0) {
-#ifdef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_CVE
         /*
-        * ohos.opt.compat.0031
+        * ohos.opt.cve.0001
         * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
         */
         if (new_size > G_MAXINT - 4096 || new_size + 4096 > MAX_DECOMPRESS_SIZE) {
@@ -373,9 +373,9 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
   } else if (algo == GST_MATROSKA_TRACK_COMPRESSION_ALGORITHM_HEADERSTRIP) {
     /* header stripped encoded data */
     if (enc->comp_settings_length > 0) {
-#ifdef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_CVE
       /*
-       * ohos.opt.compat.0031
+       * ohos.opt.cve.0001
        * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
        */
       if (size > G_MAXSIZE - enc->comp_settings_length

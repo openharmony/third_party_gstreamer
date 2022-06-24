@@ -7699,9 +7699,9 @@ qtdemux_inflate (void *z_buffer, guint z_length, guint * length)
       break;
     }
 
-#ifdef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_CVE
     /*
-     * ohos.opt.compat.0031
+     * ohos.opt.cve.0001
      * CVE-2022-2122 : https://gstreamer.freedesktop.org/security/sa-2022-0003.html
      */
     if (*length > G_MAXUINT - 4096 || *length > QTDEMUX_MAX_SAMPLE_INDEX_SIZE) {
@@ -7714,9 +7714,9 @@ qtdemux_inflate (void *z_buffer, guint z_length, guint * length)
     *length += 4096;
     buffer = (guint8 *) g_realloc (buffer, *length);
     z.next_out = (Bytef *) (buffer + z.total_out);
-#ifdef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_CVE
     /*
-     * ohos.opt.compat.0031
+     * ohos.opt.cve.0001
      * CVE-2022-2122 : https://gstreamer.freedesktop.org/security/sa-2022-0003.html
      */
     z.avail_out += *length - z.total_out;
