@@ -5008,7 +5008,6 @@ gst_avi_demux_invert (GstAviStream * stream, GstBuffer * buf)
    * ohos.opt.compat.0031
    * CVE-2022-1921
    */
-
   if ((guint64) w * ((guint64) bpp / 8) > G_MAXUINT - 4) {
     GST_WARNING ("Width x stride overflows");
     return buf;

@@ -88,10 +88,10 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
 {
   guint8 *new_data = NULL;
 #ifdef OHOS_OPT_COMPAT
-/*
- * ohos.opt.compat.0031
- * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925
- */
+ /*
+  * ohos.opt.compat.0031
+  * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925
+  */
   gsize new_size = 0;
   guint8 *data = *data_out;
   const gsize size = *size_out;
@@ -103,10 +103,10 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
   gboolean ret = TRUE;
 
 #ifdef OHOS_OPT_COMPAT
-/*
- * ohos.opt.compat.0031
- * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925
- */
+ /*
+  * ohos.opt.compat.0031
+  * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925
+  */
   if (size > G_MAXUINT32) {
     GST_WARNING ("too large compressed data buffer.");
     ret = FALSE;
@@ -344,6 +344,17 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
       result = lzo1x_decode (new_data, &out_size, data, &orig_size);
 
       if (orig_size > 0) {
+#ifdef OHOS_OPT_COMPAT
+        /*
+        * ohos.opt.compat.0031
+        * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925
+        */
+        if (new_size > G_MAXINT - 4096 || new_size + 4096 > MAX_DECOMPRESS_SIZE) {
+          GST_WARNING ("too big decompressed data");
+          result = LZO_ERROR;
+          break;
+        }
+#endif
         new_size += 4096;
         new_data = g_realloc (new_data, new_size);
       }
