@@ -73,7 +73,7 @@ typedef struct
 #ifdef OHOS_OPT_COMPAT
 /*
  * ohos.opt.compat.0031
- * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925
+ * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
  */
 /* 120MB as maximum decompressed data size. Anything bigger is likely
  * pathological, and like this we avoid out of memory situations in many cases
@@ -90,7 +90,7 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
 #ifdef OHOS_OPT_COMPAT
  /*
   * ohos.opt.compat.0031
-  * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925
+  * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
   */
   gsize new_size = 0;
   guint8 *data = *data_out;
@@ -105,7 +105,7 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
 #ifdef OHOS_OPT_COMPAT
  /*
   * ohos.opt.compat.0031
-  * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925
+  * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
   */
   if (size > G_MAXUINT32) {
     GST_WARNING ("too large compressed data buffer.");
@@ -121,7 +121,7 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
 #ifdef OHOS_OPT_COMPAT
     /*
      * ohos.opt.compat.0031
-     * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925
+     * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
      */
     int result;
 #else
@@ -142,7 +142,7 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
 #ifdef OHOS_OPT_COMPAT
     /*
      * ohos.opt.compat.0031
-     * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925
+     * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
      */
     zstream.avail_in = size;
     new_size = size;
@@ -166,7 +166,7 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
 #ifdef OHOS_OPT_COMPAT
       /*
        * ohos.opt.compat.0031
-       * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925
+       * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
        */
       if (new_size > G_MAXSIZE - 4096 || new_size + 4096 > MAX_DECOMPRESS_SIZE) {
         GST_WARNING ("too big decompressed data");
@@ -181,7 +181,7 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
 #ifdef OHOS_OPT_COMPAT
       /*
        * ohos.opt.compat.0031
-       * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925
+       * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
        */
       /* avail_out is an unsigned int */
       g_assert (new_size - zstream.total_out <= G_MAXUINT);
@@ -211,7 +211,7 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
 #ifdef OHOS_OPT_COMPAT
     /*
      * ohos.opt.compat.0031
-     * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925
+     * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
      */
     int result;
 
@@ -239,7 +239,7 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
 #ifdef OHOS_OPT_COMPAT
     /*
      * ohos.opt.compat.0031
-     * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925
+     * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
      */
     bzstream.avail_in = size;
     new_size = size;
@@ -263,7 +263,7 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
 #ifdef OHOS_OPT_COMPAT
       /*
        * ohos.opt.compat.0031
-       * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925
+       * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
        */
       if (new_size > G_MAXSIZE - 4096 || new_size + 4096 > MAX_DECOMPRESS_SIZE) {
         GST_WARNING ("too big decompressed data");
@@ -297,7 +297,7 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
 #ifdef OHOS_OPT_COMPAT
       /*
        * ohos.opt.compat.0031
-       * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925
+       * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
        */
       new_size =
           ((guint64) bzstream.total_out_hi32 << 32) + bzstream.total_out_lo32;
@@ -318,7 +318,7 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
 #ifdef OHOS_OPT_COMPAT
     /*
      * ohos.opt.compat.0031
-     * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925
+     * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
      */
     gint orig_size, out_size;
 
@@ -347,7 +347,7 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
 #ifdef OHOS_OPT_COMPAT
         /*
         * ohos.opt.compat.0031
-        * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925
+        * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
         */
         if (new_size > G_MAXINT - 4096 || new_size + 4096 > MAX_DECOMPRESS_SIZE) {
           GST_WARNING ("too big decompressed data");
@@ -376,7 +376,7 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
 #ifdef OHOS_OPT_COMPAT
       /*
        * ohos.opt.compat.0031
-       * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925
+       * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
        */
       if (size > G_MAXSIZE - enc->comp_settings_length
           || size + enc->comp_settings_length > MAX_DECOMPRESS_SIZE) {

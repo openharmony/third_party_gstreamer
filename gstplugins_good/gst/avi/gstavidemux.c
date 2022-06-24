@@ -4969,7 +4969,7 @@ gst_avi_demux_invert (GstAviStream * stream, GstBuffer * buf)
 #ifdef OHOS_OPT_COMPAT
  /*
   * ohos.opt.compat.0031
-  * CVE-2022-1921
+  * CVE-2022-1921 : https://gstreamer.freedesktop.org/security/sa-2022-0001.html
   */
   guint y, w, h;
   guint bpp, stride;
@@ -5006,7 +5006,7 @@ gst_avi_demux_invert (GstAviStream * stream, GstBuffer * buf)
 #ifdef OHOS_OPT_COMPAT
   /*
    * ohos.opt.compat.0031
-   * CVE-2022-1921
+   * CVE-2022-1921 : https://gstreamer.freedesktop.org/security/sa-2022-0001.html
    */
   if ((guint64) w * ((guint64) bpp / 8) > G_MAXUINT - 4) {
     GST_WARNING ("Width x stride overflows");
@@ -5027,7 +5027,7 @@ gst_avi_demux_invert (GstAviStream * stream, GstBuffer * buf)
 #ifdef OHOS_OPT_COMPAT
   /*
    * ohos.opt.compat.0031
-   * CVE-2022-1921
+   * CVE-2022-1921 : https://gstreamer.freedesktop.org/security/sa-2022-0001.html
    */
   if (map.size < ((guint64) stride * (guint64) h)) {
 #else
