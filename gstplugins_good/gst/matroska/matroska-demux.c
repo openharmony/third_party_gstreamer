@@ -3751,7 +3751,7 @@ gst_matroska_demux_add_wvpk_header (GstElement * element,
 #ifdef OHOS_OPT_COMPAT
     /*
      * ohos.opt.compat.0031
-     * CVE-2022-1920
+     * CVE-2022-1920 : https://gstreamer.freedesktop.org/security/sa-2022-0004.html
      */
     guint32 block_samples, flags, crc;
     gsize blocksize;
@@ -3800,7 +3800,7 @@ gst_matroska_demux_add_wvpk_header (GstElement * element,
 #ifdef OHOS_OPT_COMPAT
      /*
       * ohos.opt.compat.0031
-      * CVE-2022-1920
+      * CVE-2022-1920 : https://gstreamer.freedesktop.org/security/sa-2022-0004.html
       */
       if (blocksize > G_MAXSIZE - WAVPACK4_HEADER_SIZE) {
         GST_ERROR_OBJECT (element, "Too big wavpack buffer");

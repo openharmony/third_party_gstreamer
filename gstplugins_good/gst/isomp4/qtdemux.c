@@ -7702,7 +7702,7 @@ qtdemux_inflate (void *z_buffer, guint z_length, guint * length)
 #ifdef OHOS_OPT_COMPAT
     /*
      * ohos.opt.compat.0031
-     * CVE-2022-2122
+     * CVE-2022-2122 : https://gstreamer.freedesktop.org/security/sa-2022-0003.html
      */
     if (*length > G_MAXUINT - 4096 || *length > QTDEMUX_MAX_SAMPLE_INDEX_SIZE) {
       GST_WARNING ("too big decompressed data");
@@ -7717,7 +7717,7 @@ qtdemux_inflate (void *z_buffer, guint z_length, guint * length)
 #ifdef OHOS_OPT_COMPAT
     /*
      * ohos.opt.compat.0031
-     * CVE-2022-2122
+     * CVE-2022-2122 : https://gstreamer.freedesktop.org/security/sa-2022-0003.html
      */
     z.avail_out += *length - z.total_out;
 #else
