@@ -43,6 +43,7 @@ config("gst_plugins_config") {
         "-Wno-builtin-requires-header",
         "-Wno-deprecated-declarations",
         "-DOHOS_OPT_COMPAT",
+        "-DOHOS_OPT_CVE",
         "-DOHOS_EXT_FUNC",
     ]
 }
