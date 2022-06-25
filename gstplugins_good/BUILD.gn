@@ -50,6 +50,7 @@ config("gst_plugins_config") {
     "-Wno-deprecated-declarations",
     "-DOHOS_SUPPORT",
     "-DOHOS_OPT_COMPAT",
+    "-DOHOS_OPT_CVE",
     "-DOHOS_EXT_FUNC",
     "-DOHOS_OPT_PERFORMANCE",
   ]
