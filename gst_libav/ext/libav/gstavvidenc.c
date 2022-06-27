@@ -815,8 +815,26 @@ gst_ffmpegvidenc_flush (GstVideoEncoder * encoder)
 {
   GstFFMpegVidEnc *ffmpegenc = (GstFFMpegVidEnc *) encoder;
 
+/**
+ * ohos.opt.compat.0031
+ * Fix flush at eos and flush opearte
+ * When flush we close and open new encoder with time 5ms.
+ */
+#ifdef OHOS_OPT_COMPAT
+  if (ffmpegenc->opened) {
+    GstFFMpegVidEncClass *oclass = (GstFFMpegVidEncClass *) G_OBJECT_GET_CLASS (ffmpegenc);
+    if (oclass->in_plugin->capabilities & AV_CODEC_CAP_ENCODER_FLUSH) {
+      avcodec_flush_buffers (ffmpegenc->context);
+    } else {
+      GstVideoCodecState *state = gst_video_codec_state_ref (ffmpegenc->input_state);
+      (void)gst_ffmpegvidenc_set_format (encoder, state);
+      gst_video_codec_state_unref (state);
+    }
+  }
+#else
   if (ffmpegenc->opened)
     avcodec_flush_buffers (ffmpegenc->context);
+#endif
 
   return TRUE;
 }
