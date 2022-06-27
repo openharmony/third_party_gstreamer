@@ -827,7 +827,7 @@ gst_ffmpegvidenc_flush (GstVideoEncoder * encoder)
       avcodec_flush_buffers (ffmpegenc->context);
     } else {
       GstVideoCodecState *state = gst_video_codec_state_ref (ffmpegenc->input_state);
-      (void)gst_ffmpegvideoenc_set_format (encoder, state);
+      (void)gst_ffmpegvidenc_set_format (encoder, state);
       gst_video_codec_state_unref (state);
     }
   }
