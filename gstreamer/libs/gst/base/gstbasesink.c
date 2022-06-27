@@ -277,7 +277,7 @@ struct _GstBaseSinkPrivate
   guint64 last_render_pts;
   GstElement *audio_sink;
   SINK_TYPE sink_type;
-  gboolean enable_kpi_log;
+  gboolean enable_kpi_avsync_log;
 #endif
 
 };
@@ -327,9 +327,9 @@ enum
   PROP_MAX_BITRATE,
   PROP_PROCESSING_DEADLINE,
 #ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
-  PROP_AUDIO_SINK,      // add prop to get av sync diff time
+  PROP_AUDIO_SINK, // add prop to get av sync diff time
   PROP_LAST_RENDER_PTS, // add prop to get av sync diff time
-  PROP_ENABLE_KPI_LOG,
+  PROP_ENABLE_KPI_AVSYNC_LOG, // add prop to get av sync diff time
 #endif
   PROP_LAST
 };
@@ -591,8 +591,8 @@ gst_base_sink_class_init (GstBaseSinkClass * klass)
       g_param_spec_int64 ("last-render-pts", "last-render-pts", "last-render-pts", 0, G_MAXINT64,
           0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_ENABLE_KPI_LOG,
-      g_param_spec_boolean ("enable-kpi-log", "Enable KPI log", "Enable KPI log", FALSE,
+  g_object_class_install_property (gobject_class, PROP_ENABLE_KPI_AVSYNC_LOG,
+      g_param_spec_boolean ("enable-kpi-avsync-log", "Enable KPI AV sync log", "Enable KPI AV sync log", FALSE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 #endif
 
@@ -739,7 +739,7 @@ gst_base_sink_init (GstBaseSink * basesink, gpointer g_class)
   priv->late_frames_nums = 0;
   priv->last_render_pts = 0;
   priv->audio_sink = NULL;
-  priv->enable_kpi_log = FALSE;
+  priv->enable_kpi_avsync_log = FALSE;
 #endif
   GST_OBJECT_FLAG_SET (basesink, GST_ELEMENT_FLAG_SINK);
 }
@@ -1594,10 +1594,10 @@ gst_base_sink_get_last_render_pts(GstBaseSink * sink)
 }
 
 static void
-gst_base_sink_enable_kpi_log (GstBaseSink * sink, gboolean enable)
+gst_base_sink_enable_kpi_avsync_log (GstBaseSink * sink, gboolean enable)
 {
   GST_OBJECT_LOCK (sink);
-  sink->priv->enable_kpi_log = enable;
+  sink->priv->enable_kpi_avsync_log = enable;
   GST_OBJECT_UNLOCK (sink);
 }
 #endif
@@ -1646,8 +1646,8 @@ gst_base_sink_set_property (GObject * object, guint prop_id,
     case PROP_AUDIO_SINK:
       gst_base_sink_set_audio_sink(sink, g_value_get_pointer (value));
       break;
-    case PROP_ENABLE_KPI_LOG:
-      gst_base_sink_enable_kpi_log(sink, g_value_get_boolean (value));
+    case PROP_ENABLE_KPI_AVSYNC_LOG:
+      gst_base_sink_enable_kpi_avsync_log(sink, g_value_get_boolean (value));
       break;
 #endif
     default:
@@ -2471,7 +2471,7 @@ gst_base_sink_wait_preroll (GstBaseSink * sink)
 /**
  * ohos.ext.func.0009
  * GST_BASE_SINK_PREROLL_WAIT is woken up when the system switches to playing,
- * but the system does not go down immediately. 
+ * but the system does not go down immediately.
  * In this case, if you switch to pause first, the error logic will be entered.
  * Now.If GST_BASE_SINK_PREROLL_WAIT does not go down during pause, continue to wait.
  */
@@ -3632,12 +3632,15 @@ static void
 kpi_log_avsync_diff (GstBaseSink *basesink, guint64 last_render_pts)
 {
   GstBaseSinkPrivate *priv = basesink->priv;
+  gboolean enable_kpi_avsync_log = FALSE;
+
   GST_OBJECT_LOCK(basesink);
   priv->last_render_pts = last_render_pts;
+  enable_kpi_avsync_log = priv->enable_kpi_avsync_log;
   GST_OBJECT_UNLOCK(basesink);
 
   // get av sync diff time
-  if (priv->enable_kpi_log && priv->sink_type == SINK_TYPE_VIDEO && priv->audio_sink) {
+  if (enable_kpi_avsync_log && priv->sink_type == SINK_TYPE_VIDEO && priv->audio_sink) {
     gint64 audio_last_render_pts = 0;
     g_object_get (priv->audio_sink, "last-render-pts", &audio_last_render_pts, NULL);
     GST_WARNING_OBJECT (basesink, "KPI-TRACE: audio_last_render_pts=%" G_GINT64_FORMAT
