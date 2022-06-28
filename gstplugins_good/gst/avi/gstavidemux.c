@@ -5001,6 +5001,7 @@ gst_avi_demux_invert (GstAviStream * stream, GstBuffer * buf)
   h = stream->strf.vids->height;
   w = stream->strf.vids->width;
   bpp = stream->strf.vids->bit_cnt ? stream->strf.vids->bit_cnt : 8;
+
   if ((guint64) w * ((guint64) bpp / 8) > G_MAXUINT - 4) {
     GST_WARNING ("Width x stride overflows");
     return buf;
