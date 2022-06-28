@@ -3627,7 +3627,12 @@ gst_ffmpeg_formatid_to_caps (const gchar * format_name)
   } else if (!strcmp (format_name, "gif")) {
     caps = gst_caps_from_string ("image/gif");
   } else if (!strcmp (format_name, "ogg")) {
+#ifdef OHOS_OPT_COMPAT
+    /* ohos.opt.compat.0031 fix caps, enable to use avdemux_ogg for pure audio scene */
+    caps = gst_caps_from_string ("application/ogg; audio/ogg");
+#else
     caps = gst_caps_from_string ("application/ogg");
+#endif
   } else if (!strcmp (format_name, "mxf") || !strcmp (format_name, "mxf_d10")) {
     caps = gst_caps_from_string ("application/mxf");
   } else if (!strcmp (format_name, "gxf")) {

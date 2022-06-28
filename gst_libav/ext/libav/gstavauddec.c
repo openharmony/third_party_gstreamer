@@ -829,8 +829,13 @@ gst_ffmpegauddec_register (GstPlugin * plugin)
     /* MP1 : Use MP3 for decoding */
     /* MP2 : Use MP3 for decoding */
     /* Theora: Use libtheora based theoradec */
+#ifdef OHOS_OPT_COMPAT
+    /* ohos.opt.compat.0031 enable to use avdec_vorbis */
+    if (!strcmp (in_plugin->name, "wavpack") ||
+#else
     if (!strcmp (in_plugin->name, "vorbis") ||
         !strcmp (in_plugin->name, "wavpack") ||
+#endif
         !strcmp (in_plugin->name, "mp1") ||
         !strcmp (in_plugin->name, "mp2") ||
         !strcmp (in_plugin->name, "libfaad") ||
