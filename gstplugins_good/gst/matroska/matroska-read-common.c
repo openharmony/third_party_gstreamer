@@ -159,7 +159,6 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
     bzstream.bzfree = NULL;
     bzstream.opaque = NULL;
 
-#endif
     if (BZ2_bzDecompressInit (&bzstream, 0, 0) != BZ_OK) {
       GST_WARNING ("bzip2 initialization failed.");
       ret = FALSE;
