@@ -82,7 +82,7 @@ typedef enum {
 #ifdef OHOS_OPT_COMPAT
   // ohos.opt.compat.0021
   // when open GST_PLAY_FLAG_NATIVE_VIDEO will not change decoder caps
-  GST_PLAY_FLAG_HARDWARE_VIDEO = (1 << 12),
+  GST_PLAY_FLAG_HARDWARE_VIDEO = (1 << 13),
 #endif
 } GstPlayFlags;
 
