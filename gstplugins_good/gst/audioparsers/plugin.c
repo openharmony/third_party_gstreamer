@@ -28,6 +28,8 @@ plugin_init (GstPlugin * plugin)
 {
   gboolean ret = FALSE;
 
+#ifndef OHOS_EXT_FUNC
+  /* ohos.ext.func.0032 remove the unused features */
   ret |= GST_ELEMENT_REGISTER (aacparse, plugin);
   ret |= GST_ELEMENT_REGISTER (amrparse, plugin);
   ret |= GST_ELEMENT_REGISTER (ac3parse, plugin);
@@ -36,6 +38,11 @@ plugin_init (GstPlugin * plugin)
   ret |= GST_ELEMENT_REGISTER (mpegaudioparse, plugin);
   ret |= GST_ELEMENT_REGISTER (sbcparse, plugin);
   ret |= GST_ELEMENT_REGISTER (wavpackparse, plugin);
+#else
+  ret |= GST_ELEMENT_REGISTER (aacparse, plugin);
+  ret |= GST_ELEMENT_REGISTER (flacparse, plugin);
+  ret |= GST_ELEMENT_REGISTER (mpegaudioparse, plugin);
+#endif
 
   return ret;
 }

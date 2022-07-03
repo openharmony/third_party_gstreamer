@@ -19,7 +19,6 @@ group("gstreamer_packages") {
     ":gst-launch",
     ":gstbase",
     ":gstcoreelements",
-    ":gstcoretracers",
     ":gstreamer",
   ]
 }
@@ -240,7 +239,6 @@ ohos_shared_library("gstbase") {
     "//third_party/glib:glib",
     "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
-    "//third_party/zlib:libz",
   ]
   part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
@@ -272,30 +270,19 @@ config("gstcoreelements_config") {
 ohos_source_set("gstcoreelements_source") {
   sources = [
     "plugins/elements/gstcapsfilter.c",
-    "plugins/elements/gstclocksync.c",
-    "plugins/elements/gstconcat.c",
-    "plugins/elements/gstdataurisrc.c",
-    "plugins/elements/gstdownloadbuffer.c",
     "plugins/elements/gstcoreelementsplugin.c",
     "plugins/elements/gstelements_private.c",
     "plugins/elements/gstfakesink.c",
-    "plugins/elements/gstfakesrc.c",
     "plugins/elements/gstfdsink.c",
     "plugins/elements/gstfdsrc.c",
-    "plugins/elements/gstfilesink.c",
     "plugins/elements/gstfilesrc.c",
-    "plugins/elements/gstfunnel.c",
     "plugins/elements/gstidentity.c",
     "plugins/elements/gstinputselector.c",
     "plugins/elements/gstmultiqueue.c",
-    "plugins/elements/gstoutputselector.c",
     "plugins/elements/gstqueue.c",
     "plugins/elements/gstqueue2.c",
-    "plugins/elements/gstsparsefile.c",
-    "plugins/elements/gststreamiddemux.c",
     "plugins/elements/gsttee.c",
     "plugins/elements/gsttypefindelement.c",
-    "plugins/elements/gstvalve.c",
   ]
 
   configs = [ ":gstcoreelements_config" ]

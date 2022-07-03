@@ -32,10 +32,16 @@ plugin_init (GstPlugin * plugin)
 {
   gboolean ret = FALSE;
 
+#ifndef OHOS_EXT_FUNC
+  /* ohos.ext.func.0032 remove the unused features */
   ret |= GST_ELEMENT_REGISTER (qtdemux, plugin);
   ret |= GST_ELEMENT_REGISTER (rtpxqtdepay, plugin);
   ret |= GST_ELEMENT_REGISTER (qtmux, plugin);
   ret |= GST_ELEMENT_REGISTER (qtmoovrecover, plugin);
+#else
+  ret |= GST_ELEMENT_REGISTER (qtdemux, plugin);
+  ret |= GST_ELEMENT_REGISTER (qtmux, plugin);
+#endif
 
   return ret;
 }

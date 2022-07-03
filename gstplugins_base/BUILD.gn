@@ -17,15 +17,9 @@ group("gstplugins_base_packages") {
   deps = [
     ":gstapp",
     ":gstaudioconvert",
-    ":gstaudiomixer",
-    ":gstaudiorate",
     ":gstaudioresample",
-    ":gstfft",
     ":gstplayback",
-    ":gstrawparse",
     ":gstriff",
-    ":gstrtp",
-    ":gstsubparse",
     ":gsttypefindfunctions",
     ":gstvideoconvert",
     ":gstvideoscale",
@@ -71,14 +65,11 @@ config("gst_plugins_config") {
 ohos_source_set("gstplayback_source") {
   sources = [
     "gst/playback/gstdecodebin2.c",
-    "gst/playback/gstdecodebin3.c",
-    "gst/playback/gstparsebin.c",
     "gst/playback/gstplay-enum.c",
     "gst/playback/gstplaybackplugin.c",
     "gst/playback/gstplaybackelement.c",
     "gst/playback/gstplaybackutils.c",
     "gst/playback/gstplaybin2.c",
-    "gst/playback/gstplaybin3.c",
     "gst/playback/gstplaysink.c",
     "gst/playback/gstplaysinkaudioconvert.c",
     "gst/playback/gstplaysinkconvertbin.c",
@@ -86,8 +77,6 @@ ohos_source_set("gstplayback_source") {
     "gst/playback/gststreamsynchronizer.c",
     "gst/playback/gstsubtitleoverlay.c",
     "gst/playback/gsturidecodebin.c",
-    "gst/playback/gsturidecodebin3.c",
-    "gst/playback/gsturisourcebin.c",
   ]
 
   configs = [ ":gst_plugins_config" ]
@@ -175,6 +164,7 @@ ohos_shared_library("gsttag") {
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
+    "//third_party/zlib:libz",
   ]
   part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"

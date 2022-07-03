@@ -39,6 +39,8 @@ plugin_init (GstPlugin * plugin)
 {
   gboolean ret = FALSE;
 
+#ifndef OHOS_EXT_FUNC
+  /* ohos.ext.func.0032 remove the unused features */
   ret |= GST_ELEMENT_REGISTER (capsfilter, plugin);
   ret |= GST_ELEMENT_REGISTER (clocksync, plugin);
   ret |= GST_ELEMENT_REGISTER (concat, plugin);
@@ -63,6 +65,22 @@ plugin_init (GstPlugin * plugin)
   ret |= GST_ELEMENT_REGISTER (multiqueue, plugin);
   ret |= GST_ELEMENT_REGISTER (valve, plugin);
   ret |= GST_ELEMENT_REGISTER (streamiddemux, plugin);
+#else
+  ret |= GST_ELEMENT_REGISTER (capsfilter, plugin);
+  ret |= GST_ELEMENT_REGISTER (fakesink, plugin);
+#if defined(HAVE_SYS_SOCKET_H) || defined(_MSC_VER)
+  ret |= GST_ELEMENT_REGISTER (fdsrc, plugin);
+  ret |= GST_ELEMENT_REGISTER (fdsink, plugin);
+#endif
+  ret |= GST_ELEMENT_REGISTER (filesrc, plugin);
+  ret |= GST_ELEMENT_REGISTER (identity, plugin);
+  ret |= GST_ELEMENT_REGISTER (input_selector, plugin);
+  ret |= GST_ELEMENT_REGISTER (queue, plugin);
+  ret |= GST_ELEMENT_REGISTER (queue2, plugin);
+  ret |= GST_ELEMENT_REGISTER (tee, plugin);
+  ret |= GST_ELEMENT_REGISTER (typefind, plugin);
+  ret |= GST_ELEMENT_REGISTER (multiqueue, plugin);
+#endif
 
   return ret;
 }

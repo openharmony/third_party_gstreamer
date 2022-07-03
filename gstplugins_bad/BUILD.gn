@@ -18,7 +18,6 @@ group("gstplugins_bad_packages") {
     ":gstcurl",
     ":gsthls",
     ":gstmpegtsdemux",
-    ":gstplayer",
     ":gstvideoparsersbad",
   ]
 }
@@ -134,8 +133,6 @@ ohos_source_set("hls_source") {
     "ext/hls/gsthlsdemux.c",
     "ext/hls/gsthlselement.c",
     "ext/hls/gsthlsplugin.c",
-    "ext/hls/gsthlssink.c",
-    "ext/hls/gsthlssink2.c",
     "ext/hls/gstm3u8playlist.c",
     "ext/hls/m3u8.c",
   ]
@@ -409,7 +406,7 @@ ohos_source_set("curlhttp_source") {
 ohos_shared_library("gstcurl") {
   deps = [
     ":curlhttp_source",
-    "//third_party/curl:curl",
+    "//third_party/curl:curl_shared",
     "//third_party/glib:glib",
     "//third_party/glib:gmodule",
     "//third_party/glib:gobject",

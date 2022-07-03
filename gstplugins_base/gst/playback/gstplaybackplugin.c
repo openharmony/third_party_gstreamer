@@ -42,6 +42,8 @@ plugin_init (GstPlugin * plugin)
   if (!g_getenv ("USE_PLAYBIN3"))
     res |= GST_ELEMENT_REGISTER (playbin, plugin);
 
+#ifndef OHOS_EXT_FUNC
+  /* ohos.ext.func.0032 remove the unused features */
   res |= GST_ELEMENT_REGISTER (playbin3, plugin);
   res |= GST_ELEMENT_REGISTER (playsink, plugin);
   res |= GST_ELEMENT_REGISTER (subtitleoverlay, plugin);
@@ -52,6 +54,13 @@ plugin_init (GstPlugin * plugin)
   res |= GST_ELEMENT_REGISTER (uridecodebin3, plugin);
   res |= GST_ELEMENT_REGISTER (urisourcebin, plugin);
   res |= GST_ELEMENT_REGISTER (parsebin, plugin);
+#else
+  res |= GST_ELEMENT_REGISTER (playsink, plugin);
+  res |= GST_ELEMENT_REGISTER (subtitleoverlay, plugin);
+  res |= GST_ELEMENT_REGISTER (streamsynchronizer, plugin);
+  res |= GST_ELEMENT_REGISTER (decodebin, plugin);
+  res |= GST_ELEMENT_REGISTER (uridecodebin, plugin);
+#endif
 
   return res;
 }
