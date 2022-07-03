@@ -32,8 +32,11 @@ plugin_init (GstPlugin * plugin)
 
   ret |= GST_ELEMENT_REGISTER (matroskademux, plugin);
   ret |= GST_ELEMENT_REGISTER (matroskaparse, plugin);
+#ifndef OHOS_EXT_FUNC
+  /* ohos.ext.func.0032 remove the unused features */
   ret |= GST_ELEMENT_REGISTER (matroskamux, plugin);
   ret |= GST_ELEMENT_REGISTER (webmmux, plugin);
+#endif
 
   return ret;
 }

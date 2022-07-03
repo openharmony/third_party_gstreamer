@@ -17,7 +17,6 @@ group("gstplugins_good_packages") {
   deps = [
     ":gstaudiofx",
     ":gstaudioparsers",
-    ":gstautodetect",
     ":gstisomp4",
     ":gstmatroska",
     ":gstmultifile",
@@ -71,13 +70,8 @@ config("gst_plugins_config") {
 ohos_source_set("audioparsers_source") {
   sources = [
     "gst/audioparsers/gstaacparse.c",
-    "gst/audioparsers/gstac3parse.c",
-    "gst/audioparsers/gstamrparse.c",
-    "gst/audioparsers/gstdcaparse.c",
     "gst/audioparsers/gstflacparse.c",
     "gst/audioparsers/gstmpegaudioparse.c",
-    "gst/audioparsers/gstsbcparse.c",
-    "gst/audioparsers/gstwavpackparse.c",
     "gst/audioparsers/plugin.c",
   ]
 
@@ -164,10 +158,8 @@ ohos_source_set("isomp4_source") {
     "gst/isomp4/atomsrecovery.c",
     "gst/isomp4/descriptors.c",
     "gst/isomp4/gstisoff.c",
-    "gst/isomp4/gstqtmoovrecover.c",
     "gst/isomp4/gstqtmux.c",
     "gst/isomp4/gstqtmuxmap.c",
-    "gst/isomp4/gstrtpxqtdepay.c",
     "gst/isomp4/isomp4-plugin.c",
     "gst/isomp4/gstisomp4element.c",
     "gst/isomp4/properties.c",
@@ -192,7 +184,6 @@ ohos_shared_library("gstisomp4") {
     "//third_party/gstreamer/gstplugins_base:gstaudio",
     "//third_party/gstreamer/gstplugins_base:gstpbutils",
     "//third_party/gstreamer/gstplugins_base:gstriff",
-    "//third_party/gstreamer/gstplugins_base:gstrtp",
     "//third_party/gstreamer/gstplugins_base:gsttag",
     "//third_party/gstreamer/gstplugins_base:gstvideo",
     "//third_party/gstreamer/gstreamer:gstbase",
@@ -232,13 +223,7 @@ ohos_shared_library("gstwavparse") {
 ohos_source_set("multifile_source") {
   sources = [
     "gst/multifile/gstmultifile.c",
-    "gst/multifile/gstmultifilesink.c",
-    "gst/multifile/gstmultifilesrc.c",
-    "gst/multifile/gstsplitmuxpartreader.c",
     "gst/multifile/gstsplitmuxsink.c",
-    "gst/multifile/gstsplitmuxsrc.c",
-    "gst/multifile/gstsplitutils.c",
-    "gst/multifile/patternspec.c",
   ]
 
   configs = [ ":gst_plugins_config" ]
@@ -252,7 +237,6 @@ ohos_shared_library("gstmultifile") {
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_base:gstaudio",
     "//third_party/gstreamer/gstplugins_base:gstpbutils",
-    "//third_party/gstreamer/gstplugins_base:gstriff",
     "//third_party/gstreamer/gstplugins_base:gstvideo",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
@@ -265,24 +249,8 @@ ohos_shared_library("gstmultifile") {
 
 ohos_source_set("audiofx_source") {
   sources = [
-    "gst/audiofx/audioamplify.c",
-    "gst/audiofx/audiochebband.c",
-    "gst/audiofx/audiocheblimit.c",
-    "gst/audiofx/audiodynamic.c",
-    "gst/audiofx/audioecho.c",
-    "gst/audiofx/audiofirfilter.c",
     "gst/audiofx/audiofx.c",
-    "gst/audiofx/audiofxbasefirfilter.c",
-    "gst/audiofx/audiofxbaseiirfilter.c",
-    "gst/audiofx/audioiirfilter.c",
-    "gst/audiofx/audioinvert.c",
-    "gst/audiofx/audiokaraoke.c",
-    "gst/audiofx/audiopanorama.c",
-    "gst/audiofx/audiopanoramaorc.c",
-    "gst/audiofx/audiowsincband.c",
-    "gst/audiofx/audiowsinclimit.c",
     "gst/audiofx/gstscaletempo.c",
-    "gst/audiofx/gststereo.c",
   ]
 
   configs = [ ":gst_plugins_config" ]
@@ -295,7 +263,6 @@ ohos_shared_library("gstaudiofx") {
     "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_base:gstaudio",
-    "//third_party/gstreamer/gstplugins_base:gstfft",
     "//third_party/gstreamer/gstplugins_base:gstpbutils",
     "//third_party/gstreamer/gstplugins_base:gsttag",
     "//third_party/gstreamer/gstreamer:gstbase",
@@ -339,16 +306,13 @@ ohos_shared_library("gstsoup") {
 ohos_source_set("matroska_source") {
   sources = [
     "gst/matroska/ebml-read.c",
-    "gst/matroska/ebml-write.c",
     "gst/matroska/gstmatroskaelement.c",
     "gst/matroska/lzo.c",
     "gst/matroska/matroska-demux.c",
     "gst/matroska/matroska-ids.c",
-    "gst/matroska/matroska-mux.c",
     "gst/matroska/matroska-parse.c",
     "gst/matroska/matroska-read-common.c",
     "gst/matroska/matroska.c",
-    "gst/matroska/webm-mux.c",
   ]
 
   configs = [ ":gst_plugins_config" ]
@@ -362,7 +326,6 @@ ohos_shared_library("gstmatroska") {
     "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_base:gstaudio",
-    "//third_party/gstreamer/gstplugins_base:gstfft",
     "//third_party/gstreamer/gstplugins_base:gstpbutils",
     "//third_party/gstreamer/gstplugins_base:gstriff",
     "//third_party/gstreamer/gstplugins_base:gsttag",

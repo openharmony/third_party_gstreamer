@@ -49,6 +49,10 @@ plugin_init (GstPlugin * plugin)
 {
   gboolean ret = FALSE;
 
+#ifdef OHOS_EXT_FUNC
+  /* ohos.ext.func.0032 remove the unused features */
+  ret |= GST_ELEMENT_REGISTER (scaletempo, plugin);
+#else
   ret |= GST_ELEMENT_REGISTER (audiopanorama, plugin);
   ret |= GST_ELEMENT_REGISTER (audioinvert, plugin);
   ret |= GST_ELEMENT_REGISTER (audiokaraoke, plugin);
@@ -63,6 +67,7 @@ plugin_init (GstPlugin * plugin)
   ret |= GST_ELEMENT_REGISTER (audioecho, plugin);
   ret |= GST_ELEMENT_REGISTER (scaletempo, plugin);
   ret |= GST_ELEMENT_REGISTER (stereo, plugin);
+#endif
 
   return ret;
 }

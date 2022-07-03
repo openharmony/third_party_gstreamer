@@ -12,8 +12,11 @@ plugin_init (GstPlugin * plugin)
   gboolean ret = FALSE;
 
   ret |= GST_ELEMENT_REGISTER (hlsdemux, plugin);
+#ifndef OHOS_EXT_FUNC
+  /* ohos.ext.func.0032 remove the unused features */
   ret |= GST_ELEMENT_REGISTER (hlssink, plugin);
   ret |= GST_ELEMENT_REGISTER (hlssink2, plugin);
+#endif
   return ret;
 }
 
