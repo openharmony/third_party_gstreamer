@@ -204,6 +204,7 @@ ohos_source_set("gstvideo_source") {
     "gst-libs/gst/video/colorbalance.c",
     "gst-libs/gst/video/colorbalancechannel.c",
     "gst-libs/gst/video/convertframe.c",
+    "gst-libs/gst/video/gstvideocodecalphameta.c",
     "gst-libs/gst/video/gstvideodecoder.c",
     "gst-libs/gst/video/gstvideoencoder.c",
     "gst-libs/gst/video/gstvideofilter.c",
