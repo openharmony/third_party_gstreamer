@@ -1248,9 +1248,12 @@ match_tag_name (gchar * ffmpeg_tag_name)
 
   real_ffmpeg_tag_name = g_ascii_strdown(ffmpeg_tag_name, -1);
   for (i = 0; i < G_N_ELEMENTS (tagmapping); i++) {
-    if (!g_strcmp0 (tagmapping[i].ffmpeg_tag_name, real_ffmpeg_tag_name))
+    if (!g_strcmp0 (tagmapping[i].ffmpeg_tag_name, real_ffmpeg_tag_name)) {
+      g_free(real_ffmpeg_tag_name);
       return tagmapping[i].gst_tag_name;
+    }
   }
+  g_free(real_ffmpeg_tag_name);
 #else
   for (i = 0; i < G_N_ELEMENTS (tagmapping); i++) {
     if (!g_strcmp0 (tagmapping[i].ffmpeg_tag_name, ffmpeg_tag_name))
