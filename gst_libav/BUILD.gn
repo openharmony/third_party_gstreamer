@@ -87,6 +87,6 @@ ohos_shared_library("gstlibav") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_media_standard"
+  part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
 }
