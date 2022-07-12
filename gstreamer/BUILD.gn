@@ -261,6 +261,7 @@ config("gstcoreelements_config") {
     "-fno-strict-aliasing",
     "-Wno-sign-compare",
     "-Wno-builtin-requires-header",
+    "-Wno-incompatible-pointer-types",
     "-Wno-error=incompatible-pointer-types",
     "-DOHOS_OPT_COMPAT",
     "-DOHOS_EXT_FUNC",
