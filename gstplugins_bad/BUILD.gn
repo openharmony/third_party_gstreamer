@@ -338,6 +338,7 @@ ohos_source_set("parse_source") {
   cflags = [
     "-Wall",
     "-Werror",
+    "-Wno-sign-compare",
     "-DGST_DISABLE_DEPRECATED",
     "-DHAVE_CONFIG_H",
     "-DOHOS_EXT_FUNC",
