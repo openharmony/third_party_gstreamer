@@ -274,10 +274,7 @@ struct _GstBaseSinkPrivate
   gint64 tmp_time_fps;
   gint64 kpi_last_render_time;
   guint64 late_frames_nums;
-  guint64 last_render_pts;
-  GstElement *audio_sink;
   SINK_TYPE sink_type;
-  gboolean enable_kpi_avsync_log;
 #endif
 
 };
@@ -326,11 +323,6 @@ enum
   PROP_THROTTLE_TIME,
   PROP_MAX_BITRATE,
   PROP_PROCESSING_DEADLINE,
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
-  PROP_AUDIO_SINK, // add prop to get av sync diff time
-  PROP_LAST_RENDER_PTS, // add prop to get av sync diff time
-  PROP_ENABLE_KPI_AVSYNC_LOG, // add prop to get av sync diff time
-#endif
   PROP_LAST
 };
 
@@ -580,22 +572,6 @@ gst_base_sink_class_init (GstBaseSinkClass * klass)
           DEFAULT_PROCESSING_DEADLINE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
-  /* add prop to get av sync diff time */
-  g_object_class_install_property (gobject_class, PROP_AUDIO_SINK,
-      g_param_spec_pointer ("audio-sink", "audio sink", "audio sink",
-          G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
-
-  /* add prop to get av sync diff time */
-  g_object_class_install_property (gobject_class, PROP_LAST_RENDER_PTS,
-      g_param_spec_int64 ("last-render-pts", "last-render-pts", "last-render-pts", 0, G_MAXINT64,
-          0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  g_object_class_install_property (gobject_class, PROP_ENABLE_KPI_AVSYNC_LOG,
-      g_param_spec_boolean ("enable-kpi-avsync-log", "Enable KPI AV sync log", "Enable KPI AV sync log", FALSE,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-#endif
-
   gstelement_class->change_state =
       GST_DEBUG_FUNCPTR (gst_base_sink_change_state);
   gstelement_class->send_event = GST_DEBUG_FUNCPTR (gst_base_sink_send_event);
@@ -737,9 +713,6 @@ gst_base_sink_init (GstBaseSink * basesink, gpointer g_class)
   priv->tmp_time_fps = 0;
   priv->kpi_last_render_time = 0;
   priv->late_frames_nums = 0;
-  priv->last_render_pts = 0;
-  priv->audio_sink = NULL;
-  priv->enable_kpi_avsync_log = FALSE;
 #endif
   GST_OBJECT_FLAG_SET (basesink, GST_ELEMENT_FLAG_SINK);
 }
@@ -1564,44 +1537,6 @@ gst_base_sink_get_processing_deadline (GstBaseSink * sink)
   return res;
 }
 
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
-static void
-gst_base_sink_set_audio_sink(GstBaseSink * sink, void *audio_sink)
-{
-  if (audio_sink == NULL) {
-    GST_ERROR_OBJECT (sink, "audio sink is NULL");
-    return;
-  }
-
-  if (sink->priv->audio_sink) {
-    gst_object_unref (sink->priv->audio_sink);
-  }
-  sink->priv->audio_sink = gst_object_ref (audio_sink);
-  GST_INFO_OBJECT (sink, "get audio sink: %s", GST_ELEMENT_NAME(audio_sink));
-}
-
-static gint64
-gst_base_sink_get_last_render_pts(GstBaseSink * sink)
-{
-  gint64 last_render_pts = 0;
-
-  g_return_val_if_fail (sink != NULL, 0);
-
-  GST_OBJECT_LOCK (sink);
-  last_render_pts = sink->priv->last_render_pts;
-  GST_OBJECT_UNLOCK (sink);
-  return last_render_pts;
-}
-
-static void
-gst_base_sink_enable_kpi_avsync_log (GstBaseSink * sink, gboolean enable)
-{
-  GST_OBJECT_LOCK (sink);
-  sink->priv->enable_kpi_avsync_log = enable;
-  GST_OBJECT_UNLOCK (sink);
-}
-#endif
-
 static void
 gst_base_sink_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
@@ -1642,14 +1577,6 @@ gst_base_sink_set_property (GObject * object, guint prop_id,
     case PROP_PROCESSING_DEADLINE:
       gst_base_sink_set_processing_deadline (sink, g_value_get_uint64 (value));
       break;
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
-    case PROP_AUDIO_SINK:
-      gst_base_sink_set_audio_sink(sink, g_value_get_pointer (value));
-      break;
-    case PROP_ENABLE_KPI_AVSYNC_LOG:
-      gst_base_sink_enable_kpi_avsync_log(sink, g_value_get_boolean (value));
-      break;
-#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1699,11 +1626,6 @@ gst_base_sink_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_PROCESSING_DEADLINE:
       g_value_set_uint64 (value, gst_base_sink_get_processing_deadline (sink));
       break;
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: get last render pts
-    case PROP_LAST_RENDER_PTS:
-      g_value_set_int64 (value, gst_base_sink_get_last_render_pts (sink));
-      break;
-#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -3627,27 +3549,6 @@ kpi_log_fps(GstBaseSink *basesink)
   }
   priv->kpi_last_render_time = curtime;
 }
-
-static void
-kpi_log_avsync_diff (GstBaseSink *basesink, guint64 last_render_pts)
-{
-  GstBaseSinkPrivate *priv = basesink->priv;
-  gboolean enable_kpi_avsync_log = FALSE;
-
-  GST_OBJECT_LOCK(basesink);
-  priv->last_render_pts = last_render_pts;
-  enable_kpi_avsync_log = priv->enable_kpi_avsync_log;
-  GST_OBJECT_UNLOCK(basesink);
-
-  // get av sync diff time
-  if (enable_kpi_avsync_log && priv->sink_type == SINK_TYPE_VIDEO && priv->audio_sink) {
-    gint64 audio_last_render_pts = 0;
-    g_object_get (priv->audio_sink, "last-render-pts", &audio_last_render_pts, NULL);
-    GST_WARNING_OBJECT (basesink, "KPI-TRACE: audio_last_render_pts=%" G_GINT64_FORMAT
-      ", video_last_render_pts=%" G_GINT64_FORMAT ", diff=%" G_GINT64_FORMAT " ms",
-      audio_last_render_pts, last_render_pts, (audio_last_render_pts - (gint64)last_render_pts) / GST_MSECOND);
-  }
-}
 #endif
 
 /* with STREAM_LOCK, PREROLL_LOCK
@@ -3870,7 +3771,6 @@ again:
 
   priv->rendered++;
 #ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
-  kpi_log_avsync_diff(basesink, GST_BUFFER_PTS (GST_BUFFER_CAST (obj)));
   kpi_log_render_first_frame(basesink);
   kpi_log_fps(basesink);
 #endif
@@ -5556,10 +5456,6 @@ gst_base_sink_change_state (GstElement * element, GstStateChange transition)
 #ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
       priv->has_render_first_frame = FALSE;
       priv->has_recv_first_frame = FALSE;
-      if (priv->audio_sink) {
-        gst_object_unref (priv->audio_sink);
-        priv->audio_sink = NULL;
-      }
 #endif
       if (priv->cached_clock_id) {
         gst_clock_id_unref (priv->cached_clock_id);
