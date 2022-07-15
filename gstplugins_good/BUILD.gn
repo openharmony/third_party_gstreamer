@@ -97,7 +97,7 @@ ohos_shared_library("gstaudioparsers") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_media_standard"
+  part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
 }
 
@@ -128,7 +128,7 @@ ohos_shared_library("gstautodetect") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_media_standard"
+  part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
 }
 
@@ -152,7 +152,7 @@ ohos_shared_library("gstid3demux") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_media_standard"
+  part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
 }
 
@@ -196,7 +196,7 @@ ohos_shared_library("gstisomp4") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_media_standard"
+  part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
 }
 
@@ -220,7 +220,7 @@ ohos_shared_library("gstwavparse") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_media_standard"
+  part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
 }
 
@@ -254,7 +254,7 @@ ohos_shared_library("gstmultifile") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_media_standard"
+  part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
 }
 
@@ -298,7 +298,7 @@ ohos_shared_library("gstaudiofx") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_media_standard"
+  part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
 }
 
@@ -327,7 +327,7 @@ ohos_shared_library("gstsoup") {
     "//third_party/libsoup:libohossoup",
   ]
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_media_standard"
+  part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
 }
 
@@ -366,6 +366,6 @@ ohos_shared_library("gstmatroska") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_media_standard"
+  part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
 }

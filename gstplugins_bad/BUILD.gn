@@ -82,7 +82,7 @@ ohos_shared_library("gstplayer") {
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
-  part_name = "multimedia_media_standard"
+  part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
 }
 
@@ -150,7 +150,7 @@ ohos_shared_library("gsthls") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_media_standard"
+  part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
 }
 
@@ -175,7 +175,7 @@ ohos_shared_library("gstadaptivedemux") {
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
 
-  part_name = "multimedia_media_standard"
+  part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
 }
 
@@ -202,7 +202,7 @@ ohos_shared_library("gsturidownloader") {
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
 
-  part_name = "multimedia_media_standard"
+  part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
 }
 
@@ -236,7 +236,7 @@ ohos_shared_library("gstmpegtsdemux") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_media_standard"
+  part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
 }
 
@@ -266,7 +266,7 @@ ohos_shared_library("gstmpegts") {
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
 
-  part_name = "multimedia_media_standard"
+  part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
 }
 
@@ -307,7 +307,7 @@ ohos_shared_library("gstcodecparsers") {
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
 
-  part_name = "multimedia_media_standard"
+  part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
 }
 
@@ -363,7 +363,7 @@ ohos_shared_library("gstvideoparsersbad") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_media_standard"
+  part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
 }
 
@@ -399,6 +399,6 @@ ohos_shared_library("gstcurl") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_media_standard"
+  part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
 }
