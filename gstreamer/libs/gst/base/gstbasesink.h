@@ -143,6 +143,10 @@ struct _GstBaseSink {
  * @render_list: Same as @render but used with buffer lists instead of
  *     buffers.
  *
+ * #ifdef OHOS_OPT_PERFORMANCE  // comment out this macro to avoid header file differences caused by macros
+ * @update_reach_time: ohos.opt.performance.0002: Called to update the running_time reach time.
+ * #endif
+ *
  * Subclasses can override any of the available virtual methods or not, as
  * needed. At the minimum, the @render method should be overridden to
  * output/present buffers.
@@ -196,6 +200,17 @@ struct _GstBaseSinkClass {
   GstFlowReturn (*render)       (GstBaseSink *sink, GstBuffer *buffer);
   /* Render a BufferList */
   GstFlowReturn (*render_list)  (GstBaseSink *sink, GstBufferList *buffer_list);
+
+  /* #ifdef OHOS_OPT_PERFORMANCE: comment out this macro to avoid header file differences caused by macros
+   * ohos.opt.performance.0002: update the running_time
+   * @sink: the sink
+   * @reach_time: the running_time to be reached
+   *
+   * This function will update the @reach_time.
+   * Returns: an new reach_time
+   */
+  GstClockTime (*update_reach_time)  (GstBaseSink *sink, GstClockTime reach_time);
+  /* #endif */
 
   /*< private >*/
   gpointer       _gst_reserved[GST_PADDING_LARGE];

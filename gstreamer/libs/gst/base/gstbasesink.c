@@ -427,6 +427,13 @@ static gboolean gst_base_sink_is_too_late (GstBaseSink * basesink,
     GstMiniObject * obj, GstClockTime rstart, GstClockTime rstop,
     GstClockReturn status, GstClockTimeDiff jitter, gboolean render);
 
+/* #ifdef OHOS_OPT_PERFORMANCE:comment out this macro to avoid c file differences caused by macros
+ * ohos.opt.performance.0002: update reach time for avsync
+ */
+static GstClockTime gst_base_sink_default_update_reach_time (GstBaseSink * sink,
+    GstClockTime reach_time);
+/* #endif */
+
 static void
 gst_base_sink_class_init (GstBaseSinkClass * klass)
 {
@@ -586,6 +593,11 @@ gst_base_sink_class_init (GstBaseSinkClass * klass)
   klass->query = GST_DEBUG_FUNCPTR (gst_base_sink_default_query);
   klass->event = GST_DEBUG_FUNCPTR (gst_base_sink_default_event);
   klass->wait_event = GST_DEBUG_FUNCPTR (gst_base_sink_default_wait_event);
+/* #ifdef OHOS_OPT_PERFORMANCE:comment out this macro to avoid c file differences caused by macros
+ * ohos.opt.performance.0002: update reach time for avsync
+ */
+  klass->update_reach_time = GST_DEBUG_FUNCPTR (gst_base_sink_default_update_reach_time);
+/* #endif */
 
   /* Registering debug symbols for function pointers */
   GST_DEBUG_REGISTER_FUNCPTR (gst_base_sink_fixate);
@@ -1644,6 +1656,16 @@ gst_base_sink_default_set_caps (GstBaseSink * sink, GstCaps * caps)
 {
   return TRUE;
 }
+
+/* #ifdef OHOS_OPT_PERFORMANCE: comment out this macro to avoid c file differences caused by macros
+ * ohos.opt.performance.0002: update reach time for avsync
+ */
+static GstClockTime
+gst_base_sink_default_update_reach_time (GstBaseSink * sink, GstClockTime reach_time)
+{
+  return reach_time;
+}
+/* #endif */
 
 /* with PREROLL_LOCK, STREAM_LOCK */
 static gboolean
@@ -2739,6 +2761,14 @@ again:
         GST_TIME_ARGS (priv->rc_next));
     stime = priv->rc_next;
   }
+
+/* #ifdef OHOS_OPT_PERFORMANCE: comment out this macro to avoid c file differences caused by macros
+ * ohos.opt.performance.0002: update reach time for avsync */
+  GstBaseSinkClass *bclass = GST_BASE_SINK_GET_CLASS (basesink);
+  if (bclass != NULL && bclass->update_reach_time != NULL) {
+    stime = bclass->update_reach_time (basesink, stime);
+  }
+/* #endif */
 
   /* preroll done, we can sync since we are in PLAYING now. */
   GST_DEBUG_OBJECT (basesink, "possibly waiting for clock to reach %"
