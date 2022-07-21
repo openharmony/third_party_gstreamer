@@ -1316,6 +1316,17 @@ gst_curl_http_src_handle_response (GstCurlHttpSrc * src)
     GST_WARNING_OBJECT (src, "Transfer for URI %s returned error status %u",
         src->uri, src->status_code);
     src->retries_remaining = 0;
+#ifdef OHOS_EXT_FUNC
+    /**
+     * ohos.opt.compat.0032
+     * Fix seek failed when request position from gstqueue2 is the end of the file.
+     * A 416 response is not actually an error when the file is already completely downloaded
+     * and the request position is the end of the file.
+     */
+    if (src->status_code == 416 && src->content_size > 0) {
+      return GST_FLOW_OK;
+    }
+#endif
     CURL_HTTP_SRC_ERROR (src, RESOURCE, NOT_FOUND, (src->reason_phrase));
     return GST_FLOW_ERROR;
   } else if (src->status_code == 0) {
@@ -2117,7 +2128,7 @@ gst_curl_http_src_get_header (void *header, size_t size, size_t nmemb,
            have the start, stop and total size of the resource */
         gchar *size = strchr (header_value, '/');
         if (size) {
-          s->content_size = atoi (size);
+          s->content_size = atoi (size + 1);
           GST_INFO_OBJECT (s, "content_size: %" G_GUINT64_FORMAT, s->content_size);
         }
 #endif
