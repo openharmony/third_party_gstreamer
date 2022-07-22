@@ -328,13 +328,13 @@ config("gstcoretracers_config") {
 
 ohos_source_set("gstcoretracers_source") {
   sources = [
+    "plugins/tracers/gstfactories.c",
     "plugins/tracers/gstlatency.c",
     "plugins/tracers/gstleaks.c",
     "plugins/tracers/gstlog.c",
     "plugins/tracers/gstrusage.c",
     "plugins/tracers/gststats.c",
     "plugins/tracers/gsttracers.c",
-    "plugins/tracers/gstfactories.c",
   ]
 
   configs = [ ":gstcoretracers_config" ]

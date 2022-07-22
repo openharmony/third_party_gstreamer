@@ -101,8 +101,8 @@ ohos_source_set("autodetect_source") {
     "gst/autodetect/gstautoaudiosink.c",
     "gst/autodetect/gstautoaudiosrc.c",
     "gst/autodetect/gstautodetect.c",
-    "gst/autodetect/gstautodetectplugin.c",
     "gst/autodetect/gstautodetectelement.c",
+    "gst/autodetect/gstautodetectplugin.c",
     "gst/autodetect/gstautovideosink.c",
     "gst/autodetect/gstautovideosrc.c",
   ]
@@ -158,18 +158,18 @@ ohos_source_set("isomp4_source") {
     "gst/isomp4/atomsrecovery.c",
     "gst/isomp4/descriptors.c",
     "gst/isomp4/gstisoff.c",
+    "gst/isomp4/gstisomp4element.c",
     "gst/isomp4/gstqtmux.c",
     "gst/isomp4/gstqtmuxmap.c",
     "gst/isomp4/isomp4-plugin.c",
-    "gst/isomp4/gstisomp4element.c",
     "gst/isomp4/properties.c",
+    "gst/isomp4/qtdemux-webvtt.c",
     "gst/isomp4/qtdemux.c",
     "gst/isomp4/qtdemux_dump.c",
     "gst/isomp4/qtdemux_lang.c",
-    "gst/isomp4/qtdemux_types.c",
     "gst/isomp4/qtdemux_tags.c",
     "gst/isomp4/qtdemux_tree.c",
-    "gst/isomp4/qtdemux-webvtt.c"
+    "gst/isomp4/qtdemux_types.c",
   ]
 
   configs = [ ":gst_plugins_config" ]
@@ -279,8 +279,8 @@ ohos_source_set("gstsoup_source") {
     "ext/soup/gstsoup.c",
     "ext/soup/gstsoupelement.c",
     "ext/soup/gstsouphttpsrc.c",
+    "ext/soup/gstsouploader.c",
     "ext/soup/gstsouputils.c",
-    "ext/soup/gstsouploader.c"
   ]
 
   configs = [ ":gst_plugins_config" ]

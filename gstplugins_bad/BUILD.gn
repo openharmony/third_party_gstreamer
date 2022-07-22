@@ -57,20 +57,20 @@ config("gst_player_config") {
 
 ohos_source_set("player_source") {
   sources = [
+    "gst-libs/gst/play/gstplay-media-info.c",
+    "gst-libs/gst/play/gstplay-signal-adapter.c",
+    "gst-libs/gst/play/gstplay-video-overlay-video-renderer.c",
+    "gst-libs/gst/play/gstplay-video-renderer.c",
+    "gst-libs/gst/play/gstplay-visualization.c",
+    "gst-libs/gst/play/gstplay.c",
     "gst-libs/gst/player/gstplayer-g-main-context-signal-dispatcher.c",
     "gst-libs/gst/player/gstplayer-media-info.c",
     "gst-libs/gst/player/gstplayer-signal-dispatcher.c",
     "gst-libs/gst/player/gstplayer-video-overlay-video-renderer.c",
-    "gst-libs/gst/player/gstplayer-wrapped-video-renderer.c",
     "gst-libs/gst/player/gstplayer-video-renderer.c",
     "gst-libs/gst/player/gstplayer-visualization.c",
+    "gst-libs/gst/player/gstplayer-wrapped-video-renderer.c",
     "gst-libs/gst/player/gstplayer.c",
-    "gst-libs/gst/play/gstplay.c",
-    "gst-libs/gst/play/gstplay-signal-adapter.c",
-    "gst-libs/gst/play/gstplay-video-renderer.c",
-    "gst-libs/gst/play/gstplay-media-info.c",
-    "gst-libs/gst/play/gstplay-visualization.c",
-    "gst-libs/gst/play/gstplay-video-overlay-video-renderer.c",
   ]
 
   configs = [ ":gst_player_config" ]
@@ -143,8 +143,8 @@ ohos_source_set("hls_source") {
 ohos_shared_library("gsthls") {
   deps = [
     ":hls_source",
-    "//third_party/glib:glib",
     "//third_party/glib:gio",
+    "//third_party/glib:glib",
     "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_bad:gstadaptivedemux",
@@ -251,12 +251,12 @@ ohos_shared_library("gstmpegtsdemux") {
 ohos_source_set("mpegts_source") {
   sources = [
     "gst-libs/gst/mpegts/gst-atsc-section.c",
-    "gst-libs/gst/mpegts/gst-scte-section.c",
     "gst-libs/gst/mpegts/gst-dvb-descriptor.c",
     "gst-libs/gst/mpegts/gst-dvb-section.c",
-    "gst-libs/gst/mpegts/mpegts.c",
+    "gst-libs/gst/mpegts/gst-scte-section.c",
     "gst-libs/gst/mpegts/gstmpegtsdescriptor.c",
     "gst-libs/gst/mpegts/gstmpegtssection.c",
+    "gst-libs/gst/mpegts/mpegts.c",
   ]
 
   configs = [ ":gst_plugins_config" ]
@@ -327,9 +327,9 @@ ohos_source_set("parse_source") {
   sources = [
     "gst/videoparsers/gsth264parse.c",
     "gst/videoparsers/gstmpeg4videoparse.c",
-    "gst/videoparsers/plugin.c",
     "gst/videoparsers/gstvideoparserselement.c",
     "gst/videoparsers/gstvideoparseutils.c",
+    "gst/videoparsers/plugin.c",
   ]
 
   include_dirs = [
@@ -392,9 +392,9 @@ config("curlhttp_source_config") {
 ohos_source_set("curlhttp_source") {
   sources = [
     "ext/curl/gstcurl.c",
+    "ext/curl/gstcurlelement.c",
     "ext/curl/gstcurlhttpsrc.c",
     "ext/curl/gstcurlqueue.c",
-    "ext/curl/gstcurlelement.c",
   ]
 
   configs = [
