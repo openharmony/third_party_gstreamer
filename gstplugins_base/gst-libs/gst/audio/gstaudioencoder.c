@@ -1394,8 +1394,13 @@ done:
   /* ERRORS */
 not_negotiated:
   {
+#ifdef OHOS_OPT_COMPAT
+    GST_ELEMENT_WARNING (enc, CORE, NEGOTIATION, (NULL),
+        ("encoder not initialized"));
+#else
     GST_ELEMENT_ERROR (enc, CORE, NEGOTIATION, (NULL),
         ("encoder not initialized"));
+#endif
     gst_buffer_unref (buffer);
     ret = GST_FLOW_NOT_NEGOTIATED;
     goto done;
