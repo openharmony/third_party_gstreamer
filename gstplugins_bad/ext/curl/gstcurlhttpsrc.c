@@ -1343,7 +1343,7 @@ gst_curl_http_src_handle_response (GstCurlHttpSrc * src)
     GST_WARNING_OBJECT (src, "Transfer for URI %s returned error status %u",
         src->uri, src->status_code);
     src->retries_remaining = 0;
-#ifdef OHOS_EXT_FUNC
+#ifdef OHOS_OPT_COMPAT
     /**
      * ohos.opt.compat.0032
      * Fix seek failed when request position from gstqueue2 is the end of the file.
@@ -1642,6 +1642,11 @@ gst_curl_http_src_query (GstBaseSrc * bsrc, GstQuery * query)
 {
   GstCurlHttpSrc *src = GST_CURLHTTPSRC (bsrc);
   gboolean ret;
+#ifdef OHOS_EXT_FUNC
+  /* ohos.opt.compat.0022 support pull mode in libav demux */
+  GstSchedulingFlags flags;
+  gint minsize, maxsize, align;
+#endif
   GSTCURL_FUNCTION_ENTRY (src);
 
   switch (GST_QUERY_TYPE (query)) {
@@ -1658,6 +1663,27 @@ gst_curl_http_src_query (GstBaseSrc * bsrc, GstQuery * query)
       ret = GST_BASE_SRC_CLASS (parent_class)->query (bsrc, query);
       break;
   }
+
+#ifdef OHOS_EXT_FUNC
+  /* ohos.opt.compat.0022 support pull mode in libav demux */
+  switch (GST_QUERY_TYPE (query)) {
+    case GST_QUERY_SCHEDULING:
+      gst_query_parse_scheduling (query, &flags, &minsize, &maxsize, &align);
+      flags |= GST_SCHEDULING_FLAG_BANDWIDTH_LIMITED;
+
+      if (src->seekable) {
+        flags |= GST_SCHEDULING_FLAG_SEEKABLE;
+      } else {
+        flags &= (~GST_SCHEDULING_FLAG_SEEKABLE);
+      }
+      GST_INFO_OBJECT (src, "seekable: %d", src->seekable);
+
+      gst_query_set_scheduling (query, flags, minsize, maxsize, align);
+      break;
+    default:
+      break;
+  }
+#endif
 
   GSTCURL_FUNCTION_EXIT (src);
   return ret;
@@ -1708,7 +1734,7 @@ gst_curl_http_src_do_seek (GstBaseSrc * bsrc, GstSegment * segment)
   g_mutex_lock (&src->buffer_mutex);
 #ifdef OHOS_EXT_FUNC
 /* ohos.ext.func.0025 support https seek: */
-  GST_DEBUG_OBJECT (src, "do_seek(%" G_GINT64_FORMAT ", %" G_GINT64_FORMAT
+  GST_INFO_OBJECT (src, "do_seek(%" G_GINT64_FORMAT ", %" G_GINT64_FORMAT
       ")", segment->start, segment->stop);
 #endif
   if (src->state == GSTCURL_UNLOCK) {
@@ -2121,8 +2147,12 @@ gst_curl_http_src_get_header (void *header, size_t size, size_t nmemb,
            have the start, stop and total size of the resource */
         gchar *size = strchr (header_value, '/');
         if (size) {
+#ifdef OHOS_OPT_COMPAT
+          /* ohos.opt.compat.0032 */
           s->content_size = atoi (size + 1);
-          GST_INFO_OBJECT (s, "content_size: %" G_GUINT64_FORMAT, s->content_size);
+#else
+          s->content_size = atoi (size);
+#endif
         }
       }
 
