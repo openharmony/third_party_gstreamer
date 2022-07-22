@@ -66,8 +66,8 @@ ohos_source_set("gstplayback_source") {
   sources = [
     "gst/playback/gstdecodebin2.c",
     "gst/playback/gstplay-enum.c",
-    "gst/playback/gstplaybackplugin.c",
     "gst/playback/gstplaybackelement.c",
+    "gst/playback/gstplaybackplugin.c",
     "gst/playback/gstplaybackutils.c",
     "gst/playback/gstplaybin2.c",
     "gst/playback/gstplaysink.c",
@@ -346,12 +346,12 @@ ohos_source_set("subparse_source") {
   sources = [
     "gst/subparse/gstssaparse.c",
     "gst/subparse/gstsubparse.c",
+    "gst/subparse/gstsubparseelement.c",
+    "gst/subparse/gstsubparseplugin.c",
     "gst/subparse/mpl2parse.c",
     "gst/subparse/qttextparse.c",
     "gst/subparse/samiparse.c",
     "gst/subparse/tmplayerparse.c",
-    "gst/subparse/gstsubparseelement.c",
-    "gst/subparse/gstsubparseplugin.c",
   ]
 
   configs = [ ":gst_plugins_config" ]
@@ -420,8 +420,8 @@ ohos_source_set("audiomixer_source") {
   sources = [
     "gst/audiomixer/gstaudiointerleave.c",
     "gst/audiomixer/gstaudiomixer.c",
-    "gst/audiomixer/gstaudiomixerorc-dist.c",
     "gst/audiomixer/gstaudiomixerelement.c",
+    "gst/audiomixer/gstaudiomixerorc-dist.c",
   ]
 
   configs = [ ":gst_plugins_config" ]
@@ -584,9 +584,9 @@ ohos_source_set("app_source") {
     "gst-libs/gst/app/app-enumtypes.c",
     "gst-libs/gst/app/gstappsink.c",
     "gst-libs/gst/app/gstappsrc.c",
+    "gst/app/gstapp.c",
     "gst/app/gstappsink.c",
     "gst/app/gstappsrc.c",
-    "gst/app/gstapp.c",
   ]
 
   configs = [ ":gst_plugins_config" ]
