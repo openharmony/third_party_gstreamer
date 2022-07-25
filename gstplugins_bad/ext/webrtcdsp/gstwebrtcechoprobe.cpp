@@ -23,7 +23,7 @@
 /**
  * SECTION:element-webrtcechoprobe
  *
- * This echo probe is to be used with the webrtcdsp element. See #gst-plugins-bad-plugins-webrtcdsp
+ * This echo probe is to be used with the webrtcdsp element. See #webrtcdsp
  * documentation for more details.
  */
 
@@ -78,6 +78,8 @@ static GList *gst_aec_probes = NULL;
 
 G_DEFINE_TYPE (GstWebrtcEchoProbe, gst_webrtc_echo_probe,
     GST_TYPE_AUDIO_FILTER);
+GST_ELEMENT_REGISTER_DEFINE (webrtcechoprobe, "webrtcechoprobe",
+    GST_RANK_NONE, GST_TYPE_WEBRTC_ECHO_PROBE);
 
 static gboolean
 gst_webrtc_echo_probe_setup (GstAudioFilter * filter, const GstAudioInfo * info)
@@ -259,7 +261,7 @@ gst_webrtc_echo_probe_class_init (GstWebrtcEchoProbeClass * klass)
       &gst_webrtc_echo_probe_sink_template);
 
   gst_element_class_set_static_metadata (element_class,
-      "Accoustic Echo Canceller probe",
+      "Acoustic Echo Canceller probe",
       "Generic/Audio",
       "Gathers playback buffers for webrtcdsp",
       "Nicolas Dufresne <nicolas.dufrsesne@collabora.com>");

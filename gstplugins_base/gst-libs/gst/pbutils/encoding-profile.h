@@ -153,6 +153,13 @@ void      gst_encoding_profile_set_allow_dynamic_output (GstEncodingProfile *pro
                                                          gboolean allow_dynamic_output);
 
 GST_PBUTILS_API
+gboolean  gst_encoding_profile_get_single_segment       (GstEncodingProfile *profile);
+
+GST_PBUTILS_API
+void      gst_encoding_profile_set_single_segment       (GstEncodingProfile *profile,
+                                                         gboolean single_segment);
+
+GST_PBUTILS_API
 const gchar *   gst_encoding_profile_get_preset         (GstEncodingProfile *profile);
 
 GST_PBUTILS_API
@@ -225,7 +232,7 @@ GstEncodingContainerProfile *  gst_encoding_container_profile_new (const gchar *
                                                                    const gchar *preset);
 
 
-/* Invidual stream encodingprofile API */
+/* Individual stream encodingprofile API */
 
 GST_PBUTILS_API
 GstEncodingVideoProfile * gst_encoding_video_profile_new (GstCaps *format,
@@ -257,23 +264,22 @@ GST_PBUTILS_API
 GstEncodingProfile * gst_encoding_profile_from_discoverer (GstDiscovererInfo *info);
 
 GST_PBUTILS_API
-GstEncodingProfile * gst_encoding_profile_copy (GstEncodingProfile *self);
+GstEncodingProfile * gst_encoding_profile_copy            (GstEncodingProfile *self);
 
-#ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
+GST_PBUTILS_API
+void gst_encoding_profile_set_element_properties          (GstEncodingProfile *self,
+                                                           GstStructure *element_properties);
+
+GST_PBUTILS_API
+GstStructure *gst_encoding_profile_get_element_properties (GstEncodingProfile *self);
+
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GstEncodingAudioProfile, gst_object_unref)
-#endif
 
-#ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GstEncodingContainerProfile, gst_object_unref)
-#endif
 
-#ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GstEncodingProfile, gst_object_unref)
-#endif
 
-#ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GstEncodingVideoProfile, gst_object_unref)
-#endif
 
 G_END_DECLS
 

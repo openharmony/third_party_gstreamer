@@ -32,8 +32,8 @@
 
 //#include <gst/video/videooverlay.h>
 
+#include "gstvulkanelements.h"
 #include "vksink.h"
-#include "vkdevice.h"
 
 GST_DEBUG_CATEGORY (gst_debug_vulkan_sink);
 #define GST_CAT_DEFAULT gst_debug_vulkan_sink
@@ -68,13 +68,21 @@ static GstFlowReturn gst_vulkan_sink_show_frame (GstVideoSink * bsink,
 static void gst_vulkan_sink_video_overlay_init (GstVideoOverlayInterface *
     iface);
 
+static void gst_vulkan_sink_navigation_interface_init (GstNavigationInterface *
+    iface);
+static void gst_vulkan_sink_key_event_cb (GstVulkanWindow * window,
+    char *event_name, char *key_string, GstVulkanSink * vk_sink);
+static void gst_vulkan_sink_mouse_event_cb (GstVulkanWindow * window,
+    char *event_name, int button, double posx, double posy,
+    GstVulkanSink * vk_sink);
+
 
 static GstStaticPadTemplate gst_vulkan_sink_template =
 GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE_WITH_FEATURES
-        (GST_CAPS_FEATURE_MEMORY_VULKAN_BUFFER,
+        (GST_CAPS_FEATURE_MEMORY_VULKAN_IMAGE,
             GST_VULKAN_SWAPPER_VIDEO_FORMATS)));
 
 enum
@@ -82,6 +90,7 @@ enum
   PROP_0,
   PROP_FORCE_ASPECT_RATIO,
   PROP_PIXEL_ASPECT_RATIO,
+  PROP_DEVICE,
 };
 
 enum
@@ -97,7 +106,11 @@ G_DEFINE_TYPE_WITH_CODE (GstVulkanSink, gst_vulkan_sink,
     GST_TYPE_VIDEO_SINK, GST_DEBUG_CATEGORY_INIT (gst_debug_vulkan_sink,
         "vulkansink", 0, "Vulkan Video Sink");
     G_IMPLEMENT_INTERFACE (GST_TYPE_VIDEO_OVERLAY,
-        gst_vulkan_sink_video_overlay_init));
+        gst_vulkan_sink_video_overlay_init);
+    G_IMPLEMENT_INTERFACE (GST_TYPE_NAVIGATION,
+        gst_vulkan_sink_navigation_interface_init));
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (vulkansink, "vulkansink", GST_RANK_NONE,
+    GST_TYPE_VULKAN_SINK, vulkan_element_init (plugin));
 
 static void
 gst_vulkan_sink_class_init (GstVulkanSinkClass * klass)
@@ -128,8 +141,12 @@ gst_vulkan_sink_class_init (GstVulkanSinkClass * klass)
           "The pixel aspect ratio of the device", 0, 1, G_MAXINT, 1, 1, 1,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_DEVICE,
+      g_param_spec_object ("device", "Device", "Vulkan device",
+          GST_TYPE_VULKAN_DEVICE, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
   gst_element_class_set_metadata (element_class, "Vulkan video sink",
-      "Sink/Video", "A videosink based on OpenGL",
+      "Sink/Video", "A videosink based on Vulkan",
       "Matthew Waters <matthew@centricular.com>");
 
   gst_element_class_add_static_pad_template (element_class,
@@ -178,10 +195,16 @@ gst_vulkan_sink_set_property (GObject * object, guint prop_id,
   switch (prop_id) {
     case PROP_FORCE_ASPECT_RATIO:
       vk_sink->force_aspect_ratio = g_value_get_boolean (value);
+      if (vk_sink->swapper)
+        g_object_set_property (G_OBJECT (vk_sink->swapper),
+            "force-aspect-ratio", value);
       break;
     case PROP_PIXEL_ASPECT_RATIO:
       vk_sink->par_n = gst_value_get_fraction_numerator (value);
       vk_sink->par_d = gst_value_get_fraction_denominator (value);
+      if (vk_sink->swapper)
+        g_object_set_property (G_OBJECT (vk_sink->swapper),
+            "pixel-aspect-ratio", value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -202,6 +225,9 @@ gst_vulkan_sink_get_property (GObject * object, guint prop_id,
     case PROP_PIXEL_ASPECT_RATIO:
       gst_value_set_fraction (value, vk_sink->par_n, vk_sink->par_d);
       break;
+    case PROP_DEVICE:
+      g_value_set_object (value, vk_sink->device);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -216,7 +242,11 @@ gst_vulkan_sink_query (GstBaseSink * bsink, GstQuery * query)
   switch (GST_QUERY_TYPE (query)) {
     case GST_QUERY_CONTEXT:{
       if (gst_vulkan_handle_context_query (GST_ELEMENT (vk_sink), query,
-              &vk_sink->display, &vk_sink->instance, &vk_sink->device))
+              vk_sink->display, vk_sink->instance, vk_sink->device))
+        return TRUE;
+      if (vk_sink->swapper &&
+          gst_vulkan_queue_handle_context_query (GST_ELEMENT (vk_sink), query,
+              vk_sink->swapper->queue))
         return TRUE;
 
       break;
@@ -259,14 +289,22 @@ gst_vulkan_sink_change_state (GstElement * element, GstStateChange transition)
         return GST_STATE_CHANGE_FAILURE;
       }
 
-      if (!(vk_sink->device =
-              gst_vulkan_instance_create_device (vk_sink->instance, &error))) {
-        GST_ELEMENT_ERROR (vk_sink, RESOURCE, NOT_FOUND,
-            ("Failed to create vulkan device"), ("%s", error->message));
-        g_clear_error (&error);
-        return GST_STATE_CHANGE_FAILURE;
+      if (!vk_sink->device) {
+        if (!gst_vulkan_device_run_context_query (GST_ELEMENT (vk_sink),
+                &vk_sink->device)) {
+          if (!(vk_sink->device =
+                  gst_vulkan_instance_create_device (vk_sink->instance,
+                      &error))) {
+            GST_ELEMENT_ERROR (vk_sink, RESOURCE, NOT_FOUND,
+                ("Failed to create vulkan device"), ("%s",
+                    error ? error->message : ""));
+            g_clear_error (&error);
+            return GST_STATE_CHANGE_FAILURE;
+          }
+        }
       }
-
+      break;
+    case GST_STATE_CHANGE_READY_TO_PAUSED:
       /* FIXME: this probably doesn't need to be so early in the setup process */
       if (!(vk_sink->window =
               gst_vulkan_display_create_window (vk_sink->display))) {
@@ -284,7 +322,7 @@ gst_vulkan_sink_change_state (GstElement * element, GstStateChange transition)
 
       if (!gst_vulkan_window_open (vk_sink->window, &error)) {
         GST_ELEMENT_ERROR (vk_sink, RESOURCE, NOT_FOUND,
-            ("Failed to open window"), ("%s", error->message));
+            ("Failed to open window"), ("%s", error ? error->message : ""));
         g_clear_error (&error);
         return GST_STATE_CHANGE_FAILURE;
       }
@@ -295,8 +333,31 @@ gst_vulkan_sink_change_state (GstElement * element, GstStateChange transition)
             ("Failed to create a swapper"), (NULL));
         return GST_STATE_CHANGE_FAILURE;
       }
-      break;
-    case GST_STATE_CHANGE_READY_TO_PAUSED:
+
+      g_object_set (vk_sink->swapper, "force_aspect-ratio",
+          vk_sink->force_aspect_ratio, "pixel-aspect-ratio", vk_sink->par_n,
+          vk_sink->par_d, NULL);
+
+      {
+        GstVulkanQueue *queue = NULL;
+        GError *error = NULL;
+
+        gst_vulkan_queue_run_context_query (GST_ELEMENT (vk_sink), &queue);
+        if (!gst_vulkan_swapper_choose_queue (vk_sink->swapper, queue, &error)) {
+          GST_ELEMENT_ERROR (vk_sink, RESOURCE, NOT_FOUND,
+              ("Swapper failed to choose a compatible Vulkan Queue"),
+              ("%s", error ? error->message : ""));
+          return GST_STATE_CHANGE_FAILURE;
+        }
+      }
+
+      vk_sink->key_sig_id =
+          g_signal_connect (vk_sink->window, "key-event",
+          G_CALLBACK (gst_vulkan_sink_key_event_cb), vk_sink);
+      vk_sink->mouse_sig_id =
+          g_signal_connect (vk_sink->window, "mouse-event",
+          G_CALLBACK (gst_vulkan_sink_mouse_event_cb), vk_sink);
+
       break;
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
       break;
@@ -312,19 +373,27 @@ gst_vulkan_sink_change_state (GstElement * element, GstStateChange transition)
     case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
       break;
     case GST_STATE_CHANGE_PAUSED_TO_READY:
-      break;
-    case GST_STATE_CHANGE_READY_TO_NULL:
       if (vk_sink->swapper)
         gst_object_unref (vk_sink->swapper);
       vk_sink->swapper = NULL;
-      if (vk_sink->display)
-        gst_object_unref (vk_sink->display);
-      vk_sink->display = NULL;
       if (vk_sink->window) {
         gst_vulkan_window_close (vk_sink->window);
+
+        if (vk_sink->key_sig_id)
+          g_signal_handler_disconnect (vk_sink->window, vk_sink->key_sig_id);
+        vk_sink->key_sig_id = 0;
+        if (vk_sink->mouse_sig_id)
+          g_signal_handler_disconnect (vk_sink->window, vk_sink->mouse_sig_id);
+        vk_sink->mouse_sig_id = 0;
+
         gst_object_unref (vk_sink->window);
       }
       vk_sink->window = NULL;
+      break;
+    case GST_STATE_CHANGE_READY_TO_NULL:
+      if (vk_sink->display)
+        gst_object_unref (vk_sink->display);
+      vk_sink->display = NULL;
       if (vk_sink->device)
         gst_object_unref (vk_sink->device);
       vk_sink->device = NULL;
@@ -371,8 +440,8 @@ gst_vulkan_sink_get_caps (GstBaseSink * bsink, GstCaps * filter)
   if (vk_sink->swapper) {
     if (!(result =
             gst_vulkan_swapper_get_supported_caps (vk_sink->swapper, &error))) {
-      GST_ELEMENT_ERROR (bsink, RESOURCE, NOT_FOUND, ("%s", error->message),
-          (NULL));
+      GST_ELEMENT_ERROR (bsink, RESOURCE, NOT_FOUND, ("%s",
+              error ? error->message : ""), (NULL));
       g_clear_error (&error);
       return NULL;
     }
@@ -474,7 +543,7 @@ gst_vulkan_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
 
   if (!gst_vulkan_swapper_set_caps (vk_sink->swapper, caps, &error)) {
     GST_ELEMENT_ERROR (vk_sink, RESOURCE, NOT_FOUND,
-        ("Failed to configure caps"), ("%s", error->message));
+        ("Failed to configure caps"), ("%s", error ? error->message : ""));
     g_clear_error (&error);
     return FALSE;
   }
@@ -508,7 +577,7 @@ gst_vulkan_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
 
   if (!gst_vulkan_swapper_render_buffer (vk_sink->swapper, buf, &error)) {
     GST_ELEMENT_ERROR (vk_sink, RESOURCE, NOT_FOUND,
-        ("Failed to render buffer"), ("%s", error->message));
+        ("Failed to render buffer"), ("%s", error ? error->message : ""));
     g_clear_error (&error);
     return GST_FLOW_ERROR;
   }
@@ -528,4 +597,104 @@ static void
 gst_vulkan_sink_video_overlay_init (GstVideoOverlayInterface * iface)
 {
   iface->set_window_handle = gst_vulkan_sink_set_window_handle;
+}
+
+static void
+_display_size_to_stream_size (GstVulkanSink * vk_sink,
+    GstVideoRectangle * display_rect, gdouble x, gdouble y, gdouble * stream_x,
+    gdouble * stream_y)
+{
+  gdouble stream_width, stream_height;
+
+  stream_width = (gdouble) GST_VIDEO_INFO_WIDTH (&vk_sink->v_info);
+  stream_height = (gdouble) GST_VIDEO_INFO_HEIGHT (&vk_sink->v_info);
+
+  /* from display coordinates to stream coordinates */
+  if (display_rect->w > 0)
+    *stream_x = (x - display_rect->x) / display_rect->w * stream_width;
+  else
+    *stream_x = 0.;
+
+  /* clip to stream size */
+  *stream_x = CLAMP (*stream_x, 0., stream_width);
+
+  /* same for y-axis */
+  if (display_rect->h > 0)
+    *stream_y = (y - display_rect->y) / display_rect->h * stream_height;
+  else
+    *stream_y = 0.;
+
+  *stream_y = CLAMP (*stream_y, 0., stream_height);
+
+  GST_TRACE_OBJECT (vk_sink, "transform %fx%f into %fx%f", x, y, *stream_x,
+      *stream_y);
+}
+
+static void
+gst_vulkan_sink_navigation_send_event (GstNavigation * navigation,
+    GstStructure * structure)
+{
+  GstVulkanSink *vk_sink = GST_VULKAN_SINK (navigation);
+  GstVideoRectangle display_rect;
+  GstEvent *event = NULL;
+  gdouble x, y;
+
+  if (!vk_sink->swapper || !vk_sink->swapper->window) {
+    gst_structure_free (structure);
+    return;
+  }
+
+  gst_vulkan_swapper_get_surface_rectangles (vk_sink->swapper, NULL, NULL,
+      &display_rect);
+
+  /* Converting pointer coordinates to the non scaled geometry */
+  if (display_rect.w != 0 && display_rect.h != 0
+      && gst_structure_get_double (structure, "pointer_x", &x)
+      && gst_structure_get_double (structure, "pointer_y", &y)) {
+    gdouble stream_x, stream_y;
+
+    _display_size_to_stream_size (vk_sink, &display_rect, x, y, &stream_x,
+        &stream_y);
+
+    gst_structure_set (structure, "pointer_x", G_TYPE_DOUBLE,
+        stream_x, "pointer_y", G_TYPE_DOUBLE, stream_y, NULL);
+  }
+
+  event = gst_event_new_navigation (structure);
+  if (event) {
+    gboolean handled;
+
+    gst_event_ref (event);
+    handled = gst_pad_push_event (GST_VIDEO_SINK_PAD (vk_sink), event);
+
+    if (!handled)
+      gst_element_post_message ((GstElement *) vk_sink,
+          gst_navigation_message_new_event ((GstObject *) vk_sink, event));
+
+    gst_event_unref (event);
+  }
+}
+
+static void
+gst_vulkan_sink_navigation_interface_init (GstNavigationInterface * iface)
+{
+  iface->send_event = gst_vulkan_sink_navigation_send_event;
+}
+
+static void
+gst_vulkan_sink_key_event_cb (GstVulkanWindow * window, char *event_name, char
+    *key_string, GstVulkanSink * vk_sink)
+{
+  GST_DEBUG_OBJECT (vk_sink, "event %s key %s pressed", event_name, key_string);
+  gst_navigation_send_key_event (GST_NAVIGATION (vk_sink),
+      event_name, key_string);
+}
+
+static void
+gst_vulkan_sink_mouse_event_cb (GstVulkanWindow * window, char *event_name,
+    int button, double posx, double posy, GstVulkanSink * vk_sink)
+{
+  GST_DEBUG_OBJECT (vk_sink, "event %s at %g, %g", event_name, posx, posy);
+  gst_navigation_send_mouse_event (GST_NAVIGATION (vk_sink),
+      event_name, button, posx, posy);
 }

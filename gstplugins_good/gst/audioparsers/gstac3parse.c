@@ -21,17 +21,17 @@
  */
 /**
  * SECTION:element-ac3parse
+ * @title: ac3parse
  * @short_description: AC3 parser
  * @see_also: #GstAmrParse, #GstAACParse
  *
  * This is an AC3 parser.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * gst-launch-1.0 filesrc location=abc.ac3 ! ac3parse ! a52dec ! audioresample ! audioconvert ! autoaudiosink
  * ]|
- * </refsect2>
+ *
  */
 
 /* TODO:
@@ -45,6 +45,7 @@
 
 #include <string.h>
 
+#include "gstaudioparserselements.h"
 #include "gstac3parse.h"
 #include <gst/base/base.h>
 #include <gst/pbutils/pbutils.h>
@@ -173,6 +174,8 @@ static gboolean gst_ac3_parse_set_sink_caps (GstBaseParse * parse,
 
 #define gst_ac3_parse_parent_class parent_class
 G_DEFINE_TYPE (GstAc3Parse, gst_ac3_parse, GST_TYPE_BASE_PARSE);
+GST_ELEMENT_REGISTER_DEFINE (ac3parse, "ac3parse",
+    GST_RANK_PRIMARY + 1, GST_TYPE_AC3_PARSE);
 
 static void
 gst_ac3_parse_class_init (GstAc3ParseClass * klass)
@@ -807,6 +810,8 @@ gst_ac3_parse_pre_push_frame (GstBaseParse * parse, GstBaseParseFrame * frame)
     /* also signals the end of first-frame processing */
     ac3parse->sent_codec_tag = TRUE;
   }
+
+  frame->flags |= GST_BASE_PARSE_FRAME_FLAG_CLIP;
 
   return GST_FLOW_OK;
 }

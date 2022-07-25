@@ -62,12 +62,13 @@ struct _GstRtpVP8Pay
   guint partition_offset[10];
   guint partition_size[9];
   PictureIDMode picture_id_mode;
+  gint picture_id_offset;
   guint16 picture_id;
+  gboolean temporal_scalability_fields_present;
+  guint8 tl0picidx;
 };
 
 GType gst_rtp_vp8_pay_get_type (void);
-
-gboolean gst_rtp_vp8_pay_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 

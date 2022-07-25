@@ -50,12 +50,11 @@
  * color image enhancement." Image Processing, 1996. Proceedings., International
  * Conference on. Vol. 3. IEEE, 1996.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
+ *
  * |[
  * gst-launch-1.0 videotestsrc ! videoconvert ! retinex ! videoconvert ! xvimagesink
  * ]|
- * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -80,7 +79,10 @@ enum
 {
   PROP_0,
   PROP_METHOD,
-  PROP_SCALES
+  PROP_SCALES,
+  PROP_SIGMA,
+  PROP_GAIN,
+  PROP_OFFSET,
 };
 typedef enum
 {
@@ -90,6 +92,9 @@ typedef enum
 
 #define DEFAULT_METHOD METHOD_BASIC
 #define DEFAULT_SCALES 3
+#define DEFAULT_SIGMA 14.0
+#define DEFAULT_GAIN 128
+#define DEFAULT_OFFSET 128
 
 #define GST_TYPE_RETINEX_METHOD (gst_retinex_method_get_type ())
 static GType
@@ -107,7 +112,13 @@ gst_retinex_method_get_type (void)
   return etype;
 }
 
-G_DEFINE_TYPE (GstRetinex, gst_retinex, GST_TYPE_OPENCV_VIDEO_FILTER);
+G_DEFINE_TYPE_WITH_CODE (GstRetinex, gst_retinex, GST_TYPE_OPENCV_VIDEO_FILTER,
+    GST_DEBUG_CATEGORY_INIT (gst_retinex_debug, "retinex", 0,
+        "Multiscale retinex for colour image enhancement");
+    );
+GST_ELEMENT_REGISTER_DEFINE (retinex, "retinex", GST_RANK_NONE,
+    GST_TYPE_RETINEX);
+
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
@@ -161,18 +172,56 @@ gst_retinex_class_init (GstRetinexClass * klass)
           4, DEFAULT_SCALES,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
+  /**
+   * GstRetinex:sigma:
+   *
+   * Sigma
+   *
+   * Since: 1.20
+   */
+  g_object_class_install_property (gobject_class, PROP_SIGMA,
+      g_param_spec_double ("sigma", "Sigma",
+			   "Sigma", 0.0, G_MAXDOUBLE, DEFAULT_SIGMA,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  /**
+   * GstRetinex:gain:
+   *
+   * Gain
+   *
+   * Since: 1.20
+   */
+  g_object_class_install_property (gobject_class, PROP_GAIN,
+      g_param_spec_int ("gain", "gain",
+			"Gain", 0, G_MAXINT, DEFAULT_GAIN,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  /**
+   * GstRetinex:offset:
+   *
+   * Offset
+   *
+   * Since: 1.20
+   */
+  g_object_class_install_property (gobject_class, PROP_OFFSET,
+      g_param_spec_int ("offset", "Offset",
+			"Offset", 0, G_MAXINT, DEFAULT_OFFSET,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
   gst_element_class_set_static_metadata (element_class,
-      "Retinex image colour enhacement", "Filter/Effect/Video",
+      "Retinex image colour enhancement", "Filter/Effect/Video",
       "Multiscale retinex for colour image enhancement",
       "Miguel Casas-Sanchez <miguelecasassanchez@gmail.com>");
 
   gst_element_class_add_static_pad_template (element_class, &src_factory);
   gst_element_class_add_static_pad_template (element_class, &sink_factory);
+
+  gst_type_mark_as_plugin_api (GST_TYPE_RETINEX_METHOD, (GstPluginAPIFlags) 0);
 }
 
 /* initialize the new element
  * instantiate pads and add them to element
- * set pad calback functions
+ * set pad callback functions
  * initialize instance structure
  */
 static void
@@ -181,6 +230,9 @@ gst_retinex_init (GstRetinex * filter)
   filter->method = DEFAULT_METHOD;
   filter->scales = DEFAULT_SCALES;
   filter->current_scales = 0;
+  filter->gain = DEFAULT_GAIN;
+  filter->offset = DEFAULT_OFFSET;
+  filter->sigma = DEFAULT_SIGMA;
   gst_opencv_video_filter_set_in_place (GST_OPENCV_VIDEO_FILTER_CAST (filter),
       TRUE);
 }
@@ -216,6 +268,15 @@ gst_retinex_set_property (GObject * object, guint prop_id,
     case PROP_SCALES:
       retinex->scales = g_value_get_int (value);
       break;
+  case PROP_SIGMA:
+    retinex->sigma = g_value_get_double (value);
+    break;
+    case PROP_GAIN:
+      retinex->gain = g_value_get_int (value);
+      break;
+    case PROP_OFFSET:
+      retinex->offset = g_value_get_int (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -234,6 +295,15 @@ gst_retinex_get_property (GObject * object, guint prop_id,
       break;
     case PROP_SCALES:
       g_value_set_int (value, filter->scales);
+      break;
+    case PROP_SIGMA:
+      g_value_set_double (value, filter->sigma);
+      break;
+    case PROP_GAIN:
+      g_value_set_int (value, filter->gain);
+      break;
+    case PROP_OFFSET:
+      g_value_set_int (value, filter->offset);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -264,9 +334,6 @@ gst_retinex_transform_ip (GstOpencvVideoFilter * filter, GstBuffer * buf,
     Mat img)
 {
   GstRetinex *retinex = GST_RETINEX (filter);
-  double sigma = 14.0;
-  int gain = 128;
-  int offset = 128;
   int filter_size;
 
   /* Basic retinex restoration.  The image and a filtered image are converted
@@ -278,8 +345,8 @@ gst_retinex_transform_ip (GstOpencvVideoFilter * filter, GstBuffer * buf,
     img.convertTo (retinex->cvA, retinex->cvA.type ());
     log (retinex->cvA, retinex->cvB);
 
-    /*  Compute log of blured image */
-    filter_size = (int) floor (sigma * 6) / 2;
+    /*  Compute log of blurred image */
+    filter_size = (int) floor (retinex->sigma * 6) / 2;
     filter_size = filter_size * 2 + 1;
 
     img.convertTo (retinex->cvD, retinex->cvD.type ());
@@ -291,11 +358,11 @@ gst_retinex_transform_ip (GstOpencvVideoFilter * filter, GstBuffer * buf,
     subtract (retinex->cvB, retinex->cvC, retinex->cvA);
 
     /*  Restore */
-    retinex->cvA.convertTo (img, img.type (), (float) gain, (float) offset);
+    retinex->cvA.convertTo (img, img.type (), (float) retinex->gain, (float) retinex->offset);
   }
   /* Multiscale retinex restoration.  The image and a set of filtered images are
      converted to the log domain and subtracted from the original with some set
-     of weights. Typicaly called with three equally weighted scales of fine,
+     of weights. Typically called with three equally weighted scales of fine,
      medium and wide standard deviations.
      O = Log(I) - sum_i [ wi * Log(H(I)) ]
      where O is the output, H is a gaussian 2d filter and I is the input image
@@ -338,25 +405,8 @@ gst_retinex_transform_ip (GstOpencvVideoFilter * filter, GstBuffer * buf,
     }
 
     /*  Restore */
-    retinex->cvB.convertTo (img, img.type (), (float) gain, (float) offset);
+    retinex->cvB.convertTo (img, img.type (), (float) retinex->gain, (float) retinex->offset);
   }
 
   return GST_FLOW_OK;
-}
-
-/* entry point to initialize the plug-in
- * initialize the plug-in itself
- * register the element factories and other features
- */
-gboolean
-gst_retinex_plugin_init (GstPlugin * plugin)
-{
-  /* debug category for fltering log messages
-   *
-   */
-  GST_DEBUG_CATEGORY_INIT (gst_retinex_debug, "retinex",
-      0, "Multiscale retinex for colour image enhancement");
-
-  return gst_element_register (plugin, "retinex", GST_RANK_NONE,
-      GST_TYPE_RETINEX);
 }

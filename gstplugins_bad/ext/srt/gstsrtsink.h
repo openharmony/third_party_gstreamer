@@ -2,7 +2,7 @@
  * Copyright (C) 2018, Collabora Ltd.
  * Copyright (C) 2018, SK Telecom, Co., Ltd.
  *   Author: Jeongseok Kim <jeongseok.kim@sk.com>
- * 
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
  * License as published by the Free Software Foundation; either
@@ -56,6 +56,10 @@ struct _GstSRTSinkClass {
 
   void (*caller_added)      (GstSRTSink *self, int sock, GSocketAddress * addr);
   void (*caller_removed)    (GstSRTSink *self, int sock, GSocketAddress * addr);
+  void (*caller_rejected)   (GstSRTSink *self, GSocketAddress * peer_address,
+    const gchar * stream_id, gpointer data);
+  gboolean (*caller_connecting) (GstSRTSink *self, GSocketAddress * peer_address,
+    const gchar * stream_id, gpointer data);
 };
 
 GType gst_srt_sink_get_type (void);

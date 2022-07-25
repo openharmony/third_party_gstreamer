@@ -56,11 +56,12 @@ typedef struct _GstLevelClass GstLevelClass;
 struct _GstLevel {
   GstBaseTransform element;
 
-  /* properties */
+  /* properties, protected by object lock */
   gboolean post_messages;       /* whether or not to post messages */
   guint64 interval;             /* how many nanoseconds between emits */
   gdouble decay_peak_ttl;       /* time to live for peak in nanoseconds */
   gdouble decay_peak_falloff;   /* falloff in dB/sec */
+  gboolean audio_level_meta; /* whether or not generate GstAudioLevelMeta */
 
   GstAudioInfo info;
   gint num_frames;              /* frame count (1 sample per channel)
@@ -85,6 +86,7 @@ struct _GstLevelClass {
 
 GType gst_level_get_type (void);
 
+GST_ELEMENT_REGISTER_DECLARE (level);
 
 G_END_DECLS
 

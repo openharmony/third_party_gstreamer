@@ -196,6 +196,10 @@ rtcp_buffer_get_ssrc (GstBuffer * buf, guint32 * ssrc)
           *ssrc = gst_rtcp_packet_app_get_ssrc (&packet);
           ret = TRUE;
           break;
+        case GST_RTCP_TYPE_BYE:
+          *ssrc = gst_rtcp_packet_bye_get_nth_ssrc (&packet, 0);
+          ret = TRUE;
+          break;
         default:
           break;
       }
@@ -293,23 +297,3 @@ cipher_key_size (GstSrtpCipherType cipher)
 
   return size;
 }
-
-static gboolean
-plugin_init (GstPlugin * plugin)
-{
-  srtp_init ();
-
-  if (!gst_srtp_enc_plugin_init (plugin))
-    return FALSE;
-
-  if (!gst_srtp_dec_plugin_init (plugin))
-    return FALSE;
-
-  return TRUE;
-}
-
-GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-    GST_VERSION_MINOR,
-    srtp,
-    "GStreamer SRTP",
-    plugin_init, VERSION, "LGPL", GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)

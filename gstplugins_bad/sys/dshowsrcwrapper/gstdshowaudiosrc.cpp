@@ -220,7 +220,7 @@ gst_dshowaudiosrc_set_property (GObject * object, guint prop_id,
         src->device = NULL;
       }
       if (g_value_get_string (value)) {
-        src->device = g_strdup (g_value_get_string (value));
+        src->device = g_value_dup_string (value);;
       }
       break;
     }
@@ -231,7 +231,7 @@ gst_dshowaudiosrc_set_property (GObject * object, guint prop_id,
         src->device_name = NULL;
       }
       if (g_value_get_string (value)) {
-        src->device_name = g_strdup (g_value_get_string (value));
+        src->device_name = g_value_dup_string (value);;
       }
       break;
     }
@@ -507,7 +507,7 @@ gst_dshowaudiosrc_prepare (GstAudioSrc * asrc, GstAudioRingBufferSpec * spec)
     src->is_running = FALSE;
   }
 
-  /* search the negociated caps in our caps list to get its index and the corresponding mediatype */
+  /* search the negotiated caps in our caps list to get its index and the corresponding mediatype */
   if (gst_caps_is_subset (spec->caps, src->caps)) {
     guint i = 0;
     gint res = -1;

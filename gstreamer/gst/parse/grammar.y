@@ -328,7 +328,7 @@ static void gst_parse_new_child(GstChildProxy *child_proxy, GObject *object,
     GST_CAT_LOG_OBJECT (GST_CAT_PIPELINE, child_proxy, "parsing delayed property %s as a %s from %s",
       pspec->name, g_type_name (value_type), set->value_str);
     g_value_init (&v, value_type);
-    if (gst_value_deserialize (&v, set->value_str))
+    if (gst_value_deserialize_with_pspec (&v, set->value_str, pspec))
       got_value = TRUE;
     else if (g_type_is_a (value_type, GST_TYPE_ELEMENT)) {
        GstElement *bin;
@@ -358,7 +358,7 @@ out:
   if (G_IS_VALUE (&v))
     g_value_unset (&v);
   if (target)
-    g_object_unref (target);
+    gst_object_unref (target);
   return;
 
 error:
@@ -398,7 +398,7 @@ static void gst_parse_element_set (gchar *value, GstElement *element, graph_t *g
   }
   gst_parse_unescape (pos);
 
-  if (GST_IS_CHILD_PROXY (element)) {
+  if (GST_IS_CHILD_PROXY (element) && strstr (value, "::") != NULL) {
     if (!gst_child_proxy_lookup (GST_CHILD_PROXY (element), value, &target, &pspec)) {
       /* do a delayed set */
       gst_parse_add_delayed_set (element, value, pos);
@@ -424,7 +424,7 @@ static void gst_parse_element_set (gchar *value, GstElement *element, graph_t *g
         pspec->name, g_type_name (value_type));
 
     g_value_init (&v, value_type);
-    if (gst_value_deserialize (&v, pos))
+    if (gst_value_deserialize_with_pspec (&v, pos, pspec))
       got_value = TRUE;
     else if (g_type_is_a (value_type, GST_TYPE_ELEMENT)) {
        GstElement *bin;
@@ -446,13 +446,47 @@ out:
   if (G_IS_VALUE (&v))
     g_value_unset (&v);
   if (target)
-    g_object_unref (target);
+    gst_object_unref (target);
   return;
 
 error:
   SET_ERROR (graph->error, GST_PARSE_ERROR_COULD_NOT_SET_PROPERTY,
          _("could not set property \"%s\" in element \"%s\" to \"%s\""),
 	 value, GST_ELEMENT_NAME (element), pos);
+  goto out;
+}
+
+static void gst_parse_element_preset (gchar *value, GstElement *element, graph_t *graph)
+{
+  /* do nothing if preset is for missing element or its not a preset element */
+  if (element == NULL)
+    goto out;
+
+  if (!GST_IS_PRESET(element))
+    goto not_a_preset;
+
+  /* do nothing if no preset is given */
+  if (value == NULL || *value == '\0')
+    goto out;
+
+  gst_parse_unescape (value);
+  if (!gst_preset_load_preset (GST_PRESET (element), value))
+    goto error;
+
+out:
+  gst_parse_strfree (value);
+  return;
+
+not_a_preset:
+  SET_ERROR (graph->error, GST_PARSE_ERROR_COULD_NOT_SET_PROPERTY,
+         _("Element \"%s\" is not a GstPreset"),
+	 GST_ELEMENT_NAME (element));
+  goto out;
+
+error:
+  SET_ERROR (graph->error, GST_PARSE_ERROR_COULD_NOT_SET_PROPERTY,
+         _("could not set preset \"%s\" in element \"%s\""),
+	 value, GST_ELEMENT_NAME (element));
   goto out;
 }
 
@@ -532,10 +566,11 @@ static void gst_parse_found_pad (GstElement *src, GstPad *pad, gpointer data)
 		               link->all_pads ? "all pads" : "one pad",
                	   PRETTY_PAD_NAME_ARGS (src, link->src_pad),
                    PRETTY_PAD_NAME_ARGS (link->sink, link->sink_pad));
-    g_signal_handler_disconnect (src, link->no_more_pads_signal_id);
     /* releases 'link' */
-    if (!link->all_pads)
+    if (!link->all_pads) {
+      g_signal_handler_disconnect (src, link->no_more_pads_signal_id);
       g_signal_handler_disconnect (src, link->pad_added_signal_id);
+    }
   }
 }
 
@@ -763,7 +798,7 @@ static int yyerror (void *scanner, graph_t *graph, const char *s);
 %token <ss> PARSE_URL
 %token <ss> IDENTIFIER
 %left  <ss> REF PADREF BINREF
-%token <ss> ASSIGNMENT
+%token <ss> ASSIGNMENT PRESET
 %token <ss> LINK
 %token <ss> LINK_ALL
 
@@ -796,7 +831,7 @@ static int yyerror (void *scanner, graph_t *graph, const char *s);
 %lex-param { void *scanner }
 %parse-param { void *scanner }
 %parse-param { graph_t *graph }
-%pure-parser
+%define api.pure full
 
 %start graph
 %%
@@ -817,6 +852,9 @@ element:	IDENTIFIER     		      { $$ = gst_element_factory_make ($1, NULL);
 						}
 						gst_parse_strfree ($1);
                                               }
+	|	element PRESET	          { gst_parse_element_preset ($2, $1, graph);
+						$$ = $1;
+	                                      }
 	|	element ASSIGNMENT	      { gst_parse_element_set ($2, $1, graph);
 						$$ = $1;
 	                                      }

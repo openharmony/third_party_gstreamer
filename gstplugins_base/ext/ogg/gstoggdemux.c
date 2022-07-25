@@ -44,6 +44,7 @@
 #include <gst/tag/tag.h>
 #include <gst/audio/audio.h>
 
+#include "gstoggelements.h"
 #include "gstoggdemux.h"
 
 #define CHUNKSIZE (8500)        /* this is out of vorbisfile */
@@ -86,7 +87,7 @@ _ogg_packet_copy (const ogg_packet * packet)
   ogg_packet *ret = g_slice_new (ogg_packet);
 
   *ret = *packet;
-  ret->packet = g_memdup (packet->packet, packet->bytes);
+  ret->packet = g_memdup2 (packet->packet, packet->bytes);
 
   return ret;
 }
@@ -104,9 +105,9 @@ gst_ogg_page_copy (ogg_page * page)
   ogg_page *p = g_slice_new (ogg_page);
 
   /* make a copy of the page */
-  p->header = g_memdup (page->header, page->header_len);
+  p->header = g_memdup2 (page->header, page->header_len);
   p->header_len = page->header_len;
-  p->body = g_memdup (page->body, page->body_len);
+  p->body = g_memdup2 (page->body, page->body_len);
   p->body_len = page->body_len;
 
   return p;
@@ -632,7 +633,7 @@ gst_ogg_demux_chain_peer (GstOggPad * pad, ogg_packet * packet,
             beyond = ipad->map.n_index
                 && ipad->map.index[ipad->map.n_index - 1].offset >= length;
             if (beyond) {
-              GST_WARNING_OBJECT (pad, "Index offsets beyong byte length");
+              GST_WARNING_OBJECT (pad, "Index offsets beyond byte length");
               if (ipad->discont) {
                 /* hole - the index is most likely screwed up */
                 GST_WARNING_OBJECT (ogg, "Discarding entire index");
@@ -1068,7 +1069,7 @@ gst_ogg_pad_submit_packet (GstOggPad * pad, ogg_packet * packet)
   }
 
   GST_DEBUG_OBJECT (ogg, "%p packet has granulepos %" G_GINT64_FORMAT, pad,
-      packet->granulepos);
+      (gint64) packet->granulepos);
   granule =
       gst_ogg_stream_granulepos_to_granule (&pad->map, packet->granulepos);
   if (granule > 0) {
@@ -1309,7 +1310,7 @@ gst_ogg_pad_stream_out (GstOggPad * pad, gint npackets)
         if (packet.granulepos < -1) {
           GST_WARNING_OBJECT (ogg,
               "Invalid granulepos (%" G_GINT64_FORMAT "), resetting stream",
-              packet.granulepos);
+              (gint64) packet.granulepos);
           gst_ogg_pad_reset (pad);
           break;
         }
@@ -1511,7 +1512,7 @@ gst_ogg_demux_estimate_bisection_target (GstOggDemux * ogg, float seek_quality)
   GST_DEBUG_OBJECT (ogg, "Raw best guess: %" G_GINT64_FORMAT, best);
 
   /* offset the guess down as we need to capture the start of the
-     page we are targetting - but only do so if we did not undershoot
+     page we are targeting - but only do so if we did not undershoot
      last time, as we're likely to still do this time */
   if (!ogg->seek_undershot) {
     /* very small packets are packed on pages, so offset by at least
@@ -1610,6 +1611,10 @@ gst_ogg_demux_seek_back_after_push_duration_check_unlock (GstOggDemux * ogg)
     event = gst_event_new_seek (1.0, GST_FORMAT_BYTES,
         GST_SEEK_FLAG_ACCURATE | GST_SEEK_FLAG_FLUSH,
         GST_SEEK_TYPE_SET, 1, GST_SEEK_TYPE_SET, GST_CLOCK_TIME_NONE);
+    /* drop everything until this seek event completed.  We can't wait until the
+     * seek thread sets this because there would be race between receiving e.g.
+     * an EOS or any data and the seek thread actually picking up the seek. */
+    ogg->seek_event_drop_till = gst_event_get_seqnum (event);
   }
   gst_event_replace (&ogg->seek_event, event);
   gst_event_unref (event);
@@ -2291,9 +2296,12 @@ static GstStateChangeReturn gst_ogg_demux_change_state (GstElement * element,
     GstStateChange transition);
 
 static void gst_ogg_print (GstOggDemux * demux);
+static gboolean gst_ogg_demux_plugin_init (GstPlugin * plugin);
 
 #define gst_ogg_demux_parent_class parent_class
 G_DEFINE_TYPE (GstOggDemux, gst_ogg_demux, GST_TYPE_ELEMENT);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (oggdemux, "oggdemux", GST_RANK_PRIMARY,
+    GST_TYPE_OGG_DEMUX, gst_ogg_demux_plugin_init (plugin));
 
 static void
 gst_ogg_demux_class_init (GstOggDemuxClass * klass)
@@ -2506,6 +2514,7 @@ gst_ogg_demux_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       break;
     case GST_EVENT_EOS:
     {
+      gboolean drop = FALSE;
       GST_DEBUG_OBJECT (ogg, "got an EOS event");
       GST_PUSH_LOCK (ogg);
       if (ogg->push_state == PUSH_DURATION) {
@@ -2515,10 +2524,20 @@ gst_ogg_demux_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
           GST_DEBUG_OBJECT (ogg, "Error seeking back after duration check: %d",
               res);
         }
+        res = TRUE;
         break;
-      } else
+      } else {
+        if (ogg->seek_event_drop_till > 0) {
+          GST_DEBUG_OBJECT (ogg, "Dropping EOS (seqnum:%u) because we have "
+              "a pending seek (seqnum:%u)", gst_event_get_seqnum (event),
+              ogg->seek_event_drop_till);
+          drop = TRUE;
+        }
         GST_PUSH_UNLOCK (ogg);
-      res = gst_ogg_demux_send_event (ogg, event);
+        res = TRUE;
+      }
+      if (!drop)
+        res = gst_ogg_demux_send_event (ogg, event);
       if (ogg->current_chain == NULL) {
         GST_WARNING_OBJECT (ogg,
             "EOS while trying to retrieve chain, seeking disabled");
@@ -3516,7 +3535,7 @@ gst_ogg_demux_perform_seek_pull (GstOggDemux * ogg, GstEvent * event)
 {
   GstOggChain *chain = NULL;
   gboolean res;
-  gboolean flush, accurate, keyframe;
+  gboolean accurate, keyframe;
   GstFormat format;
   gdouble rate;
   GstSeekFlags flags;
@@ -3524,7 +3543,6 @@ gst_ogg_demux_perform_seek_pull (GstOggDemux * ogg, GstEvent * event)
   gint64 start, stop;
   gboolean update;
   guint32 seqnum;
-  GstEvent *tevent;
 
   if (event) {
     GST_DEBUG_OBJECT (ogg, "seek with event");
@@ -3548,41 +3566,10 @@ gst_ogg_demux_perform_seek_pull (GstOggDemux * ogg, GstEvent * event)
 
   GST_DEBUG_OBJECT (ogg, "seek, rate %g", rate);
 
-  flush = flags & GST_SEEK_FLAG_FLUSH;
   accurate = flags & GST_SEEK_FLAG_ACCURATE;
   keyframe = flags & GST_SEEK_FLAG_KEY_UNIT;
 
-  /* first step is to unlock the streaming thread if it is
-   * blocked in a chain call, we do this by starting the flush. because
-   * we cannot yet hold any streaming lock, we have to protect the chains
-   * with their own lock. */
-  if (flush) {
-    gint i;
-
-    tevent = gst_event_new_flush_start ();
-    gst_event_set_seqnum (tevent, seqnum);
-
-    gst_event_ref (tevent);
-    gst_pad_push_event (ogg->sinkpad, tevent);
-
-    GST_CHAIN_LOCK (ogg);
-    for (i = 0; i < ogg->chains->len; i++) {
-      GstOggChain *chain = g_array_index (ogg->chains, GstOggChain *, i);
-      gint j;
-
-      for (j = 0; j < chain->streams->len; j++) {
-        GstOggPad *pad = g_array_index (chain->streams, GstOggPad *, j);
-
-        gst_event_ref (tevent);
-        gst_pad_push_event (GST_PAD (pad), tevent);
-      }
-    }
-    GST_CHAIN_UNLOCK (ogg);
-
-    gst_event_unref (tevent);
-  } else {
-    gst_pad_pause_task (ogg->sinkpad);
-  }
+  gst_pad_pause_task (ogg->sinkpad);
 
   /* now grab the stream lock so that streaming cannot continue, for
    * non flushing seeks when the element is in PAUSED this could block
@@ -3597,14 +3584,6 @@ gst_ogg_demux_perform_seek_pull (GstOggDemux * ogg, GstEvent * event)
   GST_DEBUG_OBJECT (ogg, "segment positions set to %" GST_TIME_FORMAT "-%"
       GST_TIME_FORMAT, GST_TIME_ARGS (ogg->segment.start),
       GST_TIME_ARGS (ogg->segment.stop));
-
-  /* we need to stop flushing on the srcpad as we're going to use it
-   * next. We can do this as we have the STREAM lock now. */
-  if (flush) {
-    tevent = gst_event_new_flush_stop (TRUE);
-    gst_event_set_seqnum (tevent, seqnum);
-    gst_pad_push_event (ogg->sinkpad, tevent);
-  }
 
   {
     gint i;
@@ -3639,13 +3618,6 @@ gst_ogg_demux_perform_seek_pull (GstOggDemux * ogg, GstEvent * event)
     gint64 start;
     gint64 position, begin_time;
     GstSegment segment;
-
-    /* we have to send the flush to the old chain, not the new one */
-    if (flush) {
-      tevent = gst_event_new_flush_stop (TRUE);
-      gst_event_set_seqnum (tevent, seqnum);
-      gst_ogg_demux_send_event (ogg, tevent);
-    }
 
     /* we need this to see how far inside the chain we need to start */
     if (chain->begin_time != GST_CLOCK_TIME_NONE)
@@ -3725,19 +3697,24 @@ gst_ogg_demux_perform_seek_pull (GstOggDemux * ogg, GstEvent * event)
   /* streaming can continue now */
   GST_PAD_STREAM_UNLOCK (ogg->sinkpad);
 
+done:
+  if (event)
+    gst_event_unref (event);
   return res;
 
   /* ERRORS */
 error:
   {
     GST_DEBUG_OBJECT (ogg, "seek failed");
-    return FALSE;
+    res = FALSE;
+    goto done;
   }
 no_chain:
   {
     GST_DEBUG_OBJECT (ogg, "no chain to seek in");
     GST_PAD_STREAM_UNLOCK (ogg->sinkpad);
-    return FALSE;
+    res = FALSE;
+    goto done;
   }
 }
 
@@ -3761,6 +3738,7 @@ gst_ogg_demux_get_duration_push (GstOggDemux * ogg, int flags)
   sevent = gst_event_new_seek (1.0, GST_FORMAT_BYTES, flags, GST_SEEK_TYPE_SET,
       position, GST_SEEK_TYPE_SET, ogg->push_byte_length - 1);
   gst_event_replace (&ogg->seek_event, sevent);
+  ogg->seek_event_drop_till = gst_event_get_seqnum (sevent);
   gst_event_unref (sevent);
   g_mutex_lock (&ogg->seek_event_mutex);
   g_cond_broadcast (&ogg->seek_event_cond);
@@ -3993,12 +3971,79 @@ error_locked:
 }
 
 static gboolean
+gst_ogg_demux_setup_seek_pull (GstOggDemux * ogg, GstEvent * event)
+{
+  gboolean flush;
+  GstSeekFlags flags;
+  GstEvent *tevent;
+  guint32 seqnum = gst_event_get_seqnum (event);
+
+  GST_DEBUG_OBJECT (ogg, "Scheduling seek: %" GST_PTR_FORMAT, event);
+  gst_event_parse_seek (event, NULL, NULL, &flags, NULL, NULL, NULL, NULL);
+
+  flush = flags & GST_SEEK_FLAG_FLUSH;
+
+  /* first step is to unlock the streaming thread if it is
+   * blocked in a chain call, we do this by starting the flush. because
+   * we cannot yet hold any streaming lock, we have to protect the chains
+   * with their own lock. */
+  if (flush) {
+    gint i;
+
+    tevent = gst_event_new_flush_start ();
+    gst_event_set_seqnum (tevent, seqnum);
+
+    gst_event_ref (tevent);
+    gst_pad_push_event (ogg->sinkpad, tevent);
+
+    GST_CHAIN_LOCK (ogg);
+    for (i = 0; i < ogg->chains->len; i++) {
+      GstOggChain *chain = g_array_index (ogg->chains, GstOggChain *, i);
+      gint j;
+
+      for (j = 0; j < chain->streams->len; j++) {
+        GstOggPad *pad = g_array_index (chain->streams, GstOggPad *, j);
+
+        gst_event_ref (tevent);
+        gst_pad_push_event (GST_PAD (pad), tevent);
+      }
+    }
+    GST_CHAIN_UNLOCK (ogg);
+
+    gst_event_unref (tevent);
+  }
+
+  gst_pad_pause_task (ogg->sinkpad);
+
+  /* now grab the stream lock so that streaming cannot continue, for
+   * non flushing seeks when the element is in PAUSED this could block
+   * forever. */
+  GST_PAD_STREAM_LOCK (ogg->sinkpad);
+
+  /* we need to stop flushing on the sinkpad as we're going to use it
+   * next. We can do this as we have the STREAM lock now. */
+  if (flush) {
+    tevent = gst_event_new_flush_stop (TRUE);
+    gst_event_set_seqnum (tevent, seqnum);
+    gst_pad_push_event (ogg->sinkpad, gst_event_ref (tevent));
+    gst_ogg_demux_send_event (ogg, tevent);
+  }
+
+  gst_event_replace (&ogg->seek_event, event);
+  gst_pad_start_task (ogg->sinkpad, (GstTaskFunction) gst_ogg_demux_loop,
+      ogg->sinkpad, NULL);
+  GST_PAD_STREAM_UNLOCK (ogg->sinkpad);
+
+  return TRUE;
+}
+
+static gboolean
 gst_ogg_demux_perform_seek (GstOggDemux * ogg, GstEvent * event)
 {
   gboolean res;
 
   if (ogg->pullmode) {
-    res = gst_ogg_demux_perform_seek_pull (ogg, event);
+    res = gst_ogg_demux_setup_seek_pull (ogg, event);
   } else {
     res = gst_ogg_demux_perform_seek_push (ogg, event);
   }
@@ -4026,7 +4071,7 @@ gst_ogg_demux_bisect_forward_serialno (GstOggDemux * ogg,
       "bisect begin: %" G_GINT64_FORMAT ", searched: %" G_GINT64_FORMAT
       ", end %" G_GINT64_FORMAT ", chain: %p", begin, searched, end, chain);
 
-  /* the below guards against garbage seperating the last and
+  /* the below guards against garbage separating the last and
    * first pages of two links. */
   while (searched < endsearched) {
     gint64 bisect;
@@ -4862,12 +4907,15 @@ static void
 gst_ogg_demux_loop (GstOggPad * pad)
 {
   GstOggDemux *ogg;
+  gboolean res;
   GstFlowReturn ret;
+  GstEvent *seek;
 
   ogg = GST_OGG_DEMUX (GST_OBJECT_PARENT (pad));
+  seek = ogg->seek_event;
+  ogg->seek_event = NULL;
 
   if (ogg->need_chains) {
-    gboolean res;
 
     /* this is the only place where we write chains and thus need to lock. */
     GST_CHAIN_LOCK (ogg);
@@ -4883,8 +4931,12 @@ gst_ogg_demux_loop (GstOggPad * pad)
     GST_OBJECT_UNLOCK (ogg);
 
     /* and seek to configured positions without FLUSH */
-    res = gst_ogg_demux_perform_seek_pull (ogg, NULL);
+    res = gst_ogg_demux_perform_seek_pull (ogg, seek);
 
+    if (!res)
+      goto seek_failed;
+  } else if (seek) {
+    res = gst_ogg_demux_perform_seek_pull (ogg, seek);
     if (!res)
       goto seek_failed;
   }
@@ -5221,7 +5273,7 @@ gst_ogg_demux_change_state (GstElement * element, GstStateChange transition)
   return result;
 }
 
-gboolean
+static gboolean
 gst_ogg_demux_plugin_init (GstPlugin * plugin)
 {
   GST_DEBUG_CATEGORY_INIT (gst_ogg_demux_debug, "oggdemux", 0, "ogg demuxer");
@@ -5235,8 +5287,7 @@ gst_ogg_demux_plugin_init (GstPlugin * plugin)
   bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
 #endif
 
-  return gst_element_register (plugin, "oggdemux", GST_RANK_PRIMARY,
-      GST_TYPE_OGG_DEMUX);
+  return TRUE;
 }
 
 /* prints all info about the element */

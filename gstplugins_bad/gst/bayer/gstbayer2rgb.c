@@ -64,7 +64,7 @@
  * "nearest neighbor" principal, with some additional complexity for the
  * calculation of the "green" element, where an "adaptive" pairing is used.
  *
- * For purposes of documentation and indentification, each element of the
+ * For purposes of documentation and identification, each element of the
  * original array can be put into one of four classes:
  *   R   A red element
  *   B   A blue element
@@ -86,6 +86,7 @@
 #include <stdint.h>
 #endif
 
+#include "gstbayerelements.h"
 #include "gstbayerorc.h"
 
 #define GST_CAT_DEFAULT gst_bayer2rgb_debug
@@ -145,6 +146,8 @@ GType gst_bayer2rgb_get_type (void);
 
 #define gst_bayer2rgb_parent_class parent_class
 G_DEFINE_TYPE (GstBayer2RGB, gst_bayer2rgb, GST_TYPE_BASE_TRANSFORM);
+GST_ELEMENT_REGISTER_DEFINE (bayer2rgb, "bayer2rgb", GST_RANK_NONE,
+    gst_bayer2rgb_get_type ());
 
 static void gst_bayer2rgb_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);

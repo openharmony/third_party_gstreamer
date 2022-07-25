@@ -193,6 +193,7 @@ static void gst_adder_child_proxy_init (gpointer g_iface, gpointer iface_data);
 #define gst_adder_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstAdder, gst_adder, GST_TYPE_ELEMENT,
     G_IMPLEMENT_INTERFACE (GST_TYPE_CHILD_PROXY, gst_adder_child_proxy_init));
+GST_ELEMENT_REGISTER_DEFINE (adder, "adder", GST_RANK_NONE, GST_TYPE_ADDER);
 
 static void gst_adder_dispose (GObject * object);
 static void gst_adder_set_property (GObject * object, guint prop_id,
@@ -416,7 +417,7 @@ invalid_format:
  *
  * We don't do synchronized mixing so this really depends on where the
  * streams where punched in and what their relative offsets are against
- * eachother which we can get from the first timestamps we see.
+ * each other which we can get from the first timestamps we see.
  *
  * When we add a new stream (or remove a stream) the duration might
  * also become invalid again and we need to post a new DURATION
@@ -1424,7 +1425,7 @@ gst_adder_collected (GstCollectPads * pads, gpointer user_data)
       /* Means we had all pads muted, create some silence */
       outbuf = gst_buffer_new_allocate (NULL, outsize, NULL);
       gst_buffer_map (outbuf, &map, GST_MAP_WRITE);
-      gst_audio_format_fill_silence (adder->info.finfo, map.data, outsize);
+      gst_audio_format_info_fill_silence (adder->info.finfo, map.data, outsize);
       gst_buffer_unmap (outbuf, &map);
       GST_BUFFER_FLAG_SET (outbuf, GST_BUFFER_FLAG_GAP);
     } else {
@@ -1582,7 +1583,7 @@ gst_adder_child_proxy_init (gpointer g_iface, gpointer iface_data)
 {
   GstChildProxyInterface *iface = g_iface;
 
-  GST_INFO ("intializing child proxy interface");
+  GST_INFO ("initializing child proxy interface");
   iface->get_child_by_index = gst_adder_child_proxy_get_child_by_index;
   iface->get_children_count = gst_adder_child_proxy_get_children_count;
 }
@@ -1590,14 +1591,13 @@ gst_adder_child_proxy_init (gpointer g_iface, gpointer iface_data)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
+  gboolean ret = FALSE;
   GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "adder", 0,
       "audio channel mixing element");
 
-  if (!gst_element_register (plugin, "adder", GST_RANK_NONE, GST_TYPE_ADDER)) {
-    return FALSE;
-  }
+  ret |= GST_ELEMENT_REGISTER (adder, plugin);
 
-  return TRUE;
+  return ret;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

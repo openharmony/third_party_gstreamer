@@ -1,8 +1,13 @@
-encoding_sources = ['gstencodebin.c',
+encoding_sources = [
+  'gstencodebasebin.c',
+  'gstencodebin.c',
+  'gstencodebin2.c',
   'gstsmartencoder.c',
   'gststreamcombiner.c',
   'gststreamsplitter.c',
-  ]
+  'plugin.c',
+  'gstencodingelements.c',
+]
 
 gstencoding = library('gstencoding',
   encoding_sources,
@@ -13,3 +18,4 @@ gstencoding = library('gstencoding',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstencoding, install_dir : plugins_pkgconfig_install_dir)
+plugins += [gstencoding]

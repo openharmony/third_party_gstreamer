@@ -50,6 +50,8 @@ struct _GstCCExtractor
   GstVideoInfo video_info;
 
   GstFlowCombiner *combiner;
+
+  gboolean remove_caption_meta;
 };
 
 struct _GstCCExtractorClass
@@ -58,6 +60,8 @@ struct _GstCCExtractorClass
 };
 
 GType gst_cc_extractor_get_type (void);
+
+GST_ELEMENT_REGISTER_DECLARE (ccextractor);
 
 G_END_DECLS
 #endif /* __GST_CCEXTRACTOR_H__ */

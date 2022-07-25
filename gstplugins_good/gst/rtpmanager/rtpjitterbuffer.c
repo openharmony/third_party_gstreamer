@@ -87,7 +87,7 @@ rtp_jitter_buffer_init (RTPJitterBuffer * jbuf)
 {
   g_mutex_init (&jbuf->clock_lock);
 
-  jbuf->packets = g_queue_new ();
+  g_queue_init (&jbuf->packets);
   jbuf->mode = RTP_JITTER_BUFFER_MODE_SLAVE;
 
   rtp_jitter_buffer_reset_skew (jbuf);
@@ -112,7 +112,10 @@ rtp_jitter_buffer_finalize (GObject * object)
   if (jbuf->pipeline_clock)
     gst_object_unref (jbuf->pipeline_clock);
 
-  g_queue_free (jbuf->packets);
+  /* We cannot use g_queue_clear() as it would pass the wrong size to
+   * g_slice_free() which may lead to data corruption in the slice allocator.
+   */
+  rtp_jitter_buffer_flush (jbuf, NULL, NULL);
 
   g_mutex_clear (&jbuf->clock_lock);
 
@@ -385,7 +388,7 @@ get_buffer_level (RTPJitterBuffer * jbuf)
   guint64 level;
 
   /* first buffer with timestamp */
-  high_buf = (RTPJitterBufferItem *) g_queue_peek_tail_link (jbuf->packets);
+  high_buf = (RTPJitterBufferItem *) g_queue_peek_tail_link (&jbuf->packets);
   while (high_buf) {
     if (high_buf->dts != -1 || high_buf->pts != -1)
       break;
@@ -393,7 +396,7 @@ get_buffer_level (RTPJitterBuffer * jbuf)
     high_buf = (RTPJitterBufferItem *) g_list_previous (high_buf);
   }
 
-  low_buf = (RTPJitterBufferItem *) g_queue_peek_head_link (jbuf->packets);
+  low_buf = (RTPJitterBufferItem *) g_queue_peek_head_link (&jbuf->packets);
   while (low_buf) {
     if (low_buf->dts != -1 || low_buf->pts != -1)
       break;
@@ -504,7 +507,7 @@ update_buffer_level (RTPJitterBuffer * jbuf, gint * percent)
  *    Cri    : The time of the clock at the receiver for packet i
  *    D + ni : The jitter when receiving packet i
  *
- * We see that the network delay is irrelevant here as we can elliminate D:
+ * We see that the network delay is irrelevant here as we can eliminate D:
  *
  *  recv_diff(i) = (Cri + ni) - (Cr0 + n0))
  *
@@ -530,7 +533,7 @@ update_buffer_level (RTPJitterBuffer * jbuf, gint * percent)
  */
 static GstClockTime
 calculate_skew (RTPJitterBuffer * jbuf, guint64 ext_rtptime,
-    GstClockTime gstrtptime, GstClockTime time)
+    GstClockTime gstrtptime, GstClockTime time, gint gap, gboolean is_rtx)
 {
   guint64 send_diff, recv_diff;
   gint64 delta;
@@ -544,7 +547,7 @@ calculate_skew (RTPJitterBuffer * jbuf, guint64 ext_rtptime,
 
   /* we don't have an arrival timestamp so we can't do skew detection. we
    * should still apply a timestamp based on RTP timestamp and base_time */
-  if (time == -1 || jbuf->base_time == -1)
+  if (time == -1 || jbuf->base_time == -1 || is_rtx)
     goto no_skew;
 
   /* elapsed time at receiver, includes the jitter */
@@ -574,7 +577,13 @@ calculate_skew (RTPJitterBuffer * jbuf, guint64 ext_rtptime,
     rtp_jitter_buffer_resync (jbuf, time, gstrtptime, ext_rtptime, TRUE);
     send_diff = 0;
     delta = 0;
+    gap = 0;
   }
+
+  /* only do skew calculations if we didn't have a gap. if too much time
+   * has elapsed despite there being a gap, we resynced already. */
+  if (G_UNLIKELY (gap != 0))
+    goto no_skew;
 
   pos = jbuf->window_pos;
 
@@ -672,7 +681,7 @@ no_skew:
 static void
 queue_do_insert (RTPJitterBuffer * jbuf, GList * list, GList * item)
 {
-  GQueue *queue = jbuf->packets;
+  GQueue *queue = &jbuf->packets;
 
   /* It's more likely that the packet was inserted at the tail of the queue */
   if (G_LIKELY (list)) {
@@ -693,7 +702,8 @@ queue_do_insert (RTPJitterBuffer * jbuf, GList * list, GList * item)
 
 GstClockTime
 rtp_jitter_buffer_calculate_pts (RTPJitterBuffer * jbuf, GstClockTime dts,
-    gboolean estimated_dts, guint32 rtptime, GstClockTime base_time)
+    gboolean estimated_dts, guint32 rtptime, GstClockTime base_time,
+    gint gap, gboolean is_rtx)
 {
   guint64 ext_rtptime;
   GstClockTime gstrtptime, pts;
@@ -714,10 +724,18 @@ rtp_jitter_buffer_calculate_pts (RTPJitterBuffer * jbuf, GstClockTime dts,
     ext_rtptime = gst_rtp_buffer_ext_timestamp (&ext_rtptime, rtptime);
     if (ext_rtptime > jbuf->last_rtptime + 3 * jbuf->clock_rate ||
         ext_rtptime + 3 * jbuf->clock_rate < jbuf->last_rtptime) {
-      /* reset even if we don't have valid incoming time;
-       * still better than producing possibly very bogus output timestamp */
-      GST_WARNING ("rtp delta too big, reset skew");
-      rtp_jitter_buffer_reset_skew (jbuf);
+      if (!is_rtx) {
+        /* reset even if we don't have valid incoming time;
+         * still better than producing possibly very bogus output timestamp */
+        GST_WARNING ("rtp delta too big, reset skew");
+        rtp_jitter_buffer_reset_skew (jbuf);
+      } else {
+        GST_WARNING ("rtp delta too big: ignore rtx packet");
+        media_clock = NULL;
+        pipeline_clock = NULL;
+        pts = GST_CLOCK_TIME_NONE;
+        goto done;
+      }
     }
   }
 
@@ -743,11 +761,17 @@ rtp_jitter_buffer_calculate_pts (RTPJitterBuffer * jbuf, GstClockTime dts,
   if (G_LIKELY (jbuf->base_rtptime != -1)) {
     /* check elapsed time in RTP units */
     if (gstrtptime < jbuf->base_rtptime) {
-      /* elapsed time at sender, timestamps can go backwards and thus be
-       * smaller than our base time, schedule to take a new base time in
-       * that case. */
-      GST_WARNING ("backward timestamps at server, schedule resync");
-      jbuf->need_resync = TRUE;
+      if (!is_rtx) {
+        /* elapsed time at sender, timestamps can go backwards and thus be
+         * smaller than our base time, schedule to take a new base time in
+         * that case. */
+        GST_WARNING ("backward timestamps at server, schedule resync");
+        jbuf->need_resync = TRUE;
+      } else {
+        GST_WARNING ("backward timestamps: ignore rtx packet");
+        pts = GST_CLOCK_TIME_NONE;
+        goto done;
+      }
     }
   }
 
@@ -777,6 +801,11 @@ rtp_jitter_buffer_calculate_pts (RTPJitterBuffer * jbuf, GstClockTime dts,
   /* need resync, lock on to time and gstrtptime if we can, otherwise we
    * do with the previous values */
   if (G_UNLIKELY (jbuf->need_resync && dts != -1)) {
+    if (is_rtx) {
+      GST_DEBUG ("not resyncing on rtx packet, discard");
+      pts = GST_CLOCK_TIME_NONE;
+      goto done;
+    }
     GST_INFO ("resync to time %" GST_TIME_FORMAT ", rtptime %"
         GST_TIME_FORMAT, GST_TIME_ARGS (dts), GST_TIME_ARGS (gstrtptime));
     rtp_jitter_buffer_resync (jbuf, dts, gstrtptime, ext_rtptime, FALSE);
@@ -873,12 +902,12 @@ rtp_jitter_buffer_calculate_pts (RTPJitterBuffer * jbuf, GstClockTime dts,
 
     if (ntprtptime > rtptime_tmp)
       ntptime -=
-          gst_util_uint64_scale (ntprtptime - rtptime_tmp, jbuf->clock_rate,
-          GST_SECOND);
+          gst_util_uint64_scale (ntprtptime - rtptime_tmp, GST_SECOND,
+          jbuf->clock_rate);
     else
       ntptime +=
-          gst_util_uint64_scale (rtptime_tmp - ntprtptime, jbuf->clock_rate,
-          GST_SECOND);
+          gst_util_uint64_scale (rtptime_tmp - ntprtptime, GST_SECOND,
+          jbuf->clock_rate);
 
     rtpsystime =
         gst_clock_adjust_with_calibration (media_clock, ntptime, internal,
@@ -890,8 +919,14 @@ rtp_jitter_buffer_calculate_pts (RTPJitterBuffer * jbuf, GstClockTime dts,
     else
       pts = 0;
 
-    GST_DEBUG ("RFC7273 clock time %" GST_TIME_FORMAT ", out %" GST_TIME_FORMAT,
-        GST_TIME_ARGS (rtpsystime), GST_TIME_ARGS (pts));
+    GST_DEBUG ("RFC7273 clock time %" GST_TIME_FORMAT ", ntptime %"
+        GST_TIME_FORMAT ", ntprtptime %" G_GUINT64_FORMAT ", rtptime %"
+        G_GUINT32_FORMAT ", base_time %" GST_TIME_FORMAT ", internal %"
+        GST_TIME_FORMAT ", external %" GST_TIME_FORMAT ", out %"
+        GST_TIME_FORMAT, GST_TIME_ARGS (rtpsystime), GST_TIME_ARGS (ntptime),
+        ntprtptime, rtptime, GST_TIME_ARGS (base_time),
+        GST_TIME_ARGS (internal), GST_TIME_ARGS (external),
+        GST_TIME_ARGS (pts));
   } else {
     /* If we used the RFC7273 clock before and not anymore,
      * we need to resync it later again */
@@ -899,7 +934,7 @@ rtp_jitter_buffer_calculate_pts (RTPJitterBuffer * jbuf, GstClockTime dts,
 
     /* do skew calculation by measuring the difference between rtptime and the
      * receive dts, this function will return the skew corrected rtptime. */
-    pts = calculate_skew (jbuf, ext_rtptime, gstrtptime, dts);
+    pts = calculate_skew (jbuf, ext_rtptime, gstrtptime, dts, gap, is_rtx);
   }
 
   /* check if timestamps are not going backwards, we can only check this if we
@@ -921,13 +956,14 @@ rtp_jitter_buffer_calculate_pts (RTPJitterBuffer * jbuf, GstClockTime dts,
     }
   }
 
-  if (dts != -1 && pts + jbuf->delay < dts) {
+  if (gap == 0 && dts != -1 && pts + jbuf->delay < dts) {
     /* if we are going to produce a timestamp that is later than the input
      * timestamp, we need to reset the jitterbuffer. Likely the server paused
      * temporarily */
     GST_DEBUG ("out %" GST_TIME_FORMAT " + %" G_GUINT64_FORMAT " < time %"
-        GST_TIME_FORMAT ", reset jitterbuffer", GST_TIME_ARGS (pts),
+        GST_TIME_FORMAT ", reset jitterbuffer and discard", GST_TIME_ARGS (pts),
         jbuf->delay, GST_TIME_ARGS (dts));
+    rtp_jitter_buffer_reset_skew (jbuf);
     rtp_jitter_buffer_resync (jbuf, dts, gstrtptime, ext_rtptime, TRUE);
     pts = dts;
   }
@@ -935,6 +971,7 @@ rtp_jitter_buffer_calculate_pts (RTPJitterBuffer * jbuf, GstClockTime dts,
   jbuf->prev_out_time = pts;
   jbuf->prev_send_diff = gstrtptime - jbuf->base_rtptime;
 
+done:
   if (media_clock)
     gst_object_unref (media_clock);
   if (pipeline_clock)
@@ -961,7 +998,7 @@ rtp_jitter_buffer_calculate_pts (RTPJitterBuffer * jbuf, GstClockTime dts,
  *
  * Returns: %FALSE if a packet with the same number already existed.
  */
-gboolean
+static gboolean
 rtp_jitter_buffer_insert (RTPJitterBuffer * jbuf, RTPJitterBufferItem * item,
     gboolean * head, gint * percent)
 {
@@ -971,7 +1008,7 @@ rtp_jitter_buffer_insert (RTPJitterBuffer * jbuf, RTPJitterBufferItem * item,
   g_return_val_if_fail (jbuf != NULL, FALSE);
   g_return_val_if_fail (item != NULL, FALSE);
 
-  list = jbuf->packets->tail;
+  list = jbuf->packets.tail;
 
   /* no seqnum, simply append then */
   if (item->seqnum == -1)
@@ -1039,8 +1076,154 @@ duplicate:
     GST_DEBUG ("duplicate packet %d found", (gint) seqnum);
     if (G_LIKELY (head))
       *head = FALSE;
+    if (percent)
+      *percent = -1;
     return FALSE;
   }
+}
+
+/**
+ * rtp_jitter_buffer_alloc_item:
+ * @data: The data stored in this item
+ * @type: User specific item type
+ * @dts: Decoding Timestamp
+ * @pts: Presentation Timestamp
+ * @seqnum: Sequence number
+ * @count: Number of packet this item represent
+ * @rtptime: The RTP specific timestamp
+ * @free_data: A function to free @data (optional)
+ *
+ * Create an item that can then be stored in the jitter buffer.
+ *
+ * Returns: a newly allocated RTPJitterbufferItem
+ */
+static RTPJitterBufferItem *
+rtp_jitter_buffer_alloc_item (gpointer data, guint type, GstClockTime dts,
+    GstClockTime pts, guint seqnum, guint count, guint rtptime,
+    GDestroyNotify free_data)
+{
+  RTPJitterBufferItem *item;
+
+  item = g_slice_new (RTPJitterBufferItem);
+  item->data = data;
+  item->next = NULL;
+  item->prev = NULL;
+  item->type = type;
+  item->dts = dts;
+  item->pts = pts;
+  item->seqnum = seqnum;
+  item->count = count;
+  item->rtptime = rtptime;
+  item->free_data = free_data;
+
+  return item;
+}
+
+static inline RTPJitterBufferItem *
+alloc_event_item (GstEvent * event)
+{
+  return rtp_jitter_buffer_alloc_item (event, ITEM_TYPE_EVENT, -1, -1, -1, 0,
+      -1, (GDestroyNotify) gst_mini_object_unref);
+}
+
+/**
+ * rtp_jitter_buffer_append_event:
+ * @jbuf: an #RTPJitterBuffer
+ * @event: an #GstEvent to insert
+
+ * Inserts @event into the packet queue of @jbuf.
+ *
+ * Returns: %TRUE if the event is at the head of the queue
+ */
+gboolean
+rtp_jitter_buffer_append_event (RTPJitterBuffer * jbuf, GstEvent * event)
+{
+  RTPJitterBufferItem *item = alloc_event_item (event);
+  gboolean head;
+  rtp_jitter_buffer_insert (jbuf, item, &head, NULL);
+  return head;
+}
+
+/**
+ * rtp_jitter_buffer_append_query:
+ * @jbuf: an #RTPJitterBuffer
+ * @query: an #GstQuery to insert
+
+ * Inserts @query into the packet queue of @jbuf.
+ *
+ * Returns: %TRUE if the query is at the head of the queue
+ */
+gboolean
+rtp_jitter_buffer_append_query (RTPJitterBuffer * jbuf, GstQuery * query)
+{
+  RTPJitterBufferItem *item =
+      rtp_jitter_buffer_alloc_item (query, ITEM_TYPE_QUERY, -1, -1, -1, 0, -1,
+      NULL);
+  gboolean head;
+  rtp_jitter_buffer_insert (jbuf, item, &head, NULL);
+  return head;
+}
+
+/**
+ * rtp_jitter_buffer_append_lost_event:
+ * @jbuf: an #RTPJitterBuffer
+ * @event: an #GstEvent to insert
+ * @seqnum: Sequence number
+ * @lost_packets: Number of lost packet this item represent
+
+ * Inserts @event into the packet queue of @jbuf.
+ *
+ * Returns: %TRUE if the event is at the head of the queue
+ */
+gboolean
+rtp_jitter_buffer_append_lost_event (RTPJitterBuffer * jbuf, GstEvent * event,
+    guint16 seqnum, guint lost_packets)
+{
+  RTPJitterBufferItem *item = rtp_jitter_buffer_alloc_item (event,
+      ITEM_TYPE_LOST, -1, -1, seqnum, lost_packets, -1,
+      (GDestroyNotify) gst_mini_object_unref);
+  gboolean head;
+
+  if (!rtp_jitter_buffer_insert (jbuf, item, &head, NULL)) {
+    /* Duplicate */
+    rtp_jitter_buffer_free_item (item);
+    head = FALSE;
+  }
+
+  return head;
+}
+
+/**
+ * rtp_jitter_buffer_append_buffer:
+ * @jbuf: an #RTPJitterBuffer
+ * @buf: an #GstBuffer to insert
+ * @seqnum: Sequence number
+ * @duplicate: TRUE when the packet inserted is a duplicate
+ * @percent: the buffering percent after insertion
+ *
+ * Inserts @buf into the packet queue of @jbuf.
+ *
+ * Returns: %TRUE if the buffer is at the head of the queue
+ */
+gboolean
+rtp_jitter_buffer_append_buffer (RTPJitterBuffer * jbuf, GstBuffer * buf,
+    GstClockTime dts, GstClockTime pts, guint16 seqnum, guint rtptime,
+    gboolean * duplicate, gint * percent)
+{
+  RTPJitterBufferItem *item = rtp_jitter_buffer_alloc_item (buf,
+      ITEM_TYPE_BUFFER, dts, pts, seqnum, 1, rtptime,
+      (GDestroyNotify) gst_mini_object_unref);
+  gboolean head;
+  gboolean inserted;
+
+  inserted = rtp_jitter_buffer_insert (jbuf, item, &head, percent);
+  if (!inserted)
+    rtp_jitter_buffer_free_item (item);
+
+  if (duplicate)
+    *duplicate = !inserted;
+
+  return head;
 }
 
 /**
@@ -1062,7 +1245,7 @@ rtp_jitter_buffer_pop (RTPJitterBuffer * jbuf, gint * percent)
 
   g_return_val_if_fail (jbuf != NULL, NULL);
 
-  queue = jbuf->packets;
+  queue = &jbuf->packets;
 
   item = queue->head;
   if (item) {
@@ -1079,6 +1262,11 @@ rtp_jitter_buffer_pop (RTPJitterBuffer * jbuf, gint * percent)
     update_buffer_level (jbuf, percent);
   else if (percent)
     *percent = -1;
+
+  /* let's clear the pointers so we can ensure we don't free items that are
+   * still in the jitterbuffer */
+  if (item)
+    item->next = item->prev = NULL;
 
   return (RTPJitterBufferItem *) item;
 }
@@ -1099,13 +1287,13 @@ rtp_jitter_buffer_peek (RTPJitterBuffer * jbuf)
 {
   g_return_val_if_fail (jbuf != NULL, NULL);
 
-  return (RTPJitterBufferItem *) jbuf->packets->head;
+  return (RTPJitterBufferItem *) jbuf->packets.head;
 }
 
 /**
  * rtp_jitter_buffer_flush:
  * @jbuf: an #RTPJitterBuffer
- * @free_func: function to free each item
+ * @free_func: function to free each item (optional)
  * @user_data: user data passed to @free_func
  *
  * Flush all packets from the jitterbuffer.
@@ -1117,9 +1305,11 @@ rtp_jitter_buffer_flush (RTPJitterBuffer * jbuf, GFunc free_func,
   GList *item;
 
   g_return_if_fail (jbuf != NULL);
-  g_return_if_fail (free_func != NULL);
 
-  while ((item = g_queue_pop_head_link (jbuf->packets)))
+  if (free_func == NULL)
+    free_func = (GFunc) rtp_jitter_buffer_free_item;
+
+  while ((item = g_queue_pop_head_link (&jbuf->packets)))
     free_func ((RTPJitterBufferItem *) item, user_data);
 }
 
@@ -1191,7 +1381,7 @@ rtp_jitter_buffer_num_packets (RTPJitterBuffer * jbuf)
 {
   g_return_val_if_fail (jbuf != NULL, 0);
 
-  return jbuf->packets->length;
+  return jbuf->packets.length;
 }
 
 /**
@@ -1212,8 +1402,8 @@ rtp_jitter_buffer_get_ts_diff (RTPJitterBuffer * jbuf)
 
   g_return_val_if_fail (jbuf != NULL, 0);
 
-  high_buf = (RTPJitterBufferItem *) g_queue_peek_tail_link (jbuf->packets);
-  low_buf = (RTPJitterBufferItem *) g_queue_peek_head_link (jbuf->packets);
+  high_buf = (RTPJitterBufferItem *) g_queue_peek_tail_link (&jbuf->packets);
+  low_buf = (RTPJitterBufferItem *) g_queue_peek_head_link (&jbuf->packets);
 
   if (!high_buf || !low_buf || high_buf == low_buf)
     return 0;
@@ -1231,7 +1421,7 @@ rtp_jitter_buffer_get_ts_diff (RTPJitterBuffer * jbuf)
 }
 
 
-/**
+/*
  * rtp_jitter_buffer_get_seqnum_diff:
  * @jbuf: an #RTPJitterBuffer
  *
@@ -1240,7 +1430,7 @@ rtp_jitter_buffer_get_ts_diff (RTPJitterBuffer * jbuf)
  *
  * Returns: The difference expressed in seqnum.
  */
-guint16
+static guint16
 rtp_jitter_buffer_get_seqnum_diff (RTPJitterBuffer * jbuf)
 {
   guint32 high_seqnum, low_seqnum;
@@ -1249,8 +1439,8 @@ rtp_jitter_buffer_get_seqnum_diff (RTPJitterBuffer * jbuf)
 
   g_return_val_if_fail (jbuf != NULL, 0);
 
-  high_buf = (RTPJitterBufferItem *) g_queue_peek_tail_link (jbuf->packets);
-  low_buf = (RTPJitterBufferItem *) g_queue_peek_head_link (jbuf->packets);
+  high_buf = (RTPJitterBufferItem *) g_queue_peek_tail_link (&jbuf->packets);
+  low_buf = (RTPJitterBufferItem *) g_queue_peek_head_link (&jbuf->packets);
 
   while (high_buf && high_buf->seqnum == -1)
     high_buf = (RTPJitterBufferItem *) high_buf->prev;
@@ -1340,4 +1530,31 @@ rtp_jitter_buffer_can_fast_start (RTPJitterBuffer * jbuf, gint num_packet)
   }
 
   return ret;
+}
+
+gboolean
+rtp_jitter_buffer_is_full (RTPJitterBuffer * jbuf)
+{
+  return rtp_jitter_buffer_get_seqnum_diff (jbuf) >= 32765 &&
+      rtp_jitter_buffer_num_packets (jbuf) > 10000;
+}
+
+
+/**
+ * rtp_jitter_buffer_free_item:
+ * @item: the item to be freed
+ *
+ * Free the jitter buffer item.
+ */
+void
+rtp_jitter_buffer_free_item (RTPJitterBufferItem * item)
+{
+  g_return_if_fail (item != NULL);
+  /* needs to be unlinked first */
+  g_return_if_fail (item->next == NULL);
+  g_return_if_fail (item->prev == NULL);
+
+  if (item->data && item->free_data)
+    item->free_data (item->data);
+  g_slice_free (RTPJitterBufferItem, item);
 }

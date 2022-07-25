@@ -40,13 +40,66 @@
 
 #include <gst/gst.h>
 #include <gst/video/video.h>
+#include <gst/allocators/allocators.h>
 
 #include <mfxvideo.h>
 
+#if (MFX_VERSION < 2000)
+#include <mfxplugin.h>
+#else
+#include <mfxdispatcher.h>
+
+#define mfxPluginUID char
+static const char MFX_PLUGINID_HEVCD_SW;
+static const char MFX_PLUGINID_HEVCD_HW;
+static const char MFX_PLUGINID_HEVCE_SW;
+static const char MFX_PLUGINID_HEVCE_HW;
+static const char MFX_PLUGINID_VP8D_HW;
+static const char MFX_PLUGINID_VP9E_HW;
+static const char MFX_PLUGINID_VP9D_HW;
+#endif
+
+#if (MFX_VERSION >= 2000)
+#define MFX_API_SDK  "Intel(R) oneVPL"
+#else
+#define MFX_API_SDK  "Intel(R) Media SDK"
+#endif
+
 G_BEGIN_DECLS
 
-mfxSession msdk_open_session (mfxIMPL impl);
-void msdk_close_session (mfxSession session);
+#define GST_MSDK_CAPS_MAKE(format) \
+  GST_VIDEO_CAPS_MAKE (format) ", " \
+  "interlace-mode = (string) progressive"
+
+#ifndef _WIN32
+#define GST_MSDK_CAPS_MAKE_WITH_DMABUF_FEATURE(dmaformat) \
+  GST_VIDEO_CAPS_MAKE_WITH_FEATURES(GST_CAPS_FEATURE_MEMORY_DMABUF, dmaformat) ", " \
+  "interlace-mode = (string) progressive"
+#else
+#define GST_MSDK_CAPS_MAKE_WITH_DMABUF_FEATURE(dmaformat) ""
+#endif
+
+#define GST_MSDK_CAPS_STR(format,dmaformat) \
+  GST_MSDK_CAPS_MAKE (format) "; " \
+  GST_MSDK_CAPS_MAKE_WITH_DMABUF_FEATURE (dmaformat)
+
+#if (MFX_VERSION < 2000)
+typedef void * mfxLoader;
+
+void MFXUnload (mfxLoader loader);
+#endif
+
+typedef struct _MsdkSession MsdkSession;
+
+struct _MsdkSession
+{
+  mfxSession session;
+  mfxLoader loader;
+};
+
+MsdkSession msdk_open_session (mfxIMPL impl);
+void msdk_close_mfx_session (mfxSession session);
+void msdk_close_session (MsdkSession * session);
 
 gboolean msdk_is_available (void);
 
@@ -56,7 +109,7 @@ void msdk_frame_to_surface (GstVideoFrame * frame, mfxFrameSurface1 * surface);
 
 const gchar *msdk_status_to_string (mfxStatus status);
 
-void gst_msdk_set_video_alignment (GstVideoInfo * info,
+void gst_msdk_set_video_alignment (GstVideoInfo * info, guint alloc_w, guint alloc_h,
     GstVideoAlignment * alignment);
 
 /* Conversion from Gstreamer to libmfx */
@@ -73,6 +126,25 @@ gst_msdk_get_surface_from_buffer (GstBuffer * buf);
 
 GstVideoFormat
 gst_msdk_get_video_format_from_mfx_fourcc (mfxU32 fourcc);
+
+void
+gst_msdk_update_mfx_frame_info_from_mfx_video_param (mfxFrameInfo * mfx_info,
+    mfxVideoParam * param);
+
+void
+gst_msdk_get_mfx_video_orientation_from_video_direction (guint value,
+    guint * mfx_mirror, guint * mfx_rotation);
+
+gboolean
+gst_msdk_load_plugin (mfxSession session, const mfxPluginUID * uid,
+    mfxU32 version, const gchar * plugin);
+
+mfxU16
+msdk_get_platform_codename (mfxSession session);
+
+mfxStatus
+msdk_init_msdk_session (mfxIMPL impl, mfxVersion * pver,
+    MsdkSession * msdk_session);
 
 G_END_DECLS
 
