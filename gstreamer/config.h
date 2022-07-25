@@ -149,7 +149,9 @@
 
 #define HAVE_UCONTEXT_H 1
 
+#ifdef __LP64__
 #define HAVE_UINT128_T 1
+#endif
 
 #define HAVE_UNISTD_H 1
 
