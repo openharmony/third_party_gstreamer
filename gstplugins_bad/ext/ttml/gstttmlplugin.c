@@ -24,35 +24,18 @@
 #include <config.h>
 #endif
 
-#include "gstttmlparse.h"
-#include "gstttmlrender.h"
+#include "gstttmlelements.h"
 
-GST_DEBUG_CATEGORY (ttmlparse_debug);
-GST_DEBUG_CATEGORY (ttmlrender_debug);
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  guint rank = GST_RANK_NONE;
+  gboolean ret = FALSE;
 
-  /* We don't want this autoplugged by default yet for now */
-  if (g_getenv ("GST_TTML_AUTOPLUG")) {
-    GST_INFO_OBJECT (plugin, "Registering ttml elements with primary rank.");
-    rank = GST_RANK_PRIMARY;
-  }
+  ret |= GST_ELEMENT_REGISTER (ttmlparse, plugin);
+  ret |= GST_ELEMENT_REGISTER (ttmlrender, plugin);
 
-  gst_plugin_add_dependency_simple (plugin, "GST_TTML_AUTOPLUG", NULL, NULL,
-      GST_PLUGIN_DEPENDENCY_FLAG_NONE);
-
-  if (!gst_element_register (plugin, "ttmlparse", rank, GST_TYPE_TTML_PARSE))
-    return FALSE;
-  if (!gst_element_register (plugin, "ttmlrender", rank, GST_TYPE_TTML_RENDER))
-    return FALSE;
-
-  GST_DEBUG_CATEGORY_INIT (ttmlparse_debug, "ttmlparse", 0, "TTML parser");
-  GST_DEBUG_CATEGORY_INIT (ttmlrender_debug, "ttmlrender", 0, "TTML renderer");
-
-  return TRUE;
+  return ret;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

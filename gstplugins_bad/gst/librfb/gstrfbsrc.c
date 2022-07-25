@@ -82,6 +82,7 @@ static GstFlowReturn gst_rfb_src_fill (GstPushSrc * psrc, GstBuffer * outbuf);
 
 #define gst_rfb_src_parent_class parent_class
 G_DEFINE_TYPE (GstRfbSrc, gst_rfb_src, GST_TYPE_PUSH_SRC);
+GST_ELEMENT_REGISTER_DEFINE (rfbsrc, "rfbsrc", GST_RANK_NONE, GST_TYPE_RFB_SRC);
 
 static void
 gst_rfb_src_class_init (GstRfbSrcClass * klass)
@@ -248,17 +249,17 @@ gst_rfb_src_set_property (GObject * object, guint prop_id,
 
   switch (prop_id) {
     case PROP_HOST:
-      src->host = g_strdup (g_value_get_string (value));
+      src->host = g_value_dup_string (value);;
       break;
     case PROP_PORT:
       src->port = g_value_get_int (value);
       break;
     case PROP_VERSION:
-      gst_rfb_property_set_version (src, g_strdup (g_value_get_string (value)));
+      gst_rfb_property_set_version (src, g_value_dup_string (value));
       break;
     case PROP_PASSWORD:
       g_free (src->decoder->password);
-      src->decoder->password = g_strdup (g_value_get_string (value));
+      src->decoder->password = g_value_dup_string (value);
       break;
     case PROP_OFFSET_X:
       src->decoder->offset_x = g_value_get_int (value);
@@ -632,8 +633,7 @@ gst_rfb_src_unlock (GstBaseSrc * bsrc)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return gst_element_register (plugin, "rfbsrc", GST_RANK_NONE,
-      GST_TYPE_RFB_SRC);
+  return GST_ELEMENT_REGISTER (rfbsrc, plugin);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

@@ -27,7 +27,8 @@
  * @see_also: #GstAudioConvert #GstAudioResample, #GstAudioTestSrc, #GstAutoAudioSink
  *
  * The LADSPA (Linux Audio Developer's Simple Plugin API) element is a bridge
- * for plugins using the <ulink url="http://www.ladspa.org/">LADSPA</ulink> API.
+ * for plugins using the [LADSPA](http://www.ladspa.org/) API.
+ *
  * It scans all installed LADSPA plugins and registers them as gstreamer
  * elements. If available it can also parse LRDF files and use the metadata for
  * element classification. The functionality you get depends on the LADSPA plugins
@@ -102,7 +103,7 @@
  * ## Example Sink/Audio/LADSPA line with this plugins
  * |[
  * gst-launch-1.0 autoaudiosrc ! ladspa-cmt-so-amp-mono gain=2 ! ladspa-caps-so-plate ! ladspa-tap-echo-so-tap-stereo-echo l-delay=500 r-haas-delay=500 ! tee name=myT myT. ! audioconvert ! audioresample ! queue ! ladspasink-cmt-so-null-ai myT. ! audioconvert ! audioresample ! queue ! goom ! videoconvert ! xvimagesink pixel-aspect-ratio=3/4
- * ]| Get audio input, filter it trhough Mono Amplifier, CAPS Plate LADSPA and TAP Stereo Echo, explicitily anulate audio with Null (Audio Output), and play a visualization (recommended hearphones).
+ * ]| Get audio input, filter it trhough Mono Amplifier, CAPS Plate LADSPA and TAP Stereo Echo, explicitly anulate audio with Null (Audio Output), and play a visualization (recommended hearphones).
  *
  */
 

@@ -18,12 +18,12 @@
  */
 /**
  * SECTION:element-cacasink
+ * @title: cacasink
  * @see_also: #GstAASink
  *
  * Displays video as color ascii art.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * CACA_GEOMETRY=160x60 CACA_FONT=5x7 gst-launch-1.0 filesrc location=test.avi ! decodebin ! videoconvert ! cacasink
  * ]| This pipeline renders a video to ascii art into a separate window using a
@@ -31,7 +31,7 @@
  * |[
  * CACA_DRIVER=ncurses gst-launch-1.0 filesrc location=test.avi ! decodebin ! videoconvert ! cacasink
  * ]| This pipeline renders a video to ascii art into the current terminal.
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -40,7 +40,6 @@
 
 #include <string.h>
 #include "gstcacasink.h"
-
 
 //#define GST_CACA_DEFAULT_RED_MASK R_MASK_32_REVERSE_INT
 //#define GST_CACA_DEFAULT_GREEN_MASK G_MASK_32_REVERSE_INT
@@ -89,6 +88,8 @@ static GstStateChangeReturn gst_cacasink_change_state (GstElement * element,
 
 #define gst_cacasink_parent_class parent_class
 G_DEFINE_TYPE (GstCACASink, gst_cacasink, GST_TYPE_BASE_SINK);
+GST_ELEMENT_REGISTER_DEFINE (cacasink, "cacasink", GST_RANK_NONE,
+    GST_TYPE_CACASINK);
 
 #define GST_TYPE_CACADITHER (gst_cacasink_dither_get_type())
 static GType
@@ -156,6 +157,8 @@ gst_cacasink_class_init (GstCACASinkClass * klass)
   gstbasesink_class->get_times = GST_DEBUG_FUNCPTR (gst_cacasink_get_times);
   gstbasesink_class->preroll = GST_DEBUG_FUNCPTR (gst_cacasink_render);
   gstbasesink_class->render = GST_DEBUG_FUNCPTR (gst_cacasink_render);
+
+  gst_type_mark_as_plugin_api (GST_TYPE_CACADITHER, 0);
 }
 
 static void
@@ -401,19 +404,3 @@ gst_cacasink_change_state (GstElement * element, GstStateChange transition)
   }
   return ret;
 }
-
-static gboolean
-plugin_init (GstPlugin * plugin)
-{
-  if (!gst_element_register (plugin, "cacasink", GST_RANK_NONE,
-          GST_TYPE_CACASINK))
-    return FALSE;
-
-  return TRUE;
-}
-
-GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-    GST_VERSION_MINOR,
-    cacasink,
-    "Colored ASCII Art video sink",
-    plugin_init, VERSION, GST_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)

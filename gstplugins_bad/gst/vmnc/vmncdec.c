@@ -79,6 +79,8 @@ GST_STATIC_PAD_TEMPLATE ("sink",
     );
 
 G_DEFINE_TYPE (GstVMncDec, gst_vmnc_dec, GST_TYPE_VIDEO_DECODER);
+GST_ELEMENT_REGISTER_DEFINE (vmncdec, "vmncdec", GST_RANK_PRIMARY,
+    GST_TYPE_VMNC_DEC);
 
 static void
 gst_vmnc_dec_class_init (GstVMncDecClass * klass)
@@ -235,12 +237,12 @@ vmnc_handle_wmvi_rectangle (GstVMncDec * dec, struct RfbRectangle *rect,
   format = gst_video_format_from_masks (dec->format.depth, bpp, endianness,
       redmask, greenmask, bluemask, 0);
 
-  GST_DEBUG_OBJECT (dec, "From depth: %d bpp: %u endianess: %s redmask: %X "
+  GST_DEBUG_OBJECT (dec, "From depth: %d bpp: %u endianness: %s redmask: %X "
       "greenmask: %X bluemask: %X got format %s",
       dec->format.depth, bpp, endianness == G_BIG_ENDIAN ? "BE" : "LE",
       GUINT32_FROM_BE (redmask), GUINT32_FROM_BE (greenmask),
       GUINT32_FROM_BE (bluemask),
-      format == GST_VIDEO_FORMAT_UNKNOWN ? "UNKOWN" :
+      format == GST_VIDEO_FORMAT_UNKNOWN ? "UNKNOWN" :
       gst_video_format_to_string (format));
 
   if (format == GST_VIDEO_FORMAT_UNKNOWN) {
@@ -835,7 +837,7 @@ vmnc_handle_packet (GstVMncDec * dec, const guint8 * data, int len,
 
         read = handler (dec, &r, data + offset + 12, len - offset - 12, decode);
         if (read < 0) {
-          GST_DEBUG_OBJECT (dec, "Error calling rectangle handler\n");
+          GST_DEBUG_OBJECT (dec, "Error calling rectangle handler");
           return read;
         }
         offset += 12 + read;
@@ -957,10 +959,7 @@ gst_vmnc_dec_parse (GstVideoDecoder * decoder, GstVideoCodecFrame * frame,
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  if (!gst_element_register (plugin, "vmncdec", GST_RANK_PRIMARY,
-          GST_TYPE_VMNC_DEC))
-    return FALSE;
-  return TRUE;
+  return GST_ELEMENT_REGISTER (vmncdec, plugin);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

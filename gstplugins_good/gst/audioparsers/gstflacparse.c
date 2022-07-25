@@ -23,6 +23,7 @@
 
 /**
  * SECTION:element-flacparse
+ * @title: flacparse
  * @see_also: flacdec, oggdemux, vorbisparse
  *
  * The flacparse element will parse the header packets of the FLAC
@@ -37,15 +38,13 @@
  * which allows you to (for example) remux an ogg/flac or convert a native FLAC
  * format file to an ogg bitstream.
  *
- * <refsect2>
- * <title>Example pipelines</title>
+ * ## Example pipelines
  * |[
  * gst-launch-1.0 -v filesrc location=sine.flac ! flacparse ! identity \
  *            ! oggmux ! filesink location=sine-remuxed.ogg
  * ]| This pipeline converts a native FLAC format file to an ogg bitstream.
  * It also illustrates that the streamheader is set in the caps, and that each
  * buffer has the timestamp, duration, offset, and offset_end set.
- * </refsect2>
  *
  */
 
@@ -53,6 +52,7 @@
 #include "config.h"
 #endif
 
+#include "gstaudioparserselements.h"
 #include "gstflacparse.h"
 
 #include <string.h>
@@ -184,7 +184,7 @@ static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     );
 
 static GstBuffer *gst_flac_parse_generate_vorbiscomment (GstFlacParse *
-    flacparse);
+    flacparse, gboolean is_last);
 
 static inline void gst_flac_parse_reset_buffer_time_and_offset (GstBuffer *
     buffer);
@@ -217,6 +217,8 @@ static gboolean gst_flac_parse_set_sink_caps (GstBaseParse * parse,
 
 #define gst_flac_parse_parent_class parent_class
 G_DEFINE_TYPE (GstFlacParse, gst_flac_parse, GST_TYPE_BASE_PARSE);
+GST_ELEMENT_REGISTER_DEFINE (flacparse, "flacparse",
+    GST_RANK_PRIMARY + 1, GST_TYPE_FLAC_PARSE);
 
 static void
 gst_flac_parse_class_init (GstFlacParseClass * klass)
@@ -1244,6 +1246,7 @@ gst_flac_parse_handle_headers (GstFlacParse * flacparse)
   GstCaps *caps;
   GList *l;
   GstFlowReturn res = GST_FLOW_OK;
+  gboolean is_streaminfo_last = FALSE;
 
   caps = gst_caps_new_simple ("audio/x-flac",
       "channels", G_TYPE_INT, flacparse->channels,
@@ -1265,6 +1268,7 @@ gst_flac_parse_handle_headers (GstFlacParse * flacparse)
       marker = header;
     } else if (map.size > 1 && (map.data[0] & 0x7f) == 0) {
       streaminfo = header;
+      is_streaminfo_last = (map.data[0] & 0x80) != 0;
     } else if (map.size > 1 && (map.data[0] & 0x7f) == 4) {
       vorbiscomment = header;
     }
@@ -1277,8 +1281,11 @@ gst_flac_parse_handle_headers (GstFlacParse * flacparse)
   if (vorbiscomment == NULL && streaminfo != NULL) {
     GST_DEBUG_OBJECT (flacparse,
         "missing vorbiscomment header; generating dummy");
-    vorbiscomment = gst_flac_parse_generate_vorbiscomment (flacparse);
-    flacparse->headers = g_list_insert (flacparse->headers, vorbiscomment,
+    /* this vorbiscomment header is inserted after streaminfo and inherits its last-metadata-block flag */
+    vorbiscomment =
+        gst_flac_parse_generate_vorbiscomment (flacparse, is_streaminfo_last);
+    flacparse->headers =
+        g_list_insert (flacparse->headers, vorbiscomment,
         g_list_index (flacparse->headers, streaminfo) + 1);
   }
 
@@ -1313,6 +1320,8 @@ gst_flac_parse_handle_headers (GstFlacParse * flacparse)
     writemap.data[8] = (num & 0x00FF) >> 0;
     memcpy (writemap.data + 9, "fLaC", 4);
     memcpy (writemap.data + 13, sinfomap.data, sinfomap.size);
+    /* clear the last-metadata-block flag because a VORBISCOMMENT always follows */
+    writemap.data[13] = 0x00;   /* is_last = 0; type = 0; */
     _value_array_append_buffer (&array, buf);
 
     gst_buffer_unmap (streaminfo, &sinfomap);
@@ -1320,14 +1329,10 @@ gst_flac_parse_handle_headers (GstFlacParse * flacparse)
     gst_buffer_unref (buf);
   }
 
-  /* add VORBISCOMMENT header */
-  _value_array_append_buffer (&array, vorbiscomment);
-
-  /* add other headers, if there are any */
+  /* add other headers, including VORBISCOMMENT */
   for (l = flacparse->headers; l; l = l->next) {
     if (GST_BUFFER_CAST (l->data) != marker &&
-        GST_BUFFER_CAST (l->data) != streaminfo &&
-        GST_BUFFER_CAST (l->data) != vorbiscomment) {
+        GST_BUFFER_CAST (l->data) != streaminfo) {
       _value_array_append_buffer (&array, GST_BUFFER_CAST (l->data));
     }
   }
@@ -1369,7 +1374,8 @@ push_headers:
 
 /* empty vorbiscomment */
 static GstBuffer *
-gst_flac_parse_generate_vorbiscomment (GstFlacParse * flacparse)
+gst_flac_parse_generate_vorbiscomment (GstFlacParse * flacparse,
+    gboolean is_last)
 {
   GstTagList *taglist = gst_tag_list_new_empty ();
   guchar header[4];
@@ -1377,7 +1383,7 @@ gst_flac_parse_generate_vorbiscomment (GstFlacParse * flacparse)
   GstBuffer *vorbiscomment;
   GstMapInfo map;
 
-  header[0] = 0x84;             /* is_last = 1; type = 4; */
+  header[0] = (is_last ? 0x80 : 0x00) | 0x04;   /* is_last may vary; type = 4; */
 
   vorbiscomment =
       gst_tag_list_to_vorbiscomment_buffer (taglist, header,
@@ -1476,7 +1482,7 @@ gst_flac_parse_generate_headers (GstFlacParse * flacparse)
   flacparse->headers = g_list_append (flacparse->headers, streaminfo);
 
   flacparse->headers = g_list_append (flacparse->headers,
-      gst_flac_parse_generate_vorbiscomment (flacparse));
+      gst_flac_parse_generate_vorbiscomment (flacparse, TRUE));
 
   return TRUE;
 }

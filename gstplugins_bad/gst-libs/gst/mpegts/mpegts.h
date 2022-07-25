@@ -24,17 +24,16 @@
 #ifndef _GST_MPEGTS_H_
 #define _GST_MPEGTS_H_
 
-#ifndef OHOS_EXT_FUNC
-// ohos.ext.func.0013
 #ifndef GST_USE_UNSTABLE_API
 #warning "The GStreamer mpegts library is unstable API and may change in future."
 #warning "You can define GST_USE_UNSTABLE_API to avoid this warning."
 #endif
-#endif
 
 #include <gst/mpegts/mpegts-prelude.h>
 #include <gst/mpegts/gstmpegtsdescriptor.h>
+#include <gst/mpegts/gst-atsc-descriptor.h>
 #include <gst/mpegts/gst-dvb-descriptor.h>
+#include <gst/mpegts/gst-isdb-descriptor.h>
 #include <gst/mpegts/gstmpegtssection.h>
 #include <gst/mpegts/gst-atsc-section.h>
 #include <gst/mpegts/gst-dvb-section.h>
@@ -43,6 +42,7 @@
 // ohos.ext.func.0013
 #include <gst/mpegts/gstmpegts-enumtypes.h>
 #endif
+#include <gst/mpegts/gst-hdmv-section.h>
 
 G_BEGIN_DECLS
 

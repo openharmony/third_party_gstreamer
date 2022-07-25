@@ -103,9 +103,10 @@ typedef enum _AtomsTreeFlavor
 typedef struct _AtomsContext
 {
   AtomsTreeFlavor flavor;
+  gboolean force_create_timecode_trak;
 } AtomsContext;
 
-AtomsContext* atoms_context_new  (AtomsTreeFlavor flavor);
+AtomsContext* atoms_context_new  (AtomsTreeFlavor flavor, gboolean force_create_timecode_trak);
 void          atoms_context_free (AtomsContext *context);
 
 #define METADATA_DATA_FLAG 0x0
@@ -325,6 +326,12 @@ typedef struct _AtomGMHD
 
 } AtomGMHD;
 
+typedef struct _AtomNMHD
+{
+  Atom header;
+  guint32 flags;
+} AtomNMHD;
+
 typedef struct _AtomURL
 {
   AtomFull header;
@@ -541,13 +548,17 @@ typedef struct _AtomTREF
 
 /*
  * used for both STCO and CO64
- * if used as STCO, entries should be truncated to use only 32bits
+ * The table will be written out as STCO automatically when
+ * the offsets being written will fit in a 32-bit table,
+ * otherwise it is written as CO64
  */
 typedef struct _AtomSTCO64
 {
   AtomFull header;
   /* Global offset to add to entries when serialising */
   guint32 chunk_offset;
+  /* Maximum offset stored in the table */
+  guint64 max_offset;
   ATOM_ARRAY (guint64) entries;
 } AtomSTCO64;
 
@@ -600,6 +611,7 @@ typedef struct _AtomMINF
   AtomSMHD *smhd;
   AtomHMHD *hmhd;
   AtomGMHD *gmhd;
+  AtomNMHD *nmhd;
 
   AtomHDLR *hdlr;
   AtomDINF dinf;
@@ -835,7 +847,7 @@ typedef struct _AtomTRAF
 
   AtomTFDT tfdt;
 
-  /* list of AtomTRUN */
+  /* list of AtomTRUN. */
   GList *truns;
   /* list of AtomSDTP */
   GList *sdtps;
@@ -849,6 +861,8 @@ typedef struct _AtomMOOF
 
   /* list of AtomTRAF */
   GList *trafs;
+
+  guint64 traf_offset;
 } AtomMOOF;
 
 
@@ -954,7 +968,7 @@ void       atom_stbl_add_samples       (AtomSTBL * stbl, guint32 nsamples,
                                         guint64 chunk_offset, gboolean sync,
                                         gint64 pts_offset);
 void       atom_stsc_add_new_entry     (AtomSTSC * stsc,
-                                        guint32 first_chunk, guint32 nsamples);
+                                        guint32 first_chunk, guint32 nsamples, guint32 sample_description_index);
 
 AtomMOOV*  atom_moov_new               (AtomsContext *context);
 void       atom_moov_free              (AtomMOOV *moov);
@@ -993,13 +1007,15 @@ guint64    atom_stco64_copy_data       (AtomSTCO64 *atom, guint8 **buffer,
 AtomMOOF*  atom_moof_new               (AtomsContext *context, guint32 sequence_number);
 void       atom_moof_free              (AtomMOOF *moof);
 guint64    atom_moof_copy_data         (AtomMOOF *moof, guint8 **buffer, guint64 *size, guint64* offset);
+void       atom_moof_set_base_offset   (AtomMOOF * moof, guint64 offset);
 AtomTRAF * atom_traf_new               (AtomsContext * context, guint32 track_ID);
 void       atom_traf_free              (AtomTRAF * traf);
 void       atom_traf_set_base_decode_time (AtomTRAF * traf, guint64 base_decode_time);
-void       atom_traf_add_samples       (AtomTRAF * traf, guint32 delta,
-                                        guint32 size, gboolean sync, gint64 pts_offset,
-                                        gboolean sdtp_sync);
+void       atom_traf_add_samples       (AtomTRAF * traf, guint32 nsamples, guint32 delta,
+                                        guint32 size, gint32 data_offset, gboolean sync,
+                                        gint64 pts_offset, gboolean sdtp_sync);
 guint32    atom_traf_get_sample_num    (AtomTRAF * traf);
+void       atom_trun_set_offset        (AtomTRUN * trun, gint32 offset);
 void       atom_moof_add_traf          (AtomMOOF *moof, AtomTRAF *traf);
 
 AtomMFRA*  atom_mfra_new               (AtomsContext *context);

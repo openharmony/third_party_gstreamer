@@ -22,10 +22,11 @@
 
 /**
  * SECTION:element-multipartdemux
+ * @title: multipartdemux
  * @see_also: #GstMultipartMux
  *
- * MultipartDemux uses the Content-type field of incoming buffers to demux and 
- * push data to dynamic source pads. Most of the time multipart streams are 
+ * MultipartDemux uses the Content-type field of incoming buffers to demux and
+ * push data to dynamic source pads. Most of the time multipart streams are
  * sequential JPEG frames generated from a live source such as a network source
  * or a camera.
  *
@@ -37,13 +38,12 @@
  * be configured specifically with the #GstMultipartDemux:boundary property
  * otherwise it will be autodetected.
  *
- * <refsect2>
- * <title>Sample pipelines</title>
+ * ## Sample pipelines
  * |[
  * gst-launch-1.0 filesrc location=/tmp/test.multipart ! multipartdemux ! image/jpeg,framerate=\(fraction\)5/1 ! jpegparse ! jpegdec ! videoconvert ! autovideosink
  * ]| a simple pipeline to demux a multipart file muxed with #GstMultipartMux
  * containing JPEG frames.
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -122,6 +122,10 @@ static void gst_multipart_demux_dispose (GObject * object);
 
 #define gst_multipart_demux_parent_class parent_class
 G_DEFINE_TYPE (GstMultipartDemux, gst_multipart_demux, GST_TYPE_ELEMENT);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (multipartdemux, "multipartdemux",
+    GST_RANK_PRIMARY, GST_TYPE_MULTIPART_DEMUX,
+    GST_DEBUG_CATEGORY_INIT (gst_multipart_demux_debug, "multipartdemux", 0,
+        "multipart demuxer"));
 
 static void
 gst_multipart_demux_class_init (GstMultipartDemuxClass * klass)
@@ -795,16 +799,4 @@ gst_multipart_get_property (GObject * object, guint prop_id,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
-}
-
-
-
-gboolean
-gst_multipart_demux_plugin_init (GstPlugin * plugin)
-{
-  GST_DEBUG_CATEGORY_INIT (gst_multipart_demux_debug,
-      "multipartdemux", 0, "multipart demuxer");
-
-  return gst_element_register (plugin, "multipartdemux", GST_RANK_PRIMARY,
-      GST_TYPE_MULTIPART_DEMUX);
 }

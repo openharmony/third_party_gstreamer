@@ -25,6 +25,7 @@
 #include <string.h>
 #include <gst/rtp/gstrtpbuffer.h>
 
+#include "gstrtpelements.h"
 #include "gstrtpmp2tpay.h"
 #include "gstrtputils.h"
 
@@ -59,6 +60,8 @@ static void gst_rtp_mp2t_pay_finalize (GObject * object);
 
 #define gst_rtp_mp2t_pay_parent_class parent_class
 G_DEFINE_TYPE (GstRTPMP2TPay, gst_rtp_mp2t_pay, GST_TYPE_RTP_BASE_PAYLOAD);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpmp2tpay, "rtpmp2tpay",
+    GST_RANK_SECONDARY, GST_TYPE_RTP_MP2T_PAY, rtp_element_init (plugin));
 
 static void
 gst_rtp_mp2t_pay_class_init (GstRTPMP2TPayClass * klass)
@@ -152,7 +155,9 @@ gst_rtp_mp2t_pay_flush (GstRTPMP2TPay * rtpmp2tpay)
       break;
 
     /* create buffer to hold the payload */
-    outbuf = gst_rtp_buffer_new_allocate (0, 0, 0);
+    outbuf =
+        gst_rtp_base_payload_allocate_output_buffer (GST_RTP_BASE_PAYLOAD
+        (rtpmp2tpay), 0, 0, 0);
 
     /* get payload */
     paybuf = gst_adapter_take_buffer_fast (rtpmp2tpay->adapter, payload_len);
@@ -227,11 +232,4 @@ again:
 
   return ret;
 
-}
-
-gboolean
-gst_rtp_mp2t_pay_plugin_init (GstPlugin * plugin)
-{
-  return gst_element_register (plugin, "rtpmp2tpay",
-      GST_RANK_SECONDARY, GST_TYPE_RTP_MP2T_PAY);
 }

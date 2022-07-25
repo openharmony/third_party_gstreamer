@@ -22,6 +22,7 @@
 #include "config.h"
 #endif
 
+#include <gst/video/video.h>
 #include "gststreamsplitter.h"
 
 static GstStaticPadTemplate src_template =
@@ -182,6 +183,9 @@ gst_stream_splitter_sink_event (GstPad * pad, GstObject * parent,
       GST_EVENT_TYPE_NAME (event));
 
   switch (GST_EVENT_TYPE (event)) {
+    case GST_EVENT_STREAM_START:
+      toall = TRUE;
+      break;
     case GST_EVENT_CAPS:
     {
       GstCaps *caps;
@@ -414,6 +418,7 @@ gst_stream_splitter_sink_query (GstPad * pad, GstObject * parent,
 static gboolean
 gst_stream_splitter_sink_setcaps (GstPad * pad, GstCaps * caps)
 {
+  GstPad *prev = NULL;
   GstStreamSplitter *stream_splitter =
       (GstStreamSplitter *) GST_PAD_PARENT (pad);
   guint32 cookie;
@@ -432,6 +437,9 @@ resync:
   }
 
   res = FALSE;
+  prev =
+      stream_splitter->
+      current ? gst_object_ref (stream_splitter->current) : NULL;
   tmp = stream_splitter->srcpads;
   cookie = stream_splitter->cookie;
 
@@ -439,6 +447,7 @@ resync:
     GstPad *srcpad = (GstPad *) tmp->data;
     GstCaps *peercaps;
 
+    // GST_ERROR_OBJECT (srcpad, "Checking");
     STREAMS_UNLOCK (stream_splitter);
     peercaps = gst_pad_peer_query_caps (srcpad, NULL);
     if (peercaps) {
@@ -451,17 +460,56 @@ resync:
       goto resync;
 
     if (res) {
-      /* FIXME : we need to switch properly */
       GST_DEBUG_OBJECT (srcpad, "Setting caps on this pad was successful");
       stream_splitter->current = srcpad;
+      if (prev && prev != srcpad) {
+        /* When switching branches, we need to ensure that the branch it was
+         * pushing to before is drainned and the encoder pushes all its internal
+         * data, we do it by first letting downstream streamcombiner that we are
+         * working on it, and then send an EOS to ensure all the data is
+         * processed and cleanup the encoder with a flush start/flush stop
+         * dance. Those events are discarded in the stream combiner */
+        /* FIXME We should theoretically be able to use a DRAIN query here
+         * instead but the encoders do not react properly to them */
+        gst_pad_push_event (prev,
+            gst_event_new_custom (GST_EVENT_CUSTOM_DOWNSTREAM,
+                gst_structure_new_empty ("start-draining-encoder")));
+        gst_pad_push_event (prev, gst_event_new_eos ());
+        gst_pad_push_event (prev, gst_event_new_flush_start ());
+        gst_pad_push_event (prev, gst_event_new_flush_stop (FALSE));
+      }
       goto beach;
     }
     tmp = tmp->next;
   }
 
 beach:
+  gst_clear_object (&prev);
   STREAMS_UNLOCK (stream_splitter);
   return res;
+}
+
+static gboolean
+gst_stream_splitter_src_event (GstPad * pad, GstObject * parent,
+    GstEvent * event)
+{
+  GstStreamSplitter *stream_splitter = (GstStreamSplitter *) parent;
+
+  if (gst_video_event_is_force_key_unit (event)) {
+    guint32 seqnum = gst_event_get_seqnum (event);
+    STREAMS_LOCK (stream_splitter);
+    if (seqnum == stream_splitter->keyunit_seqnum) {
+      STREAMS_UNLOCK (stream_splitter);
+      GST_TRACE_OBJECT (pad,
+          "Drop duplicated force-key-unit event %" G_GUINT32_FORMAT, seqnum);
+      gst_event_unref (event);
+      return TRUE;
+    }
+    stream_splitter->keyunit_seqnum = seqnum;
+    STREAMS_UNLOCK (stream_splitter);
+  }
+
+  return gst_pad_event_default (pad, parent, event);
 }
 
 static void
@@ -494,6 +542,7 @@ gst_stream_splitter_request_new_pad (GstElement * element,
   gst_pad_set_active (srcpad, TRUE);
   gst_element_add_pad (element, srcpad);
   stream_splitter->cookie++;
+  gst_pad_set_event_function (srcpad, gst_stream_splitter_src_event);
   STREAMS_UNLOCK (stream_splitter);
 
   return srcpad;

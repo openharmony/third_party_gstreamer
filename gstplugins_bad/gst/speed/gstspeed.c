@@ -95,6 +95,10 @@ static gboolean speed_src_event (GstPad * pad, GstObject * parent,
     GstEvent * event);
 
 G_DEFINE_TYPE (GstSpeed, gst_speed, GST_TYPE_ELEMENT);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (speed, "speed", GST_RANK_NONE,
+    GST_TYPE_SPEED, GST_DEBUG_CATEGORY_INIT (speed_debug, "speed", 0,
+        "speed element");
+    );
 
 static gboolean
 speed_setcaps (GstPad * pad, GstCaps * caps)
@@ -516,7 +520,7 @@ speed_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
     case GST_EVENT_SEGMENT:{
       gdouble rate;
       GstFormat format;
-      gint64 start_value, stop_value, base;
+      gint64 start_value, stop_value;
       const GstSegment *segment;
       GstSegment seg;
 
@@ -526,7 +530,6 @@ speed_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       format = segment->format;
       start_value = segment->start;
       stop_value = segment->stop;
-      base = segment->base;
 
       gst_event_unref (event);
 
@@ -541,7 +544,6 @@ speed_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
         start_value /= filter->speed;
       if (stop_value >= 0)
         stop_value /= filter->speed;
-      base /= filter->speed;
 
       /* this would only really be correct if we clipped incoming data */
       filter->timestamp = start_value;
@@ -690,9 +692,7 @@ speed_change_state (GstElement * element, GstStateChange transition)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  GST_DEBUG_CATEGORY_INIT (speed_debug, "speed", 0, "speed element");
-
-  return gst_element_register (plugin, "speed", GST_RANK_NONE, GST_TYPE_SPEED);
+  return GST_ELEMENT_REGISTER (speed, plugin);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

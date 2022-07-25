@@ -49,12 +49,11 @@
  *
  * Blurs faces in images and videos.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
+ *
  * |[
  * gst-launch-1.0 autovideosrc ! videoconvert ! faceblur ! videoconvert ! autovideosink
  * ]|
- * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -144,7 +143,11 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("RGB"))
     );
 
-G_DEFINE_TYPE (GstFaceBlur, gst_face_blur, GST_TYPE_OPENCV_VIDEO_FILTER);
+G_DEFINE_TYPE_WITH_CODE (GstFaceBlur, gst_face_blur,
+    GST_TYPE_OPENCV_VIDEO_FILTER, GST_DEBUG_CATEGORY_INIT (gst_face_blur_debug,
+        "faceblur", 0, "Blurs faces in images and videos"););
+GST_ELEMENT_REGISTER_DEFINE (faceblur, "faceblur", GST_RANK_NONE,
+    GST_TYPE_FACE_BLUR);
 
 static void gst_face_blur_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -211,7 +214,7 @@ gst_face_blur_class_init (GstFaceBlurClass * klass)
           DEFAULT_SCALE_FACTOR,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_MIN_NEIGHBORS,
-      g_param_spec_int ("min-neighbors", "Mininum neighbors",
+      g_param_spec_int ("min-neighbors", "Minimum neighbors",
           "Minimum number (minus 1) of neighbor rectangles that makes up "
           "an object", 0, G_MAXINT, DEFAULT_MIN_NEIGHBORS,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
@@ -232,11 +235,13 @@ gst_face_blur_class_init (GstFaceBlurClass * klass)
 
   gst_element_class_add_static_pad_template (element_class, &src_factory);
   gst_element_class_add_static_pad_template (element_class, &sink_factory);
+
+  gst_type_mark_as_plugin_api (GST_TYPE_OPENCV_FACE_BLUR_FLAGS, (GstPluginAPIFlags) 0);
 }
 
 /* initialize the new element
  * instantiate pads and add them to element
- * set pad calback functions
+ * set pad callback functions
  * initialize instance structure
  */
 static void
@@ -384,20 +389,4 @@ gst_face_blur_load_profile (GstFaceBlur * filter, gchar * profile)
     return NULL;
   }
   return cascade;
-}
-
-
-/* entry point to initialize the plug-in
- * initialize the plug-in itself
- * register the element factories and other features
- */
-gboolean
-gst_face_blur_plugin_init (GstPlugin * plugin)
-{
-  /* debug category for filtering log messages */
-  GST_DEBUG_CATEGORY_INIT (gst_face_blur_debug, "faceblur",
-      0, "Blurs faces in images and videos");
-
-  return gst_element_register (plugin, "faceblur", GST_RANK_NONE,
-      GST_TYPE_FACE_BLUR);
 }

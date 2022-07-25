@@ -21,28 +21,32 @@
 
 /**
  * SECTION:element-autovideosrc
+ * @title: autovideosrc
  * @see_also: autoaudiosrc, v4l2src, v4lsrc
  *
  * autovideosrc is a video src that automatically detects an appropriate
  * video source to use.  It does so by scanning the registry for all elements
- * that have <quote>Source</quote> and <quote>Video</quote> in the class field
+ * that have "Source" and "Video" in the class field
  * of their element information, and also have a non-zero autoplugging rank.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * gst-launch-1.0 -v -m autovideosrc ! xvimagesink
  * ]|
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
+#include "gstautodetectelements.h"
+#include "gstautodetect.h"
 #include "gstautovideosrc.h"
 
 G_DEFINE_TYPE (GstAutoVideoSrc, gst_auto_video_src, GST_TYPE_AUTO_DETECT);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (autovideosrc, "autovideosrc",
+    GST_RANK_NONE, GST_TYPE_AUTO_VIDEO_SRC, autodetect_element_init (plugin));
 
 static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,

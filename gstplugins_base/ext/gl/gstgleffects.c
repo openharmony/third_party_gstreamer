@@ -36,6 +36,7 @@
 #include "config.h"
 #endif
 
+#include "gstglelements.h"
 #include "gstgleffects.h"
 
 #define GST_CAT_DEFAULT gst_gl_effects_debug
@@ -55,6 +56,15 @@ enum
 #define gst_gl_effects_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstGLEffects, gst_gl_effects, GST_TYPE_GL_FILTER,
     DEBUG_INIT);
+
+static gboolean
+gst_element_init_gleffects (GstPlugin * plugin)
+{
+  gl_element_init (plugin);
+  return gst_gl_effects_register_filters (plugin, GST_RANK_NONE);
+}
+
+GST_ELEMENT_REGISTER_DEFINE_CUSTOM (gleffects, gst_element_init_gleffects);
 
 static void gst_gl_effects_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -346,6 +356,9 @@ gst_gl_effects_class_init (GstGLEffectsClass * klass)
 
   GST_GL_BASE_FILTER_CLASS (klass)->supported_gl_api =
       GST_GL_API_OPENGL | GST_GL_API_GLES2 | GST_GL_API_OPENGL3;
+
+  gst_type_mark_as_plugin_api (GST_TYPE_GL_EFFECTS_EFFECT, 0);
+  gst_type_mark_as_plugin_api (GST_TYPE_GL_EFFECTS, 0);
 }
 
 static void
@@ -647,7 +660,7 @@ gst_gl_effects_filters_descriptors (void)
 gboolean
 gst_gl_effects_register_filters (GstPlugin * plugin, GstRank rank)
 {
-  static volatile gsize registered = 0;
+  static gsize registered = 0;
 
   if (g_once_init_enter (&registered)) {
     GTypeInfo info = {

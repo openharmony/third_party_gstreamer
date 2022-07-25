@@ -640,7 +640,7 @@ gst_v4l2_allocator_new (GstObject * parent, GstV4l2Object * v4l2object)
   /* Save everything */
   allocator->obj = v4l2object;
 
-  /* Keep a ref on the elemnt so obj does not disapear */
+  /* Keep a ref on the element so obj does not disappear */
   gst_object_ref (allocator->obj->element);
 
   flags |= GST_V4L2_ALLOCATOR_PROBE (allocator, MMAP);
@@ -811,6 +811,9 @@ gst_v4l2_allocator_orphan (GstV4l2Allocator * allocator)
     return FALSE;
 
   GST_OBJECT_FLAG_SET (allocator, GST_V4L2_ALLOCATOR_FLAG_ORPHANED);
+
+  if (!g_atomic_int_get (&allocator->active))
+    return TRUE;
 
   if (obj->ioctl (obj->video_fd, VIDIOC_REQBUFS, &breq) < 0) {
     GST_ERROR_OBJECT (allocator,
@@ -1172,7 +1175,7 @@ gst_v4l2_allocator_import_userptr (GstV4l2Allocator * allocator,
   for (i = 0; i < group->n_mem; i++) {
     gsize maxsize, psize;
 
-    /* TODO request used size and maxsize seperatly */
+    /* TODO request used size and maxsize separately */
     if (V4L2_TYPE_IS_MULTIPLANAR (obj->type))
       maxsize = psize = size[i];
     else
@@ -1363,7 +1366,7 @@ gst_v4l2_allocator_dqbuf (GstV4l2Allocator * allocator,
 
       offset = group->planes[i].data_offset;
 
-      if (group->planes[i].bytesused > group->planes[i].data_offset) {
+      if (group->planes[i].bytesused >= group->planes[i].data_offset) {
         size = group->planes[i].bytesused - group->planes[i].data_offset;
       } else {
         GST_WARNING_OBJECT (allocator, "V4L2 provided buffer has bytesused %"

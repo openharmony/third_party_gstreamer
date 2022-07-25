@@ -43,20 +43,18 @@
 
 /**
  * SECTION:element-qtmoovrecover
+ * @title: qtmoovrecover
  * @short_description: Utility element for recovering unfinished quicktime files
  *
- * <refsect2>
- * <para>
  * This element recovers quicktime files created with qtmux using the moov
  * recovery feature.
- * </para>
- * <title>Example pipelines</title>
- * <para>
- * <programlisting>
+ *
+ * ## Example pipelines
+ *
+ * |[
  * TODO
- * </programlisting>
- * </para>
- * </refsect2>
+ * ]|
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -66,6 +64,7 @@
 #include <glib/gstdio.h>
 #include <gst/gst.h>
 
+#include "gstisomp4elements.h"
 #include "gstqtmoovrecover.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_qt_moov_recover_debug);
@@ -89,6 +88,8 @@ enum
 
 #define gst_qt_moov_recover_parent_class parent_class
 G_DEFINE_TYPE (GstQTMoovRecover, gst_qt_moov_recover, GST_TYPE_PIPELINE);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (qtmoovrecover, "qtmoovrecover",
+    GST_RANK_NONE, GST_TYPE_QT_MOOV_RECOVER, isomp4_element_init (plugin));
 
 /* property functions */
 static void gst_qt_moov_recover_set_property (GObject * object,
@@ -376,12 +377,4 @@ gst_qt_moov_recover_change_state (GstElement * element,
       break;
   }
   return ret;
-}
-
-
-gboolean
-gst_qt_moov_recover_register (GstPlugin * plugin)
-{
-  return gst_element_register (plugin, "qtmoovrecover", GST_RANK_NONE,
-      GST_TYPE_QT_MOOV_RECOVER);
 }

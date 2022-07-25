@@ -4,7 +4,7 @@ executable('gtksink', 'gtksink.c',
   include_directories: [configinc],
   install: false)
 
-if build_gstgl
+if have_gstgl
   executable('gtkglsink', 'gtkglsink.c',
     dependencies: [gst_dep, gstgl_dep, gtk_dep, x11_dep],
     c_args: gst_plugins_good_args,
@@ -12,7 +12,7 @@ if build_gstgl
     install: false)
 
   executable('glliveshader', 'glliveshader.c',
-    dependencies: [gst_dep, gstgl_dep, gtk_dep, x11_dep],
+    dependencies: [gst_dep, gstgl_dep, gstglproto_dep, gtk_dep, x11_dep],
     c_args: gst_plugins_good_args,
     include_directories: [configinc],
     install: false)

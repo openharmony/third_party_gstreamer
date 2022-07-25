@@ -47,67 +47,23 @@
 #include "config.h"
 #endif
 
-#include <string.h>
+#include "gstkateelements.h"
 
-#include <gst/gst.h>
-
-#include "gstkate.h"
-#include "gstkatedec.h"
-#include "gstkateenc.h"
-#include "gstkateparse.h"
-#include "gstkatetag.h"
-
-#undef HAVE_TIGER
-#ifdef HAVE_TIGER
-#include "gstkatetiger.h"
-#endif
-
-GST_DEBUG_CATEGORY (gst_katedec_debug);
-GST_DEBUG_CATEGORY (gst_kateenc_debug);
-GST_DEBUG_CATEGORY (gst_kateparse_debug);
-GST_DEBUG_CATEGORY (gst_katetag_debug);
-GST_DEBUG_CATEGORY (gst_kateutil_debug);
-#ifdef HAVE_TIGER
-GST_DEBUG_CATEGORY (gst_katetiger_debug);
-#endif
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  GST_DEBUG_CATEGORY_INIT (gst_katedec_debug, "katedec", 0, "Kate decoder");
-  GST_DEBUG_CATEGORY_INIT (gst_kateenc_debug, "kateenc", 0, "Kate encoder");
-  GST_DEBUG_CATEGORY_INIT (gst_kateparse_debug, "kateparse", 0, "Kate parser");
-  GST_DEBUG_CATEGORY_INIT (gst_katetag_debug, "katetag", 0, "Kate tagger");
-  GST_DEBUG_CATEGORY_INIT (gst_kateutil_debug, "kateutil", 0,
-      "Kate utility functions");
+  gboolean ret = FALSE;
+
+  ret |= GST_ELEMENT_REGISTER (katedec, plugin);
+  ret |= GST_ELEMENT_REGISTER (kateenc, plugin);
+  ret |= GST_ELEMENT_REGISTER (kateparse, plugin);
+  ret |= GST_ELEMENT_REGISTER (katetag, plugin);
 #ifdef HAVE_TIGER
-  GST_DEBUG_CATEGORY_INIT (gst_katetiger_debug, "tiger", 0,
-      "Kate Tiger renderer");
+  ret |= GST_ELEMENT_REGISTER (tiger, plugin);
 #endif
 
-  if (!gst_element_register (plugin, "katedec", GST_RANK_PRIMARY,
-          GST_TYPE_KATE_DEC))
-    return FALSE;
-
-  if (!gst_element_register (plugin, "kateenc", GST_RANK_NONE,
-          GST_TYPE_KATE_ENC))
-    return FALSE;
-
-  if (!gst_element_register (plugin, "kateparse", GST_RANK_NONE,
-          GST_TYPE_KATE_PARSE))
-    return FALSE;
-
-  if (!gst_element_register (plugin, "katetag", GST_RANK_NONE,
-          GST_TYPE_KATE_TAG))
-    return FALSE;
-
-#ifdef HAVE_TIGER
-  if (!gst_element_register (plugin, "tiger", GST_RANK_PRIMARY,
-          GST_TYPE_KATE_TIGER))
-    return FALSE;
-#endif
-
-  return TRUE;
+  return ret;
 }
 
 /* this is the structure that gstreamer looks for to register plugins

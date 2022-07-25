@@ -21,19 +21,19 @@
 
 /**
  * SECTION:element-v4l2radio
+ * @title: v4l2radio
  *
  * v4l2radio can be used to control radio device
  * and to tune it to different radiostations.
  *
- * <refsect2>
- * <title>Example launch lines</title>
+ * ## Example launch lines
  * |[
  * gst-launch-1.0 v4l2radio device=/dev/radio0 frequency=101200000
  * gst-launch-1.0 alsasrc device=hw:1 ! audioconvert ! audioresample ! alsasink
  * ]|
  * First pipeline tunes the radio device /dev/radio0 to station 101.2 MHz,
  * second pipeline connects digital audio out (hw:1) to default sound card.
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -44,6 +44,7 @@
 
 #include "gst/gst-i18n-plugin.h"
 
+#include "gstv4l2elements.h"
 #include "gstv4l2object.h"
 #include "gstv4l2tuner.h"
 #include "gstv4l2radio.h"
@@ -161,7 +162,7 @@ not_a_tuner:
 }
 
 static gboolean
-gst_v4l2radio_get_input (GstV4l2Object * v4l2object, gint * input)
+gst_v4l2radio_get_input (GstV4l2Object * v4l2object, guint32 * input)
 {
   GST_DEBUG_OBJECT (v4l2object->element, "trying to get radio input");
 
@@ -188,7 +189,7 @@ input_failed:
 }
 
 static gboolean
-gst_v4l2radio_set_input (GstV4l2Object * v4l2object, gint input)
+gst_v4l2radio_set_input (GstV4l2Object * v4l2object, guint32 input)
 {
   GST_DEBUG_OBJECT (v4l2object->element, "trying to set input to %d", input);
 
@@ -273,6 +274,8 @@ G_DEFINE_TYPE_WITH_CODE (GstV4l2Radio, gst_v4l2radio, GST_TYPE_ELEMENT,
         gst_v4l2radio_uri_handler_init);
     G_IMPLEMENT_INTERFACE (GST_TYPE_TUNER,
         gst_v4l2radio_tuner_interface_reinit));
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (v4l2radio,
+    "v4l2radio", GST_RANK_NONE, GST_TYPE_V4L2RADIO, v4l2_element_init (plugin));
 
 static void gst_v4l2radio_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -350,12 +353,12 @@ gst_v4l2radio_finalize (GstV4l2Radio * radio)
 }
 
 static gboolean
-gst_v4l2radio_open (GstV4l2Radio * radio)
+gst_v4l2radio_open (GstV4l2Radio * radio, GstV4l2Error * error)
 {
   GstV4l2Object *v4l2object;
 
   v4l2object = radio->v4l2object;
-  if (gst_v4l2_open (v4l2object))
+  if (gst_v4l2_open (v4l2object, error))
     return gst_v4l2radio_fill_channel_list (radio);
   else
     return FALSE;
@@ -406,9 +409,9 @@ gst_v4l2radio_set_defaults (GstV4l2Radio * radio)
 }
 
 static gboolean
-gst_v4l2radio_start (GstV4l2Radio * radio)
+gst_v4l2radio_start (GstV4l2Radio * radio, GstV4l2Error * error)
 {
-  if (!gst_v4l2radio_open (radio))
+  if (!gst_v4l2radio_open (radio, error))
     return FALSE;
 
   gst_v4l2radio_set_defaults (radio);
@@ -429,13 +432,14 @@ static GstStateChangeReturn
 gst_v4l2radio_change_state (GstElement * element, GstStateChange transition)
 {
   GstV4l2Radio *radio;
+  GstV4l2Error error = GST_V4L2_ERROR_INIT;
   GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
 
   radio = GST_V4L2RADIO (element);
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
       /*start radio */
-      if (!gst_v4l2radio_start (radio))
+      if (!gst_v4l2radio_start (radio, &error))
         ret = GST_STATE_CHANGE_FAILURE;
       break;
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
@@ -457,6 +461,7 @@ gst_v4l2radio_change_state (GstElement * element, GstStateChange transition)
       break;
   }
 
+  gst_v4l2_error (radio, &error);
   return ret;
 }
 

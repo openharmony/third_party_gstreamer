@@ -37,9 +37,47 @@
  * Since 1.14
  */
 
+#include "gstdebugutilsbadelements.h"
 #include "gstfakevideosink.h"
+#include "gstfakesinkutils.h"
 
 #include <gst/video/video.h>
+
+#define C_FLAGS(v) ((guint) v)
+
+GType
+gst_fake_video_sink_allocation_meta_flags_get_type (void)
+{
+  static const GFlagsValue values[] = {
+    {C_FLAGS (GST_ALLOCATION_FLAG_CROP_META),
+        "Expose the crop meta as supported", "crop"},
+    {C_FLAGS (GST_ALLOCATION_FLAG_OVERLAY_COMPOSITION_META),
+          "Expose the overlay composition meta as supported",
+        "overlay-composition"},
+    {0, NULL, NULL}
+  };
+  static GType id = 0;
+
+  if (g_once_init_enter ((gsize *) & id)) {
+    GType _id;
+
+    _id =
+        g_flags_register_static ("GstFakeVideoSinkAllocationMetaFlags", values);
+
+    g_once_init_leave ((gsize *) & id, _id);
+  }
+
+  return id;
+}
+
+enum
+{
+  PROP_0,
+  PROP_ALLOCATION_META_FLAGS,
+  PROP_LAST
+};
+
+#define ALLOCATION_META_DEFAULT_FLAGS GST_ALLOCATION_FLAG_CROP_META | GST_ALLOCATION_FLAG_OVERLAY_COMPOSITION_META
 
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
@@ -48,6 +86,8 @@ static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
             GST_VIDEO_FORMATS_ALL)));
 
 G_DEFINE_TYPE (GstFakeVideoSink, gst_fake_video_sink, GST_TYPE_BIN);
+GST_ELEMENT_REGISTER_DEFINE (fakevideosink, "fakevideosink",
+    GST_RANK_NONE, gst_fake_video_sink_get_type ());
 
 static gboolean
 gst_fake_video_sink_query (GstPad * pad, GstObject * parent, GstQuery * query)
@@ -70,15 +110,23 @@ gst_fake_video_sink_query (GstPad * pad, GstObject * parent, GstQuery * query)
 
   gst_query_add_allocation_pool (query, NULL, info.size, min_buffers, 0);
   gst_query_add_allocation_meta (query, GST_VIDEO_META_API_TYPE, NULL);
-  gst_query_add_allocation_meta (query, GST_VIDEO_CROP_META_API_TYPE, NULL);
-  gst_query_add_allocation_meta (query,
-      GST_VIDEO_OVERLAY_COMPOSITION_META_API_TYPE, NULL);
+
+  GST_OBJECT_LOCK (self);
+  if (self->allocation_meta_flags & GST_ALLOCATION_FLAG_CROP_META)
+    gst_query_add_allocation_meta (query, GST_VIDEO_CROP_META_API_TYPE, NULL);
+
+  if (self->allocation_meta_flags &
+      GST_ALLOCATION_FLAG_OVERLAY_COMPOSITION_META)
+    gst_query_add_allocation_meta (query,
+        GST_VIDEO_OVERLAY_COMPOSITION_META_API_TYPE, NULL);
+
+  GST_OBJECT_UNLOCK (self);
+
   /* add here any meta API that would help support zero-copy */
 
   return TRUE;
 }
 
-/* TODO complete the types and make this an utility */
 static void
 gst_fake_video_sink_proxy_properties (GstFakeVideoSink * self,
     GstElement * child)
@@ -86,83 +134,7 @@ gst_fake_video_sink_proxy_properties (GstFakeVideoSink * self,
   static gsize initialized = 0;
 
   if (g_once_init_enter (&initialized)) {
-    GObjectClass *object_class;
-    GParamSpec **properties;
-    guint n_properties, i;
-
-    object_class = G_OBJECT_CLASS (GST_FAKE_VIDEO_SINK_GET_CLASS (self));
-    properties = g_object_class_list_properties (G_OBJECT_GET_CLASS (child),
-        &n_properties);
-
-    for (i = 0; i < n_properties; i++) {
-      if (properties[i]->owner_type != G_OBJECT_TYPE (child) &&
-          properties[i]->owner_type != GST_TYPE_BASE_SINK)
-        continue;
-
-      if (G_IS_PARAM_SPEC_BOOLEAN (properties[i])) {
-        GParamSpecBoolean *prop = G_PARAM_SPEC_BOOLEAN (properties[i]);
-        g_object_class_install_property (object_class, i + 1,
-            g_param_spec_boolean (g_param_spec_get_name (properties[i]),
-                g_param_spec_get_nick (properties[i]),
-                g_param_spec_get_blurb (properties[i]),
-                prop->default_value, properties[i]->flags));
-      } else if (G_IS_PARAM_SPEC_INT (properties[i])) {
-        GParamSpecInt *prop = G_PARAM_SPEC_INT (properties[i]);
-        g_object_class_install_property (object_class, i + 1,
-            g_param_spec_int (g_param_spec_get_name (properties[i]),
-                g_param_spec_get_nick (properties[i]),
-                g_param_spec_get_blurb (properties[i]),
-                prop->minimum, prop->maximum, prop->default_value,
-                properties[i]->flags));
-      } else if (G_IS_PARAM_SPEC_UINT (properties[i])) {
-        GParamSpecUInt *prop = G_PARAM_SPEC_UINT (properties[i]);
-        g_object_class_install_property (object_class, i + 1,
-            g_param_spec_uint (g_param_spec_get_name (properties[i]),
-                g_param_spec_get_nick (properties[i]),
-                g_param_spec_get_blurb (properties[i]),
-                prop->minimum, prop->maximum, prop->default_value,
-                properties[i]->flags));
-      } else if (G_IS_PARAM_SPEC_INT64 (properties[i])) {
-        GParamSpecInt64 *prop = G_PARAM_SPEC_INT64 (properties[i]);
-        g_object_class_install_property (object_class, i + 1,
-            g_param_spec_int64 (g_param_spec_get_name (properties[i]),
-                g_param_spec_get_nick (properties[i]),
-                g_param_spec_get_blurb (properties[i]),
-                prop->minimum, prop->maximum, prop->default_value,
-                properties[i]->flags));
-      } else if (G_IS_PARAM_SPEC_UINT64 (properties[i])) {
-        GParamSpecUInt64 *prop = G_PARAM_SPEC_UINT64 (properties[i]);
-        g_object_class_install_property (object_class, i + 1,
-            g_param_spec_uint64 (g_param_spec_get_name (properties[i]),
-                g_param_spec_get_nick (properties[i]),
-                g_param_spec_get_blurb (properties[i]),
-                prop->minimum, prop->maximum, prop->default_value,
-                properties[i]->flags));
-      } else if (G_IS_PARAM_SPEC_ENUM (properties[i])) {
-        GParamSpecEnum *prop = G_PARAM_SPEC_ENUM (properties[i]);
-        g_object_class_install_property (object_class, i + 1,
-            g_param_spec_enum (g_param_spec_get_name (properties[i]),
-                g_param_spec_get_nick (properties[i]),
-                g_param_spec_get_blurb (properties[i]),
-                properties[i]->value_type, prop->default_value,
-                properties[i]->flags));
-      } else if (G_IS_PARAM_SPEC_STRING (properties[i])) {
-        GParamSpecString *prop = G_PARAM_SPEC_STRING (properties[i]);
-        g_object_class_install_property (object_class, i + 1,
-            g_param_spec_string (g_param_spec_get_name (properties[i]),
-                g_param_spec_get_nick (properties[i]),
-                g_param_spec_get_blurb (properties[i]),
-                prop->default_value, properties[i]->flags));
-      } else if (G_IS_PARAM_SPEC_BOXED (properties[i])) {
-        g_object_class_install_property (object_class, i + 1,
-            g_param_spec_boxed (g_param_spec_get_name (properties[i]),
-                g_param_spec_get_nick (properties[i]),
-                g_param_spec_get_blurb (properties[i]),
-                properties[i]->value_type, properties[i]->flags));
-      }
-    }
-
-    g_free (properties);
+    gst_fake_sink_proxy_properties (GST_ELEMENT_CAST (self), child, PROP_LAST);
     g_once_init_leave (&initialized, 1);
   }
 }
@@ -171,20 +143,25 @@ static void
 gst_fake_video_sink_init (GstFakeVideoSink * self)
 {
   GstElement *child;
+  GstPadTemplate *template = gst_static_pad_template_get (&sink_factory);
 
   child = gst_element_factory_make ("fakesink", "sink");
+
+  self->allocation_meta_flags = ALLOCATION_META_DEFAULT_FLAGS;
 
   if (child) {
     GstPad *sink_pad = gst_element_get_static_pad (child, "sink");
     GstPad *ghost_pad;
 
     /* mimic GstVideoSink base class */
-    g_object_set (child, "max-lateness", G_GINT64_CONSTANT (20000000), "qos",
-        TRUE, "sync", TRUE, NULL);
+    g_object_set (child, "max-lateness", 5 * GST_MSECOND,
+        "processing-deadline", 15 * GST_MSECOND, "qos", TRUE, "sync", TRUE,
+        NULL);
 
     gst_bin_add (GST_BIN (self), child);
 
-    ghost_pad = gst_ghost_pad_new ("sink", sink_pad);
+    ghost_pad = gst_ghost_pad_new_from_template ("sink", sink_pad, template);
+    gst_object_unref (template);
     gst_element_add_pad (GST_ELEMENT (self), ghost_pad);
     gst_object_unref (sink_pad);
 
@@ -204,7 +181,17 @@ gst_fake_video_sink_get_property (GObject * object, guint property_id,
     GValue * value, GParamSpec * pspec)
 {
   GstFakeVideoSink *self = GST_FAKE_VIDEO_SINK (object);
-  g_object_get_property (G_OBJECT (self->child), pspec->name, value);
+
+  switch (property_id) {
+    case PROP_ALLOCATION_META_FLAGS:
+      GST_OBJECT_LOCK (self);
+      g_value_set_flags (value, self->allocation_meta_flags);
+      GST_OBJECT_UNLOCK (self);
+      break;
+    default:
+      g_object_get_property (G_OBJECT (self->child), pspec->name, value);
+      break;
+  }
 }
 
 static void
@@ -212,7 +199,17 @@ gst_fake_video_sink_set_property (GObject * object, guint property_id,
     const GValue * value, GParamSpec * pspec)
 {
   GstFakeVideoSink *self = GST_FAKE_VIDEO_SINK (object);
-  g_object_set_property (G_OBJECT (self->child), pspec->name, value);
+
+  switch (property_id) {
+    case PROP_ALLOCATION_META_FLAGS:
+      GST_OBJECT_LOCK (self);
+      self->allocation_meta_flags = g_value_get_flags (value);
+      GST_OBJECT_UNLOCK (self);
+      break;
+    default:
+      g_object_set_property (G_OBJECT (self->child), pspec->name, value);
+      break;
+  }
 }
 
 static void
@@ -226,6 +223,23 @@ gst_fake_video_sink_class_init (GstFakeVideoSinkClass * klass)
 
   gst_element_class_add_static_pad_template (element_class, &sink_factory);
   gst_element_class_set_static_metadata (element_class, "Fake Video Sink",
-      "Video/Sink", "Fake video display that allow zero-copy",
+      "Video/Sink", "Fake video display that allows zero-copy",
       "Nicolas Dufresne <nicolas.dufresne@collabora.com>");
+
+  /**
+   * GstFakeVideoSink:allocation-meta-flags
+   *
+   * Control the behaviour of the sink allocation query handler.
+   *
+   * Since: 1.18
+   */
+  g_object_class_install_property (object_class, PROP_ALLOCATION_META_FLAGS,
+      g_param_spec_flags ("allocation-meta-flags", "Flags",
+          "Flags to control behaviour",
+          GST_TYPE_FAKE_VIDEO_SINK_ALLOCATION_META_FLAGS,
+          ALLOCATION_META_DEFAULT_FLAGS,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  gst_type_mark_as_plugin_api (GST_TYPE_FAKE_VIDEO_SINK_ALLOCATION_META_FLAGS,
+      0);
 }

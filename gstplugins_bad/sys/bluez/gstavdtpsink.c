@@ -36,6 +36,7 @@
 
 #include "a2dp-codecs.h"
 
+#include "gstbluezelements.h"
 #include "gstavdtpsink.h"
 
 #include <gst/rtp/rtp.h>
@@ -69,26 +70,29 @@ enum
 
 #define parent_class gst_avdtp_sink_parent_class
 G_DEFINE_TYPE (GstAvdtpSink, gst_avdtp_sink, GST_TYPE_BASE_SINK);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (avdtpsink, "avdtpsink", GST_RANK_NONE,
+    GST_TYPE_AVDTP_SINK, bluez_element_init (plugin));
 
 static GstStaticPadTemplate avdtp_sink_factory =
     GST_STATIC_PAD_TEMPLATE ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
     GST_STATIC_CAPS ("application/x-rtp, "
         "media = (string) \"audio\","
-        "payload = (int) "
-        GST_RTP_PAYLOAD_DYNAMIC_STRING ", "
-        "clock-rate = (int) { 16000, 32000, "
-        "44100, 48000 }, "
+        "payload = (int) " GST_RTP_PAYLOAD_DYNAMIC_STRING ", "
+        "clock-rate = (int) { 16000, 32000, 44100, 48000 }, "
         "encoding-name = (string) \"SBC\"; "
         "application/x-rtp, "
         "media = (string) \"audio\", "
-        "payload = (int) "
-        GST_RTP_PAYLOAD_MPA_STRING ", "
+        "payload = (int) " GST_RTP_PAYLOAD_MPA_STRING ", "
         "clock-rate = (int) 90000; "
         "application/x-rtp, "
         "media = (string) \"audio\", "
-        "payload = (int) "
-        GST_RTP_PAYLOAD_DYNAMIC_STRING ", "
-        "clock-rate = (int) 90000, " "encoding-name = (string) \"MPA\""));
+        "payload = (int) " GST_RTP_PAYLOAD_DYNAMIC_STRING ", "
+        "clock-rate = (int) 90000, " "encoding-name = (string) \"MPA\"; "
+        "application/x-rtp, "
+        "media = (string) \"audio\", "
+        "payload = (int) " GST_RTP_PAYLOAD_DYNAMIC_STRING ", "
+        "clock-rate = (int) { 44100, 48000, 88200, 96000 }, "
+        "encoding-name = (string) \"X-GST-LDAC\""));
 
 static gboolean
 gst_avdtp_sink_stop (GstBaseSink * basesink)
@@ -408,14 +412,6 @@ gst_avdtp_sink_init (GstAvdtpSink * self)
    gst_base_sink_set_sync(GST_BASE_SINK(self), FALSE);
    */
 }
-
-gboolean
-gst_avdtp_sink_plugin_init (GstPlugin * plugin)
-{
-  return gst_element_register (plugin, "avdtpsink", GST_RANK_NONE,
-      GST_TYPE_AVDTP_SINK);
-}
-
 
 /* public functions */
 GstCaps *

@@ -192,7 +192,7 @@ static GstRTSPWatchFuncs watch_funcs = {
   tunnel_lost
 };
 
-/* setts up a new tunnel, then disconnects the read connection and creates it
+/* sets up a new tunnel, then disconnects the read connection and creates it
  * again */
 GST_START_TEST (test_rtspconnection_tunnel_setup)
 {
@@ -354,7 +354,7 @@ GST_START_TEST (test_rtspconnection_tunnel_setup)
 
 GST_END_TEST;
 
-/* setts up a new tunnel, starting with the read channel,
+/* sets up a new tunnel, starting with the read channel,
  * then disconnects the read connection and creates it again
  * ideally this test should be merged with test_rtspconnection_tunnel_setup but
  * but it became quite messy */
@@ -721,7 +721,7 @@ GST_START_TEST (test_rtspconnection_poll)
   GstRTSPEvent event;
   GOutputStream *ostream;
   gsize size;
-  GTimeVal tv;
+  gint64 timeout;
 
   create_connection (&conn1, &conn2);
   sock = g_socket_connection_get_socket (conn1);
@@ -740,10 +740,9 @@ GST_START_TEST (test_rtspconnection_poll)
   fail_unless (event & GST_RTSP_EV_WRITE);
 
   /* but not read, add timeout so that we don't block forever */
-  tv.tv_sec = 1;
-  tv.tv_usec = 0;
-  fail_unless (gst_rtsp_connection_poll (rtsp_conn, GST_RTSP_EV_READ, &event,
-          &tv) == GST_RTSP_ETIMEOUT);
+  timeout = G_USEC_PER_SEC;
+  fail_unless (gst_rtsp_connection_poll_usec (rtsp_conn, GST_RTSP_EV_READ,
+          &event, timeout) == GST_RTSP_ETIMEOUT);
   fail_if (event & GST_RTSP_EV_READ);
 
   /* write on the other end and make sure socket can be read */
@@ -859,6 +858,75 @@ GST_START_TEST (test_rtspconnection_ip)
 
 GST_END_TEST;
 
+GST_START_TEST (test_rtspconnection_send_receive_content_length)
+{
+  GSocketConnection *input_conn = NULL;
+  GSocketConnection *output_conn = NULL;
+  GSocket *input_sock;
+  GSocket *output_sock;
+  GstRTSPConnection *rtsp_output_conn;
+  GstRTSPConnection *rtsp_input_conn;
+  GstRTSPMessage *msg;
+
+  create_connection (&input_conn, &output_conn);
+  input_sock = g_socket_connection_get_socket (input_conn);
+  fail_unless (input_sock != NULL);
+  output_sock = g_socket_connection_get_socket (output_conn);
+  fail_unless (output_sock != NULL);
+
+  fail_unless (gst_rtsp_connection_create_from_socket (input_sock, "127.0.0.1",
+          4444, NULL, &rtsp_input_conn) == GST_RTSP_OK);
+  fail_unless (rtsp_input_conn != NULL);
+
+  fail_unless (gst_rtsp_connection_create_from_socket (output_sock, "127.0.0.1",
+          4444, NULL, &rtsp_output_conn) == GST_RTSP_OK);
+  fail_unless (rtsp_output_conn != NULL);
+
+  /* send request message with to big payload */
+  fail_unless (gst_rtsp_message_new_request (&msg, GST_RTSP_SETUP,
+          "rtsp://example.com/") == GST_RTSP_OK);
+  fail_unless (gst_rtsp_message_add_header (msg, GST_RTSP_HDR_CONTENT_LENGTH,
+          "2000") == GST_RTSP_OK);
+  fail_unless (gst_rtsp_connection_send (rtsp_output_conn, msg,
+          NULL) == GST_RTSP_OK);
+  fail_unless (gst_rtsp_message_free (msg) == GST_RTSP_OK);
+  msg = NULL;
+
+  /* receive request message, expect ENOMEM */
+  gst_rtsp_connection_set_content_length_limit (rtsp_input_conn, 1000);
+  fail_unless (gst_rtsp_message_new (&msg) == GST_RTSP_OK);
+  fail_unless (gst_rtsp_connection_receive (rtsp_input_conn, msg, NULL) ==
+      GST_RTSP_ENOMEM);
+  fail_unless (gst_rtsp_message_free (msg) == GST_RTSP_OK);
+  msg = NULL;
+
+  /* send request message with negative payload */
+  fail_unless (gst_rtsp_message_new_request (&msg, GST_RTSP_SETUP,
+          "rtsp://example.com/") == GST_RTSP_OK);
+  fail_unless (gst_rtsp_message_add_header (msg, GST_RTSP_HDR_CONTENT_LENGTH,
+          "-2000") == GST_RTSP_OK);
+  fail_unless (gst_rtsp_connection_send (rtsp_output_conn, msg,
+          NULL) == GST_RTSP_OK);
+  fail_unless (gst_rtsp_message_free (msg) == GST_RTSP_OK);
+  msg = NULL;
+
+  /* receive request message, expect EPARSE */
+  fail_unless (gst_rtsp_message_new (&msg) == GST_RTSP_OK);
+  fail_unless (gst_rtsp_connection_receive (rtsp_input_conn, msg, NULL) ==
+      GST_RTSP_EPARSE);
+  fail_unless (gst_rtsp_message_free (msg) == GST_RTSP_OK);
+  msg = NULL;
+
+  fail_unless (gst_rtsp_connection_close (rtsp_input_conn) == GST_RTSP_OK);
+  fail_unless (gst_rtsp_connection_free (rtsp_input_conn) == GST_RTSP_OK);
+  fail_unless (gst_rtsp_connection_close (rtsp_output_conn) == GST_RTSP_OK);
+  fail_unless (gst_rtsp_connection_free (rtsp_output_conn) == GST_RTSP_OK);
+
+  g_object_unref (input_conn);
+  g_object_unref (output_conn);
+}
+
+GST_END_TEST;
 
 static Suite *
 rtspconnection_suite (void)
@@ -875,6 +943,7 @@ rtspconnection_suite (void)
   tcase_add_test (tc_chain, test_rtspconnection_poll);
   tcase_add_test (tc_chain, test_rtspconnection_backlog);
   tcase_add_test (tc_chain, test_rtspconnection_ip);
+  tcase_add_test (tc_chain, test_rtspconnection_send_receive_content_length);
 
   return s;
 }

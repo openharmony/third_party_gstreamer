@@ -88,6 +88,23 @@ typedef enum
   GST_APP_STREAM_TYPE_RANDOM_ACCESS
 } GstAppStreamType;
 
+/**
+ * GstAppLeakyType:
+ * @GST_APP_LEAKY_TYPE_NONE: Not Leaky
+ * @GST_APP_LEAKY_TYPE_UPSTREAM: Leaky on upstream (new buffers)
+ * @GST_APP_LEAKY_TYPE_DOWNSTREAM: Leaky on downstream (old buffers)
+ *
+ * Buffer dropping scheme to avoid the element's internal queue to block when
+ * full.
+ *
+ * Since: 1.20
+ */
+typedef enum {
+  GST_APP_LEAKY_TYPE_NONE,
+  GST_APP_LEAKY_TYPE_UPSTREAM,
+  GST_APP_LEAKY_TYPE_DOWNSTREAM
+} GstAppLeakyType;
+
 struct _GstAppSrc
 {
   GstBaseSrc basesrc;
@@ -155,6 +172,30 @@ GST_APP_API
 guint64          gst_app_src_get_current_level_bytes (GstAppSrc *appsrc);
 
 GST_APP_API
+void             gst_app_src_set_max_buffers           (GstAppSrc *appsrc, guint64 max);
+
+GST_APP_API
+guint64          gst_app_src_get_max_buffers           (GstAppSrc *appsrc);
+
+GST_APP_API
+guint64          gst_app_src_get_current_level_buffers (GstAppSrc *appsrc);
+
+GST_APP_API
+void             gst_app_src_set_max_time            (GstAppSrc *appsrc, GstClockTime max);
+
+GST_APP_API
+GstClockTime     gst_app_src_get_max_time            (GstAppSrc *appsrc);
+
+GST_APP_API
+GstClockTime     gst_app_src_get_current_level_time  (GstAppSrc *appsrc);
+
+GST_APP_API
+void             gst_app_src_set_leaky_type          (GstAppSrc *appsrc, GstAppLeakyType leaky);
+
+GST_APP_API
+GstAppLeakyType  gst_app_src_get_leaky_type          (GstAppSrc *appsrc);
+
+GST_APP_API
 void             gst_app_src_set_latency             (GstAppSrc *appsrc, guint64 min, guint64 max);
 
 GST_APP_API
@@ -184,9 +225,7 @@ void             gst_app_src_set_callbacks           (GstAppSrc * appsrc,
                                                       gpointer user_data,
                                                       GDestroyNotify notify);
 
-#ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GstAppSrc, gst_object_unref)
-#endif
 
 G_END_DECLS
 

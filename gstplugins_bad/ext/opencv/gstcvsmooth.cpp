@@ -46,12 +46,11 @@
  *
  * Smooths the image using thes cvSmooth OpenCV function.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
+ *
  * |[
  * gst-launch-1.0 videotestsrc ! cvsmooth ! videoconvert ! autovideosink
  * ]|
- * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -136,7 +135,12 @@ gst_cv_smooth_type_get_type (void)
 #define DEFAULT_WIDTH G_MAXINT
 #define DEFAULT_HEIGHT G_MAXINT
 
-G_DEFINE_TYPE (GstCvSmooth, gst_cv_smooth, GST_TYPE_OPENCV_VIDEO_FILTER);
+G_DEFINE_TYPE_WITH_CODE (GstCvSmooth, gst_cv_smooth,
+    GST_TYPE_OPENCV_VIDEO_FILTER, GST_DEBUG_CATEGORY_INIT (gst_cv_smooth_debug,
+        "cvsmooth", 0, "cvsmooth");
+    );
+GST_ELEMENT_REGISTER_DEFINE (cvsmooth, "cvsmooth", GST_RANK_NONE,
+    GST_TYPE_CV_SMOOTH);
 
 static void gst_cv_smooth_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -234,11 +238,13 @@ gst_cv_smooth_class_init (GstCvSmoothClass * klass)
   templ = gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS, caps);
   gst_element_class_add_pad_template (element_class, templ);
   gst_caps_unref (caps);
+
+  gst_type_mark_as_plugin_api (GST_TYPE_CV_SMOOTH_TYPE, (GstPluginAPIFlags) 0);
 }
 
 /* initialize the new element
  * instantiate pads and add them to element
- * set pad calback functions
+ * set pad callback functions
  * initialize instance structure
  */
 static void
@@ -421,13 +427,4 @@ gst_cv_smooth_transform_ip (GstOpencvVideoFilter * base, GstBuffer * buf,
   }
 
   return GST_FLOW_OK;
-}
-
-gboolean
-gst_cv_smooth_plugin_init (GstPlugin * plugin)
-{
-  GST_DEBUG_CATEGORY_INIT (gst_cv_smooth_debug, "cvsmooth", 0, "cvsmooth");
-
-  return gst_element_register (plugin, "cvsmooth", GST_RANK_NONE,
-      GST_TYPE_CV_SMOOTH);
 }

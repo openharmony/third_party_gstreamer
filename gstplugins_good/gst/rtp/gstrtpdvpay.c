@@ -26,6 +26,7 @@
 #include <string.h>
 #include <gst/rtp/gstrtpbuffer.h>
 
+#include "gstrtpelements.h"
 #include "gstrtpdvpay.h"
 #include "gstrtputils.h"
 
@@ -97,6 +98,8 @@ static void gst_dv_pay_get_property (GObject * object,
 
 #define gst_rtp_dv_pay_parent_class parent_class
 G_DEFINE_TYPE (GstRTPDVPay, gst_rtp_dv_pay, GST_TYPE_RTP_BASE_PAYLOAD);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpdvpay, "rtpdvpay", GST_RANK_SECONDARY,
+    GST_TYPE_RTP_DV_PAY, rtp_element_init (plugin));
 
 static void
 gst_rtp_dv_pay_class_init (GstRTPDVPayClass * klass)
@@ -132,6 +135,8 @@ gst_rtp_dv_pay_class_init (GstRTPDVPayClass * klass)
 
   gstrtpbasepayload_class->set_caps = gst_rtp_dv_pay_setcaps;
   gstrtpbasepayload_class->handle_buffer = gst_rtp_dv_pay_handle_buffer;
+
+  gst_type_mark_as_plugin_api (GST_TYPE_DV_PAY_MODE, 0);
 }
 
 static void
@@ -330,7 +335,9 @@ gst_rtp_dv_pay_handle_buffer (GstRTPBasePayload * basepayload,
   while (size >= 80) {
     /* Allocate a new buffer, set the timestamp */
     if (outbuf == NULL) {
-      outbuf = gst_rtp_buffer_new_allocate (max_payload_size, 0, 0);
+      outbuf =
+          gst_rtp_base_payload_allocate_output_buffer (basepayload,
+          max_payload_size, 0, 0);
       GST_BUFFER_PTS (outbuf) = GST_BUFFER_PTS (buffer);
 
       if (!gst_rtp_buffer_map (outbuf, GST_MAP_WRITE, &rtp)) {
@@ -387,11 +394,4 @@ beach:
   gst_buffer_unref (buffer);
 
   return ret;
-}
-
-gboolean
-gst_rtp_dv_pay_plugin_init (GstPlugin * plugin)
-{
-  return gst_element_register (plugin, "rtpdvpay",
-      GST_RANK_SECONDARY, GST_TYPE_RTP_DV_PAY);
 }

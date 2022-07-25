@@ -21,29 +21,28 @@
  */
 /**
  * SECTION:element-vp9enc
+ * @title: vp9enc
  * @see_also: vp9dec, webmmux, oggmux
  *
  * This element encodes raw video into a VP9 stream.
- * <ulink url="http://www.webmproject.org">VP9</ulink> is a royalty-free
- * video codec maintained by <ulink url="http://www.google.com/">Google
- * </ulink>. It's the successor of On2 VP3, which was the base of the
- * Theora video codec.
+ * [VP9](http://www.webmproject.org) is a royalty-free video codec maintained by
+ * [Google](http://www.google.com/). It's the successor of On2 VP3, which was
+ * the base of the Theora video codec.
  *
- * To control the quality of the encoding, the #GstVP9Enc::target-bitrate,
- * #GstVP9Enc::min-quantizer, #GstVP9Enc::max-quantizer or #GstVP9Enc::cq-level
+ * To control the quality of the encoding, the #GstVPXEnc:target-bitrate,
+ * #GstVPXEnc:min-quantizer, #GstVPXEnc:max-quantizer or #GstVPXEnc:cq-level
  * properties can be used. Which one is used depends on the mode selected by
- * the #GstVP9Enc::end-usage property.
- * See <ulink url="http://www.webmproject.org/docs/encoder-parameters/">Encoder Parameters</ulink>
+ * the #GstVPXEnc:end-usage property.
+ * See [Encoder Parameters](http://www.webmproject.org/docs/encoder-parameters/)
  * for explanation, examples for useful encoding parameters and more details
  * on the encoding parameters.
  *
- * <refsect2>
- * <title>Example pipeline</title>
+ * ## Example pipeline
  * |[
  * gst-launch-1.0 -v videotestsrc num-buffers=1000 ! vp9enc ! webmmux ! filesink location=videotestsrc.webm
  * ]| This example pipeline will encode a test video source to VP9 muxed in an
  * WebM container.
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -63,20 +62,39 @@
 #include <gst/video/video.h>
 #include <string.h>
 
+#include "gstvpxelements.h"
+#include "gstvpxenums.h"
+#include "gstvpx-enumtypes.h"
 #include "gstvp8utils.h"
 #include "gstvp9enc.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_vp9enc_debug);
 #define GST_CAT_DEFAULT gst_vp9enc_debug
 
+#define DEFAULT_TILE_COLUMNS 6
+#define DEFAULT_TILE_ROWS 0
+#define DEFAULT_ROW_MT 0
+#define DEFAULT_AQ_MODE GST_VPX_AQ_OFF
+#define DEFAULT_FRAME_PARALLEL_DECODING TRUE
 
-/* FIXME: Y42B and Y444 do not work yet it seems */
+enum
+{
+  PROP_0,
+  PROP_TILE_COLUMNS,
+  PROP_TILE_ROWS,
+  PROP_ROW_MT,
+  PROP_AQ_MODE,
+  PROP_FRAME_PARALLEL_DECODING,
+};
+
+/* FIXME: Y42B do not work yet it seems */
 static GstStaticPadTemplate gst_vp9_enc_sink_template =
 GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
     /*GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("{ I420, YV12, Y42B, Y444 }")) */
-    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("{ I420, YV12 }"))
+    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE
+        ("{ I420, YV12, Y444, I420_10LE, I422_10LE }"))
     );
 
 static GstStaticPadTemplate gst_vp9_enc_src_template =
@@ -88,6 +106,8 @@ GST_STATIC_PAD_TEMPLATE ("src",
 
 #define parent_class gst_vp9_enc_parent_class
 G_DEFINE_TYPE (GstVP9Enc, gst_vp9_enc, GST_TYPE_VPX_ENC);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (vp9enc, "vp9enc", GST_RANK_PRIMARY,
+    gst_vp9_enc_get_type (), vpx_element_init (plugin));
 
 static vpx_codec_iface_t *gst_vp9_enc_get_algo (GstVPXEnc * enc);
 static gboolean gst_vp9_enc_enable_scaling (GstVPXEnc * enc);
@@ -101,15 +121,95 @@ static GstFlowReturn gst_vp9_enc_handle_invisible_frame_buffer (GstVPXEnc * enc,
     void *user_data, GstBuffer * buffer);
 static void gst_vp9_enc_set_frame_user_data (GstVPXEnc * enc,
     GstVideoCodecFrame * frame, vpx_image_t * image);
+static void gst_vp9_enc_set_property (GObject * object, guint prop_id,
+    const GValue * value, GParamSpec * pspec);
+static void gst_vp9_enc_get_property (GObject * object, guint prop_id,
+    GValue * value, GParamSpec * pspec);
+static gboolean gst_vp9_enc_configure_encoder (GstVPXEnc * encoder,
+    GstVideoCodecState * state);
+
+#define DEFAULT_BITS_PER_PIXEL 0.0289
 
 static void
 gst_vp9_enc_class_init (GstVP9EncClass * klass)
 {
+  GObjectClass *gobject_class;
   GstElementClass *element_class;
   GstVPXEncClass *vpx_encoder_class;
 
+  gobject_class = G_OBJECT_CLASS (klass);
   element_class = GST_ELEMENT_CLASS (klass);
   vpx_encoder_class = GST_VPX_ENC_CLASS (klass);
+
+  gobject_class->set_property = gst_vp9_enc_set_property;
+  gobject_class->get_property = gst_vp9_enc_get_property;
+
+  /**
+   * GstVP9Enc:tile-columns:
+   *
+   * Number of tile columns, log2
+   *
+   * Since: 1.20
+   */
+  g_object_class_install_property (gobject_class, PROP_TILE_COLUMNS,
+      g_param_spec_int ("tile-columns", "Tile Columns",
+          "Number of tile columns, log2",
+          0, 6, DEFAULT_TILE_COLUMNS,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  /**
+   * GstVP9Enc:tile-rows:
+   *
+   * Number of tile rows, log2
+   *
+   * Since: 1.20
+   */
+  g_object_class_install_property (gobject_class, PROP_TILE_ROWS,
+      g_param_spec_int ("tile-rows", "Tile Rows",
+          "Number of tile rows, log2",
+          0, 2, DEFAULT_TILE_ROWS,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  /**
+   * GstVP9Enc:row-mt:
+   *
+   * Whether each row should be encoded using multiple threads
+   *
+   * Since: 1.20
+   */
+  g_object_class_install_property (gobject_class, PROP_ROW_MT,
+      g_param_spec_boolean ("row-mt", "Row Multithreading",
+          "Whether each row should be encoded using multiple threads",
+          DEFAULT_ROW_MT,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  /**
+   * GstVP9Enc:aq-mode:
+   *
+   * Adaptive Quantization Mode
+   *
+   * Since: 1.20
+   */
+  g_object_class_install_property (gobject_class, PROP_AQ_MODE,
+      g_param_spec_enum ("aq-mode", "Adaptive Quantization Mode",
+          "Which adaptive quantization mode should be used",
+          GST_TYPE_VPXAQ, DEFAULT_AQ_MODE,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+  gst_type_mark_as_plugin_api (GST_TYPE_VPXAQ, 0);
+
+  /**
+   * GstVP9Enc:frame-parallel-decoding:
+   *
+   * Whether encoded bitstream should allow parallel processing of video frames in the decoder
+   *
+   * Since: 1.20
+   */
+  g_object_class_install_property (gobject_class, PROP_FRAME_PARALLEL_DECODING,
+      g_param_spec_boolean ("frame-parallel-decoding",
+          "Frame Parallel Decoding",
+          "Whether encoded bitstream should allow parallel processing of video frames in the decoder "
+          "(default is on)", DEFAULT_FRAME_PARALLEL_DECODING,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   gst_element_class_add_static_pad_template (element_class,
       &gst_vp9_enc_src_template);
@@ -132,6 +232,7 @@ gst_vp9_enc_class_init (GstVP9EncClass * klass)
   vpx_encoder_class->handle_invisible_frame_buffer =
       gst_vp9_enc_handle_invisible_frame_buffer;
   vpx_encoder_class->set_frame_user_data = gst_vp9_enc_set_frame_user_data;
+  vpx_encoder_class->configure_encoder = gst_vp9_enc_configure_encoder;
 
   GST_DEBUG_CATEGORY_INIT (gst_vp9enc_debug, "vp9enc", 0, "VP9 Encoder");
 }
@@ -153,6 +254,258 @@ gst_vp9_enc_init (GstVP9Enc * gst_vp9_enc)
   } else {
     gst_vpx_enc->have_default_config = TRUE;
   }
+  gst_vpx_enc->bits_per_pixel = DEFAULT_BITS_PER_PIXEL;
+
+  gst_vp9_enc->tile_columns = DEFAULT_TILE_COLUMNS;
+  gst_vp9_enc->tile_rows = DEFAULT_TILE_ROWS;
+  gst_vp9_enc->row_mt = DEFAULT_ROW_MT;
+  gst_vp9_enc->aq_mode = DEFAULT_AQ_MODE;
+  gst_vp9_enc->frame_parallel_decoding = DEFAULT_FRAME_PARALLEL_DECODING;
+}
+
+static void
+gst_vp9_enc_set_property (GObject * object, guint prop_id,
+    const GValue * value, GParamSpec * pspec)
+{
+  GstVPXEnc *gst_vpx_enc = GST_VPX_ENC (object);
+  GstVP9Enc *gst_vp9_enc = GST_VP9_ENC (object);
+  vpx_codec_err_t status;
+
+  g_mutex_lock (&gst_vpx_enc->encoder_lock);
+
+  switch (prop_id) {
+    case PROP_TILE_COLUMNS:
+      gst_vp9_enc->tile_columns = g_value_get_int (value);
+      if (gst_vpx_enc->inited) {
+        status =
+            vpx_codec_control (&gst_vpx_enc->encoder, VP9E_SET_TILE_COLUMNS,
+            gst_vp9_enc->tile_columns);
+        if (status != VPX_CODEC_OK) {
+          GST_WARNING_OBJECT (gst_vpx_enc,
+              "Failed to set VP9E_SET_TILE_COLUMNS: %s",
+              gst_vpx_error_name (status));
+        }
+      }
+      break;
+    case PROP_TILE_ROWS:
+      gst_vp9_enc->tile_rows = g_value_get_int (value);
+      if (gst_vpx_enc->inited) {
+        status =
+            vpx_codec_control (&gst_vpx_enc->encoder, VP9E_SET_TILE_ROWS,
+            gst_vp9_enc->tile_rows);
+        if (status != VPX_CODEC_OK) {
+          GST_WARNING_OBJECT (gst_vpx_enc,
+              "Failed to set VP9E_SET_TILE_ROWS: %s",
+              gst_vpx_error_name (status));
+        }
+      }
+      break;
+    case PROP_ROW_MT:
+      gst_vp9_enc->row_mt = g_value_get_boolean (value);
+      if (gst_vpx_enc->inited) {
+        status =
+            vpx_codec_control (&gst_vpx_enc->encoder, VP9E_SET_ROW_MT,
+            gst_vp9_enc->row_mt ? 1 : 0);
+        if (status != VPX_CODEC_OK) {
+          GST_WARNING_OBJECT (gst_vpx_enc,
+              "Failed to set VP9E_SET_ROW_MT: %s", gst_vpx_error_name (status));
+        }
+      }
+      break;
+    case PROP_AQ_MODE:
+      gst_vp9_enc->aq_mode = g_value_get_enum (value);
+      if (gst_vpx_enc->inited) {
+        status = vpx_codec_control (&gst_vpx_enc->encoder, VP9E_SET_AQ_MODE,
+            gst_vp9_enc->aq_mode);
+        if (status != VPX_CODEC_OK) {
+          GST_WARNING_OBJECT (gst_vpx_enc,
+              "Failed to set VP9E_SET_AQ_MODE: %s",
+              gst_vpx_error_name (status));
+        }
+      }
+      break;
+    case PROP_FRAME_PARALLEL_DECODING:
+      gst_vp9_enc->frame_parallel_decoding = g_value_get_boolean (value);
+      if (gst_vpx_enc->inited) {
+        status = vpx_codec_control (&gst_vpx_enc->encoder,
+            VP9E_SET_FRAME_PARALLEL_DECODING,
+            gst_vp9_enc->frame_parallel_decoding ? 1 : 0);
+        if (status != VPX_CODEC_OK) {
+          GST_WARNING_OBJECT (gst_vpx_enc,
+              "Failed to set VP9E_SET_FRAME_PARALLEL_DECODING: %s",
+              gst_vpx_error_name (status));
+        }
+      }
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+  }
+
+  g_mutex_unlock (&gst_vpx_enc->encoder_lock);
+}
+
+static void
+gst_vp9_enc_get_property (GObject * object, guint prop_id, GValue * value,
+    GParamSpec * pspec)
+{
+  GstVPXEnc *gst_vpx_enc = GST_VPX_ENC (object);
+  GstVP9Enc *gst_vp9_enc = GST_VP9_ENC (object);
+
+  g_mutex_lock (&gst_vpx_enc->encoder_lock);
+
+  switch (prop_id) {
+    case PROP_TILE_COLUMNS:
+      g_value_set_int (value, gst_vp9_enc->tile_columns);
+      break;
+    case PROP_TILE_ROWS:
+      g_value_set_int (value, gst_vp9_enc->tile_rows);
+      break;
+    case PROP_ROW_MT:
+      g_value_set_boolean (value, gst_vp9_enc->row_mt);
+      break;
+    case PROP_AQ_MODE:
+      g_value_set_enum (value, gst_vp9_enc->aq_mode);
+      break;
+    case PROP_FRAME_PARALLEL_DECODING:
+      g_value_set_boolean (value, gst_vp9_enc->frame_parallel_decoding);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+  }
+
+  g_mutex_unlock (&gst_vpx_enc->encoder_lock);
+}
+
+static vpx_color_space_t
+gst_vp9_get_vpx_colorspace (GstVPXEnc * encoder, GstVideoColorimetry * in_cinfo,
+    GstVideoFormat format)
+{
+  vpx_color_space_t colorspace = VPX_CS_UNKNOWN;
+  GstVideoColorimetry cinfo = *in_cinfo;
+  gchar *colorimetry_str;
+  guint i;
+
+  static const struct
+  {
+    const gchar *str;
+    vpx_color_space_t vpx_color_space;
+  } colorimetry_map[] = {
+    {
+    GST_VIDEO_COLORIMETRY_BT601, VPX_CS_BT_601}, {
+    GST_VIDEO_COLORIMETRY_BT709, VPX_CS_BT_709}, {
+    GST_VIDEO_COLORIMETRY_SMPTE240M, VPX_CS_SMPTE_240}, {
+    GST_VIDEO_COLORIMETRY_BT2020, VPX_CS_BT_2020}
+  };
+
+  /* We support any range, all mapped CSC are by default reduced range. */
+  cinfo.range = GST_VIDEO_COLOR_RANGE_16_235;
+  colorimetry_str = gst_video_colorimetry_to_string (&cinfo);
+
+  if (colorimetry_str != NULL) {
+    for (i = 0; i < G_N_ELEMENTS (colorimetry_map); ++i) {
+      if (g_strcmp0 (colorimetry_map[i].str, colorimetry_str) == 0) {
+        colorspace = colorimetry_map[i].vpx_color_space;
+        break;
+      }
+    }
+  }
+
+  if (colorspace == VPX_CS_UNKNOWN) {
+    if (format == GST_VIDEO_FORMAT_GBR
+        || format == GST_VIDEO_FORMAT_GBR_10BE
+        || format == GST_VIDEO_FORMAT_GBR_10LE
+        || format == GST_VIDEO_FORMAT_GBR_12BE
+        || format == GST_VIDEO_FORMAT_GBR_12LE) {
+      /* Currently has no effect because vp*enc elements only accept YUV video
+       * formats.
+       *
+       * FIXME: Support encoding GST_VIDEO_FORMAT_GBR and its high bits variants.
+       */
+      colorspace = VPX_CS_SRGB;
+    } else {
+      GST_WARNING_OBJECT (encoder, "Unsupported colorspace \"%s\"",
+          GST_STR_NULL (colorimetry_str));
+    }
+  }
+
+  g_free (colorimetry_str);
+
+  return colorspace;
+}
+
+static gint
+gst_vp9_get_vpx_color_range (GstVideoColorimetry * colorimetry)
+{
+  if (colorimetry->range == GST_VIDEO_COLOR_RANGE_0_255)
+    /* Full range (0..255 or HBD equivalent) */
+    return 1;
+
+  /* Limited range (16..235 or HBD equivalent) */
+  return 0;
+}
+
+static gboolean
+gst_vp9_enc_configure_encoder (GstVPXEnc * encoder, GstVideoCodecState * state)
+{
+  GstVP9Enc *vp9enc = GST_VP9_ENC (encoder);
+  GstVideoInfo *info = &state->info;
+  vpx_codec_err_t status;
+
+  status = vpx_codec_control (&encoder->encoder, VP9E_SET_COLOR_SPACE,
+      gst_vp9_get_vpx_colorspace (encoder, &GST_VIDEO_INFO_COLORIMETRY (info),
+          GST_VIDEO_INFO_FORMAT (info)));
+  if (status != VPX_CODEC_OK) {
+    GST_WARNING_OBJECT (encoder,
+        "Failed to set VP9E_SET_COLOR_SPACE: %s", gst_vpx_error_name (status));
+  }
+
+  status = vpx_codec_control (&encoder->encoder, VP9E_SET_COLOR_RANGE,
+      gst_vp9_get_vpx_color_range (&GST_VIDEO_INFO_COLORIMETRY (info)));
+  if (status != VPX_CODEC_OK) {
+    GST_WARNING_OBJECT (encoder,
+        "Failed to set VP9E_SET_COLOR_RANGE: %s", gst_vpx_error_name (status));
+  }
+
+  status =
+      vpx_codec_control (&encoder->encoder, VP9E_SET_TILE_COLUMNS,
+      vp9enc->tile_columns);
+  if (status != VPX_CODEC_OK) {
+    GST_DEBUG_OBJECT (encoder, "Failed to set VP9E_SET_TILE_COLUMNS: %s",
+        gst_vpx_error_name (status));
+  }
+
+  status =
+      vpx_codec_control (&encoder->encoder, VP9E_SET_TILE_ROWS,
+      vp9enc->tile_rows);
+  if (status != VPX_CODEC_OK) {
+    GST_DEBUG_OBJECT (encoder, "Failed to set VP9E_SET_TILE_ROWS: %s",
+        gst_vpx_error_name (status));
+  }
+  status =
+      vpx_codec_control (&encoder->encoder, VP9E_SET_ROW_MT,
+      vp9enc->row_mt ? 1 : 0);
+  if (status != VPX_CODEC_OK) {
+    GST_DEBUG_OBJECT (encoder,
+        "Failed to set VP9E_SET_ROW_MT: %s", gst_vpx_error_name (status));
+  }
+  status =
+      vpx_codec_control (&encoder->encoder, VP9E_SET_AQ_MODE, vp9enc->aq_mode);
+  if (status != VPX_CODEC_OK) {
+    GST_WARNING_OBJECT (encoder,
+        "Failed to set VP9E_SET_AQ_MODE: %s", gst_vpx_error_name (status));
+  }
+  status =
+      vpx_codec_control (&encoder->encoder, VP9E_SET_FRAME_PARALLEL_DECODING,
+      vp9enc->frame_parallel_decoding ? 1 : 0);
+  if (status != VPX_CODEC_OK) {
+    GST_WARNING_OBJECT (encoder,
+        "Failed to set VP9E_SET_FRAME_PARALLEL_DECODING: %s",
+        gst_vpx_error_name (status));
+  }
+
+  return TRUE;
 }
 
 static vpx_codec_iface_t *
@@ -191,6 +544,17 @@ gst_vp9_enc_set_image_format (GstVPXEnc * enc, vpx_image_t * image)
       image->fmt = VPX_IMG_FMT_I444;
       image->bps = 24;
       image->x_chroma_shift = image->y_chroma_shift = 0;
+      break;
+    case GST_VIDEO_FORMAT_I420_10LE:
+      image->fmt = VPX_IMG_FMT_I42016;
+      image->bps = 15;
+      image->x_chroma_shift = image->y_chroma_shift = 1;
+      break;
+    case GST_VIDEO_FORMAT_I422_10LE:
+      image->fmt = VPX_IMG_FMT_I42216;
+      image->bps = 20;
+      image->x_chroma_shift = 1;
+      image->y_chroma_shift = 0;
       break;
     default:
       g_assert_not_reached ();

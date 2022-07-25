@@ -31,18 +31,33 @@
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+/**
+ * SECTION: element-msdkvp9dec
+ * @title: msdkvp9dec
+ * @short_description: Intel MSDK VP9 decoderr
+ *
+ * VP9 video decoder based on Intel MFX
+ *
+ * ## Example launch line
+ * ```
+ * gst-launch-1.0 filesrc location=sample.webm ! matroskademux ! msdkvp9dec ! glimagesink
+ * ```
+ *
+ * Since: 1.16
+ *
+ */
+
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
-
-#include <mfxplugin.h>
-#include <mfxvp9.h>
 
 #include "gstmsdkvp9dec.h"
 #include "gstmsdkvideomemory.h"
 
 GST_DEBUG_CATEGORY_EXTERN (gst_msdkvp9dec_debug);
 #define GST_CAT_DEFAULT gst_msdkvp9dec_debug
+
+#define COMMON_FORMAT "{ NV12, P010_10LE, VUYA, Y410, P012_LE, Y412_LE }"
 
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
@@ -53,13 +68,7 @@ static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("video/x-raw, "
-        "format = (string) { NV12, P010_10LE }, "
-        "framerate = (fraction) [0, MAX], "
-        "width = (int) [ 1, MAX ], height = (int) [ 1, MAX ],"
-        "interlace-mode = (string) progressive;"
-        GST_VIDEO_CAPS_MAKE_WITH_FEATURES (GST_CAPS_FEATURE_MEMORY_DMABUF,
-            "{ NV12, P010_10LE }") ";")
+    GST_STATIC_CAPS (GST_MSDK_CAPS_STR (COMMON_FORMAT, COMMON_FORMAT))
     );
 
 #define gst_msdkvp9dec_parent_class parent_class
@@ -70,22 +79,14 @@ gst_msdkvp9dec_configure (GstMsdkDec * decoder)
 {
   GstMsdkVP9Dec *vp9dec = GST_MSDKVP9DEC (decoder);
   mfxSession session;
-  mfxStatus status;
   const mfxPluginUID *uid;
 
   session = gst_msdk_context_get_session (decoder->context);
 
   uid = &MFX_PLUGINID_VP9D_HW;
 
-  status = MFXVideoUSER_Load (session, uid, 1);
-  if (status < MFX_ERR_NONE) {
-    GST_ERROR_OBJECT (vp9dec, "Media SDK Plugin load failed (%s)",
-        msdk_status_to_string (status));
+  if (!gst_msdk_load_plugin (session, uid, 1, "msdkvp9dec"))
     return FALSE;
-  } else if (status > MFX_ERR_NONE) {
-    GST_WARNING_OBJECT (vp9dec, "Media SDK Plugin load warning: %s",
-        msdk_status_to_string (status));
-  }
 
   decoder->param.mfx.CodecId = MFX_CODEC_VP9;
   /* Replaced with width and height rounded up to 16 */
@@ -184,7 +185,7 @@ gst_msdkvp9dec_class_init (GstMsdkVP9DecClass * klass)
   gst_element_class_set_static_metadata (element_class,
       "Intel MSDK VP9 decoder",
       "Codec/Decoder/Video/Hardware",
-      "VP9 video decoder based on Intel Media SDK",
+      "VP9 video decoder based on " MFX_API_SDK,
       "Sreerenj Balachandran <sreerenj.balachandran@intel.com>");
 
   gst_msdkdec_prop_install_output_oder_property (gobject_class);

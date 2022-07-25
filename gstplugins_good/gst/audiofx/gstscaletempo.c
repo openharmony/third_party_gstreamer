@@ -20,6 +20,7 @@
 
 /**
  * SECTION:element-scaletempo
+ * @title: scaletempo
  *
  * Scale tempo while maintaining pitch
  * (WSOLA-like technique with cross correlation)
@@ -27,9 +28,8 @@
  *
  * Use Sceletempo to apply playback rates without the chipmunk effect.
  *
- * <refsect2>
- * <title>Example pipelines</title>
- * <para>
+ * ## Example pipelines
+ *
  * |[
  * filesrc location=media.ext ! decodebin name=d \
  *     d. ! queue ! audioconvert ! audioresample ! scaletempo ! audioconvert ! audioresample ! autoaudiosink \
@@ -53,9 +53,8 @@
  * for the best overlap position.  Scaletempo uses a statistical cross
  * correlation (roughly a dot-product).  Scaletempo consumes most of its CPU
  * cycles here. One can use the #GstScaletempo:search propery to tune how far
- * the algoritm looks.
- * </para>
- * </refsect2>
+ * the algorithm looks.
+ *
  */
 
 /*
@@ -113,6 +112,8 @@ static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
 #define gst_scaletempo_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstScaletempo, gst_scaletempo,
     GST_TYPE_BASE_TRANSFORM, DEBUG_INIT (0));
+GST_ELEMENT_REGISTER_DEFINE (scaletempo, "scaletempo",
+    GST_RANK_NONE, GST_TYPE_SCALETEMPO);
 
 #define CREATE_BEST_OVERLAP_OFFSET_FLOAT_FUNC(type) \
 static guint \

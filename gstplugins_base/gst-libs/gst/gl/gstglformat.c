@@ -49,6 +49,9 @@
 #ifndef GL_TEXTURE_EXTERNAL_OES
 #define GL_TEXTURE_EXTERNAL_OES 0x8D65
 #endif
+#ifndef GL_UNSIGNED_INT_2_10_10_10_REV
+#define GL_UNSIGNED_INT_2_10_10_10_REV 0x8368
+#endif
 
 static inline guint
 _gl_format_n_components (guint format)
@@ -58,6 +61,7 @@ _gl_format_n_components (guint format)
     case GST_GL_RGBA:
     case GST_GL_RGBA8:
     case GST_GL_RGBA16:
+    case GST_GL_RGB10_A2:
       return 4;
     case GST_VIDEO_GL_TEXTURE_TYPE_RGB:
     case GST_VIDEO_GL_TEXTURE_TYPE_RGB16:
@@ -71,6 +75,7 @@ _gl_format_n_components (guint format)
     case GST_GL_LUMINANCE_ALPHA:
     case GST_GL_RG:
     case GST_GL_RG8:
+    case GST_GL_RG16:
       return 2;
     case GST_VIDEO_GL_TEXTURE_TYPE_LUMINANCE:
     case GST_VIDEO_GL_TEXTURE_TYPE_R:
@@ -78,6 +83,7 @@ _gl_format_n_components (guint format)
     case GST_GL_ALPHA:
     case GST_GL_RED:
     case GST_GL_R8:
+    case GST_GL_R16:
       return 1;
     default:
       return 0;
@@ -93,6 +99,8 @@ _gl_type_n_components (guint type)
       return 1;
     case GL_UNSIGNED_SHORT_5_6_5:
       return 3;
+    case GL_UNSIGNED_INT_2_10_10_10_REV:
+      return 4;
     default:
       g_assert_not_reached ();
       return 0;
@@ -108,6 +116,8 @@ _gl_type_n_bytes (guint type)
     case GL_UNSIGNED_SHORT:
     case GL_UNSIGNED_SHORT_5_6_5:
       return 2;
+    case GL_UNSIGNED_INT_2_10_10_10_REV:
+      return 4;
     default:
       g_assert_not_reached ();
       return 0;
@@ -116,8 +126,8 @@ _gl_type_n_bytes (guint type)
 
 /**
  * gst_gl_format_type_n_bytes:
- * @format: the OpenGL format, %GL_RGBA, %GL_LUMINANCE, etc
- * @type: the OpenGL type, %GL_UNSIGNED_BYTE, %GL_FLOAT, etc
+ * @format: the OpenGL format, `GL_RGBA`, `GL_LUMINANCE`, etc
+ * @type: the OpenGL type, `GL_UNSIGNED_BYTE`, `GL_FLOAT`, etc
  *
  * Returns: the number of bytes the specified @format, @type combination takes
  * per pixel
@@ -138,8 +148,8 @@ gst_gl_format_type_n_bytes (guint format, guint type)
  * Returns: the #GstGLFormat necessary for holding the data in @plane of @vinfo
  */
 GstGLFormat
-gst_gl_format_from_video_info (GstGLContext * context, GstVideoInfo * vinfo,
-    guint plane)
+gst_gl_format_from_video_info (GstGLContext * context,
+    const GstVideoInfo * vinfo, guint plane)
 {
   gboolean texture_rg =
       gst_gl_context_check_feature (context, "GL_EXT_texture_rg")
@@ -180,7 +190,12 @@ gst_gl_format_from_video_info (GstGLContext * context, GstVideoInfo * vinfo,
       break;
     case GST_VIDEO_FORMAT_NV12:
     case GST_VIDEO_FORMAT_NV21:
+    case GST_VIDEO_FORMAT_NV16:
+    case GST_VIDEO_FORMAT_NV61:
       n_plane_components = plane == 0 ? 1 : 2;
+      break;
+    case GST_VIDEO_FORMAT_AV12:
+      n_plane_components = (plane == 1) ? 2 : 1;
       break;
     case GST_VIDEO_FORMAT_GRAY8:
     case GST_VIDEO_FORMAT_Y444:
@@ -188,8 +203,32 @@ gst_gl_format_from_video_info (GstGLContext * context, GstVideoInfo * vinfo,
     case GST_VIDEO_FORMAT_Y41B:
     case GST_VIDEO_FORMAT_I420:
     case GST_VIDEO_FORMAT_YV12:
+    case GST_VIDEO_FORMAT_A420:
       n_plane_components = 1;
       break;
+    case GST_VIDEO_FORMAT_BGR10A2_LE:
+    case GST_VIDEO_FORMAT_RGB10A2_LE:
+    case GST_VIDEO_FORMAT_Y410:
+      return GST_GL_RGB10_A2;
+    case GST_VIDEO_FORMAT_P010_10LE:
+    case GST_VIDEO_FORMAT_P010_10BE:
+    case GST_VIDEO_FORMAT_P012_LE:
+    case GST_VIDEO_FORMAT_P012_BE:
+    case GST_VIDEO_FORMAT_P016_LE:
+    case GST_VIDEO_FORMAT_P016_BE:
+      return plane == 0 ? GST_GL_R16 : GST_GL_RG16;
+    case GST_VIDEO_FORMAT_Y210:
+    case GST_VIDEO_FORMAT_Y212_LE:
+    case GST_VIDEO_FORMAT_Y212_BE:
+      return GST_GL_RG16;
+    case GST_VIDEO_FORMAT_Y412_LE:
+    case GST_VIDEO_FORMAT_Y412_BE:
+      return GST_GL_RGBA16;
+    case GST_VIDEO_FORMAT_GBR:
+    case GST_VIDEO_FORMAT_RGBP:
+    case GST_VIDEO_FORMAT_BGRP:
+    case GST_VIDEO_FORMAT_GBRA:
+      return GST_GL_R8;
     default:
       n_plane_components = 4;
       g_assert_not_reached ();
@@ -216,8 +255,8 @@ gst_gl_format_from_video_info (GstGLContext * context, GstVideoInfo * vinfo,
 /**
  * gst_gl_sized_gl_format_from_gl_format_type:
  * @context: a #GstGLContext
- * @format: an OpenGL format, %GL_RGBA, %GL_LUMINANCE, etc
- * @type: an OpenGL type, %GL_UNSIGNED_BYTE, %GL_FLOAT, etc
+ * @format: an OpenGL format, `GL_RGBA`, `GL_LUMINANCE`, etc
+ * @type: an OpenGL type, `GL_UNSIGNED_BYTE`, `GL_FLOAT`, etc
  *
  * Returns: the sized internal format specified by @format and @type that can
  *          be used in @context
@@ -235,9 +274,10 @@ gst_gl_sized_gl_format_from_gl_format_type (GstGLContext * context,
         case GL_UNSIGNED_BYTE:
           return USING_GLES2 (context)
               && !USING_GLES3 (context) ? GST_GL_RGBA : GST_GL_RGBA8;
-          break;
         case GL_UNSIGNED_SHORT:
           return GST_GL_RGBA16;
+        case GL_UNSIGNED_INT_2_10_10_10_REV:
+          return GST_GL_RGB10_A2;
       }
       break;
     case GST_GL_RGB:
@@ -245,7 +285,6 @@ gst_gl_sized_gl_format_from_gl_format_type (GstGLContext * context,
         case GL_UNSIGNED_BYTE:
           return USING_GLES2 (context)
               && !USING_GLES3 (context) ? GST_GL_RGB : GST_GL_RGB8;
-          break;
         case GL_UNSIGNED_SHORT_5_6_5:
           return GST_GL_RGB565;
         case GL_UNSIGNED_SHORT:
@@ -258,7 +297,8 @@ gst_gl_sized_gl_format_from_gl_format_type (GstGLContext * context,
           if (!USING_GLES3 (context) && USING_GLES2 (context) && ext_texture_rg)
             return GST_GL_RG;
           return GST_GL_RG8;
-          break;
+        case GL_UNSIGNED_SHORT:
+          return GST_GL_RG16;
       }
       break;
     case GST_GL_RED:
@@ -267,7 +307,8 @@ gst_gl_sized_gl_format_from_gl_format_type (GstGLContext * context,
           if (!USING_GLES3 (context) && USING_GLES2 (context) && ext_texture_rg)
             return GST_GL_RED;
           return GST_GL_R8;
-          break;
+        case GL_UNSIGNED_SHORT:
+          return GST_GL_R16;
       }
       break;
     case GST_GL_RGBA8:
@@ -282,6 +323,9 @@ gst_gl_sized_gl_format_from_gl_format_type (GstGLContext * context,
     case GST_GL_ALPHA:
     case GST_GL_DEPTH_COMPONENT16:
     case GST_GL_DEPTH24_STENCIL8:
+    case GST_GL_RGB10_A2:
+    case GST_GL_R16:
+    case GST_GL_RG16:
       return format;
     default:
       g_critical ("Unknown GL format 0x%x type 0x%x provided", format, type);
@@ -348,6 +392,18 @@ gst_gl_format_type_from_sized_gl_format (GstGLFormat format,
     case GST_GL_ALPHA:
       *unsized_format = format;
       *gl_type = GL_UNSIGNED_BYTE;
+      break;
+    case GST_GL_RGB10_A2:
+      *unsized_format = GST_GL_RGBA;
+      *gl_type = GL_UNSIGNED_INT_2_10_10_10_REV;
+      break;
+    case GST_GL_R16:
+      *unsized_format = GST_GL_RED;
+      *gl_type = GL_UNSIGNED_SHORT;
+      break;
+    case GST_GL_RG16:
+      *unsized_format = GST_GL_RG;
+      *gl_type = GL_UNSIGNED_SHORT;
       break;
     default:
       g_critical ("Unknown GL format 0x%x provided", format);
@@ -416,6 +472,17 @@ gst_gl_format_is_supported (GstGLContext * context, GstGLFormat format)
           "GL_OES_packed_depth_stencil")
           || gst_gl_context_check_feature (context,
           "GL_EXT_packed_depth_stencil");
+    case GST_GL_RGB10_A2:
+      return USING_OPENGL (context) || USING_OPENGL3 (context)
+          || USING_GLES3 (context)
+          || gst_gl_context_check_feature (context,
+          "GL_OES_required_internalformat");
+    case GST_GL_R16:
+    case GST_GL_RG16:
+      return gst_gl_context_check_gl_version (context,
+          GST_GL_API_OPENGL | GST_GL_API_OPENGL3, 3, 0)
+          || (gst_gl_context_check_gl_version (context, GST_GL_API_GLES2, 3, 1)
+          && gst_gl_context_check_feature (context, "GL_EXT_texture_norm16"));
     default:
       g_assert_not_reached ();
       return FALSE;
@@ -445,7 +512,7 @@ gst_gl_texture_target_to_string (GstGLTextureTarget target)
 
 /**
  * gst_gl_texture_target_from_string:
- * @str: a string equivalant to one of the GST_GL_TEXTURE_TARGET_*_STR values
+ * @str: a string equivalent to one of the GST_GL_TEXTURE_TARGET_*_STR values
  *
  * Returns: the #GstGLTextureTarget represented by @str or
  *          %GST_GL_TEXTURE_TARGET_NONE

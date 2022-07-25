@@ -17,6 +17,49 @@
  * Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
  * Boston, MA 02110-1301, USA.
  */
+
+/**
+ * SECTION:element-vtenc_h264
+ * @title: vtenc_h264
+ *
+ * Apple VideoToolbox H264 encoder, which can either use HW or a SW
+ * implementation depending on the device.
+ *
+ * ## Example pipeline
+ * |[
+ * gst-launch-1.0 -v videotestsrc ! vtenc_h264 ! qtmux ! filesink location=out.mov
+ * ]| Encode a test video pattern and save it as an MOV file
+ *
+ */
+
+/**
+ * SECTION:element-vtenc_h264_hw
+ * @title: vtenc_h264_hw
+ *
+ * Apple VideoToolbox H264 HW-only encoder (only available on macOS at
+ * present).
+ *
+ * ## Example pipeline
+ * |[
+ * gst-launch-1.0 -v videotestsrc ! vtenc_h264_hw ! qtmux ! filesink location=out.mov
+ * ]| Encode a test video pattern and save it as an MOV file
+ *
+ */
+
+/**
+ * SECTION:element-vtenc_prores
+ * @title: vtenc_prores
+ *
+ * Apple VideoToolbox ProRes encoder
+ *
+ * ## Example pipeline
+ * |[
+ * gst-launch-1.0 -v videotestsrc ! vtenc_prores ! qtmux ! filesink location=out.mov
+ * ]| Encode a test video pattern and save it as an MOV file
+ *
+ * Since: 1.20
+ */
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -35,6 +78,7 @@
 #define VTENC_DEFAULT_QUALITY 0.5
 #define VTENC_DEFAULT_MAX_KEYFRAME_INTERVAL 0
 #define VTENC_DEFAULT_MAX_KEYFRAME_INTERVAL_DURATION 0
+#define VTENC_DEFAULT_PRESERVE_ALPHA TRUE
 
 GST_DEBUG_CATEGORY (gst_vtenc_debug);
 #define GST_CAT_DEFAULT (gst_vtenc_debug)
@@ -66,6 +110,12 @@ VTCompressionSessionPrepareToEncodeFrames (VTCompressionSessionRef session)
     __attribute__ ((weak_import));
 #endif
 
+/* This property key is currently completely undocumented. The only way you can
+ * know about its existence is if Apple tells you. It allows you to tell the
+ * encoder to not preserve alpha even when outputting alpha formats. */
+const CFStringRef gstVTCodecPropertyKey_PreserveAlphaChannel =
+CFSTR ("kVTCodecPropertyKey_PreserveAlphaChannel");
+
 enum
 {
   PROP_0,
@@ -75,7 +125,8 @@ enum
   PROP_REALTIME,
   PROP_QUALITY,
   PROP_MAX_KEYFRAME_INTERVAL,
-  PROP_MAX_KEYFRAME_INTERVAL_DURATION
+  PROP_MAX_KEYFRAME_INTERVAL_DURATION,
+  PROP_PRESERVE_ALPHA,
 };
 
 typedef struct _GstVTEncFrame GstVTEncFrame;
@@ -151,8 +202,10 @@ static GstStaticCaps sink_caps =
 GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("{ NV12, I420 }"));
 #else
 static GstStaticCaps sink_caps =
-GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("{ UYVY, NV12, I420 }"));
+GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE
+    ("{ AYUV64, UYVY, NV12, I420, ARGB64_BE }"));
 #endif
+
 
 static void
 gst_vtenc_base_init (GstVTEncClass * klass)
@@ -164,7 +217,6 @@ gst_vtenc_base_init (GstVTEncClass * klass)
   const int min_height = 1, max_height = G_MAXINT;
   const int min_fps_n = 0, max_fps_n = G_MAXINT;
   const int min_fps_d = 1, max_fps_d = 1;
-  GstPadTemplate *sink_template, *src_template;
   GstCaps *src_caps;
   gchar *longname, *description;
 
@@ -178,23 +230,77 @@ gst_vtenc_base_init (GstVTEncClass * klass)
   g_free (longname);
   g_free (description);
 
-  sink_template = gst_pad_template_new ("sink",
-      GST_PAD_SINK, GST_PAD_ALWAYS, gst_static_caps_get (&sink_caps));
-  gst_element_class_add_pad_template (element_class, sink_template);
+  {
+    GstCaps *caps = gst_static_caps_get (&sink_caps);
+    /* RGBA64_LE is kCVPixelFormatType_64RGBALE, only available on macOS 11.3+ */
+    if (GST_VTUTIL_HAVE_64ARGBALE)
+      caps = gst_vtutil_caps_append_video_format (caps, "RGBA64_LE");
+    gst_element_class_add_pad_template (element_class,
+        gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS, caps));
+  }
+
 
   src_caps = gst_caps_new_simple (codec_details->mimetype,
       "width", GST_TYPE_INT_RANGE, min_width, max_width,
       "height", GST_TYPE_INT_RANGE, min_height, max_height,
       "framerate", GST_TYPE_FRACTION_RANGE,
       min_fps_n, min_fps_d, max_fps_n, max_fps_d, NULL);
-  if (codec_details->format_id == kCMVideoCodecType_H264) {
-    gst_structure_set (gst_caps_get_structure (src_caps, 0),
-        "stream-format", G_TYPE_STRING, "avc",
-        "alignment", G_TYPE_STRING, "au", NULL);
+
+  /* Signal our limited interlace support */
+  {
+    G_GNUC_BEGIN_IGNORE_DEPRECATIONS;
+    GValueArray *arr = g_value_array_new (2);
+    GValue val = G_VALUE_INIT;
+
+    g_value_init (&val, G_TYPE_STRING);
+    g_value_set_string (&val, "progressive");
+    arr = g_value_array_append (arr, &val);
+    g_value_set_string (&val, "interleaved");
+    arr = g_value_array_append (arr, &val);
+    G_GNUC_END_IGNORE_DEPRECATIONS;
+    gst_structure_set_list (gst_caps_get_structure (src_caps, 0),
+        "interlace-mode", arr);
   }
-  src_template = gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS,
-      src_caps);
-  gst_element_class_add_pad_template (element_class, src_template);
+
+  switch (codec_details->format_id) {
+    case kCMVideoCodecType_H264:
+      gst_structure_set (gst_caps_get_structure (src_caps, 0),
+          "stream-format", G_TYPE_STRING, "avc",
+          "alignment", G_TYPE_STRING, "au", NULL);
+      break;
+    case GST_kCMVideoCodecType_Some_AppleProRes:
+      if (g_strcmp0 (codec_details->mimetype, "video/x-prores") == 0) {
+        G_GNUC_BEGIN_IGNORE_DEPRECATIONS;
+        GValueArray *arr = g_value_array_new (6);
+        GValue val = G_VALUE_INIT;
+
+        g_value_init (&val, G_TYPE_STRING);
+        g_value_set_string (&val, "standard");
+        arr = g_value_array_append (arr, &val);
+        g_value_set_string (&val, "4444xq");
+        arr = g_value_array_append (arr, &val);
+        g_value_set_string (&val, "4444");
+        arr = g_value_array_append (arr, &val);
+        g_value_set_string (&val, "hq");
+        arr = g_value_array_append (arr, &val);
+        g_value_set_string (&val, "lt");
+        arr = g_value_array_append (arr, &val);
+        g_value_set_string (&val, "proxy");
+        arr = g_value_array_append (arr, &val);
+        gst_structure_set_list (gst_caps_get_structure (src_caps, 0),
+            "variant", arr);
+        g_value_array_free (arr);
+        g_value_unset (&val);
+        G_GNUC_END_IGNORE_DEPRECATIONS;
+        break;
+      }
+      /* fall through */
+    default:
+      g_assert_not_reached ();
+  }
+
+  gst_element_class_add_pad_template (element_class,
+      gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS, src_caps));
   gst_caps_unref (src_caps);
 }
 
@@ -257,6 +363,25 @@ gst_vtenc_class_init (GstVTEncClass * klass)
           "Maximum number of nanoseconds between keyframes (0 = no limit)", 0,
           G_MAXUINT64, VTENC_DEFAULT_MAX_KEYFRAME_INTERVAL_DURATION,
           G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS));
+
+  /*
+   * H264 doesn't support alpha components, so only add the property for prores
+   */
+  if (g_strcmp0 (G_OBJECT_CLASS_NAME (klass), "vtenc_prores") == 0) {
+    /**
+     * vtenc_prores:preserve-alpha
+     *
+     * Preserve non-opaque video alpha values from the input video when
+     * compressing, else treat all alpha component as opaque.
+     *
+     * Since: 1.20
+     */
+    g_object_class_install_property (gobject_class, PROP_PRESERVE_ALPHA,
+        g_param_spec_boolean ("preserve-alpha", "Preserve Video Alpha Values",
+            "Video alpha values (non opaque) need to be preserved",
+            VTENC_DEFAULT_PRESERVE_ALPHA,
+            G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS));
+  }
 }
 
 static void
@@ -274,6 +399,7 @@ gst_vtenc_init (GstVTEnc * self)
   self->latency_frames = -1;
   self->session = NULL;
   self->profile_level = NULL;
+  self->have_field_order = TRUE;
 
   self->keyframe_props =
       CFDictionaryCreate (NULL, (const void **) keyframe_props_keys,
@@ -463,6 +589,9 @@ gst_vtenc_get_property (GObject * obj, guint prop_id, GValue * value,
       g_value_set_uint64 (value,
           gst_vtenc_get_max_keyframe_interval_duration (self));
       break;
+    case PROP_PRESERVE_ALPHA:
+      g_value_set_boolean (value, self->preserve_alpha);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (obj, prop_id, pspec);
       break;
@@ -495,6 +624,9 @@ gst_vtenc_set_property (GObject * obj, guint prop_id, const GValue * value,
       gst_vtenc_set_max_keyframe_interval_duration (self,
           g_value_get_uint64 (value));
       break;
+    case PROP_PRESERVE_ALPHA:
+      self->preserve_alpha = g_value_get_boolean (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (obj, prop_id, pspec);
       break;
@@ -505,7 +637,7 @@ static GstFlowReturn
 gst_vtenc_finish_encoding (GstVTEnc * self, gboolean is_flushing)
 {
   GST_DEBUG_OBJECT (self,
-      "complete enconding and clean buffer queue, is flushing %d", is_flushing);
+      "complete encoding and clean buffer queue, is flushing %d", is_flushing);
   GstVideoCodecFrame *outframe;
   GstFlowReturn ret = GST_FLOW_OK;
   OSStatus vt_status;
@@ -609,7 +741,8 @@ gst_vtenc_profile_level_key (GstVTEnc * self, const gchar * profile,
   } else if (!strcmp (profile, "main")) {
     profile = "Main";
   } else {
-    g_assert_not_reached ();
+    GST_ERROR_OBJECT (self, "invalid profile: %s", profile);
+    return ret;
   }
 
   if (strlen (level) == 1) {
@@ -631,13 +764,45 @@ gst_vtenc_profile_level_key (GstVTEnc * self, const gchar * profile,
 }
 
 static gboolean
-gst_vtenc_negotiate_profile_and_level (GstVideoEncoder * enc)
+gst_vtenc_negotiate_profile_and_level (GstVTEnc * self, GstStructure * s)
+{
+  const gchar *profile = gst_structure_get_string (s, "profile");
+  const gchar *level = gst_structure_get_string (s, "level");
+
+  if (self->profile_level)
+    CFRelease (self->profile_level);
+  self->profile_level = gst_vtenc_profile_level_key (self, profile, level);
+  if (self->profile_level == NULL) {
+    GST_ERROR_OBJECT (self, "unsupported h264 profile '%s' or level '%s'",
+        profile, level);
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gst_vtenc_negotiate_prores_variant (GstVTEnc * self, GstStructure * s)
+{
+  const char *variant = gst_structure_get_string (s, "variant");
+  CMVideoCodecType codec_type =
+      gst_vtutil_codec_type_from_prores_variant (variant);
+
+  if (codec_type == GST_kCMVideoCodecType_Some_AppleProRes) {
+    GST_ERROR_OBJECT (self, "unsupported prores variant: %s", variant);
+    return FALSE;
+  }
+
+  self->specific_format_id = codec_type;
+  return TRUE;
+}
+
+static gboolean
+gst_vtenc_negotiate_specific_format_details (GstVideoEncoder * enc)
 {
   GstVTEnc *self = GST_VTENC_CAST (enc);
   GstCaps *allowed_caps = NULL;
   gboolean ret = TRUE;
-  const gchar *profile = NULL;
-  const gchar *level = NULL;
 
   allowed_caps = gst_pad_get_allowed_caps (GST_VIDEO_ENCODER_SRC_PAD (enc));
   if (allowed_caps) {
@@ -651,17 +816,24 @@ gst_vtenc_negotiate_profile_and_level (GstVideoEncoder * enc)
     allowed_caps = gst_caps_make_writable (allowed_caps);
     allowed_caps = gst_caps_fixate (allowed_caps);
     s = gst_caps_get_structure (allowed_caps, 0);
-
-    profile = gst_structure_get_string (s, "profile");
-    level = gst_structure_get_string (s, "level");
-  }
-
-  if (self->profile_level)
-    CFRelease (self->profile_level);
-  self->profile_level = gst_vtenc_profile_level_key (self, profile, level);
-  if (self->profile_level == NULL) {
-    GST_ERROR_OBJECT (enc, "invalid profile and level");
-    goto fail;
+    switch (self->details->format_id) {
+      case kCMVideoCodecType_H264:
+        self->specific_format_id = kCMVideoCodecType_H264;
+        if (!gst_vtenc_negotiate_profile_and_level (self, s))
+          goto fail;
+        break;
+      case GST_kCMVideoCodecType_Some_AppleProRes:
+        if (g_strcmp0 (self->details->mimetype, "video/x-prores") != 0) {
+          GST_ERROR_OBJECT (self, "format_id == %i mimetype must be Apple "
+              "ProRes", GST_kCMVideoCodecType_Some_AppleProRes);
+          goto fail;
+        }
+        if (!gst_vtenc_negotiate_prores_variant (self, s))
+          goto fail;
+        break;
+      default:
+        g_assert_not_reached ();
+    }
   }
 
 out:
@@ -695,7 +867,7 @@ gst_vtenc_set_format (GstVideoEncoder * enc, GstVideoCodecState * state)
   gst_vtenc_destroy_session (self, &self->session);
   GST_OBJECT_UNLOCK (self);
 
-  gst_vtenc_negotiate_profile_and_level (enc);
+  gst_vtenc_negotiate_specific_format_details (enc);
 
   session = gst_vtenc_create_session (self);
   GST_OBJECT_LOCK (self);
@@ -709,6 +881,28 @@ static gboolean
 gst_vtenc_is_negotiated (GstVTEnc * self)
 {
   return self->negotiated_width != 0;
+}
+
+/*
+ * When the image is opaque but the output ProRes format has an alpha
+ * component (4 component, 32 bits per pixel), Apple requires that we signal
+ * that it should be ignored by setting the depth to 24 bits per pixel. Not
+ * doing so causes the encoded files to fail validation.
+ *
+ * So we set that in the caps and qtmux sets the depth value in the container,
+ * which will be read by demuxers so that decoders can skip those bytes
+ * entirely. qtdemux does this, but vtdec does not use this information at
+ * present.
+ */
+static gboolean
+gst_vtenc_signal_ignored_alpha_component (GstVTEnc * self)
+{
+  if (self->preserve_alpha)
+    return FALSE;
+  if (self->specific_format_id == kCMVideoCodecType_AppleProRes4444XQ ||
+      self->specific_format_id == kCMVideoCodecType_AppleProRes4444)
+    return TRUE;
+  return FALSE;
 }
 
 static gboolean
@@ -735,36 +929,50 @@ gst_vtenc_negotiate_downstream (GstVTEnc * self, CMSampleBufferRef sbuf)
       "framerate", GST_TYPE_FRACTION,
       self->negotiated_fps_n, self->negotiated_fps_d, NULL);
 
-  if (self->details->format_id == kCMVideoCodecType_H264) {
-    CMFormatDescriptionRef fmt;
-    CFDictionaryRef atoms;
-    CFStringRef avccKey;
-    CFDataRef avcc;
-    guint8 *codec_data;
-    gsize codec_data_size;
-    GstBuffer *codec_data_buf;
-    guint8 sps[3];
+  switch (self->details->format_id) {
+    case kCMVideoCodecType_H264:
+    {
+      CMFormatDescriptionRef fmt;
+      CFDictionaryRef atoms;
+      CFStringRef avccKey;
+      CFDataRef avcc;
+      guint8 *codec_data;
+      gsize codec_data_size;
+      GstBuffer *codec_data_buf;
+      guint8 sps[3];
 
-    fmt = CMSampleBufferGetFormatDescription (sbuf);
-    atoms = CMFormatDescriptionGetExtension (fmt,
-        kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms);
-    avccKey = CFStringCreateWithCString (NULL, "avcC", kCFStringEncodingUTF8);
-    avcc = CFDictionaryGetValue (atoms, avccKey);
-    CFRelease (avccKey);
-    codec_data_size = CFDataGetLength (avcc);
-    codec_data = g_malloc (codec_data_size);
-    CFDataGetBytes (avcc, CFRangeMake (0, codec_data_size), codec_data);
-    codec_data_buf = gst_buffer_new_wrapped (codec_data, codec_data_size);
+      fmt = CMSampleBufferGetFormatDescription (sbuf);
+      atoms = CMFormatDescriptionGetExtension (fmt,
+          kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms);
+      avccKey = CFStringCreateWithCString (NULL, "avcC", kCFStringEncodingUTF8);
+      avcc = CFDictionaryGetValue (atoms, avccKey);
+      CFRelease (avccKey);
+      codec_data_size = CFDataGetLength (avcc);
+      codec_data = g_malloc (codec_data_size);
+      CFDataGetBytes (avcc, CFRangeMake (0, codec_data_size), codec_data);
+      codec_data_buf = gst_buffer_new_wrapped (codec_data, codec_data_size);
 
-    gst_structure_set (s, "codec_data", GST_TYPE_BUFFER, codec_data_buf, NULL);
+      gst_structure_set (s, "codec_data", GST_TYPE_BUFFER, codec_data_buf,
+          NULL);
 
-    sps[0] = codec_data[1];
-    sps[1] = codec_data[2] & ~0xDF;
-    sps[2] = codec_data[3];
+      sps[0] = codec_data[1];
+      sps[1] = codec_data[2] & ~0xDF;
+      sps[2] = codec_data[3];
 
-    gst_codec_utils_h264_caps_set_level_and_profile (caps, sps, 3);
+      gst_codec_utils_h264_caps_set_level_and_profile (caps, sps, 3);
 
-    gst_buffer_unref (codec_data_buf);
+      gst_buffer_unref (codec_data_buf);
+    }
+      break;
+    case GST_kCMVideoCodecType_Some_AppleProRes:
+      gst_structure_set (s, "variant", G_TYPE_STRING,
+          gst_vtutil_codec_type_to_prores_variant (self->specific_format_id),
+          NULL);
+      if (gst_vtenc_signal_ignored_alpha_component (self))
+        gst_structure_set (s, "depth", G_TYPE_INT, 24, NULL);
+      break;
+    default:
+      g_assert_not_reached ();
   }
 
   state =
@@ -821,11 +1029,120 @@ gst_vtenc_flush (GstVideoEncoder * enc)
   return (ret == GST_FLOW_OK);
 }
 
+static void
+gst_vtenc_set_colorimetry (GstVTEnc * self, VTCompressionSessionRef session)
+{
+  OSStatus status;
+  CFStringRef primaries = NULL, transfer = NULL, matrix = NULL;
+  GstVideoColorimetry cm = GST_VIDEO_INFO_COLORIMETRY (&self->video_info);
+
+  /*
+   * https://developer.apple.com/documentation/corevideo/cvimagebuffer/image_buffer_ycbcr_matrix_constants
+   */
+  switch (cm.matrix) {
+    case GST_VIDEO_COLOR_MATRIX_BT709:
+      matrix = kCVImageBufferYCbCrMatrix_ITU_R_709_2;
+      break;
+    case GST_VIDEO_COLOR_MATRIX_BT601:
+      matrix = kCVImageBufferYCbCrMatrix_ITU_R_601_4;
+      break;
+    case GST_VIDEO_COLOR_MATRIX_SMPTE240M:
+      matrix = kCVImageBufferYCbCrMatrix_SMPTE_240M_1995;
+      break;
+    case GST_VIDEO_COLOR_MATRIX_BT2020:
+      matrix = kCVImageBufferYCbCrMatrix_ITU_R_2020;
+      break;
+    default:
+      GST_WARNING_OBJECT (self, "Unsupported color matrix %u", cm.matrix);
+  }
+
+  /*
+   * https://developer.apple.com/documentation/corevideo/cvimagebuffer/image_buffer_transfer_function_constants
+   */
+  switch (cm.transfer) {
+    case GST_VIDEO_TRANSFER_BT709:
+    case GST_VIDEO_TRANSFER_BT601:
+    case GST_VIDEO_TRANSFER_UNKNOWN:
+      transfer = kCVImageBufferTransferFunction_ITU_R_709_2;
+      break;
+    case GST_VIDEO_TRANSFER_SMPTE240M:
+      transfer = kCVImageBufferTransferFunction_SMPTE_240M_1995;
+      break;
+    case GST_VIDEO_TRANSFER_BT2020_12:
+      transfer = kCVImageBufferTransferFunction_ITU_R_2020;
+      break;
+    case GST_VIDEO_TRANSFER_SRGB:
+      if (__builtin_available (macOS 10.13, *))
+        transfer = kCVImageBufferTransferFunction_sRGB;
+      else
+        GST_WARNING_OBJECT (self, "macOS version is too old, the sRGB transfer "
+            "function is not available");
+      break;
+    case GST_VIDEO_TRANSFER_SMPTE2084:
+      if (__builtin_available (macOS 10.13, *))
+        transfer = kCVImageBufferTransferFunction_SMPTE_ST_2084_PQ;
+      else
+        GST_WARNING_OBJECT (self, "macOS version is too old, the SMPTE2084 "
+            "transfer function is not available");
+      break;
+    default:
+      GST_WARNING_OBJECT (self, "Unsupported color transfer %u", cm.transfer);
+  }
+
+  /*
+   * https://developer.apple.com/documentation/corevideo/cvimagebuffer/image_buffer_color_primaries_constants
+   */
+  switch (cm.primaries) {
+    case GST_VIDEO_COLOR_PRIMARIES_BT709:
+      primaries = kCVImageBufferColorPrimaries_ITU_R_709_2;
+      break;
+    case GST_VIDEO_COLOR_PRIMARIES_SMPTE170M:
+    case GST_VIDEO_COLOR_PRIMARIES_SMPTE240M:
+      primaries = kCVImageBufferColorPrimaries_SMPTE_C;
+      break;
+    case GST_VIDEO_COLOR_PRIMARIES_BT2020:
+      primaries = kCVImageBufferColorPrimaries_ITU_R_2020;
+      break;
+    case GST_VIDEO_COLOR_PRIMARIES_SMPTERP431:
+      primaries = kCVImageBufferColorPrimaries_DCI_P3;
+      break;
+    case GST_VIDEO_COLOR_PRIMARIES_SMPTEEG432:
+      primaries = kCVImageBufferColorPrimaries_P3_D65;
+      break;
+    case GST_VIDEO_COLOR_PRIMARIES_EBU3213:
+      primaries = kCVImageBufferColorPrimaries_EBU_3213;
+      break;
+    default:
+      GST_WARNING_OBJECT (self, "Unsupported color primaries %u", cm.primaries);
+  }
+
+  if (primaries) {
+    status = VTSessionSetProperty (session,
+        kVTCompressionPropertyKey_ColorPrimaries, primaries);
+    GST_DEBUG_OBJECT (self, "kVTCompressionPropertyKey_ColorPrimaries =>"
+        "%d", status);
+  }
+
+  if (transfer) {
+    status = VTSessionSetProperty (session,
+        kVTCompressionPropertyKey_TransferFunction, transfer);
+    GST_DEBUG_OBJECT (self, "kVTCompressionPropertyKey_TransferFunction =>"
+        "%d", status);
+  }
+
+  if (matrix) {
+    status = VTSessionSetProperty (session,
+        kVTCompressionPropertyKey_YCbCrMatrix, matrix);
+    GST_DEBUG_OBJECT (self, "kVTCompressionPropertyKey_YCbCrMatrix => %d",
+        status);
+  }
+}
+
 static VTCompressionSessionRef
 gst_vtenc_create_session (GstVTEnc * self)
 {
   VTCompressionSessionRef session = NULL;
-  CFMutableDictionaryRef encoder_spec = NULL, pb_attrs;
+  CFMutableDictionaryRef encoder_spec = NULL, pb_attrs = NULL;
   OSStatus status;
 
 #if !HAVE_IOS
@@ -843,16 +1160,21 @@ gst_vtenc_create_session (GstVTEnc * self)
         TRUE);
 #endif
 
-  pb_attrs = CFDictionaryCreateMutable (NULL, 0, &kCFTypeDictionaryKeyCallBacks,
-      &kCFTypeDictionaryValueCallBacks);
-  gst_vtutil_dict_set_i32 (pb_attrs, kCVPixelBufferWidthKey,
-      self->negotiated_width);
-  gst_vtutil_dict_set_i32 (pb_attrs, kCVPixelBufferHeightKey,
-      self->negotiated_height);
+  if (self->profile_level) {
+    pb_attrs = CFDictionaryCreateMutable (NULL, 0,
+        &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    gst_vtutil_dict_set_i32 (pb_attrs, kCVPixelBufferWidthKey,
+        self->negotiated_width);
+    gst_vtutil_dict_set_i32 (pb_attrs, kCVPixelBufferHeightKey,
+        self->negotiated_height);
+  }
+
+  /* This was set in gst_vtenc_negotiate_specific_format_details() */
+  g_assert_cmpint (self->specific_format_id, !=, 0);
 
   status = VTCompressionSessionCreate (NULL,
       self->negotiated_width, self->negotiated_height,
-      self->details->format_id, encoder_spec, pb_attrs, NULL,
+      self->specific_format_id, encoder_spec, pb_attrs, NULL,
       gst_vtenc_enqueue_buffer, self, &session);
   GST_INFO_OBJECT (self, "VTCompressionSessionCreate for %d x %d => %d",
       self->negotiated_width, self->negotiated_height, (int) status);
@@ -862,26 +1184,81 @@ gst_vtenc_create_session (GstVTEnc * self)
     goto beach;
   }
 
-  gst_vtenc_session_configure_expected_framerate (self, session,
-      (gdouble) self->negotiated_fps_n / (gdouble) self->negotiated_fps_d);
+  if (self->profile_level) {
+    gst_vtenc_session_configure_expected_framerate (self, session,
+        (gdouble) self->negotiated_fps_n / (gdouble) self->negotiated_fps_d);
 
-  status = VTSessionSetProperty (session,
-      kVTCompressionPropertyKey_ProfileLevel, self->profile_level);
-  GST_DEBUG_OBJECT (self, "kVTCompressionPropertyKey_ProfileLevel => %d",
-      (int) status);
+    /*
+     * https://developer.apple.com/documentation/videotoolbox/vtcompressionsession/compression_properties/profile_and_level_constants
+     */
+    status = VTSessionSetProperty (session,
+        kVTCompressionPropertyKey_ProfileLevel, self->profile_level);
+    GST_DEBUG_OBJECT (self, "kVTCompressionPropertyKey_ProfileLevel => %d",
+        (int) status);
 
-  status = VTSessionSetProperty (session,
-      kVTCompressionPropertyKey_AllowTemporalCompression, kCFBooleanTrue);
-  GST_DEBUG_OBJECT (self,
-      "kVTCompressionPropertyKey_AllowTemporalCompression => %d", (int) status);
+    status = VTSessionSetProperty (session,
+        kVTCompressionPropertyKey_AllowTemporalCompression, kCFBooleanTrue);
+    GST_DEBUG_OBJECT (self,
+        "kVTCompressionPropertyKey_AllowTemporalCompression => %d",
+        (int) status);
 
-  gst_vtenc_session_configure_max_keyframe_interval (self, session,
-      self->max_keyframe_interval);
-  gst_vtenc_session_configure_max_keyframe_interval_duration (self, session,
-      self->max_keyframe_interval_duration / ((gdouble) GST_SECOND));
+    gst_vtenc_session_configure_max_keyframe_interval (self, session,
+        self->max_keyframe_interval);
+    gst_vtenc_session_configure_max_keyframe_interval_duration (self, session,
+        self->max_keyframe_interval_duration / ((gdouble) GST_SECOND));
 
-  gst_vtenc_session_configure_bitrate (self, session,
-      gst_vtenc_get_bitrate (self));
+    gst_vtenc_session_configure_bitrate (self, session,
+        gst_vtenc_get_bitrate (self));
+  }
+
+  /* Force encoder to not preserve alpha with 4444(XQ) ProRes formats if
+   * requested */
+  if (!self->preserve_alpha &&
+      (self->specific_format_id == kCMVideoCodecType_AppleProRes4444XQ ||
+          self->specific_format_id == kCMVideoCodecType_AppleProRes4444)) {
+    status = VTSessionSetProperty (session,
+        gstVTCodecPropertyKey_PreserveAlphaChannel, CFSTR ("NO"));
+    GST_DEBUG_OBJECT (self, "kVTCodecPropertyKey_PreserveAlphaChannel => %d",
+        (int) status);
+  }
+
+  gst_vtenc_set_colorimetry (self, session);
+
+  /* Interlacing */
+  switch (GST_VIDEO_INFO_INTERLACE_MODE (&self->video_info)) {
+    case GST_VIDEO_INTERLACE_MODE_PROGRESSIVE:
+      gst_vtenc_session_configure_property_int (self, session,
+          kVTCompressionPropertyKey_FieldCount, 1);
+      break;
+    case GST_VIDEO_INTERLACE_MODE_INTERLEAVED:
+      gst_vtenc_session_configure_property_int (self, session,
+          kVTCompressionPropertyKey_FieldCount, 2);
+      switch (GST_VIDEO_INFO_FIELD_ORDER (&self->video_info)) {
+        case GST_VIDEO_FIELD_ORDER_TOP_FIELD_FIRST:
+          status = VTSessionSetProperty (session,
+              kVTCompressionPropertyKey_FieldDetail,
+              kCMFormatDescriptionFieldDetail_TemporalTopFirst);
+          GST_DEBUG_OBJECT (self, "kVTCompressionPropertyKey_FieldDetail "
+              "TemporalTopFirst => %d", (int) status);
+          break;
+        case GST_VIDEO_FIELD_ORDER_BOTTOM_FIELD_FIRST:
+          status = VTSessionSetProperty (session,
+              kVTCompressionPropertyKey_FieldDetail,
+              kCMFormatDescriptionFieldDetail_TemporalBottomFirst);
+          GST_DEBUG_OBJECT (self, "kVTCompressionPropertyKey_FieldDetail "
+              "TemporalBottomFirst => %d", (int) status);
+          break;
+        case GST_VIDEO_FIELD_ORDER_UNKNOWN:
+          GST_INFO_OBJECT (self, "Unknown field order for interleaved content, "
+              "will check first buffer");
+          self->have_field_order = FALSE;
+      }
+      break;
+    default:
+      /* Caps negotiation should prevent this */
+      g_assert_not_reached ();
+  }
+
   gst_vtenc_session_configure_realtime (self, session,
       gst_vtenc_get_realtime (self));
   gst_vtenc_session_configure_allow_frame_reordering (self, session,
@@ -906,7 +1283,8 @@ gst_vtenc_create_session (GstVTEnc * self)
 beach:
   if (encoder_spec)
     CFRelease (encoder_spec);
-  CFRelease (pb_attrs);
+  if (pb_attrs)
+    CFRelease (pb_attrs);
 
   return session;
 }
@@ -1133,6 +1511,33 @@ gst_vtenc_encode_frame (GstVTEnc * self, GstVideoCodecFrame * frame)
   else
     duration = kCMTimeInvalid;
 
+  /* If we don't have field order, we need to pick it up from the first buffer
+   * that has that information. The encoder session also cannot be reconfigured
+   * with a new field detail after it has been set, so we encode mixed streams
+   * with whatever the first buffer's field order is. */
+  if (!self->have_field_order) {
+    CFStringRef field_detail = NULL;
+
+    if (GST_VIDEO_BUFFER_IS_TOP_FIELD (frame->input_buffer))
+      field_detail = kCMFormatDescriptionFieldDetail_TemporalTopFirst;
+    else if (GST_VIDEO_BUFFER_IS_BOTTOM_FIELD (frame->input_buffer))
+      field_detail = kCMFormatDescriptionFieldDetail_TemporalBottomFirst;
+
+    if (field_detail) {
+      vt_status = VTSessionSetProperty (self->session,
+          kVTCompressionPropertyKey_FieldDetail, field_detail);
+      GST_DEBUG_OBJECT (self, "kVTCompressionPropertyKey_FieldDetail => %d",
+          (int) vt_status);
+    } else {
+      GST_WARNING_OBJECT (self, "have interlaced content, but don't know field "
+          "order yet, skipping buffer");
+      gst_video_codec_frame_unref (frame);
+      return GST_FLOW_OK;
+    }
+
+    self->have_field_order = TRUE;
+  }
+
   meta = gst_buffer_get_core_media_meta (frame->input_buffer);
   if (meta != NULL) {
     pbuf = gst_core_media_buffer_get_pixel_buffer (frame->input_buffer);
@@ -1157,18 +1562,21 @@ gst_vtenc_encode_frame (GstVTEnc * self, GstVideoCodecFrame * frame)
         pixel_format_type = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange;
         break;
       default:
-        goto cv_error;
+        g_assert_not_reached ();
     }
 
     if (!gst_video_frame_map (&inframe, &self->video_info, frame->input_buffer,
-            GST_MAP_READ))
+            GST_MAP_READ)) {
+      GST_ERROR_OBJECT (self, "failed to map input buffer");
       goto cv_error;
+    }
 
     cv_ret =
         CVPixelBufferCreate (NULL, self->negotiated_width,
         self->negotiated_height, pixel_format_type, NULL, &pbuf);
 
     if (cv_ret != kCVReturnSuccess) {
+      GST_ERROR_OBJECT (self, "CVPixelBufferCreate failed: %i", cv_ret);
       gst_video_frame_unmap (&inframe);
       goto cv_error;
     }
@@ -1177,6 +1585,7 @@ gst_vtenc_encode_frame (GstVTEnc * self, GstVideoCodecFrame * frame)
         gst_core_video_buffer_new ((CVBufferRef) pbuf, &self->video_info, NULL);
     if (!gst_video_frame_map (&outframe, &self->video_info, outbuf,
             GST_MAP_WRITE)) {
+      GST_ERROR_OBJECT (self, "Failed to map output buffer");
       gst_video_frame_unmap (&inframe);
       gst_buffer_unref (outbuf);
       CVPixelBufferRelease (pbuf);
@@ -1184,6 +1593,7 @@ gst_vtenc_encode_frame (GstVTEnc * self, GstVideoCodecFrame * frame)
     }
 
     if (!gst_video_frame_copy (&outframe, &inframe)) {
+      GST_ERROR_OBJECT (self, "Failed to copy output frame");
       gst_video_frame_unmap (&inframe);
       gst_buffer_unref (outbuf);
       CVPixelBufferRelease (pbuf);
@@ -1200,8 +1610,10 @@ gst_vtenc_encode_frame (GstVTEnc * self, GstVideoCodecFrame * frame)
     CVReturn cv_ret;
 
     vframe = gst_vtenc_frame_new (frame->input_buffer, &self->video_info);
-    if (!vframe)
+    if (!vframe) {
+      GST_ERROR_OBJECT (self, "Failed to create a new input frame");
       goto cv_error;
+    }
 
     {
       const size_t num_planes = GST_VIDEO_FRAME_N_PLANES (&vframe->videoframe);
@@ -1224,6 +1636,23 @@ gst_vtenc_encode_frame (GstVTEnc * self, GstVideoCodecFrame * frame)
       }
 
       switch (GST_VIDEO_INFO_FORMAT (&self->video_info)) {
+        case GST_VIDEO_FORMAT_ARGB64_BE:
+          pixel_format_type = kCVPixelFormatType_64ARGB;
+          break;
+        case GST_VIDEO_FORMAT_AYUV64:
+/* This is fine for now because Apple only ships LE devices */
+#if G_BYTE_ORDER != G_LITTLE_ENDIAN
+#error "AYUV64 is NE but kCVPixelFormatType_4444AYpCbCr16 is LE"
+#endif
+          pixel_format_type = kCVPixelFormatType_4444AYpCbCr16;
+          break;
+        case GST_VIDEO_FORMAT_RGBA64_LE:
+          if (GST_VTUTIL_HAVE_64ARGBALE)
+            pixel_format_type = kCVPixelFormatType_64RGBALE;
+          else
+            /* Codepath will never be hit on macOS older than Big Sur (11.3) */
+            g_assert_not_reached ();
+          break;
         case GST_VIDEO_FORMAT_I420:
           pixel_format_type = kCVPixelFormatType_420YpCbCr8Planar;
           break;
@@ -1234,8 +1663,7 @@ gst_vtenc_encode_frame (GstVTEnc * self, GstVideoCodecFrame * frame)
           pixel_format_type = kCVPixelFormatType_422YpCbCr8;
           break;
         default:
-          gst_vtenc_frame_free (vframe);
-          goto cv_error;
+          g_assert_not_reached ();
       }
 
       cv_ret = CVPixelBufferCreateWithPlanarBytes (NULL,
@@ -1250,6 +1678,8 @@ gst_vtenc_encode_frame (GstVTEnc * self, GstVideoCodecFrame * frame)
           plane_bytes_per_row, gst_pixel_buffer_release_cb, vframe, NULL,
           &pbuf);
       if (cv_ret != kCVReturnSuccess) {
+        GST_ERROR_OBJECT (self, "CVPixelBufferCreateWithPlanarBytes failed: %i",
+            cv_ret);
         gst_vtenc_frame_free (vframe);
         goto cv_error;
       }
@@ -1458,6 +1888,8 @@ static const GstVTEncoderDetails gst_vtenc_codecs[] = {
 #ifndef HAVE_IOS
   {"H.264 (HW only)", "h264_hw", "video/x-h264", kCMVideoCodecType_H264, TRUE},
 #endif
+  {"Apple ProRes", "prores", "video/x-prores",
+      GST_kCMVideoCodecType_Some_AppleProRes, FALSE},
 };
 
 void

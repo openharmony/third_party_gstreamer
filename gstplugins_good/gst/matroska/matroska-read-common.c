@@ -70,16 +70,10 @@ typedef struct
   gboolean audio_only;
 } TargetTypeContext;
 
-#ifdef OHOS_OPT_CVE
-/*
- * ohos.opt.cve.0001
- * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
- */
 /* 120MB as maximum decompressed data size. Anything bigger is likely
  * pathological, and like this we avoid out of memory situations in many cases
  */
 #define MAX_DECOMPRESS_SIZE (120 * 1024 * 1024)
-#endif
 
 static gboolean
 gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
@@ -87,49 +81,23 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
     GstMatroskaTrackCompressionAlgorithm algo)
 {
   guint8 *new_data = NULL;
-#ifdef OHOS_OPT_CVE
- /*
-  * ohos.opt.cve.0001
-  * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
-  */
   gsize new_size = 0;
   guint8 *data = *data_out;
   const gsize size = *size_out;
-#else
-  guint new_size = 0;
-  guint8 *data = *data_out;
-  guint size = *size_out;
-#endif
   gboolean ret = TRUE;
 
-#ifdef OHOS_OPT_CVE
- /*
-  * ohos.opt.cve.0001
-  * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
-  */
   if (size > G_MAXUINT32) {
     GST_WARNING ("too large compressed data buffer.");
     ret = FALSE;
     goto out;
   }
 
-#endif
   if (algo == GST_MATROSKA_TRACK_COMPRESSION_ALGORITHM_ZLIB) {
 #ifdef HAVE_ZLIB
     /* zlib encoded data */
     z_stream zstream;
-#ifdef OHOS_OPT_CVE
-    /*
-     * ohos.opt.cve.0001
-     * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
-     */
-    int result;
-#else
-    guint orig_size;
     int result;
 
-    orig_size = size;
-#endif
     zstream.zalloc = (alloc_func) 0;
     zstream.zfree = (free_func) 0;
     zstream.opaque = (voidpf) 0;
@@ -139,17 +107,8 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
       goto out;
     }
     zstream.next_in = (Bytef *) data;
-#ifdef OHOS_OPT_CVE
-    /*
-     * ohos.opt.cve.0001
-     * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
-     */
     zstream.avail_in = size;
     new_size = size;
-#else
-    zstream.avail_in = orig_size;
-    new_size = orig_size;
-#endif
     new_data = g_malloc (new_size);
     zstream.avail_out = new_size;
     zstream.next_out = (Bytef *) new_data;
@@ -163,32 +122,18 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
         break;
       }
 
-#ifdef OHOS_OPT_CVE
-      /*
-       * ohos.opt.cve.0001
-       * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
-       */
       if (new_size > G_MAXSIZE - 4096 || new_size + 4096 > MAX_DECOMPRESS_SIZE) {
         GST_WARNING ("too big decompressed data");
         result = Z_MEM_ERROR;
         break;
       }
 
-#endif
       new_size += 4096;
       new_data = g_realloc (new_data, new_size);
       zstream.next_out = (Bytef *) (new_data + zstream.total_out);
-#ifdef OHOS_OPT_CVE
-      /*
-       * ohos.opt.cve.0001
-       * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
-       */
       /* avail_out is an unsigned int */
       g_assert (new_size - zstream.total_out <= G_MAXUINT);
       zstream.avail_out = new_size - zstream.total_out;
-#else
-      zstream.avail_out += 4096;
-#endif
     } while (zstream.avail_in > 0);
 
     if (result != Z_STREAM_END) {
@@ -208,27 +153,12 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
 #ifdef HAVE_BZ2
     /* bzip2 encoded data */
     bz_stream bzstream;
-#ifdef OHOS_OPT_CVE
-    /*
-     * ohos.opt.cve.0001
-     * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
-     */
     int result;
 
     bzstream.bzalloc = NULL;
     bzstream.bzfree = NULL;
     bzstream.opaque = NULL;
 
-#else
-    guint orig_size;
-    int result;
-
-    bzstream.bzalloc = NULL;
-    bzstream.bzfree = NULL;
-    bzstream.opaque = NULL;
-    orig_size = size;
-
-#endif
     if (BZ2_bzDecompressInit (&bzstream, 0, 0) != BZ_OK) {
       GST_WARNING ("bzip2 initialization failed.");
       ret = FALSE;
@@ -236,17 +166,8 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
     }
 
     bzstream.next_in = (char *) data;
-#ifdef OHOS_OPT_CVE
-    /*
-     * ohos.opt.cve.0001
-     * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
-     */
     bzstream.avail_in = size;
     new_size = size;
-#else
-    bzstream.avail_in = orig_size;
-    new_size = orig_size;
-#endif
     new_data = g_malloc (new_size);
     bzstream.avail_out = new_size;
     bzstream.next_out = (char *) new_data;
@@ -260,11 +181,6 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
         break;
       }
 
-#ifdef OHOS_OPT_CVE
-      /*
-       * ohos.opt.cve.0001
-       * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
-       */
       if (new_size > G_MAXSIZE - 4096 || new_size + 4096 > MAX_DECOMPRESS_SIZE) {
         GST_WARNING ("too big decompressed data");
         result = BZ_MEM_ERROR;
@@ -282,28 +198,14 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
       bzstream.avail_out =
           new_size - ((guint64) bzstream.total_out_hi32 << 32) +
           bzstream.total_out_lo32;
-#else
-      new_size += 4096;
-      new_data = g_realloc (new_data, new_size);
-      bzstream.next_out = (char *) (new_data + bzstream.total_out_lo32);
-      bzstream.avail_out += 4096;
-#endif
     } while (bzstream.avail_in > 0);
 
     if (result != BZ_STREAM_END) {
       ret = FALSE;
       g_free (new_data);
     } else {
-#ifdef OHOS_OPT_CVE
-      /*
-       * ohos.opt.cve.0001
-       * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
-       */
       new_size =
           ((guint64) bzstream.total_out_hi32 << 32) + bzstream.total_out_lo32;
-#else
-      new_size = bzstream.total_out_lo32;
-#endif
     }
     BZ2_bzDecompressEnd (&bzstream);
 
@@ -315,11 +217,6 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
   } else if (algo == GST_MATROSKA_TRACK_COMPRESSION_ALGORITHM_LZO1X) {
     /* lzo encoded data */
     int result;
-#ifdef OHOS_OPT_CVE
-    /*
-     * ohos.opt.cve.0001
-     * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
-     */
     gint orig_size, out_size;
 
     if (size > G_MAXINT) {
@@ -327,10 +224,6 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
       ret = FALSE;
       goto out;
     }
-
-#else
-    int orig_size, out_size;
-#endif
 
     orig_size = size;
     out_size = size;
@@ -344,17 +237,11 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
       result = lzo1x_decode (new_data, &out_size, data, &orig_size);
 
       if (orig_size > 0) {
-#ifdef OHOS_OPT_CVE
-        /*
-        * ohos.opt.cve.0001
-        * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
-        */
         if (new_size > G_MAXINT - 4096 || new_size + 4096 > MAX_DECOMPRESS_SIZE) {
           GST_WARNING ("too big decompressed data");
           result = LZO_ERROR;
           break;
         }
-#endif
         new_size += 4096;
         new_data = g_realloc (new_data, new_size);
       }
@@ -373,11 +260,6 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
   } else if (algo == GST_MATROSKA_TRACK_COMPRESSION_ALGORITHM_HEADERSTRIP) {
     /* header stripped encoded data */
     if (enc->comp_settings_length > 0) {
-#ifdef OHOS_OPT_CVE
-      /*
-       * ohos.opt.cve.0001
-       * CVE-2022-1922, CVE-2022-1923, CVE-2022-1924, CVE-2022-1925 : https://gstreamer.freedesktop.org/security/sa-2022-0002.html
-       */
       if (size > G_MAXSIZE - enc->comp_settings_length
           || size + enc->comp_settings_length > MAX_DECOMPRESS_SIZE) {
         GST_WARNING ("too big decompressed data");
@@ -385,7 +267,6 @@ gst_matroska_decompress_data (GstMatroskaTrackEncoding * enc,
         goto out;
       }
 
-#endif
       new_data = g_malloc (size + enc->comp_settings_length);
       new_size = size + enc->comp_settings_length;
 
@@ -756,10 +637,12 @@ gst_matroska_read_common_do_index_seek (GstMatroskaReadCommon * common,
   GArray *index;
 
   /* find entry just before or at the requested position */
-  if (track && track->index_table)
+  if (track && track->index_table) {
     index = track->index_table;
-  else
+  } else {
+    GST_DEBUG_OBJECT (common->sinkpad, "Missing track index table");
     index = common->index;
+  }
 
   if (!index || !index->len)
     return NULL;
@@ -962,7 +845,7 @@ gst_matroska_read_common_parse_attached_file (GstMatroskaReadCommon * common,
 
   DEBUG_ELEMENT_STOP (common, ebml, "AttachedFile", ret);
 
-  if (filename && mimetype && data && datalen > 0) {
+  if (filename && mimetype && data && datalen > 0 && datalen < G_MAXUINT) {
     GstTagImageType image_type = GST_TAG_IMAGE_TYPE_NONE;
     GstBuffer *tagbuffer = NULL;
     GstSample *tagsample = NULL;
@@ -1008,7 +891,7 @@ gst_matroska_read_common_parse_attached_file (GstMatroskaReadCommon * common,
 
     /* if this failed create an attachment buffer */
     if (!tagbuffer) {
-      tagbuffer = gst_buffer_new_wrapped (g_memdup (data, datalen), datalen);
+      tagbuffer = gst_buffer_new_memdup (data, datalen);
 
       caps = gst_type_find_helper_for_buffer (NULL, tagbuffer, NULL);
       if (caps == NULL)
@@ -1016,10 +899,13 @@ gst_matroska_read_common_parse_attached_file (GstMatroskaReadCommon * common,
     }
 
     /* Set filename and description in the info */
-    if (info == NULL)
-      info = gst_structure_new_empty ("GstTagImageInfo");
-
+    if (info == NULL) {
+      const gchar *structure_name = (image_type != GST_TAG_IMAGE_TYPE_NONE) ?
+          "GstTagImageInfo" : "GstTagAttachmentInfo";
+      info = gst_structure_new_empty (structure_name);
+    }
     gst_structure_set (info, "filename", G_TYPE_STRING, filename, NULL);
+    gst_structure_set (info, "mimetype", G_TYPE_STRING, mimetype, NULL);
     if (description)
       gst_structure_set (info, "description", G_TYPE_STRING, description, NULL);
 
@@ -1606,7 +1492,7 @@ gst_matroska_read_common_parse_header (GstMatroskaReadCommon * common,
       goto exit_error;
 
     switch (id) {
-        /* is our read version uptodate? */
+        /* is our read version up-to-date? */
       case GST_EBML_ID_EBMLREADVERSION:{
         guint64 num;
 
@@ -1971,7 +1857,7 @@ gst_matroska_read_common_parse_index (GstMatroskaReadCommon * common,
   guint i;
 
   if (common->index)
-    g_array_free (common->index, TRUE);
+    g_array_unref (common->index);
   common->index =
       g_array_sized_new (FALSE, FALSE, sizeof (GstMatroskaIndex), 128);
 
@@ -2059,7 +1945,7 @@ gst_matroska_read_common_parse_index (GstMatroskaReadCommon * common,
 
   /* sanity check; empty index normalizes to no index */
   if (common->index->len == 0) {
-    g_array_free (common->index, TRUE);
+    g_array_unref (common->index);
     common->index = NULL;
   }
 
@@ -2139,12 +2025,20 @@ gst_matroska_read_common_parse_info (GstMatroskaReadCommon * common,
 
       case GST_MATROSKA_ID_DATEUTC:{
         gint64 time;
+        GstDateTime *datetime;
+        GstTagList *taglist;
 
         if ((ret = gst_ebml_read_date (ebml, &id, &time)) != GST_FLOW_OK)
           break;
 
         GST_DEBUG_OBJECT (common->sinkpad, "DateUTC: %" G_GINT64_FORMAT, time);
         common->created = time;
+        datetime =
+            gst_date_time_new_from_unix_epoch_utc_usecs (time / GST_USECOND);
+        taglist = gst_tag_list_new (GST_TAG_DATE_TIME, datetime, NULL);
+        gst_tag_list_set_scope (taglist, GST_TAG_SCOPE_GLOBAL);
+        gst_matroska_read_common_found_global_tag (common, el, taglist);
+        gst_date_time_unref (datetime);
         break;
       }
 
@@ -2290,18 +2184,18 @@ gst_matroska_read_common_parse_metadata_id_simple_tag (GstMatroskaReadCommon *
       /* ICRA The ICRA content rating for parental control. (Previously RSACi) */
 
       /* Temporal Information */
-    GST_MATROSKA_TAG_ID_DATE_RELEASED, GST_TAG_DATE}, { /* The time that the item was originaly released. This is akin to the TDRL tag in ID3. */
+    GST_MATROSKA_TAG_ID_DATE_RELEASED, GST_TAG_DATE}, { /* The time that the item was originally released. This is akin to the TDRL tag in ID3. */
     GST_MATROSKA_TAG_ID_DATE_RECORDED, GST_TAG_DATE}, { /* The time that the recording began. This is akin to the TDRC tag in ID3. */
     GST_MATROSKA_TAG_ID_DATE_ENCODED, GST_TAG_DATE}, {  /* The time that the encoding of this item was completed began. This is akin to the TDEN tag in ID3. */
     GST_MATROSKA_TAG_ID_DATE_TAGGED, GST_TAG_DATE}, {   /* The time that the tags were done for this item. This is akin to the TDTG tag in ID3. */
-    GST_MATROSKA_TAG_ID_DATE_DIGITIZED, GST_TAG_DATE}, {        /* The time that the item was tranfered to a digital medium. This is akin to the IDIT tag in RIFF. */
+    GST_MATROSKA_TAG_ID_DATE_DIGITIZED, GST_TAG_DATE}, {        /* The time that the item was transferred to a digital medium. This is akin to the IDIT tag in RIFF. */
     GST_MATROSKA_TAG_ID_DATE_WRITTEN, GST_TAG_DATE}, {  /* The time that the writing of the music/script began. */
     GST_MATROSKA_TAG_ID_DATE_PURCHASED, GST_TAG_DATE}, {        /* Information on when the file was purchased (see also purchase tags). */
     GST_MATROSKA_TAG_ID_DATE, GST_TAG_DATE}, {  /* Matroska spec does NOT have this tag! Dunno what it was doing here, probably for compatibility. */
 
       /* Spacial Information */
     GST_MATROSKA_TAG_ID_RECORDING_LOCATION, GST_TAG_GEO_LOCATION_NAME}, {       /* The location where the item was recorded. The countries corresponding to the string, same 2 octets as in Internet domains, or possibly ISO-3166. This code is followed by a comma, then more detailed information such as state/province, another comma, and then city. For example, "US, Texas, Austin". This will allow for easy sorting. It is okay to only store the country, or the country and the state/province. More detailed information can be added after the city through the use of additional commas. In cases where the province/state is unknown, but you want to store the city, simply leave a space between the two commas. For example, "US, , Austin". */
-      /* COMPOSITION_LOCATION Location that the item was originaly designed/written. The countries corresponding to the string, same 2 octets as in Internet domains, or possibly ISO-3166. This code is followed by a comma, then more detailed information such as state/province, another comma, and then city. For example, "US, Texas, Austin". This will allow for easy sorting. It is okay to only store the country, or the country and the state/province. More detailed information can be added after the city through the use of additional commas. In cases where the province/state is unknown, but you want to store the city, simply leave a space between the two commas. For example, "US, , Austin". */
+      /* COMPOSITION_LOCATION Location that the item was originally designed/written. The countries corresponding to the string, same 2 octets as in Internet domains, or possibly ISO-3166. This code is followed by a comma, then more detailed information such as state/province, another comma, and then city. For example, "US, Texas, Austin". This will allow for easy sorting. It is okay to only store the country, or the country and the state/province. More detailed information can be added after the city through the use of additional commas. In cases where the province/state is unknown, but you want to store the city, simply leave a space between the two commas. For example, "US, , Austin". */
       /* COMPOSER_NATIONALITY Nationality of the main composer of the item, mostly for classical music. The countries corresponding to the string, same 2 octets as in Internet domains, or possibly ISO-3166. */
 
       /* Personal */
@@ -2315,7 +2209,7 @@ gst_matroska_read_common_parse_metadata_id_simple_tag (GstMatroskaReadCommon *
       /* ENCODER_SETTINGS A list of the settings used for encoding this item. No specific format. */
     GST_MATROSKA_TAG_ID_BPS, GST_TAG_BITRATE}, {
     GST_MATROSKA_TAG_ID_BITSPS, GST_TAG_BITRATE}, {     /* Matroska spec does NOT have this tag! Dunno what it was doing here, probably for compatibility. */
-      /* WONTFIX (already handled in another way): FPS The average frames per second of the specified item. This is typically the average number of Blocks per second. In the event that lacing is used, each laced chunk is to be counted as a seperate frame. */
+      /* WONTFIX (already handled in another way): FPS The average frames per second of the specified item. This is typically the average number of Blocks per second. In the event that lacing is used, each laced chunk is to be counted as a separate frame. */
     GST_MATROSKA_TAG_ID_BPM, GST_TAG_BEATS_PER_MINUTE}, {
       /* MEASURE In music, a measure is a unit of time in Western music like "4/4". It represents a regular grouping of beats, a meter, as indicated in musical notation by the time signature.. The majority of the contemporary rock and pop music you hear on the radio these days is written in the 4/4 time signature. */
       /* TUNING It is saved as a frequency in hertz to allow near-perfect tuning of instruments to the same tone as the musical piece (e.g. "441.34" in Hertz). The default value is 440.0 Hz. */
@@ -3473,7 +3367,7 @@ gst_matroska_read_common_reset (GstElement * element,
 
   /* reset indexes */
   if (ctx->index) {
-    g_array_free (ctx->index, TRUE);
+    g_array_unref (ctx->index);
     ctx->index = NULL;
   }
 

@@ -25,6 +25,14 @@
 #include <gst/check/gstcheck.h>
 #include <gst/check/gstharness.h>
 
+GST_START_TEST (test_harness_empty)
+{
+  GstHarness *h = gst_harness_new_empty ();
+  gst_harness_teardown (h);
+}
+
+GST_END_TEST;
+
 static void
 create_destroy_element_harness (gpointer data, gpointer user_data)
 {
@@ -170,6 +178,45 @@ GST_START_TEST (test_forward_event_and_query_to_sink_harness_while_teardown)
 
 GST_END_TEST;
 
+static void
+push_sticky_events (gpointer data, G_GNUC_UNUSED gpointer user_data)
+{
+  GstHarness *h;
+  GstCaps *caps;
+  GstSegment segment;
+
+  h = (GstHarness *) user_data;
+
+  gst_harness_push_event (h, gst_event_new_stream_start ("999"));
+
+  caps = gst_caps_new_empty_simple ("mycaps");
+  gst_harness_push_event (h, gst_event_new_caps (caps));
+  gst_caps_unref (caps);
+
+  gst_segment_init (&segment, GST_FORMAT_TIME);
+  gst_harness_push_event (h, gst_event_new_segment (&segment));
+}
+
+GST_START_TEST (test_forward_sticky_events_to_sink_harness_while_teardown)
+{
+  GstHarness *h = gst_harness_new ("identity");
+  GstHarnessThread *e_thread = gst_harness_stress_custom_start (h, NULL,
+      push_sticky_events, h, 0);
+  gdouble duration = 1.0;
+  GTimer *timer = g_timer_new ();
+
+  while (g_timer_elapsed (timer, NULL) < duration) {
+    gst_harness_add_sink (h, "fakesink");
+    g_thread_yield ();
+  }
+
+  g_timer_destroy (timer);
+  gst_harness_stress_thread_stop (e_thread);
+  gst_harness_teardown (h);
+}
+
+GST_END_TEST;
+
 static GstHarness *
 harness_new_and_fill_with_data (void)
 {
@@ -254,6 +301,7 @@ gst_harness_suite (void)
 
   suite_add_tcase (s, tc_chain);
 
+  tcase_add_test (tc_chain, test_harness_empty);
   tcase_add_test (tc_chain, test_harness_element_ref);
   tcase_add_test (tc_chain, test_src_harness);
   tcase_add_test (tc_chain, test_src_harness_no_forwarding);
@@ -261,6 +309,9 @@ gst_harness_suite (void)
 
   tcase_add_test (tc_chain,
       test_forward_event_and_query_to_sink_harness_while_teardown);
+  tcase_add_test (tc_chain,
+      test_forward_sticky_events_to_sink_harness_while_teardown);
+
   tcase_add_test (tc_chain, test_get_all_data);
 
   return s;

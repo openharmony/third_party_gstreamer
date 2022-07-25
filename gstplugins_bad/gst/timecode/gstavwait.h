@@ -52,6 +52,7 @@ struct _GstAvWait
   GstAvWaitMode mode;
 
   GstVideoTimeCode *end_tc;
+  GstClockTime end_running_time;
   GstClockTime running_time_to_end_at;
 
   GstPad *asrcpad, *asinkpad, *vsrcpad, *vsinkpad;
@@ -97,6 +98,7 @@ struct _GstAvWaitClass
 };
 
 GType gst_avwait_get_type (void);
+GST_ELEMENT_REGISTER_DECLARE (avwait);
 
 G_END_DECLS
 #endif /* __GST_AVWAIT_H__ */

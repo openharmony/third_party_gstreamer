@@ -20,6 +20,7 @@
  */
 /**
  * SECTION:element-multifilesrc
+ * @title: multifilesrc
  * @see_also: #GstFileSrc
  *
  * Reads buffers from sequentially named files. If used together with an image
@@ -28,17 +29,16 @@
  * after the first picture. We also need a videorate element to set timestamps
  * on all buffers after the first one in accordance with the framerate.
  *
- * File names are created by replacing "\%d" with the index using printf().
+ * File names are created by replacing "\%d" with the index using `printf()`.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * gst-launch-1.0 multifilesrc location="img.%04d.png" index=0 caps="image/png,framerate=\(fraction\)12/1" ! \
  *     pngdec ! videoconvert ! videorate ! theoraenc ! oggmux ! \
  *     filesink location="images.ogg"
  * ]| This pipeline creates a video file "images.ogg" by joining multiple PNG
  * files named img.0000.png, img.0001.png, etc.
- * </refsect2>
+ *
 */
 
 #ifdef HAVE_CONFIG_H
@@ -90,7 +90,8 @@ enum
 G_DEFINE_TYPE_WITH_CODE (GstMultiFileSrc, gst_multi_file_src, GST_TYPE_PUSH_SRC,
     G_IMPLEMENT_INTERFACE (GST_TYPE_URI_HANDLER,
         gst_multi_file_src_uri_handler_init));
-
+GST_ELEMENT_REGISTER_DEFINE (multifilesrc, "multifilesrc", GST_RANK_NONE,
+    gst_multi_file_src_get_type ());
 
 static gboolean
 is_seekable (GstBaseSrc * src)
@@ -336,12 +337,13 @@ gst_multi_file_src_set_property (GObject * object, guint prop_id,
           (st = gst_caps_get_structure (new_caps, 0))
           && gst_structure_get_fraction (st, "framerate", &src->fps_n,
               &src->fps_d)) {
-        GST_INFO_OBJECT (src, "Seting framerate to %d/%d", src->fps_n,
+        GST_INFO_OBJECT (src, "Setting framerate to %d/%d", src->fps_n,
             src->fps_d);
       } else {
         src->fps_n = -1;
         src->fps_d = -1;
       }
+      gst_caps_unref (new_caps);
     }
       break;
     case PROP_LOOP:
