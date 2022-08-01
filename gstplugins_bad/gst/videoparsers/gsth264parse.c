@@ -3127,6 +3127,11 @@ gst_h264_parse_pre_push_frame (GstBaseParse * parse, GstBaseParseFrame * frame)
     h264parse->first_frame = FALSE;
   }
 
+#ifdef OHOS_OPT_COMPAT
+// ohos.ext.compat.0032
+  h264parse->aud_insert = FALSE;
+#endif
+
   /* In case of byte-stream, insert au delimiter by default
    * if it doesn't exist */
   if (h264parse->aud_insert && !h264parse->have_aud_in_frame &&
