@@ -3128,7 +3128,11 @@ gst_h264_parse_pre_push_frame (GstBaseParse * parse, GstBaseParseFrame * frame)
   }
 
 #ifdef OHOS_OPT_COMPAT
-// ohos.ext.compat.0034
+/**
+ * ohos.ext.compat.0034
+ * Set not to insert the aud header,
+ * otherwise it will affect the subsequent recognition of multiple slices
+ */
   h264parse->aud_insert = FALSE;
 #endif
 
