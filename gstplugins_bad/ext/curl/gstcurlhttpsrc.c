@@ -730,6 +730,10 @@ gst_curl_http_src_init (GstCurlHttpSrc * source)
   source->read_position = 0;
 #endif
   source->stop_position = -1;
+#ifdef OHOS_OPT_COMPAT
+  /* ohos.opt.compat.0035 */
+  source->is_seek_to_current_pos = FALSE;
+#endif
 
   gst_base_src_set_automatic_eos (GST_BASE_SRC (source), FALSE);
 
@@ -886,7 +890,7 @@ gst_curl_http_src_finalize (GObject * obj)
 #ifdef OHOS_EXT_FUNC
 /* ohos.ext.func.0025 for seek */
 static void
-gst_curl_http_src_handle_seek(GstCurlHttpSrc * src)
+gst_curl_http_src_handle_seek (GstCurlHttpSrc * src)
 {
   if (src->curl_handle == NULL) {
     GST_INFO_OBJECT (src, "parameter is invalid");
@@ -895,6 +899,20 @@ gst_curl_http_src_handle_seek(GstCurlHttpSrc * src)
 
   g_mutex_lock (&src->buffer_mutex);
   if (src->request_position == src->read_position) {
+#ifdef OHOS_OPT_COMPAT
+    /**
+     * ohos.opt.compat.0035
+     * Fix seek failed when request_position from gstqueue2 seek event is the same as read_position.
+     * This case occurs when pulled position from demux jumps back and forth between the boundary of two ranges in gstqueue2,
+     * which causes requested postion of seek event from gstqueue2 be the same as right boundary of the last range, namely
+     * current downloaded position(read_position). In this case, connection_status is set to GSTCURL_WANT_REMOVAL in
+     * gst_curl_http_src_unlock() and can not be reset to GSTCURL_CONNECTED in gst_curl_http_src_add_queue_item().
+     */
+    if (src->is_seek_to_current_pos && src->connection_status == GSTCURL_WANT_REMOVAL) {
+      GST_INFO_OBJECT(src, "reset connection_status to GSTCURL_CONNECTED when seeking to read_position");
+      src->connection_status = GSTCURL_CONNECTED;
+    }
+#endif
     /* not seek, just return */
     g_mutex_unlock (&src->buffer_mutex);
     return;
@@ -1745,6 +1763,10 @@ gst_curl_http_src_do_seek (GstBaseSrc * bsrc, GstSegment * segment)
   if (src->request_position == segment->start &&
       src->stop_position == segment->stop) {
     GST_DEBUG_OBJECT (src, "Seek to current read/end position");
+#ifdef OHOS_OPT_COMPAT
+    /* ohos.opt.compat.0035 */
+    src->is_seek_to_current_pos = TRUE;
+#endif
     goto done;
   }
 
