@@ -237,7 +237,6 @@ ohos_shared_library("gstbase") {
     ":gstbase_source",
     ":gstreamer",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
   ]
   part_name = "multimedia_player_framework"
@@ -294,7 +293,6 @@ ohos_shared_library("gstcoreelements") {
     ":gstcoreelements_source",
     ":gstreamer",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
   ]
 
@@ -345,7 +343,6 @@ ohos_shared_library("gstcoretracers") {
     ":gstcoretracers_source",
     ":gstreamer",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
   ]
 
@@ -384,10 +381,8 @@ ohos_source_set("gst_inspect_source") {
 ohos_executable("gst-inspect") {
   deps = [
     ":gst_inspect_source",
-    ":gstbase",
     ":gstreamer",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
   ]
   part_name = "multimedia_player_framework"
@@ -403,10 +398,8 @@ ohos_source_set("gst_launch_source") {
 ohos_executable("gst-launch") {
   deps = [
     ":gst_launch_source",
-    ":gstbase",
     ":gstreamer",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
   ]
   part_name = "multimedia_player_framework"
