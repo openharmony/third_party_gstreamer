@@ -89,7 +89,6 @@ ohos_shared_library("gstplayback") {
     ":gstplayback_source",
     ":gstvideo",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
@@ -125,7 +124,6 @@ ohos_shared_library("gstpbutils") {
     ":gsttag",
     ":gstvideo",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
@@ -156,7 +154,6 @@ ohos_shared_library("gsttag") {
   deps = [
     ":gsttag_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
@@ -190,10 +187,6 @@ ohos_shared_library("gstfft") {
   deps = [
     ":gstfft_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
-    "//third_party/glib:gobject",
-    "//third_party/gstreamer/gstreamer:gstbase",
-    "//third_party/gstreamer/gstreamer:gstreamer",
   ]
   part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
@@ -241,7 +234,6 @@ ohos_shared_library("gstvideo") {
   deps = [
     ":gstvideo_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
@@ -280,7 +272,6 @@ ohos_shared_library("gstaudio") {
     ":gstaudio_source",
     ":gsttag",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
@@ -303,7 +294,6 @@ ohos_shared_library("gstaudioconvert") {
     ":audioconvert_source",
     ":gstaudio",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
@@ -328,12 +318,8 @@ ohos_source_set("typefind_source") {
 
 ohos_shared_library("gsttypefindfunctions") {
   deps = [
-    ":gstpbutils",
     ":typefind_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
-    "//third_party/glib:gobject",
-    "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
 
@@ -361,7 +347,6 @@ ohos_shared_library("gstsubparse") {
   deps = [
     ":subparse_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
@@ -383,7 +368,6 @@ ohos_shared_library("gstaudioresample") {
     ":audioresample_source",
     ":gstaudio",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
@@ -405,9 +389,7 @@ ohos_shared_library("gstaudiorate") {
     ":audiorate_source",
     ":gstaudio",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
-    "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
 
@@ -432,7 +414,6 @@ ohos_shared_library("gstaudiomixer") {
     ":audiomixer_source",
     ":gstaudio",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
@@ -462,7 +443,6 @@ ohos_shared_library("gstrawparse") {
     ":gstvideo",
     ":rawparse_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
@@ -486,13 +466,10 @@ ohos_source_set("riff_source") {
 ohos_shared_library("gstriff") {
   deps = [
     ":gstaudio",
-    ":gstvideo",
     ":riff_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_base:gsttag",
-    "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
   part_name = "multimedia_player_framework"
@@ -517,13 +494,9 @@ ohos_source_set("rtp_source") {
 
 ohos_shared_library("gstrtp") {
   deps = [
-    ":gstaudio",
-    ":gstvideo",
     ":rtp_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
-    "//third_party/gstreamer/gstplugins_base:gsttag",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
@@ -539,13 +512,10 @@ ohos_source_set("videoconvert_source") {
 
 ohos_shared_library("gstvideoconvert") {
   deps = [
-    ":gstaudio",
     ":gstvideo",
     ":videoconvert_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
-    "//third_party/gstreamer/gstplugins_base:gsttag",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
@@ -563,13 +533,10 @@ ohos_source_set("videoscale_source") {
 
 ohos_shared_library("gstvideoscale") {
   deps = [
-    ":gstaudio",
     ":gstvideo",
     ":videoscale_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
-    "//third_party/gstreamer/gstplugins_base:gsttag",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
@@ -596,9 +563,7 @@ ohos_shared_library("gstapp") {
   deps = [
     ":app_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
-    "//third_party/gstreamer/gstplugins_base:gsttag",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]

@@ -82,7 +82,6 @@ ohos_shared_library("gstaudioparsers") {
   deps = [
     ":audioparsers_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_base:gstaudio",
     "//third_party/gstreamer/gstplugins_base:gstpbutils",
@@ -114,11 +113,8 @@ ohos_shared_library("gstautodetect") {
   deps = [
     ":autodetect_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
-    "//third_party/gstreamer/gstplugins_base:gstaudio",
     "//third_party/gstreamer/gstplugins_base:gstpbutils",
-    "//third_party/gstreamer/gstplugins_base:gsttag",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
@@ -179,7 +175,6 @@ ohos_shared_library("gstisomp4") {
   deps = [
     ":isomp4_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_base:gstaudio",
     "//third_party/gstreamer/gstplugins_base:gstpbutils",
@@ -206,9 +201,7 @@ ohos_shared_library("gstwavparse") {
   deps = [
     ":wavparse_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
-    "//third_party/gstreamer/gstplugins_base:gstaudio",
     "//third_party/gstreamer/gstplugins_base:gstpbutils",
     "//third_party/gstreamer/gstplugins_base:gstriff",
     "//third_party/gstreamer/gstreamer:gstbase",
@@ -233,10 +226,7 @@ ohos_shared_library("gstmultifile") {
   deps = [
     ":multifile_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
-    "//third_party/gstreamer/gstplugins_base:gstaudio",
-    "//third_party/gstreamer/gstplugins_base:gstpbutils",
     "//third_party/gstreamer/gstplugins_base:gstvideo",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
@@ -260,11 +250,8 @@ ohos_shared_library("gstaudiofx") {
   deps = [
     ":audiofx_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_base:gstaudio",
-    "//third_party/gstreamer/gstplugins_base:gstpbutils",
-    "//third_party/gstreamer/gstplugins_base:gsttag",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
@@ -323,7 +310,6 @@ ohos_shared_library("gstmatroska") {
     ":matroska_source",
     "//third_party/bzip2:libbz2",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_base:gstaudio",
     "//third_party/gstreamer/gstplugins_base:gstpbutils",
