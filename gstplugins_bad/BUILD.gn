@@ -80,13 +80,10 @@ ohos_shared_library("gstplayer") {
   deps = [
     ":player_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
-    "//third_party/gstreamer/gstplugins_base:gstaudio",
     "//third_party/gstreamer/gstplugins_base:gstpbutils",
     "//third_party/gstreamer/gstplugins_base:gsttag",
     "//third_party/gstreamer/gstplugins_base:gstvideo",
-    "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
   part_name = "multimedia_player_framework"
@@ -145,11 +142,9 @@ ohos_shared_library("gsthls") {
     ":hls_source",
     "//third_party/glib:gio",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_bad:gstadaptivedemux",
     "//third_party/gstreamer/gstplugins_bad:gsturidownloader",
-    "//third_party/gstreamer/gstplugins_base:gstaudio",
     "//third_party/gstreamer/gstplugins_base:gstpbutils",
     "//third_party/gstreamer/gstplugins_base:gsttag",
     "//third_party/gstreamer/gstplugins_base:gstvideo",
@@ -172,13 +167,8 @@ ohos_shared_library("gstadaptivedemux") {
   deps = [
     ":adaptivedemux_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_bad:gsturidownloader",
-    "//third_party/gstreamer/gstplugins_base:gstaudio",
-    "//third_party/gstreamer/gstplugins_base:gstpbutils",
-    "//third_party/gstreamer/gstplugins_base:gsttag",
-    "//third_party/gstreamer/gstplugins_base:gstvideo",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
@@ -200,12 +190,7 @@ ohos_shared_library("gsturidownloader") {
   deps = [
     ":uridownloader_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
-    "//third_party/gstreamer/gstplugins_base:gstaudio",
-    "//third_party/gstreamer/gstplugins_base:gstpbutils",
-    "//third_party/gstreamer/gstplugins_base:gsttag",
-    "//third_party/gstreamer/gstplugins_base:gstvideo",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
@@ -231,14 +216,12 @@ ohos_shared_library("gstmpegtsdemux") {
   deps = [
     ":mpegtsdemux_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_bad:gstcodecparsers",
     "//third_party/gstreamer/gstplugins_bad:gstmpegts",
     "//third_party/gstreamer/gstplugins_base:gstaudio",
     "//third_party/gstreamer/gstplugins_base:gstpbutils",
     "//third_party/gstreamer/gstplugins_base:gsttag",
-    "//third_party/gstreamer/gstplugins_base:gstvideo",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
@@ -266,13 +249,7 @@ ohos_shared_library("gstmpegts") {
   deps = [
     ":mpegts_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
-    "//third_party/gstreamer/gstplugins_base:gstaudio",
-    "//third_party/gstreamer/gstplugins_base:gstpbutils",
-    "//third_party/gstreamer/gstplugins_base:gsttag",
-    "//third_party/gstreamer/gstplugins_base:gstvideo",
-    "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
 
@@ -307,12 +284,6 @@ ohos_shared_library("gstcodecparsers") {
   deps = [
     ":codecparsers_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
-    "//third_party/glib:gobject",
-    "//third_party/gstreamer/gstplugins_base:gstaudio",
-    "//third_party/gstreamer/gstplugins_base:gstpbutils",
-    "//third_party/gstreamer/gstplugins_base:gsttag",
-    "//third_party/gstreamer/gstplugins_base:gstvideo",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
@@ -366,12 +337,9 @@ ohos_shared_library("gstvideoparsersbad") {
   deps = [
     ":parse_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_bad:gstcodecparsers",
-    "//third_party/gstreamer/gstplugins_base:gstaudio",
     "//third_party/gstreamer/gstplugins_base:gstpbutils",
-    "//third_party/gstreamer/gstplugins_base:gsttag",
     "//third_party/gstreamer/gstplugins_base:gstvideo",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
@@ -408,7 +376,6 @@ ohos_shared_library("gstcurl") {
     ":curlhttp_source",
     "//third_party/curl:curl_shared",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
