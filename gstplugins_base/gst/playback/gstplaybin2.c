@@ -5708,10 +5708,7 @@ activate_group (GstPlayBin * playbin, GstSourceGroup * group, GstState target)
       REMOVE_SIGNAL (group->suburidecodebin, group->sub_no_more_pads_id);
       REMOVE_SIGNAL (group->suburidecodebin, group->sub_autoplug_continue_id);
       REMOVE_SIGNAL (group->suburidecodebin, group->sub_autoplug_query_id);
-#ifdef OHOS_EXT_FUNC
-      // ohos.ext.func.0028
-      REMOVE_SIGNAL (group->suburidecodebin, group->bitrate_parse_complete_id);
-#endif
+
       /* Might already be removed because of an error message */
       if (GST_OBJECT_PARENT (suburidecodebin) == GST_OBJECT_CAST (playbin))
         gst_bin_remove (GST_BIN_CAST (playbin), suburidecodebin);
@@ -5806,6 +5803,10 @@ error_cleanup:
       REMOVE_SIGNAL (group->uridecodebin, group->autoplug_select_id);
       REMOVE_SIGNAL (group->uridecodebin, group->autoplug_continue_id);
       REMOVE_SIGNAL (group->uridecodebin, group->autoplug_query_id);
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0028
+      REMOVE_SIGNAL (group->uridecodebin, group->bitrate_parse_complete_id);
+#endif
 
       gst_element_set_state (uridecodebin, GST_STATE_NULL);
       gst_bin_remove (GST_BIN_CAST (playbin), uridecodebin);
@@ -5895,6 +5896,10 @@ deactivate_group (GstPlayBin * playbin, GstSourceGroup * group)
     REMOVE_SIGNAL (group->uridecodebin, group->autoplug_select_id);
     REMOVE_SIGNAL (group->uridecodebin, group->autoplug_continue_id);
     REMOVE_SIGNAL (group->uridecodebin, group->autoplug_query_id);
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0028
+    REMOVE_SIGNAL (group->uridecodebin, group->bitrate_parse_complete_id);
+#endif
     gst_bin_remove (GST_BIN_CAST (playbin), group->uridecodebin);
   }
 
