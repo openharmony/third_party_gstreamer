@@ -53,11 +53,6 @@ GST_DEBUG_CATEGORY_STATIC (GST_CAT_GL_BASE_MEMORY);
 
 GST_DEFINE_MINI_OBJECT_TYPE (GstGLBaseMemory, gst_gl_base_memory);
 
-/**
- * gst_gl_base_memory_error_quark:
- *
- * Returns: the quark used for #GstGLBaseMemory in #GError's
- */
 GQuark
 gst_gl_base_memory_error_quark (void)
 {
@@ -128,9 +123,8 @@ _mem_create_gl (GstGLContext * context, struct create_data *transfer)
  */
 void
 gst_gl_base_memory_init (GstGLBaseMemory * mem, GstAllocator * allocator,
-    GstMemory * parent, GstGLContext * context,
-    const GstAllocationParams * params, gsize size, gpointer user_data,
-    GDestroyNotify notify)
+    GstMemory * parent, GstGLContext * context, GstAllocationParams * params,
+    gsize size, gpointer user_data, GDestroyNotify notify)
 {
   gsize align = gst_memory_alignment, offset = 0, maxsize;
   GstMemoryFlags flags = 0;
@@ -210,7 +204,7 @@ _align_data (gpointer data, gsize align)
  * gst_gl_base_memory_alloc_data:
  * @gl_mem: a #GstGLBaseMemory
  *
- * Note: only intended for subclass usage to allocate the system memory buffer
+ * Note: only intended for subclass usage to allocate the sytem memory buffer
  * on demand.  If there is already a non-NULL data pointer in @gl_mem->data,
  * then this function imply returns TRUE.
  *
@@ -503,7 +497,7 @@ _mem_free (GstAllocator * allocator, GstMemory * memory)
 void
 gst_gl_base_memory_init_once (void)
 {
-  static gsize _init = 0;
+  static volatile gsize _init = 0;
 
   if (g_once_init_enter (&_init)) {
     GST_DEBUG_CATEGORY_INIT (GST_CAT_GL_BASE_MEMORY, "glbasememory", 0,
@@ -568,7 +562,7 @@ gst_is_gl_base_memory (GstMemory * mem)
  * @offset: the offset to start at
  * @size: the number of bytes to copy
  *
- * Returns: whether the copy succeeded.
+ * Returns: whether the copy suceeded.
  *
  * Since: 1.8
  */
@@ -624,7 +618,7 @@ gst_gl_base_memory_memcpy (GstGLBaseMemory * src, GstGLBaseMemory * dest,
  * @notify will be called once for each allocated memory using these @params
  * when freeing the memory.
  *
- * Returns: whether the parameters could be initialized
+ * Returns: whether the paramaters could be initialized
  *
  * Since: 1.8
  */
@@ -632,7 +626,7 @@ gboolean
 gst_gl_allocation_params_init (GstGLAllocationParams * params,
     gsize struct_size, guint alloc_flags, GstGLAllocationParamsCopyFunc copy,
     GstGLAllocationParamsFreeFunc free, GstGLContext * context,
-    gsize alloc_size, const GstAllocationParams * alloc_params,
+    gsize alloc_size, GstAllocationParams * alloc_params,
     gpointer wrapped_data, gpointer gl_handle, gpointer user_data,
     GDestroyNotify notify)
 {
@@ -705,7 +699,7 @@ gst_gl_allocation_params_free (GstGLAllocationParams * params)
  * @params: the source #GstGLAllocationParams
  *
  * Frees the dynamically allocated data in @params.  Direct subclasses
- * should call this function in their own overridden free function.
+ * should call this function in their own overriden free function.
  *
  * Since: 1.8
  */
@@ -724,7 +718,7 @@ gst_gl_allocation_params_free_data (GstGLAllocationParams * params)
  * @dest: the destination #GstGLAllocationParams
  *
  * Copies the dynamically allocated data from @src to @dest.  Direct subclasses
- * should call this function in their own overridden copy function.
+ * should call this function in their own overriden copy function.
  *
  * Since: 1.8
  */

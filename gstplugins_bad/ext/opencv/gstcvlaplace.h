@@ -84,7 +84,7 @@ struct _GstCvLaplaceClass
 
 GType gst_cv_laplace_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (cvlaplace);
+gboolean gst_cv_laplace_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 

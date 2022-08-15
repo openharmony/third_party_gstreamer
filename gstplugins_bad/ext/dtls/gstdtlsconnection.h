@@ -26,7 +26,7 @@
 #ifndef gstdtlsconnection_h
 #define gstdtlsconnection_h
 
-#include <gst/gst.h>
+#include <glib-object.h>
 
 G_BEGIN_DECLS
 
@@ -65,18 +65,6 @@ typedef enum {
 
 #define GST_DTLS_SRTP_MASTER_KEY_LENGTH 30
 
-typedef enum
-{
-  GST_DTLS_CONNECTION_STATE_NEW,
-  GST_DTLS_CONNECTION_STATE_CLOSED,
-  GST_DTLS_CONNECTION_STATE_FAILED,
-  GST_DTLS_CONNECTION_STATE_CONNECTING,
-  GST_DTLS_CONNECTION_STATE_CONNECTED,
-} GstDtlsConnectionState;
-
-GType gst_dtls_connection_state_get_type (void);
-#define GST_DTLS_TYPE_CONNECTION_STATE (gst_dtls_connection_state_get_type ())
-
 /*
  * GstDtlsConnection:
  *
@@ -96,7 +84,7 @@ struct _GstDtlsConnectionClass {
 
 GType gst_dtls_connection_get_type(void) G_GNUC_CONST;
 
-gboolean gst_dtls_connection_start(GstDtlsConnection *, gboolean is_client, GError **err);
+void gst_dtls_connection_start(GstDtlsConnection *, gboolean is_client);
 void gst_dtls_connection_check_timeout(GstDtlsConnection *);
 
 /*
@@ -110,46 +98,25 @@ void gst_dtls_connection_stop(GstDtlsConnection *);
  */
 void gst_dtls_connection_close(GstDtlsConnection *);
 
-
-typedef gboolean (*GstDtlsConnectionSendCallback) (GstDtlsConnection * connection, gconstpointer data, gsize length, gpointer user_data);
-
 /*
- * Sets the callback that will be called whenever data needs to be sent.
- */
-void gst_dtls_connection_set_send_callback(GstDtlsConnection *, GstDtlsConnectionSendCallback, gpointer, GDestroyNotify);
-
-/*
- * Sets the GstFlowReturn that be returned from gst_dtls_connection_send() if callback returns FALSE
- */
-void gst_dtls_connection_set_flow_return(GstDtlsConnection *, GstFlowReturn);
-
-/*
- * Processes data that has been received, the transformation is done in-place.
+ * Sets the closure that will be called whenever data needs to be sent.
  *
- * Returns:
- *   - GST_FLOW_EOS if the receive side of the DTLS connection was closed by
- *     the peer, i.e. close_notify was sent by the peer
- *   - GST_FLOW_ERROR + err if an error happened
- *   - GST_FLOW_OK + written >= 0 if processing was successful. ptr then
- *     contains the decoded bytes
+ * The closure will get called with the following arguments:
+ * void cb(GstDtlsConnection *, gpointer data, gint length, gpointer user_data)
  */
-GstFlowReturn gst_dtls_connection_process(GstDtlsConnection *, gpointer ptr, gsize len, gsize *written, GError **err);
+void gst_dtls_connection_set_send_callback(GstDtlsConnection *, GClosure *);
 
 /*
- * Will encode and send the given data.
- *
- * Sending with len == 0 will close the send side of the DTLS connection and
- * no further data can be sent anymore in the future. This will also send the
- * close_notify to the peer.
- *
- * Returns:
- *   - GST_FLOW_EOS if the send side of the DTLS connection was closed, i.e.
- *     we received an EOS before.
- *   - GST_FLOW_ERROR + err if an error happened
- *   - GST_FLOW_OK + written >= 0 if processing was successful
- *   - Any GstFlowReturn set with gst_dtls_connection_set_flow_return()
+ * Processes data that has been recevied, the transformation is done in-place.
+ * Returns the length of the plaintext data that was decoded, if no data is available, 0<= will be returned.
  */
-GstFlowReturn gst_dtls_connection_send(GstDtlsConnection *, gconstpointer ptr, gsize len, gsize *written, GError **err);
+gint gst_dtls_connection_process(GstDtlsConnection *, gpointer ptr, gint len);
+
+/*
+ * If the DTLS handshake is completed this function will encode the given data.
+ * Returns the length of the data sent, or 0 if the DTLS handshake is not completed.
+ */
+gint gst_dtls_connection_send(GstDtlsConnection *, gpointer ptr, gint len);
 
 G_END_DECLS
 

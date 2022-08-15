@@ -28,8 +28,17 @@
 G_BEGIN_DECLS
 
 #define GST_TYPE_STREAM_COMBINER_PAD (gst_stream_combiner_pad_get_type())
-G_DECLARE_FINAL_TYPE (GstStreamCombinerPad, gst_stream_combiner_pad,
-    GST, STREAM_COMBINER_PAD, GstPad)
+#define GST_STREAM_COMBINER_PAD(obj) \
+        (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_STREAM_COMBINER_PAD, GstStreamCombinerPad))
+#define GST_STREAM_COMBINER_PAD_CLASS(klass) \
+        (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_VIDEO_MIXER_PAD, GstStreamCombinerPadClass))
+#define GST_IS_STREAM_COMBINER_PAD(obj) \
+        (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_STREAM_COMBINER_PAD))
+#define GST_IS_STREAM_COMBINER_PAD_CLASS(klass) \
+        (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_STREAM_COMBINER_PAD))
+
+typedef struct _GstStreamCombinerPad GstStreamCombinerPad;
+typedef struct _GstStreamCombinerPadClass GstStreamCombinerPadClass;
 
 /**
  * GstStream_CombinerPad:
@@ -42,6 +51,13 @@ struct _GstStreamCombinerPad
 
   gboolean is_eos;
 };
+
+struct _GstStreamCombinerPadClass
+{
+  GstPadClass parent_class;
+};
+
+GType gst_stream_combiner_pad_get_type (void);
 
 G_END_DECLS
 #endif /* __GST_STREAM_COMBINER_PAD_H__ */

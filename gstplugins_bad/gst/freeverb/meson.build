@@ -11,6 +11,5 @@ gstfreeverb = library('gstfreeverb',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstfreeverb, install_dir : plugins_pkgconfig_install_dir)
-plugins += [gstfreeverb]
 
 install_data('GstFreeverb.prs', install_dir: presetdir)

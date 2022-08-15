@@ -57,8 +57,6 @@ struct _GstOpusParseClass {
 
 GType gst_opus_parse_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (opusparse);
-
 G_END_DECLS
 
 #endif /* __GST_OPUS_PARSE_H__ */

@@ -161,10 +161,6 @@ gboolean        gst_rtp_base_payload_set_outcaps        (GstRTPBasePayload *payl
                                                          const gchar *fieldname, ...);
 
 GST_RTP_API
-gboolean        gst_rtp_base_payload_set_outcaps_structure (GstRTPBasePayload *payload,
-                                                            GstStructure *s);
-
-GST_RTP_API
 gboolean        gst_rtp_base_payload_is_filled          (GstRTPBasePayload *payload,
                                                          guint size, GstClockTime duration);
 
@@ -192,7 +188,9 @@ GST_RTP_API
 guint           gst_rtp_base_payload_get_source_count (GstRTPBasePayload * payload,
                                                        GstBuffer * buffer);
 
+#ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GstRTPBasePayload, gst_object_unref)
+#endif
 
 G_END_DECLS
 

@@ -72,8 +72,6 @@ struct _GstChromaprintClass
 
 GType gst_chromaprint_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (chromaprint);
-
 G_END_DECLS
 
 #endif /* __GST_CHROMAPRINT_H__ */

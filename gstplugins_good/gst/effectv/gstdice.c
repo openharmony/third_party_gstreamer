@@ -28,7 +28,6 @@
 
 /**
  * SECTION:element-dicetv
- * @title: dicetv
  *
  * DiceTV 'dices' the screen up into many small squares, each defaulting
  * to a size of 16 pixels by 16 pixels.. Each square is rotated randomly
@@ -37,11 +36,12 @@
  * counterclockwise). The direction of each square normally remains
  * consistent between each frame.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 -v videotestsrc ! dicetv ! videoconvert ! autovideosink
  * ]| This pipeline shows the effect of dicetv on a test stream.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -67,7 +67,6 @@ typedef enum _dice_dir
 
 #define gst_dicetv_parent_class parent_class
 G_DEFINE_TYPE (GstDiceTV, gst_dicetv, GST_TYPE_VIDEO_FILTER);
-GST_ELEMENT_REGISTER_DEFINE (dicetv, "dicetv", GST_RANK_NONE, GST_TYPE_DICETV);
 
 static void gst_dicetv_create_map (GstDiceTV * filter, GstVideoInfo * info);
 

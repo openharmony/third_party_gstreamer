@@ -25,9 +25,19 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_OVERLAY_COMPOSITION (gst_overlay_composition_get_type())
-G_DECLARE_FINAL_TYPE (GstOverlayComposition, gst_overlay_composition,
-    GST, OVERLAY_COMPOSITION, GstElement)
+#define GST_TYPE_OVERLAY_COMPOSITION \
+  (gst_overlay_composition_get_type())
+#define GST_OVERLAY_COMPOSITION(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_OVERLAY_COMPOSITION,GstOverlayComposition))
+#define GST_OVERLAY_COMPOSITION_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_OVERLAY_COMPOSITION,GstOverlayCompositionClass))
+#define GST_IS_OVERLAY_COMPOSITION(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_OVERLAY_COMPOSITION))
+#define GST_IS_OVERLAY_COMPOSITION_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_OVERLAY_COMPOSITION))
+
+typedef struct _GstOverlayComposition GstOverlayComposition;
+typedef struct _GstOverlayCompositionClass GstOverlayCompositionClass;
 
 struct _GstOverlayComposition {
   GstElement parent;
@@ -43,7 +53,11 @@ struct _GstOverlayComposition {
   gboolean attach_compo_to_buffer;
 };
 
-GST_ELEMENT_REGISTER_DECLARE (overlaycomposition);
+struct _GstOverlayCompositionClass {
+  GstElementClass parent_class;
+};
+
+GType gst_overlay_composition_get_type (void);
 
 G_END_DECLS
 

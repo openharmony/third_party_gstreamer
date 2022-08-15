@@ -39,7 +39,6 @@
 #include <gst/gst.h>
 #include <gst/base/gstflowcombiner.h>
 #include <gst/app/gstappsink.h>
-#include "gstdebugutilsbadelements.h"
 
 static GstStaticPadTemplate video_src_template =
 GST_STATIC_PAD_TEMPLATE ("video_src_%u",
@@ -76,7 +75,6 @@ struct _GstTestSrcBin
   GstStreamCollection *collection;
   gint group_id;
   GstFlowCombiner *flow_combiner;
-  GstCaps *streams_def;
 };
 
 enum
@@ -126,7 +124,7 @@ _probe_data_new (GstEvent * stream_start, GstStreamCollection * collection)
 {
   ProbeData *data = g_malloc0 (sizeof (ProbeData));
 
-  data->stream_start = stream_start;
+  data->stream_start = gst_event_ref (stream_start);
   data->collection = gst_object_ref (collection);
 
   return data;
@@ -178,17 +176,11 @@ gst_test_src_bin_chain (GstPad * pad, GstObject * object, GstBuffer * buffer)
   GstTestSrcBin *self = GST_TEST_SRC_BIN (gst_object_get_parent (object));
 
   chain_res = gst_proxy_pad_chain_default (pad, GST_OBJECT (self), buffer);
-  GST_OBJECT_LOCK (self);
   res = gst_flow_combiner_update_pad_flow (self->flow_combiner, pad, chain_res);
-  GST_OBJECT_UNLOCK (self);
   gst_object_unref (self);
 
   if (res == GST_FLOW_FLUSHING)
     return chain_res;
-
-  if (res == GST_FLOW_NOT_LINKED)
-    GST_WARNING_OBJECT (pad,
-        "all testsrcbin pads not linked, returning not-linked.");
 
   return res;
 }
@@ -197,9 +189,6 @@ static gboolean
 gst_test_src_bin_set_element_property (GQuark property_id, const GValue * value,
     GObject * element)
 {
-  if (property_id == g_quark_from_static_string ("__streamobj__"))
-    return TRUE;
-
   if (G_VALUE_HOLDS_STRING (value))
     gst_util_set_object_arg (element, g_quark_to_string (property_id),
         g_value_get_string (value));
@@ -230,13 +219,6 @@ static gboolean
 gst_test_src_event_function (GstPad * pad, GstObject * parent, GstEvent * event)
 {
   switch (GST_EVENT_TYPE (event)) {
-    case GST_EVENT_RECONFIGURE:{
-      GstTestSrcBin *self = GST_TEST_SRC_BIN (parent);
-      GST_OBJECT_LOCK (self);
-      gst_flow_combiner_reset (self->flow_combiner);
-      GST_OBJECT_UNLOCK (self);
-      break;
-    }
     case GST_EVENT_SEEK:{
       ForwardEventData data = { event, TRUE, parent };
 
@@ -270,13 +252,11 @@ gst_test_src_bin_setup_src (GstTestSrcBin * self, const gchar * srcfactory,
   gst_event_set_stream (stream_start, stream);
   gst_event_set_group_id (stream_start, self->group_id);
 
-  gst_structure_set (props, "__streamobj__", GST_TYPE_STREAM, stream, NULL);
-  gst_stream_collection_add_stream (collection, stream);
-
   gst_pad_add_probe (pad, (GstPadProbeType) GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM,
       (GstPadProbeCallback) src_pad_probe_cb, _probe_data_new (stream_start,
           collection), (GDestroyNotify) _probe_data_free);
 
+  gst_stream_collection_add_stream (collection, stream);
   g_free (stream_id);
 
   gst_bin_add (GST_BIN (self), src);
@@ -295,58 +275,14 @@ gst_test_src_bin_setup_src (GstTestSrcBin * self, const gchar * srcfactory,
   gst_object_unref (pad);
   gst_element_sync_state_with_parent (src);
   *n_stream += 1;
-
-  gst_structure_set (props, "__src__", GST_TYPE_OBJECT, src, NULL);
 }
 
 static void
-gst_test_src_bin_remove_child (GstElement * self, GstElement * child)
+gst_test_src_bin_remove_child (GValue * val, GstBin * self)
 {
-  GstPad *pad = gst_element_get_static_pad (child, "src");
-  GstPad *ghost =
-      GST_PAD (gst_proxy_pad_get_internal (GST_PROXY_PAD (gst_pad_get_peer
-              (pad))));
+  GstElement *child = g_value_get_object (val);
 
-
-  gst_element_set_locked_state (child, FALSE);
-  gst_element_set_state (child, GST_STATE_NULL);
-  gst_bin_remove (GST_BIN (self), child);
-  gst_element_remove_pad (self, ghost);
-}
-
-static GstStream *
-gst_test_check_prev_stream_def (GstTestSrcBin * self, GstCaps * prev_streams,
-    GstStructure * stream_def)
-{
-  gint i;
-
-  if (!prev_streams)
-    return NULL;
-
-  for (i = 0; i < gst_caps_get_size (prev_streams); i++) {
-    GstStructure *prev_stream = gst_caps_get_structure (prev_streams, i);
-    GstElement *e = NULL;
-    GstStream *stream = NULL;
-
-    gst_structure_get (prev_stream, "__src__", GST_TYPE_OBJECT, &e,
-        "__streamobj__", GST_TYPE_STREAM, &stream, NULL);
-    gst_structure_remove_fields (prev_stream, "__src__", "__streamobj__", NULL);
-    if (gst_structure_is_equal (prev_stream, stream_def)) {
-      g_assert (stream);
-
-      gst_caps_remove_structure (prev_streams, i);
-      gst_structure_set (stream_def, "__src__", GST_TYPE_OBJECT, e,
-          "__streamobj__", GST_TYPE_STREAM, stream, NULL);
-
-      g_assert (stream);
-      return stream;
-    }
-
-    gst_structure_set (stream_def, "__src__", GST_TYPE_OBJECT, e,
-        "__streamobj__", GST_TYPE_STREAM, stream, NULL);
-  }
-
-  return NULL;
+  gst_bin_remove (self, child);
 }
 
 static gboolean
@@ -357,34 +293,31 @@ gst_test_src_bin_uri_handler_set_uri (GstURIHandler * handler,
   gchar *tmp, *location = gst_uri_get_location (uri);
   gint i, n_audio = 0, n_video = 0;
   GstStreamCollection *collection = gst_stream_collection_new (NULL);
-  GstCaps *streams_def, *prev_streams = self->streams_def;
+  GstIterator *it;
+  GstCaps *streams_defs;
 
   for (tmp = location; *tmp != '\0'; tmp++)
     if (*tmp == '+')
       *tmp = ';';
 
-  streams_def = gst_caps_from_string (location);
+  streams_defs = gst_caps_from_string (location);
   g_free (location);
 
-  if (!streams_def)
+  if (!streams_defs)
     goto failed;
 
-  self->group_id = gst_util_group_id_next ();
-  for (i = 0; i < gst_caps_get_size (streams_def); i++) {
-    GstStream *stream;
-    GstStructure *stream_def = gst_caps_get_structure (streams_def, i);
+  /* Clear us up */
+  it = gst_bin_iterate_elements (GST_BIN (self));
+  while (gst_iterator_foreach (it,
+          (GstIteratorForeachFunction) gst_test_src_bin_remove_child,
+          self) == GST_ITERATOR_RESYNC)
+    gst_iterator_resync (it);
 
-    if ((stream =
-            gst_test_check_prev_stream_def (self, prev_streams, stream_def))) {
-      GST_INFO_OBJECT (self,
-          "Reusing already existing stream: %" GST_PTR_FORMAT, stream_def);
-      gst_stream_collection_add_stream (collection, stream);
-      if (gst_structure_has_name (stream_def, "video"))
-        n_video++;
-      else
-        n_audio++;
-      continue;
-    }
+  gst_iterator_free (it);
+
+  self->group_id = gst_util_group_id_next ();
+  for (i = 0; i < gst_caps_get_size (streams_defs); i++) {
+    GstStructure *stream_def = gst_caps_get_structure (streams_defs, i);
 
     if (gst_structure_has_name (stream_def, "video"))
       gst_test_src_bin_setup_src (self, "videotestsrc", &video_src_template,
@@ -395,18 +328,6 @@ gst_test_src_bin_uri_handler_set_uri (GstURIHandler * handler,
     else
       GST_ERROR_OBJECT (self, "Unknown type %s",
           gst_structure_get_name (stream_def));
-  }
-  self->streams_def = streams_def;
-
-  if (prev_streams) {
-    for (i = 0; i < gst_caps_get_size (prev_streams); i++) {
-      GstStructure *prev_stream = gst_caps_get_structure (prev_streams, i);
-      GstElement *child;
-
-      gst_structure_get (prev_stream, "__src__", GST_TYPE_OBJECT, &child, NULL);
-      gst_test_src_bin_remove_child (GST_ELEMENT (self), child);
-    }
-    gst_clear_caps (&prev_streams);
   }
 
   if (!n_video && !n_audio)
@@ -442,9 +363,6 @@ gst_test_src_bin_uri_handler_init (gpointer g_iface, gpointer unused)
 G_DEFINE_TYPE_WITH_CODE (GstTestSrcBin, gst_test_src_bin, GST_TYPE_BIN,
     G_IMPLEMENT_INTERFACE (GST_TYPE_URI_HANDLER, gst_test_src_bin_uri_handler_init))
 /* *INDENT-ON* */
-
-GST_ELEMENT_REGISTER_DEFINE (testsrcbin, "testsrcbin",
-    GST_RANK_NONE, gst_test_src_bin_get_type ());
 
 static void
 gst_test_src_bin_set_property (GObject * object, guint prop_id,
@@ -519,7 +437,6 @@ gst_test_src_bin_finalize (GObject * object)
   GstTestSrcBin *self = GST_TEST_SRC_BIN (object);
 
   g_free (self->uri);
-  gst_clear_caps (&self->streams_def);
   gst_flow_combiner_free (self->flow_combiner);
 }
 

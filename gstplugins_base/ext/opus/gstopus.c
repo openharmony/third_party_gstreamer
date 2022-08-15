@@ -21,17 +21,26 @@
 #include <config.h>
 #endif
 
-#include "gstopuselements.h"
+#include "gstopusdec.h"
+#include "gstopusenc.h"
+
+#include <gst/tag/tag.h>
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
 
-  ret |= GST_ELEMENT_REGISTER (opusenc, plugin);
-  ret |= GST_ELEMENT_REGISTER (opusdec, plugin);
+  if (!gst_element_register (plugin, "opusenc", GST_RANK_PRIMARY,
+          GST_TYPE_OPUS_ENC))
+    return FALSE;
 
-  return ret;
+  if (!gst_element_register (plugin, "opusdec", GST_RANK_PRIMARY,
+          GST_TYPE_OPUS_DEC))
+    return FALSE;
+
+  gst_tag_register_musicbrainz_tags ();
+
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

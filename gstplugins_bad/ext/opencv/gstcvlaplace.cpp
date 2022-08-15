@@ -46,11 +46,12 @@
  *
  * Applies cvLaplace OpenCV function to the image.
  *
- * Example launch line
- *
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 videotestsrc ! cvlaplace ! videoconvert ! autovideosink
  * ]|
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -96,12 +97,8 @@ enum
 #define DEFAULT_SHIFT 0.0
 #define DEFAULT_MASK TRUE
 
-G_DEFINE_TYPE_WITH_CODE (GstCvLaplace, gst_cv_laplace,
-    GST_TYPE_OPENCV_VIDEO_FILTER, GST_DEBUG_CATEGORY_INIT (gst_cv_laplace_debug,
-        "cvlaplace", 0, "cvlaplace");
-    );
-GST_ELEMENT_REGISTER_DEFINE (cvlaplace, "cvlaplace", GST_RANK_NONE,
-    GST_TYPE_CV_LAPLACE);
+G_DEFINE_TYPE (GstCvLaplace, gst_cv_laplace, GST_TYPE_OPENCV_VIDEO_FILTER);
+
 static void gst_cv_laplace_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_cv_laplace_get_property (GObject * object, guint prop_id,
@@ -277,4 +274,13 @@ gst_cv_laplace_transform (GstOpencvVideoFilter * base, GstBuffer * buf,
   }
 
   return GST_FLOW_OK;
+}
+
+gboolean
+gst_cv_laplace_plugin_init (GstPlugin * plugin)
+{
+  GST_DEBUG_CATEGORY_INIT (gst_cv_laplace_debug, "cvlaplace", 0, "cvlaplace");
+
+  return gst_element_register (plugin, "cvlaplace", GST_RANK_NONE,
+      GST_TYPE_CV_LAPLACE);
 }

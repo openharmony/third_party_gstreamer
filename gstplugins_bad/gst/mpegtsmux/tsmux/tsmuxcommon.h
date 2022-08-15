@@ -1,12 +1,13 @@
-/*
- * Copyright 2006 BBC and Fluendo S.A.
+/* 
+ * Copyright 2006 BBC and Fluendo S.A. 
  *
- * This library is licensed under 3 different licenses and you
+ * This library is licensed under 4 different licenses and you
  * can choose to use it under the terms of any one of them. The
- * three licenses are the MPL 1.1, the LGPL, and the MIT license.
+ * four licenses are the MPL 1.1, the LGPL, the GPL and the MIT
+ * license.
  *
  * MPL:
- *
+ * 
  * The contents of this file are subject to the Mozilla Public License
  * Version 1.1 (the "License"); you may not use this file except in
  * compliance with the License. You may obtain a copy of the License at
@@ -34,22 +35,38 @@
  * Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
  * Boston, MA 02110-1301, USA.
  *
+ * GPL:
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
+ *
  * MIT:
  *
  * Unless otherwise indicated, Source Code is licensed under MIT license.
  * See further explanation attached in License Statement (distributed in the file
  * LICENSE).
- *
+ * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
  * the Software without restriction, including without limitation the rights to
  * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
  * of the Software, and to permit persons to whom the Software is furnished to do
  * so, subject to the following conditions:
- *
+ * 
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- *
+ * 
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -58,7 +75,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  *
- * SPDX-License-Identifier: MPL-1.1 OR MIT OR LGPL-2.0-or-later
  */
 
 #ifndef __TSMUX_COMMON_H__
@@ -105,12 +121,6 @@ G_BEGIN_DECLS
 #define TSMUX_DEFAULT_PMT_INTERVAL (TSMUX_CLOCK_FREQ / 10)
 /* SI  interval (1/10th sec) */
 #define TSMUX_DEFAULT_SI_INTERVAL  (TSMUX_CLOCK_FREQ / 10)
-/* PCR interval (1/25th sec) */
-#define TSMUX_DEFAULT_PCR_INTERVAL  (TSMUX_CLOCK_FREQ / 25)
-/* SCTE-35 NULL Interval (5mins) */
-#define TSMUX_DEFAULT_SCTE_35_NULL_INTERVAL (TSMUX_CLOCK_FREQ * 300)
-/* Bitrate (bits per second) */
-#define TSMUX_DEFAULT_BITRATE      0
 
 typedef struct TsMuxPacketInfo TsMuxPacketInfo;
 typedef struct TsMuxProgram TsMuxProgram;
@@ -122,6 +132,9 @@ struct TsMuxPacketInfo {
   guint32 pes_header_length;
 
   gboolean packet_start_unit_indicator;
+
+  /* continuity counter */
+  guint8 packet_count;
 
   /* payload bytes available
    * (including PES header if applicable) */
@@ -167,7 +180,7 @@ tsmux_put_ts (guint8 **pos, guint8 id, gint64 ts)
   tsmux_put16 (pos, ((ts << 1) & 0xfffe) | 0x01);
 }
 
-GST_DEBUG_CATEGORY_EXTERN (gst_base_ts_mux_debug);
+GST_DEBUG_CATEGORY_EXTERN (mpegtsmux_debug);
 #define TS_DEBUG GST_DEBUG
 
 G_END_DECLS

@@ -27,8 +27,8 @@
 #include "config.h"
 #endif
 
-#include "gstdtlselements.h"
 #include "gstdtlssrtpdec.h"
+
 #include "gstdtlsconnection.h"
 
 static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
@@ -63,15 +63,12 @@ GST_DEBUG_CATEGORY_STATIC (gst_dtls_srtp_dec_debug);
 G_DEFINE_TYPE_WITH_CODE (GstDtlsSrtpDec, gst_dtls_srtp_dec,
     GST_TYPE_DTLS_SRTP_BIN, GST_DEBUG_CATEGORY_INIT (gst_dtls_srtp_dec_debug,
         "dtlssrtpdec", 0, "DTLS Decoder"));
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (dtlssrtpdec, "dtlssrtpdec",
-    GST_RANK_NONE, GST_TYPE_DTLS_SRTP_DEC, dtls_element_init (plugin));
 
 enum
 {
   PROP_0,
   PROP_PEM,
   PROP_PEER_PEM,
-  PROP_CONNECTION_STATE,
   NUM_PROPERTIES
 };
 
@@ -126,21 +123,13 @@ gst_dtls_srtp_dec_class_init (GstDtlsSrtpDecClass * klass)
       g_param_spec_string ("pem",
       "PEM string",
       "A string containing a X509 certificate and RSA private key in PEM format",
-      DEFAULT_PEM,
-      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | GST_PARAM_DOC_SHOW_DEFAULT);
+      DEFAULT_PEM, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
   properties[PROP_PEER_PEM] =
       g_param_spec_string ("peer-pem",
       "Peer PEM string",
       "The X509 certificate received in the DTLS handshake, in PEM format",
       DEFAULT_PEER_PEM, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
-
-  properties[PROP_CONNECTION_STATE] =
-      g_param_spec_enum ("connection-state",
-      "Connection State",
-      "Current connection state",
-      GST_DTLS_TYPE_CONNECTION_STATE,
-      GST_DTLS_CONNECTION_STATE_NEW, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
 
   g_object_class_install_properties (gobject_class, NUM_PROPERTIES, properties);
 
@@ -154,15 +143,6 @@ gst_dtls_srtp_dec_class_init (GstDtlsSrtpDecClass * klass)
       "Decoder/Network/DTLS/SRTP",
       "Decodes SRTP packets with a key received from DTLS",
       "Patrik Oldsberg patrik.oldsberg@ericsson.com");
-}
-
-static void
-on_connection_state_changed (GObject * object, GParamSpec * pspec,
-    gpointer user_data)
-{
-  GstDtlsSrtpDec *self = GST_DTLS_SRTP_DEC (user_data);
-
-  g_object_notify_by_pspec (G_OBJECT (self), properties[PROP_CONNECTION_STATE]);
 }
 
 static void
@@ -245,8 +225,6 @@ gst_dtls_srtp_dec_init (GstDtlsSrtpDec * self)
       G_CALLBACK (on_decoder_request_key), self);
   g_signal_connect (self->bin.dtls_element, "notify::peer-pem",
       G_CALLBACK (on_peer_pem), self);
-  g_signal_connect (self->bin.dtls_element, "notify::connection-state",
-      G_CALLBACK (on_connection_state_changed), self);
 }
 
 static void
@@ -290,15 +268,6 @@ gst_dtls_srtp_dec_get_property (GObject * object,
         GST_WARNING_OBJECT (self, "tried to get peer-pem after disabling DTLS");
       }
       break;
-    case PROP_CONNECTION_STATE:
-      if (self->bin.dtls_element) {
-        g_object_get_property (G_OBJECT (self->bin.dtls_element),
-            "connection-state", value);
-      } else {
-        GST_WARNING_OBJECT (self,
-            "tried to get connection-state after disabling DTLS");
-      }
-      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (self, prop_id, pspec);
   }
@@ -321,7 +290,7 @@ gst_dtls_srtp_dec_request_new_pad (GstElement * element,
   if (templ == gst_element_class_get_pad_template (klass, "data_src")) {
     GstPad *target_pad;
 
-    target_pad = gst_element_request_pad_simple (self->bin.dtls_element, "src");
+    target_pad = gst_element_get_request_pad (self->bin.dtls_element, "src");
 
     ghost_pad = gst_ghost_pad_new_from_template (name, target_pad, templ);
     gst_object_unref (target_pad);

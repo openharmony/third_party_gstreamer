@@ -19,9 +19,9 @@
 /**
  * SECTION:element-simplevideomark
  * @title: simplevideomark
- * @see_also: #GstSimpleVideoMarkDetect
+ * @see_also: #GstVideoDetect
  *
- * This plugin produces #GstSimpleVideoMark:pattern-count squares in the bottom left
+ * This plugin produces #GstSimpleVideoMark::pattern-count squares in the bottom left
  * corner of the video frames. The squares have a width and height of
  * respectively #GstSimpleVideoMark:pattern-width and #GstSimpleVideoMark:pattern-height.
  * Even squares will be black and odd squares will be white.
@@ -32,7 +32,7 @@
  * produce black squares.
  *
  * The element can be enabled with the #GstSimpleVideoMark:enabled property. It is
- * mostly used together with the #GstSimpleVideoMarkDetect plugin.
+ * mostly used together with the #GstVideoDetect plugin.
  *
  * ## Example launch line
  * |[
@@ -106,8 +106,6 @@ G_DEFINE_TYPE_WITH_CODE (GstSimpleVideoMark, gst_video_mark,
     GST_TYPE_VIDEO_FILTER,
     GST_DEBUG_CATEGORY_INIT (gst_video_mark_debug_category, "simplevideomark",
         0, "debug category for simplevideomark element"));
-GST_ELEMENT_REGISTER_DEFINE (simplevideomark, "simplevideomark",
-    GST_RANK_NONE, GST_TYPE_SIMPLE_VIDEO_MARK);
 
 static void
 gst_video_mark_class_init (GstSimpleVideoMarkClass * klass)

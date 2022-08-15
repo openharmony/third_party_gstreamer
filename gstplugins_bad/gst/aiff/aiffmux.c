@@ -57,7 +57,6 @@
 #include <gst/gst.h>
 #include <gst/base/gstbytewriter.h>
 
-#include "aiffelements.h"
 #include "aiffmux.h"
 
 GST_DEBUG_CATEGORY (aiffmux_debug);
@@ -78,10 +77,7 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     );
 
 #define gst_aiff_mux_parent_class parent_class
-G_DEFINE_TYPE_WITH_CODE (GstAiffMux, gst_aiff_mux, GST_TYPE_ELEMENT,
-    GST_DEBUG_CATEGORY_INIT (aiffmux_debug, "aiffmux", 0, "AIFF muxer"));
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (aiffmux, "aiffmux", GST_RANK_PRIMARY,
-    GST_TYPE_AIFF_MUX, aiff_element_init (plugin));
+G_DEFINE_TYPE (GstAiffMux, gst_aiff_mux, GST_TYPE_ELEMENT);
 
 static GstStateChangeReturn
 gst_aiff_mux_change_state (GstElement * element, GstStateChange transition)

@@ -23,7 +23,6 @@
 
 /**
  * SECTION:element-flactag
- * @title: flactag
  * @see_also: #flacenc, #flacdec, #GstTagSetter
  *
  * The flactag element can change the tag contained within a raw
@@ -31,17 +30,18 @@
  * of the FLAC stream.
  *
  * Applications can set the tags to write using the #GstTagSetter interface.
- * Tags contained within the FLAC bitstream will be picked up
+ * Tags contained withing the FLAC bitstream will be picked up
  * automatically (and merged according to the merge mode set via the tag
  * setter interface).
  *
- * ## Example pipelines
+ * <refsect2>
+ * <title>Example pipelines</title>
  * |[
  * gst-launch-1.0 -v filesrc location=foo.flac ! flactag ! filesink location=bar.flac
  * ]| This element is not useful with gst-launch, because it does not support
  * setting the tags on a #GstTagSetter interface. Conceptually, the element
  * will usually be used in this order though.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -54,7 +54,6 @@
 #include <gst/tag/tag.h>
 #include <string.h>
 
-#include "gstflacelements.h"
 #include "gstflactag.h"
 
 GST_DEBUG_CATEGORY_STATIC (flactag_debug);
@@ -90,8 +89,6 @@ static gboolean gst_flac_tag_sink_event (GstPad * pad, GstObject * parent,
 #define gst_flac_tag_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstFlacTag, gst_flac_tag, GST_TYPE_ELEMENT,
     G_IMPLEMENT_INTERFACE (GST_TYPE_TAG_SETTER, NULL));
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (flactag, "flactag", GST_RANK_PRIMARY,
-    GST_TYPE_FLAC_TAG, flac_element_init (plugin));
 
 
 static void

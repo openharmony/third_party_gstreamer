@@ -91,38 +91,6 @@ class GstObjectPrettyPrinter:
             return "0x%x" % long(self.val)
 
 
-GST_SECOND = 1000000000
-GST_CLOCK_TIME_NONE = 2**64-1
-GST_CLOCK_STIME_NONE = -2**63
-
-
-def format_time(n, signed=False):
-    prefix = ""
-    invalid = False
-    if signed:
-        if n == GST_CLOCK_STIME_NONE:
-            invalid = True
-        prefix = "+" if n >= 0 else "-"
-        n = abs(n)
-    else:
-        if n == GST_CLOCK_TIME_NONE:
-            invalid = True
-
-    if invalid:
-        return "99:99:99.999999999"
-
-    return "%s%u:%02u:%02u.%09u" % (
-        prefix,
-        n / (GST_SECOND * 60 * 60),
-        (n / (GST_SECOND * 60)) % 60,
-        (n / GST_SECOND) % 60,
-        n % GST_SECOND)
-
-
-def format_time_value(val):
-    return format_time(int(val), str(val.type) == "GstClockTimeDiff")
-
-
 class GstClockTimePrinter:
     "Prints a GstClockTime / GstClockTimeDiff"
 
@@ -130,7 +98,30 @@ class GstClockTimePrinter:
         self.val = val
 
     def to_string(self):
-        return "%d [%s]" % (int(self.val), format_time_value(self.val))
+        GST_SECOND = 1000000000
+        GST_CLOCK_TIME_NONE = 2**64-1
+        GST_CLOCK_STIME_NONE = -2**63
+        n = int(self.val)
+        prefix = ""
+        invalid = False
+        if str(self.val.type) == "GstClockTimeDiff":
+            if n == GST_CLOCK_STIME_NONE:
+                invalid = True
+            prefix = "+" if n >= 0 else "-"
+            n = abs(n)
+        else:
+            if n == GST_CLOCK_TIME_NONE:
+                invalid = True
+
+        if invalid:
+            return str(n) + " [99:99:99.999999999]"
+
+        return str(n) + " [%s%u:%02u:%02u.%09u]" % (
+            prefix,
+            n / (GST_SECOND * 60 * 60),
+            (n / (GST_SECOND * 60)) % 60,
+            (n / GST_SECOND) % 60,
+            n % GST_SECOND)
 
 
 def gst_pretty_printer_lookup(val):
@@ -249,60 +240,6 @@ def _g_value_get_value(val):
         return val["data"]
 
     return val["data"].cast(t).dereference()
-
-
-def gst_object_from_value(value):
-    if value.type.code != gdb.TYPE_CODE_PTR:
-        value = value.address
-
-    if not is_gst_type(value, "GstObject"):
-        raise Exception("'%s' is not a GstObject" % args[0])
-
-    return value.cast(gdb.lookup_type("GstObject").pointer())
-
-
-def gst_object_pipeline(obj):
-    try:
-        while obj["parent"] != 0:
-            tmp = obj["parent"]
-            # sanity checks to handle memory corruption
-            if g_inherits_type(obj, "GstElement") and \
-               GdbGstElement(obj) not in GdbGstElement(tmp).children():
-                break
-            if g_inherits_type(obj, "GstPad"):
-                pad = GdbGstPad(obj)
-                if g_inherits_type(tmp, "GstElement"):
-                    if pad not in GdbGstElement(tmp).pads():
-                        break
-                elif g_inherits_type(tmp, "GstProxyPad"):
-                    t = gdb.lookup_type("GstProxyPad").pointer()
-                    if pad != GdbGstPad(tmp.cast(t)["priv"]["internal"]):
-                        break
-            obj = tmp
-    except gdb.MemoryError:
-        pass
-
-    if not g_inherits_type(obj, "GstElement"):
-        raise Exception("Toplevel parent is not a GstElement")
-    return obj.cast(gdb.lookup_type("GstElement").pointer())
-
-
-def element_state_to_name(state):
-    names = [
-        "VOID_PENDING",
-        "NULL",
-        "READY",
-        "PAUSED",
-        "PLAYING"]
-    return names[state] if state < len(names) else "UNKNOWN"
-
-
-def task_state_to_name(state):
-    names = [
-        "STARTED",
-        "STOPPED",
-        "PAUSED"]
-    return names[state] if state < len(names) else "UNKNOWN"
 
 
 def _gdb_write(indent, text):
@@ -450,10 +387,6 @@ class GdbGValue:
                     v += " " if v == "<" else ", "
                     v += str(GdbGValue(l))
                 v += " >"
-            elif tname in ("GEnum"):
-                v = "%s(%s)" % (
-                    g_type_to_name(g_type_to_typenode(self.val["g_type"])),
-                    value["v_int"])
             else:
                 try:
                     v = value.string()
@@ -461,7 +394,7 @@ class GdbGValue:
                     # it is not a string-like type
                     if gvalue_type.fields()[1].type == value.type:
                         # don't print the raw GValue union
-                        v = "<unknown type: %s>" % tname
+                        v = "<unkown type: %s>" % tname
                     else:
                         v = str(value)
         except gdb.MemoryError:
@@ -482,12 +415,11 @@ class GdbGstStructure:
 
     @save_memory_access(0)
     def size(self):
-        return int(self.val["fields_len"])
+        return int(self.val["fields"]["len"])
 
     def values(self):
-        item = self.val["fields"].cast(gdb.lookup_type("GstStructureField").pointer())
-        for i in range(self.size()):
-            f = item[i]
+        for f in _g_array_iter(self.val["fields"],
+                               gdb.lookup_type("GstStructureField")):
             key = g_quark_to_string(f["name"])
             value = GdbGValue(f["value"])
             yield(key, value)
@@ -525,47 +457,9 @@ class GdbGstStructure:
         if prefix is not None:
             _gdb_write(indent, "%s: %s" % (prefix, self.name()))
         else:
-            _gdb_write(indent, "%s:" % (self.name()))
+            _gdb_write(indent, "%s:" % (prefix, self.name()))
         for (key, value) in self.values():
             _gdb_write(indent+1, "%s: %s" % (key, str(value)))
-
-
-class GdbGstSegment:
-    def __init__(self, val):
-        self.val = val
-        self.fmt = str(self.val["format"]).split("_")[-1].lower()
-
-    def format_value(self, n):
-        if self.fmt == "time":
-            return format_time(n, False)
-        else:
-            return str(n)
-
-    def print_optional(self, indent, key, skip=None):
-        value = int(self.val[key])
-        if skip is None or value != skip:
-            _gdb_write(indent, "%s:%s %s" %
-                       (key, (8-len(key))*" ", self.format_value(value)))
-
-    def print(self, indent, seqnum=None):
-        s = "segment:"
-        if seqnum:
-            s += "(seqnum: %s)" % seqnum
-        _gdb_write(indent, s)
-        rate = float(self.val["rate"])
-        applied_rate = float(self.val["applied_rate"])
-        if applied_rate != 1.0:
-            applied = "(applied rate: %g)" % applied_rate
-        else:
-            applied = ""
-        _gdb_write(indent+1, "rate: %g%s" % (rate, applied))
-        self.print_optional(indent+1, "base", 0)
-        self.print_optional(indent+1, "offset", 0)
-        self.print_optional(indent+1, "start")
-        self.print_optional(indent+1, "stop", GST_CLOCK_TIME_NONE)
-        self.print_optional(indent+1, "time")
-        self.print_optional(indent+1, "position")
-        self.print_optional(indent+1, "duration", GST_CLOCK_TIME_NONE)
 
 
 class GdbGstEvent:
@@ -590,17 +484,24 @@ class GdbGstEvent:
     @save_memory_access_print("<inaccessible memory>")
     def print(self, indent):
         typestr = self.typestr()
-        seqnum = self.val["event"]["seqnum"]
         if typestr == "caps":
             caps = GdbGstCaps(self.structure().value("caps").value())
-            caps.print(indent, "caps (seqnum: %s):" % seqnum)
+            caps.print(indent, "caps:")
         elif typestr == "stream-start":
             stream_id = self.structure().value("stream-id").value()
-            _gdb_write(indent, "stream-start: (seqnum %s)"  % seqnum)
+            _gdb_write(indent, "stream-start:")
             _gdb_write(indent + 1, "stream-id: %s" % stream_id.string())
         elif typestr == "segment":
             segment = self.structure().value("segment").value()
-            GdbGstSegment(segment).print(indent, seqnum)
+            fmt = str(segment["format"]).split("_")[-1].lower()
+            _gdb_write(indent, "segment: %s" % fmt)
+            rate = float(segment["rate"])
+            applied_rate = float(segment["applied_rate"])
+            if applied_rate != 1.0:
+                applied = "(applied rate: %g)" % applied_rate
+            else:
+                applied = ""
+            _gdb_write(indent+1, "rate: %g%s" % (rate, applied))
         elif typestr == "tag":
             struct = self.structure()
             # skip 'GstTagList-'
@@ -608,76 +509,11 @@ class GdbGstEvent:
             t = gdb.lookup_type("GstTagListImpl").pointer()
             s = struct.value("taglist").value().cast(t)["structure"]
             structure = GdbGstStructure(s)
-            _gdb_write(indent, "tag: %s (seqnum: %s)" % (name, seqnum))
+            _gdb_write(indent, "tag: %s" % name)
             for (key, value) in structure.values():
                 _gdb_write(indent+1, "%s: %s" % (key, str(value)))
         else:
-            self.structure().print(indent, "%s (seqnum: %s)" % (typestr, seqnum))
-
-
-class GdbGstBuffer:
-    def __init__(self, val):
-        self.val = val.cast(gdb.lookup_type("GstBuffer").pointer())
-
-    def print_optional(self, indent, key, skip=None, format_func=str):
-        value = int(self.val[key])
-        if skip is None or value != skip:
-            _gdb_write(indent, "%s:%s %s" %
-                       (key, (8-len(key))*" ", format_func(value)))
-
-    @save_memory_access_print("<inaccessible memory>")
-    def print(self, indent):
-        _gdb_write(indent, "GstBuffer: (0x%x)" % self.val)
-        indent += 1
-        self.print_optional(indent, "pool", 0)
-        self.print_optional(indent, "pts", GST_CLOCK_TIME_NONE, format_time)
-        self.print_optional(indent, "dts", GST_CLOCK_TIME_NONE, format_time)
-        self.print_optional(indent, "duration", GST_CLOCK_TIME_NONE, format_time)
-        self.print_optional(indent, "offset", GST_CLOCK_TIME_NONE)
-        self.print_optional(indent, "offset_end", GST_CLOCK_TIME_NONE)
-
-        impl = self.val.cast(gdb.lookup_type("GstBufferImpl").pointer())
-        meta_item = impl['item']
-        if meta_item:
-            _gdb_write(indent, "Metas:")
-            indent += 1
-            while meta_item:
-                meta = meta_item['meta']
-                meta_type_name = g_type_to_name(meta['info']['type'])
-                _gdb_write(indent, "%s:" % meta_type_name)
-                indent += 1
-                meta_info = str(meta.cast(gdb.lookup_type(meta_type_name)))
-                for l in meta_info.split('\n'):
-                    _gdb_write(indent, l)
-                indent -= 1
-                meta_item = meta_item['next']
-        else:
-            _gdb_write(indent, "(No meta)")
-
-
-class GdbGstQuery:
-    def __init__(self, val):
-        self.val = val.cast(gdb.lookup_type("GstQueryImpl").pointer())
-
-    @save_memory_access("<inaccessible memory>")
-    def typestr(self):
-        t = self.val["query"]["type"]
-        (query_quarks, _) = gdb.lookup_symbol("query_quarks")
-        query_quarks = query_quarks.value()
-        i = 0
-        while query_quarks[i]["name"] != 0:
-            if t == query_quarks[i]["type"]:
-                return query_quarks[i]["name"].string()
-            i += 1
-        return None
-
-    def structure(self):
-        return GdbGstStructure(self.val["structure"])
-
-    @save_memory_access_print("<inaccessible memory>")
-    def print(self, indent):
-        typestr = self.typestr()
-        self.structure().print(indent, typestr)
+            self.structure().print(indent, typestr)
 
 
 class GdbGstObject:
@@ -688,10 +524,6 @@ class GdbGstObject:
     def name(self):
         obj = self.val.cast(gdb.lookup_type("GstObject").pointer())
         return obj["name"].string()
-
-    def full_name(self):
-        parent = self.parent_element()
-        return "%s%s" % (parent.name() + ":" if parent else "", self.name())
 
     def dot_name(self):
         ptr = self.val.cast(gdb.lookup_type("void").pointer())
@@ -706,13 +538,6 @@ class GdbGstObject:
         if p != 0 and g_inherits_type(p, "GstElement"):
             element = p.cast(gdb.lookup_type("GstElement").pointer())
             return GdbGstElement(element)
-        return None
-
-    def parent_pad(self):
-        p = self.parent()
-        if p != 0 and g_inherits_type(p, "GstPad"):
-            pad = p.cast(gdb.lookup_type("GstPad").pointer())
-            return GdbGstPad(pad)
         return None
 
 
@@ -773,29 +598,6 @@ class GdbGstPad(GdbGstObject):
                 _gdb_write(indent+1, "events:")
                 first = False
             ev.print(indent+2)
-
-        if self.is_linked():
-            real = self.peer().parent_pad()
-            _gdb_write(indent+1, "peer: %s" %
-                       (real.full_name() if real else self.peer().full_name()))
-
-        if g_inherits_type(self.val, "GstGhostPad"):
-            t = gdb.lookup_type("GstProxyPad").pointer()
-            internal = GdbGstPad(self.val.cast(t)["priv"]["internal"])
-            if internal and internal.peer():
-                _gdb_write(indent+1, "inner peer: %s" %
-                           internal.peer().full_name())
-
-        task = self.val["task"]
-        if long(task) != 0:
-            _gdb_write(indent+1, "task: %s" %
-                       task_state_to_name(int(task["state"])))
-
-        offset = long(self.val["offset"])
-        if offset != 0:
-            _gdb_write(indent+1, "offset: %d [%s]" %
-                       (offset, format_time(offset, True)))
-
         _gdb_write(indent, "}")
 
     def _dot(self, color, pname, indent):
@@ -949,34 +751,7 @@ class GdbGstElement(GdbGstObject):
                    (g_type_name_from_instance(self.val), self.name()))
         for p in self.pads():
             p.print(indent+2)
-
-        first = True
-        for child in self.children():
-            if first:
-                _gdb_write(indent+2, "children:")
-                first = False
-            _gdb_write(indent+3, child.name())
-
-        current_state = self.val["current_state"]
-        s = "state: %s" % element_state_to_name(current_state)
-        for var in ("pending", "target"):
-            state = self.val[var + "_state"]
-            if state > 0 and state != current_state:
-                s += ", %s: %s" % (var, element_state_to_name(state))
-        _gdb_write(indent+2, s)
-
-        _gdb_write(indent+2, "base_time: %s" %
-                   format_time_value(self.val["base_time"]))
-        _gdb_write(indent+2, "start_time: %s" %
-                   format_time_value(self.val["start_time"]))
-
         _gdb_write(indent, "}")
-
-    @save_memory_access_print("<inaccessible memory>")
-    def print_tree(self, indent):
-        _gdb_write(indent, "%s(%s)" % (self.name(), self.val))
-        for child in self.children():
-            child.print_tree(indent+1)
 
     def _dot(self, indent=0):
         spc = "  " * indent
@@ -1110,8 +885,30 @@ Usage: gst-dot <gst-object> <file-name>"""
         if not value:
             raise Exception("'%s' is not a valid object" % args[0])
 
-        value = gst_object_from_value(value)
-        value = gst_object_pipeline(value)
+        if value.type.code != gdb.TYPE_CODE_PTR:
+            value = value.address
+
+        if not is_gst_type(value, "GstObject"):
+            raise Exception("'%s' is not a GstObject" % args[0])
+
+        value = value.cast(gdb.lookup_type("GstObject").pointer())
+        try:
+            while value["parent"] != 0:
+                tmp = value["parent"]
+                # sanity checks to handle memory corruption
+                if g_inherits_type(value, "GstElement") and \
+                   GdbGstElement(value) not in GdbGstElement(tmp).children():
+                    break
+                if g_inherits_type(value, "GstPad") and \
+                   GdbGstPad(value) not in GdbGstElement(tmp).pads():
+                    break
+                value = tmp
+        except gdb.MemoryError:
+            pass
+
+        if not g_inherits_type(value, "GstElement"):
+            raise Exception("Toplevel parent is not a GstElement")
+        value = value.cast(gdb.lookup_type("GstElement").pointer())
 
         dot = GdbGstElement(value).pipeline_dot()
         file = open(args[1], "w")
@@ -1137,7 +934,7 @@ Usage gst-print <gstreamer-object>"""
     def invoke(self, arg, from_tty):
         value = gdb.parse_and_eval(arg)
         if not value:
-            raise Exception("'%s' is not a valid object" % arg)
+            raise Exception("'%s' is not a valid object" % args[0])
 
         if value.type.code != gdb.TYPE_CODE_PTR:
             value = value.address
@@ -1149,129 +946,21 @@ Usage gst-print <gstreamer-object>"""
         elif g_inherits_type(value, "GstCaps"):
             obj = GdbGstCaps(value)
         elif g_inherits_type(value, "GstEvent"):
-            obj = GdbGstEvent(value)
-        elif g_inherits_type(value, "GstQuery"):
-            obj = GdbGstQuery(value)
-        elif g_inherits_type(value, "GstBuffer"):
-            obj = GdbGstBuffer(value)
-        elif is_gst_type(value, "GstStructure"):
-            obj = GdbGstStructure(value)
+            obj = GdbGstCaps(value)
         else:
-            raise Exception("'%s' has an unknown type (%s)" % (arg, value))
+            raise Exception("'%s' has an unkown type" % arg)
 
         obj.print(0)
 
 
-class GstPipelineTree(gdb.Command):
-    """\
-Usage: gst-pipeline-tree <gst-object>"""
-    def __init__(self):
-        super(GstPipelineTree, self).__init__("gst-pipeline-tree",
-                                              gdb.COMPLETE_SYMBOL)
-
-    def invoke(self, arg, from_tty):
-        self.dont_repeat()
-        args = gdb.string_to_argv(arg)
-        if len(args) != 1:
-            raise Exception("Usage: gst-pipeline-tree <gst-object>")
-
-        value = gdb.parse_and_eval(args[0])
-        if not value:
-            raise Exception("'%s' is not a valid object" % args[0])
-
-        value = gst_object_from_value(value)
-        value = gst_object_pipeline(value)
-        GdbGstElement(value).print_tree(0)
-
-
 GstDot()
 GstPrint()
-GstPipelineTree()
-
-
-class GstPipeline(gdb.Function):
-    """\
-Find the top-level pipeline for the given element"""
-
-    def __init__(self):
-        super(GstPipeline, self).__init__("gst_pipeline")
-
-    def invoke(self, arg):
-        value = gst_object_from_value(arg)
-        return gst_object_pipeline(value)
-
-
-class GstBinGet(gdb.Function):
-    """\
-Find a child element with the given name"""
-
-    def __init__(self):
-        super(GstBinGet, self).__init__("gst_bin_get")
-
-    def find(self, obj, name, recurse):
-        for child in obj.children():
-            if child.name() == name:
-                return child.val
-            if recurse:
-                result = self.find(child, name, recurse)
-                if result is not None:
-                    return result
-
-    def invoke(self, element, arg):
-        value = gst_object_from_value(element)
-        if not g_inherits_type(value, "GstElement"):
-            raise Exception("'%s' is not a GstElement" %
-                            str(value.address))
-
-        try:
-            name = arg.string()
-        except gdb.error:
-            raise Exception("Usage: $gst_bin_get(<gst-object>, \"<name>\")")
-
-        obj = GdbGstElement(value)
-        child = self.find(obj, name, False)
-        if child is None:
-            child = self.find(obj, name, True)
-        if child is None:
-            raise Exception("No child named '%s' found." % name)
-        return child
-
-
-class GstElementPad(gdb.Function):
-    """\
-Get the pad with the given name"""
-
-    def __init__(self):
-        super(GstElementPad, self).__init__("gst_element_pad")
-
-    def invoke(self, element, arg):
-        value = gst_object_from_value(element)
-        if not g_inherits_type(value, "GstElement"):
-            raise Exception("'%s' is not a GstElement" %
-                            str(value.address))
-
-        try:
-            name = arg.string()
-        except gdb.error:
-            raise Exception("Usage: $gst_element_pad(<gst-object>, \"<pad-name>\")")
-
-        obj = GdbGstElement(value)
-        for pad in obj.pads():
-            if pad.name() == name:
-                return pad.val
-
-        raise Exception("No pad named '%s' found." % name)
-
-
-GstPipeline()
-GstBinGet()
-GstElementPad()
 
 
 def register(obj):
     if obj is None:
         obj = gdb
 
-    # Make sure this is always used before the glib lookup function.
+    # Make sure this is always used befor the glib lookup function.
     # Otherwise the gobject pretty printer is used for GstObjects
     obj.pretty_printers.insert(0, gst_pretty_printer_lookup)

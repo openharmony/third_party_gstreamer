@@ -67,7 +67,13 @@ GST_DEBUG_CATEGORY_EXTERN (mpeg2enc_debug);
 } G_STMT_END
 
 typedef struct _GstMpeg2enc {
-  GstVideoEncoder base_video_encoder;
+  GstElement parent;
+
+  /* pads */
+  GstPad *sinkpad, *srcpad;
+
+  /* video info for in caps */
+  GstVideoInfo vinfo;
 
   /* options wrapper */
   GstMpeg2EncOptions *options;
@@ -79,26 +85,24 @@ typedef struct _GstMpeg2enc {
   GMutex tlock;
   /* with TLOCK */
   /* signals counterpart thread that something changed;
-   * frame ready for task or buffer has been processed */
+   * buffer ready for task or buffer has been processed */
   GCond cond;
   /* seen eos */
   gboolean eos;
   /* flowreturn obtained by encoding task */
   GstFlowReturn srcresult;
+  /* buffer for encoding task */
+  GstBuffer *buffer;
+  /* timestamps for output */
+  GQueue *time;
 
-  gboolean started;
-
-  GstVideoCodecState *input_state;
-  GstVideoCodecFrame *pending_frame;
 } GstMpeg2enc;
 
 typedef struct _GstMpeg2encClass {
-  GstVideoEncoderClass base_video_encoder_class;
+  GstElementClass parent;
 } GstMpeg2encClass;
 
 GType    gst_mpeg2enc_get_type    (void);
-
-GST_ELEMENT_REGISTER_DECLARE (mpeg2enc);
 
 G_END_DECLS
 

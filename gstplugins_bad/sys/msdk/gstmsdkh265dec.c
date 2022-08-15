@@ -29,25 +29,11 @@
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
- /**
-  * SECTION:element-msdkh265dec
-  * @title: msdkh265dec
-  * @short_description: Intel MSDK H265 decoder
-  *
-  * H265 video decoder based on Intel MFX
-  *
-  * ## Example launch line
-  * ```
-  * gst-launch-1.0 filesrc location=sample.h265 ! h265parse ! msdkh265dec ! glimagesink
-  * ```
-  *
-  * Since: 1.12
-  *
-  */
-
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
+
+#include <mfxplugin.h>
 
 #include "gstmsdkh265dec.h"
 #include "gstmsdkvideomemory.h"
@@ -55,22 +41,26 @@
 GST_DEBUG_CATEGORY_EXTERN (gst_msdkh265dec_debug);
 #define GST_CAT_DEFAULT gst_msdkh265dec_debug
 
-#define COMMON_FORMAT \
-  "{ NV12, P010_10LE, YUY2, Y210, VUYA, Y410, P012_LE, Y212_LE, Y412_LE }"
-
 /* TODO: update both sink and src dynamically */
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS ("video/x-h265, "
         "width = (int) [ 1, MAX ], height = (int) [ 1, MAX ], "
-        "stream-format = (string) byte-stream , alignment = (string) au ")
+        "stream-format = (string) byte-stream , alignment = (string) au , "
+        "profile = (string) { main, main-10 } ")
     );
 
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_MSDK_CAPS_STR (COMMON_FORMAT, COMMON_FORMAT))
+    GST_STATIC_CAPS ("video/x-raw, "
+        "format = (string) { NV12, P010_10LE }, "
+        "framerate = (fraction) [0, MAX], "
+        "width = (int) [ 1, MAX ], height = (int) [ 1, MAX ],"
+        "interlace-mode = (string) progressive;"
+        GST_VIDEO_CAPS_MAKE_WITH_FEATURES (GST_CAPS_FEATURE_MEMORY_DMABUF,
+            "{ NV12, P010_10LE }") ";")
     );
 
 #define gst_msdkh265dec_parent_class parent_class
@@ -81,6 +71,7 @@ gst_msdkh265dec_configure (GstMsdkDec * decoder)
 {
   GstMsdkH265Dec *h265dec = GST_MSDKH265DEC (decoder);
   mfxSession session;
+  mfxStatus status;
   const mfxPluginUID *uid;
 
   session = gst_msdk_context_get_session (decoder->context);
@@ -90,8 +81,15 @@ gst_msdkh265dec_configure (GstMsdkDec * decoder)
   else
     uid = &MFX_PLUGINID_HEVCD_SW;
 
-  if (!gst_msdk_load_plugin (session, uid, 1, "msdkh265dec"))
+  status = MFXVideoUSER_Load (session, uid, 1);
+  if (status < MFX_ERR_NONE) {
+    GST_ERROR_OBJECT (h265dec, "Media SDK Plugin load failed (%s)",
+        msdk_status_to_string (status));
     return FALSE;
+  } else if (status > MFX_ERR_NONE) {
+    GST_WARNING_OBJECT (h265dec, "Media SDK Plugin load warning: %s",
+        msdk_status_to_string (status));
+  }
 
   decoder->param.mfx.CodecId = MFX_CODEC_HEVC;
 
@@ -99,17 +97,6 @@ gst_msdkh265dec_configure (GstMsdkDec * decoder)
    * customers still using this for low-latency streaming of non-b-frame
    * encoded streams */
   decoder->param.mfx.DecodedOrder = h265dec->output_order;
-
-#if (MFX_VERSION >= 1025)
-  if (decoder->report_error) {
-    decoder->error_report.Header.BufferId = MFX_EXTBUFF_DECODE_ERROR_REPORT;
-    decoder->error_report.Header.BufferSz = sizeof (decoder->error_report);
-    decoder->error_report.ErrorTypes = 0;
-    gst_msdkdec_add_bs_extra_param (decoder,
-        (mfxExtBuffer *) & decoder->error_report);
-  }
-#endif
-
   return TRUE;
 }
 
@@ -118,9 +105,6 @@ gst_msdkdec_h265_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
   GstMsdkH265Dec *thiz = GST_MSDKH265DEC (object);
-#if (MFX_VERSION >= 1025)
-  GstMsdkDec *dec = GST_MSDKDEC (object);
-#endif
   GstState state;
 
   GST_OBJECT_LOCK (thiz);
@@ -135,11 +119,6 @@ gst_msdkdec_h265_set_property (GObject * object, guint prop_id,
     case GST_MSDKDEC_PROP_OUTPUT_ORDER:
       thiz->output_order = g_value_get_enum (value);
       break;
-#if (MFX_VERSION >= 1025)
-    case GST_MSDKDEC_PROP_ERROR_REPORT:
-      dec->report_error = g_value_get_boolean (value);
-      break;
-#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -153,20 +132,12 @@ gst_msdkdec_h265_get_property (GObject * object, guint prop_id, GValue * value,
     GParamSpec * pspec)
 {
   GstMsdkH265Dec *thiz = GST_MSDKH265DEC (object);
-#if (MFX_VERSION >= 1025)
-  GstMsdkDec *dec = GST_MSDKDEC (object);
-#endif
 
   GST_OBJECT_LOCK (thiz);
   switch (prop_id) {
     case GST_MSDKDEC_PROP_OUTPUT_ORDER:
       g_value_set_enum (value, thiz->output_order);
       break;
-#if (MFX_VERSION >= 1025)
-    case GST_MSDKDEC_PROP_ERROR_REPORT:
-      g_value_set_boolean (value, dec->report_error);
-      break;
-#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -193,14 +164,10 @@ gst_msdkh265dec_class_init (GstMsdkH265DecClass * klass)
   gst_element_class_set_static_metadata (element_class,
       "Intel MSDK H265 decoder",
       "Codec/Decoder/Video/Hardware",
-      "H265 video decoder based on " MFX_API_SDK,
+      "H265 video decoder based on Intel Media SDK",
       "Scott D Phillips <scott.d.phillips@intel.com>");
 
   gst_msdkdec_prop_install_output_oder_property (gobject_class);
-
-#if (MFX_VERSION >= 1025)
-  gst_msdkdec_prop_install_error_report_property (gobject_class);
-#endif
 
   gst_element_class_add_static_pad_template (element_class, &sink_factory);
   gst_element_class_add_static_pad_template (element_class, &src_factory);

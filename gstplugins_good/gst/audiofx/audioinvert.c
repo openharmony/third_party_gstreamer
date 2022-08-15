@@ -21,19 +21,19 @@
 
 /**
  * SECTION:element-audioinvert
- * @title: audioinvert
  *
  * Swaps upper and lower half of audio samples. Mixing an inverted sample on top of
  * the original with a slight delay can produce effects that sound like resonance.
  * Creating a stereo sample from a mono source, with one channel inverted produces wide-stereo sounds.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 audiotestsrc wave=saw ! audioinvert degree=0.4 ! alsasink
  * gst-launch-1.0 filesrc location="melo1.ogg" ! oggdemux ! vorbisdec ! audioconvert ! audioinvert degree=0.4 ! alsasink
  * gst-launch-1.0 audiotestsrc wave=saw ! audioconvert ! audioinvert degree=0.4 ! audioconvert ! alsasink
  * ]|
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -71,8 +71,6 @@ enum
     " layout=(string) {interleaved, non-interleaved}"
 
 G_DEFINE_TYPE (GstAudioInvert, gst_audio_invert, GST_TYPE_AUDIO_FILTER);
-GST_ELEMENT_REGISTER_DEFINE (audioinvert, "audioinvert",
-    GST_RANK_NONE, GST_TYPE_AUDIO_INVERT);
 
 static void gst_audio_invert_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);

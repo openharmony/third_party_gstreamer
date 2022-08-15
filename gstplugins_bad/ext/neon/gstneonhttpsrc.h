@@ -84,8 +84,6 @@ struct _GstNeonhttpSrcClass {
 
 GType gst_neonhttp_src_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (neonhttpsrc);
-
 G_END_DECLS
 
 #endif /* __GST_NEONHTTP_SRC_H__ */

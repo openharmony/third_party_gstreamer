@@ -58,8 +58,6 @@ struct _GstVoAmrWbEncClass {
 
 GType gst_voamrwbenc_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (voamrwbenc);
-
 G_END_DECLS
 
 #endif /* __GST_VOAMRWBENC_H__ */

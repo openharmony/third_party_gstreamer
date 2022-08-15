@@ -132,10 +132,7 @@
 /* for XkbKeycodeToKeysym */
 #include <X11/XKBlib.h>
 
-GST_DEBUG_CATEGORY_EXTERN (gst_debug_xv_context);
-GST_DEBUG_CATEGORY_EXTERN (gst_debug_xv_image_pool);
-GST_DEBUG_CATEGORY (gst_debug_xv_image_sink);
-
+GST_DEBUG_CATEGORY_EXTERN (gst_debug_xv_image_sink);
 #define GST_CAT_DEFAULT gst_debug_xv_image_sink
 GST_DEBUG_CATEGORY_STATIC (GST_CAT_PERFORMANCE);
 
@@ -216,13 +213,7 @@ G_DEFINE_TYPE_WITH_CODE (GstXvImageSink, gst_xv_image_sink, GST_TYPE_VIDEO_SINK,
         gst_xv_image_sink_video_overlay_init);
     G_IMPLEMENT_INTERFACE (GST_TYPE_COLOR_BALANCE,
         gst_xv_image_sink_colorbalance_init));
-#define _do_init \
-  GST_DEBUG_CATEGORY_INIT (gst_debug_xv_context, "xcontext", 0, "xcontext miniobject");\
-  GST_DEBUG_CATEGORY_INIT (gst_debug_xv_image_sink, "xvimagesink", 0, "ximagesink element");\
-  GST_DEBUG_CATEGORY_INIT (gst_debug_xv_image_pool, "xvimagepool", 0, "ximagepool object");\
 
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (xvimagesink, "xvimagesink",
-    GST_RANK_PRIMARY, GST_TYPE_XV_IMAGE_SINK, _do_init);
 
 /* ============================================================= */
 /*                                                               */
@@ -494,13 +485,8 @@ gst_xv_image_sink_handle_xevents (GstXvImageSink * xvimagesink)
         /* Key pressed/released over our window. We send upstream
            events for interactivity/navigation */
         g_mutex_lock (&xvimagesink->context->lock);
-        if (xvimagesink->context->use_xkb) {
-          keysym = XkbKeycodeToKeysym (xvimagesink->context->disp,
-              e.xkey.keycode, 0, 0);
-        } else {
-          keysym = XKeycodeToKeysym (xvimagesink->context->disp,
-              e.xkey.keycode, 0);
-        }
+        keysym = XkbKeycodeToKeysym (xvimagesink->context->disp,
+            e.xkey.keycode, 0, 0);
         if (keysym != NoSymbol) {
           key_str = XKeysymToString (keysym);
         } else {
@@ -704,7 +690,7 @@ gst_xv_image_sink_setcaps (GstBaseSink * bsink, GstCaps * caps)
 {
   GstXvImageSink *xvimagesink;
   GstXvContext *context;
-  GstBufferPool *oldpool;
+  GstBufferPool *newpool, *oldpool;
   GstVideoInfo info;
   guint32 im_format = 0;
   gint video_par_n, video_par_d;        /* video's PAR */
@@ -820,9 +806,12 @@ gst_xv_image_sink_setcaps (GstBaseSink * bsink, GstCaps * caps)
    * doesn't cover the same area */
   xvimagesink->redraw_border = TRUE;
 
-  /* destroy current pool */
+  /* create a new pool for the new configuration */
+  newpool = gst_xv_image_sink_create_pool (xvimagesink, caps, info.size, 2);
+
+  /* we don't activate the internal pool yet as it may not be needed */
   oldpool = xvimagesink->pool;
-  xvimagesink->pool = NULL;
+  xvimagesink->pool = newpool;
   g_mutex_unlock (&xvimagesink->flow_lock);
 
   /* deactivate and unref the old internal pool */
@@ -954,23 +943,14 @@ gst_xv_image_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
   } else {
     GstVideoFrame src, dest;
     GstBufferPoolAcquireParams params = { 0, };
-    GstVideoCropMeta *crop_meta;
 
     /* Else we have to copy the data into our private image, */
     /* if we have one... */
     GST_LOG_OBJECT (xvimagesink, "buffer %p not from our pool, copying", buf);
 
-    if (xvimagesink->pool == NULL) {
-      GstCaps *caps = gst_video_info_to_caps (&xvimagesink->info);
-
-      GST_DEBUG_OBJECT (xvimagesink, "create new pool");
-      xvimagesink->pool = gst_xv_image_sink_create_pool (xvimagesink, caps,
-          xvimagesink->info.size, 2);
-      if (xvimagesink->pool == NULL)
-        goto no_pool;
-
-      gst_caps_unref (caps);
-    }
+    /* we should have a pool, configured in setcaps */
+    if (xvimagesink->pool == NULL)
+      goto no_pool;
 
     if (!gst_buffer_pool_set_active (xvimagesink->pool, TRUE))
       goto activate_failed;
@@ -998,15 +978,6 @@ gst_xv_image_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
 
     gst_video_frame_unmap (&dest);
     gst_video_frame_unmap (&src);
-
-    if ((crop_meta = gst_buffer_get_video_crop_meta (buf))) {
-      GstVideoCropMeta *dmeta = gst_buffer_add_video_crop_meta (to_put);
-
-      dmeta->x = crop_meta->x;
-      dmeta->y = crop_meta->y;
-      dmeta->width = crop_meta->width;
-      dmeta->height = crop_meta->height;
-    }
   }
 
   if (!gst_xv_image_sink_xvimage_put (xvimagesink, to_put))
@@ -1110,10 +1081,6 @@ gst_xv_image_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
     if (pool == NULL)
       goto no_pool;
   }
-
-  /* update info since allocation frame's wxh might differ from the
-   * negotiation ones */
-  xvimagesink->info = info;
 
   /* we need at least 2 buffer because we hold on to the last one */
   gst_query_add_allocation_pool (query, pool, size, 2, 0);
@@ -1622,7 +1589,7 @@ gst_xv_image_sink_set_property (GObject * object, guint prop_id,
       break;
     case PROP_DISPLAY:
       g_free (xvimagesink->config.display_name);
-      xvimagesink->config.display_name = g_value_dup_string (value);
+      xvimagesink->config.display_name = g_strdup (g_value_get_string (value));
       break;
     case PROP_SYNCHRONOUS:
       xvimagesink->synchronous = g_value_get_boolean (value);

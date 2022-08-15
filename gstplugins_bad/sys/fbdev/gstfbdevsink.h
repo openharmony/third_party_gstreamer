@@ -67,7 +67,6 @@ struct _GstFBDEVSinkClass {
 };
 
 GType gst_fbdevsink_get_type(void);
-GST_ELEMENT_REGISTER_DECLARE (fbdevsink);
 
 G_END_DECLS
 

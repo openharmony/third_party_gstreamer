@@ -24,7 +24,6 @@
 #endif
 
 #include "gstgiobasesink.h"
-#include "gstgioelements.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_gio_base_sink_debug);
 #define GST_CAT_DEFAULT gst_gio_base_sink_debug
@@ -70,8 +69,6 @@ gst_gio_base_sink_class_init (GstGioBaseSinkClass * klass)
   gstbasesink_class->query = GST_DEBUG_FUNCPTR (gst_gio_base_sink_query);
   gstbasesink_class->event = GST_DEBUG_FUNCPTR (gst_gio_base_sink_event);
   gstbasesink_class->render = GST_DEBUG_FUNCPTR (gst_gio_base_sink_render);
-
-  gst_type_mark_as_plugin_api (GST_TYPE_GIO_BASE_SINK, 0);
 }
 
 static void
@@ -264,7 +261,7 @@ static GstFlowReturn
 gst_gio_base_sink_render (GstBaseSink * base_sink, GstBuffer * buffer)
 {
   GstGioBaseSink *sink = GST_GIO_BASE_SINK (base_sink);
-  gsize written;
+  gssize written;
   GstMapInfo map;
   gboolean success;
   GError *err = NULL;
@@ -277,10 +274,22 @@ gst_gio_base_sink_render (GstBaseSink * base_sink, GstBuffer * buffer)
       "writing %" G_GSIZE_FORMAT " bytes to offset %" G_GUINT64_FORMAT,
       map.size, sink->position);
 
-  success =
-      g_output_stream_write_all (sink->stream, map.data, map.size, &written,
-      sink->cancel, &err);
+  written =
+      g_output_stream_write (sink->stream, map.data, map.size, sink->cancel,
+      &err);
   gst_buffer_unmap (buffer, &map);
+
+  success = (written >= 0);
+
+  if (G_UNLIKELY (success && written < map.size)) {
+    /* FIXME: Can this happen?  Should we handle it gracefully?  gnomevfssink
+     * doesn't... */
+    GST_ELEMENT_ERROR (sink, RESOURCE, WRITE, (NULL),
+        ("Could not write to stream: (short write, only %"
+            G_GSSIZE_FORMAT " bytes of %" G_GSIZE_FORMAT " bytes written)",
+            written, map.size));
+    return GST_FLOW_ERROR;
+  }
 
   if (success) {
     sink->position += written;
@@ -289,7 +298,7 @@ gst_gio_base_sink_render (GstBaseSink * base_sink, GstBuffer * buffer)
   } else {
     GstFlowReturn ret;
 
-    if (!gst_gio_error (sink, "g_output_stream_write_all", &err, &ret)) {
+    if (!gst_gio_error (sink, "g_output_stream_write", &err, &ret)) {
       if (GST_GIO_ERROR_MATCHES (err, NO_SPACE)) {
         GST_ELEMENT_ERROR (sink, RESOURCE, NO_SPACE_LEFT, (NULL),
             ("Could not write to stream: %s", err->message));

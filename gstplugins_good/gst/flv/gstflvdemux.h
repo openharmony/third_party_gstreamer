@@ -101,11 +101,11 @@ struct _GstFlvDemux
   guint64 audio_offset;
   gboolean audio_need_discont;
   gboolean audio_need_segment;
+  gboolean audio_linked;
   GstBuffer * audio_codec_data;
   GstClockTime audio_start;
   guint32 last_audio_pts;
   GstClockTime audio_time_offset;
-  guint32 audio_bitrate;
 
   /* Video infos */
   guint32 w;
@@ -116,13 +116,13 @@ struct _GstFlvDemux
   guint64 video_offset;
   gboolean video_need_discont;
   gboolean video_need_segment;
+  gboolean video_linked;
   gboolean got_par;
   GstBuffer * video_codec_data;
   GstClockTime video_start;
   guint32 last_video_dts;
   GstClockTime video_time_offset;
   gdouble framerate;
-  guint32 video_bitrate;
 
   gboolean random_access;
   gboolean need_header;
@@ -145,7 +145,6 @@ struct _GstFlvDemux
   gint64 file_size;
   GstEvent *seek_event;
   gint64 seek_time;
-  guint32 segment_seqnum;
 
   GstClockTime index_max_time;
   gint64 index_max_pos;

@@ -19,8 +19,7 @@
  */
 
 GST_GL_EXT_BEGIN (sync,
-                  GST_GL_API_OPENGL3 | GST_GL_API_OPENGL |
-                  GST_GL_API_GLES2,
+                  GST_GL_API_OPENGL3 | GST_GL_API_GLES2,
                   3, 2,
                   3, 0,
                   "APPLE\0",
@@ -42,8 +41,6 @@ GST_GL_EXT_FUNCTION (void, WaitSync,
                       GLuint64 timeout))
 GST_GL_EXT_FUNCTION (void, GetSynciv,
                      (GLsync sync,
-                      GLenum name,
-                      GLsizei buf_size,
-                      GLsizei *length,
-                      GLint *values))
+                      GLenum flags,
+                      GLuint64 timeout))
 GST_GL_EXT_END ()

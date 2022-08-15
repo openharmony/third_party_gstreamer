@@ -63,13 +63,8 @@ GST_STATIC_PAD_TEMPLATE ("src",
     );
 
 #define gst_tone_generate_src_parent_class parent_class
-G_DEFINE_TYPE_WITH_CODE (GstToneGenerateSrc, gst_tone_generate_src,
-    GST_TYPE_PUSH_SRC, GST_DEBUG_CATEGORY_INIT (tone_generate_src_debug,
-        "tonegeneratesrc", 0, "Telephony Tone Test Source");
-    );
+G_DEFINE_TYPE (GstToneGenerateSrc, gst_tone_generate_src, GST_TYPE_PUSH_SRC);
 
-GST_ELEMENT_REGISTER_DEFINE (tonegeneratesrc, "tonegeneratesrc", GST_RANK_NONE,
-    GST_TYPE_TONE_GENERATE_SRC);
 static void gst_tone_generate_src_finalize (GObject * object);
 static void gst_tone_generate_src_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -144,7 +139,7 @@ gst_tone_generate_src_class_init (GstToneGenerateSrcClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_REPEAT,
       g_param_spec_boolean ("repeat", "Repeat the specified tone period ",
-          "Whether to repeat specified tone indefinitely", DEFAULT_REPEAT,
+          "Whether to repeat specified tone indefinitly", DEFAULT_REPEAT,
           G_PARAM_READWRITE));
 
   gst_element_class_add_static_pad_template (gstelement_class,
@@ -407,4 +402,14 @@ gst_tone_generate_src_get_property (GObject * object, guint prop_id,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+}
+
+gboolean
+gst_tone_generate_src_plugin_init (GstPlugin * plugin)
+{
+  GST_DEBUG_CATEGORY_INIT (tone_generate_src_debug, "tonegeneratesrc", 0,
+      "Telephony Tone Test Source");
+
+  return gst_element_register (plugin, "tonegeneratesrc",
+      GST_RANK_NONE, GST_TYPE_TONE_GENERATE_SRC);
 }

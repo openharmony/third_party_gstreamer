@@ -23,13 +23,8 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <gst/check/check.h>
 #include <gst/video/video.h>
-#include "gst-libs/gst/codecparsers/gsth264parser.h"
 #include "parser.h"
 
 #define SRC_CAPS_TMPL   "video/x-h264, parsed=(boolean)false"
@@ -95,20 +90,6 @@ static guint8 h264_sei_buffering_period[] = {
   0x00, 0x00, 0x00, 0x01, 0x06, 0x00, 0x01, 0xc0
 };
 
-/* Content light level information SEI message */
-static guint8 h264_sei_clli[] = {
-  0x00, 0x00, 0x00, 0x01, 0x06, 0x90, 0x04, 0x03, 0xe8, 0x01, 0x90, 0x80
-};
-
-/* Mastering display colour volume information SEI message */
-static guint8 h264_sei_mdcv[] = {
-  0x00, 0x00, 0x00, 0x01, 0x06, 0x89, 0x18, 0x84,
-  0xd0, 0x3e, 0x80, 0x33, 0x90, 0x86, 0xc4, 0x1d,
-  0x4c, 0x0b, 0xb8, 0x3d, 0x13, 0x40, 0x42, 0x00,
-  0x98, 0x96, 0x80, 0x00, 0x00, 0x03, 0x00, 0x01,
-  0x80
-};
-
 /* combines to this codec-data */
 static guint8 h264_avc_codec_data[] = {
   0x01, 0x4d, 0x40, 0x15, 0xff, 0xe1, 0x00, 0x17,
@@ -147,36 +128,6 @@ static guint8 garbage_frame[] = {
 /* context to tweak tests */
 static const gchar *ctx_suite;
 static gboolean ctx_codec_data;
-static gboolean ctx_hdr_sei;
-
-#define SPS_LEN 3
-#define SPS_CONSTRAINT_SET_FLAG_0 1 << 7
-#define SPS_CONSTRAINT_SET_FLAG_1 (1 << 6)
-#define SPS_CONSTRAINT_SET_FLAG_2 (1 << 5)
-#define SPS_CONSTRAINT_SET_FLAG_3 (1 << 4)
-#define SPS_CONSTRAINT_SET_FLAG_4 (1 << 3)
-#define SPS_CONSTRAINT_SET_FLAG_5 (1 << 2)
-
-static void
-fill_h264_sps (guint8 * sps, guint8 profile_idc, guint constraint_set_flags,
-    guint level_idc)
-{
-  memset (sps, 0x0, SPS_LEN);
-  /*
-   * * Bit 0:7   - Profile indication
-   * * Bit 8     - constraint_set0_flag
-   * * Bit 9     - constraint_set1_flag
-   * * Bit 10    - constraint_set2_flag
-   * * Bit 11    - constraint_set3_flag
-   * * Bit 12    - constraint_set4_flag
-   * * Bit 13    - constraint_set5_flag
-   * * Bit 14:15 - Reserved
-   * * Bit 16:24 - Level indication
-   * */
-  sps[0] = profile_idc;
-  sps[1] |= constraint_set_flags;
-  sps[2] = level_idc;
-}
 
 static gboolean
 verify_buffer (buffer_verify_data_s * vdata, GstBuffer * buffer)
@@ -184,9 +135,11 @@ verify_buffer (buffer_verify_data_s * vdata, GstBuffer * buffer)
   if (vdata->discard) {
     /* check separate header NALs */
     gint i = vdata->buffer_counter;
+    guint ofs;
     gboolean aud;
 
     /* SEI with start code prefix with 2 0-bytes */
+    ofs = i == 2;
     aud = i == 0;
     fail_unless (i <= 3);
 
@@ -198,8 +151,8 @@ verify_buffer (buffer_verify_data_s * vdata, GstBuffer * buffer)
     } else {
       i -= 1;
 
-      fail_unless (gst_buffer_get_size (buffer) == ctx_headers[i].size);
-      fail_unless (gst_buffer_memcmp (buffer, 0, ctx_headers[i].data,
+      fail_unless (gst_buffer_get_size (buffer) == ctx_headers[i].size - ofs);
+      fail_unless (gst_buffer_memcmp (buffer, 0, ctx_headers[i].data + ofs,
               gst_buffer_get_size (buffer)) == 0);
     }
   } else {
@@ -273,14 +226,6 @@ verify_buffer_bs_au (buffer_verify_data_s * vdata, GstBuffer * buffer)
 
   fail_unless (ctx_sink_template == &sinktemplate_bs_au);
 
-  /* Currently the parser can only predict DTS when dealing with raw data.
-   * Ensure that this behavior is being checked here. */
-  GST_DEBUG ("PTS: %" GST_TIME_FORMAT " DTS: %" GST_TIME_FORMAT,
-      GST_TIME_ARGS (GST_BUFFER_PTS (buffer)),
-      GST_TIME_ARGS (GST_BUFFER_DTS (buffer)));
-  fail_if (GST_BUFFER_PTS_IS_VALID (buffer));
-  fail_unless (GST_BUFFER_DTS_IS_VALID (buffer));
-
   gst_buffer_map (buffer, &map, GST_MAP_READ);
   fail_unless (map.size > 4);
 
@@ -316,49 +261,6 @@ verify_buffer_bs_au (buffer_verify_data_s * vdata, GstBuffer * buffer)
   return TRUE;
 }
 
-static void
-verify_h264parse_compatible_caps (guint profile_idc, guint constraint_set_flags,
-    const char *profile)
-{
-  GstHarness *h;
-  GstBuffer *buf;
-  gchar *sink_caps_str;
-  guint8 *frame_sps;
-  guint frame_sps_len;
-  GstCaps *caps;
-
-  h = gst_harness_new ("h264parse");
-
-  sink_caps_str = g_strdup_printf ("video/x-h264"
-      ", parsed=(boolean)true"
-      ", stream-format=(string){ avc, avc3, byte-stream }"
-      ", alignment=(string){ au, nal }" ", profile=(string)%s", profile);
-
-  /* create and modify sps to the given profile */
-  frame_sps_len = sizeof (h264_sps);
-  frame_sps = g_malloc (frame_sps_len);
-  memcpy (frame_sps, h264_sps, frame_sps_len);
-  fill_h264_sps (&frame_sps[5], profile_idc, constraint_set_flags, 0);
-
-  /* set the peer pad (ie decoder) to the given profile to check the compatibility with the sps */
-  gst_harness_set_caps_str (h, "video/x-h264", sink_caps_str);
-  g_free (sink_caps_str);
-
-
-  /* push sps buffer */
-  buf = gst_buffer_new_and_alloc (frame_sps_len);
-  gst_buffer_fill (buf, 0, frame_sps, frame_sps_len);
-  g_free (frame_sps);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-  fail_unless (gst_harness_push_event (h, gst_event_new_eos ()));
-
-  /* check that the caps have been negociated correctly */
-  fail_unless (caps = gst_pad_get_current_caps (h->sinkpad));
-  gst_caps_unref (caps);
-
-  gst_harness_teardown (h);
-}
-
 GST_START_TEST (test_parse_normal)
 {
   gst_parser_test_normal (h264_idrframe, sizeof (h264_idrframe));
@@ -381,8 +283,7 @@ GST_START_TEST (test_parse_drain_garbage)
       garbage_frame, sizeof (garbage_frame));
 }
 
-GST_END_TEST;
-
+GST_END_TEST
 GST_START_TEST (test_parse_split)
 {
   gst_parser_test_split (h264_idrframe, sizeof (h264_idrframe));
@@ -404,10 +305,6 @@ GST_END_TEST;
 #define fail_unless_structure_field_int_equals(s,field,num) \
     fail_unless_equals_int (structure_get_int(s,field), num)
 
-#define structure_get_string(s,f) \
-    (g_value_get_string(gst_structure_get_value(s,f)))
-#define fail_unless_structure_field_string_equals(s,field,name) \
-    fail_unless_equals_string (structure_get_string(s,field), name)
 
 GST_START_TEST (test_parse_detect_stream)
 {
@@ -429,8 +326,6 @@ GST_START_TEST (test_parse_detect_stream)
   fail_unless (gst_structure_has_name (s, "video/x-h264"));
   fail_unless_structure_field_int_equals (s, "width", 32);
   fail_unless_structure_field_int_equals (s, "height", 24);
-  fail_unless_structure_field_string_equals (s, "profile", "main");
-  fail_unless_structure_field_string_equals (s, "level", "2.1");
 
   if (ctx_codec_data) {
     fail_unless (gst_structure_has_field (s, "codec_data"));
@@ -445,64 +340,6 @@ GST_START_TEST (test_parse_detect_stream)
             gst_buffer_get_size (buf)) == 0);
   }
 
-  gst_caps_unref (caps);
-}
-
-GST_END_TEST;
-
-GST_START_TEST (test_parse_detect_stream_with_hdr_sei)
-{
-  GstCaps *caps;
-  GstStructure *s;
-  GstBuffer *buf;
-  const GValue *val;
-  guint8 *h264_idr_plus_sei;
-  gsize h264_idr_plus_sei_size;
-
-  h264_idr_plus_sei_size =
-      sizeof (h264_sei_clli) + sizeof (h264_sei_mdcv) + sizeof (h264_idrframe);
-  h264_idr_plus_sei = malloc (h264_idr_plus_sei_size);
-
-  memcpy (h264_idr_plus_sei, h264_sei_clli, sizeof (h264_sei_clli));
-  memcpy (h264_idr_plus_sei + sizeof (h264_sei_clli), h264_sei_mdcv,
-      sizeof (h264_sei_mdcv));
-  memcpy (h264_idr_plus_sei + sizeof (h264_sei_clli) + sizeof (h264_sei_mdcv),
-      h264_idrframe, sizeof (h264_idrframe));
-
-  /* parser does not really care that mpeg1 and mpeg2 frame data
-   * should be a bit different */
-  caps =
-      gst_parser_test_get_output_caps (h264_idr_plus_sei,
-      h264_idr_plus_sei_size, NULL);
-  fail_unless (caps != NULL);
-
-  /* Check that the negotiated caps are as expected */
-  /* When codec_data is present, parser assumes that data is version 4 */
-  GST_LOG ("h264 output caps: %" GST_PTR_FORMAT, caps);
-  s = gst_caps_get_structure (caps, 0);
-  fail_unless (gst_structure_has_name (s, "video/x-h264"));
-  fail_unless_structure_field_int_equals (s, "width", 32);
-  fail_unless_structure_field_int_equals (s, "height", 24);
-  fail_unless_structure_field_string_equals (s, "profile", "main");
-  fail_unless_structure_field_string_equals (s, "level", "2.1");
-
-  fail_unless_structure_field_string_equals (s, "mastering-display-info",
-      "7500:3000:34000:16000:13200:34500:15635:16450:10000000:1");
-  fail_unless_structure_field_string_equals (s, "content-light-level",
-      "1000:400");
-  if (ctx_codec_data) {
-    fail_unless (gst_structure_has_field (s, "codec_data"));
-
-    /* check codec-data in more detail */
-    val = gst_structure_get_value (s, "codec_data");
-    fail_unless (val != NULL);
-    buf = gst_value_get_buffer (val);
-    fail_unless (buf != NULL);
-    fail_unless (gst_buffer_get_size (buf) == h264_codec_data_size);
-    fail_unless (gst_buffer_memcmp (buf, 0, h264_codec_data,
-            gst_buffer_get_size (buf)) == 0);
-  }
-  g_free (h264_idr_plus_sei);
   gst_caps_unref (caps);
 }
 
@@ -561,129 +398,6 @@ GST_START_TEST (test_sink_caps_reordering)
 
 GST_END_TEST;
 
-GST_START_TEST (test_parse_compatible_caps)
-{
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_BASELINE, 0, "extended");
-
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_BASELINE,
-      SPS_CONSTRAINT_SET_FLAG_1, "baseline");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_BASELINE,
-      SPS_CONSTRAINT_SET_FLAG_1, "main");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_BASELINE,
-      SPS_CONSTRAINT_SET_FLAG_1, "high");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_BASELINE,
-      SPS_CONSTRAINT_SET_FLAG_1, "high-10");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_BASELINE,
-      SPS_CONSTRAINT_SET_FLAG_1, "high-4:2:2");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_BASELINE,
-      SPS_CONSTRAINT_SET_FLAG_1, "high-4:4:4");
-
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_MAIN, 0, "high");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_MAIN, 0, "high-10");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_MAIN, 0, "high-4:2:2");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_MAIN, 0, "high-4:4:4");
-
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_EXTENDED,
-      SPS_CONSTRAINT_SET_FLAG_0, "baseline");
-
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_EXTENDED,
-      SPS_CONSTRAINT_SET_FLAG_0 | SPS_CONSTRAINT_SET_FLAG_1,
-      "constrained-baseline");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_EXTENDED,
-      SPS_CONSTRAINT_SET_FLAG_0 | SPS_CONSTRAINT_SET_FLAG_1, "baseline");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_EXTENDED,
-      SPS_CONSTRAINT_SET_FLAG_0 | SPS_CONSTRAINT_SET_FLAG_1, "main");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_EXTENDED,
-      SPS_CONSTRAINT_SET_FLAG_0 | SPS_CONSTRAINT_SET_FLAG_1, "high");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_EXTENDED,
-      SPS_CONSTRAINT_SET_FLAG_0 | SPS_CONSTRAINT_SET_FLAG_1, "high-10");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_EXTENDED,
-      SPS_CONSTRAINT_SET_FLAG_0 | SPS_CONSTRAINT_SET_FLAG_1, "high-4:2:2");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_EXTENDED,
-      SPS_CONSTRAINT_SET_FLAG_0 | SPS_CONSTRAINT_SET_FLAG_1, "high-4:4:4");
-
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_EXTENDED,
-      SPS_CONSTRAINT_SET_FLAG_1, "main");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_EXTENDED,
-      SPS_CONSTRAINT_SET_FLAG_1, "high");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_EXTENDED,
-      SPS_CONSTRAINT_SET_FLAG_1, "high-10");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_EXTENDED,
-      SPS_CONSTRAINT_SET_FLAG_1, "high-4:2:2");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_EXTENDED,
-      SPS_CONSTRAINT_SET_FLAG_1, "high-4:4:4");
-
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH, 0, "high-10");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH, 0, "high-4:2:2");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH, 0, "high-4:4:4");
-
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH,
-      SPS_CONSTRAINT_SET_FLAG_1, "main");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH,
-      SPS_CONSTRAINT_SET_FLAG_1, "high-10");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH,
-      SPS_CONSTRAINT_SET_FLAG_1, "high-4:2:2");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH,
-      SPS_CONSTRAINT_SET_FLAG_1, "high-4:4:4");
-
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH10, 0, "high-4:2:2");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH10, 0, "high-4:4:4");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH10,
-      SPS_CONSTRAINT_SET_FLAG_1, "main");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH10,
-      SPS_CONSTRAINT_SET_FLAG_1, "high");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH10,
-      SPS_CONSTRAINT_SET_FLAG_1, "high-4:2:2");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH10,
-      SPS_CONSTRAINT_SET_FLAG_1, "high-4:4:4");
-
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH10,
-      SPS_CONSTRAINT_SET_FLAG_3, "high-10");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH10,
-      SPS_CONSTRAINT_SET_FLAG_3, "high-4:2:2");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH10,
-      SPS_CONSTRAINT_SET_FLAG_3, "high-4:4:4");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH10,
-      SPS_CONSTRAINT_SET_FLAG_3, "high-4:2:2-intra");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH10,
-      SPS_CONSTRAINT_SET_FLAG_3, "high-4:4:4-intra");
-
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH_422, 0, "high-4:2:2");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH_422, 0, "high-4:4:4");
-
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH_422,
-      SPS_CONSTRAINT_SET_FLAG_1, "main");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH_422,
-      SPS_CONSTRAINT_SET_FLAG_1, "high");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH_422,
-      SPS_CONSTRAINT_SET_FLAG_1, "high-10");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH_422,
-      SPS_CONSTRAINT_SET_FLAG_1, "high-4:4:4");
-
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH_422,
-      SPS_CONSTRAINT_SET_FLAG_3, "high-4:2:2");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH_422,
-      SPS_CONSTRAINT_SET_FLAG_3, "high-4:4:4");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH_422,
-      SPS_CONSTRAINT_SET_FLAG_3, "high-4:2:2-intra");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH_422,
-      SPS_CONSTRAINT_SET_FLAG_3, "high-4:4:4-intra");
-
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH_444,
-      SPS_CONSTRAINT_SET_FLAG_1, "main");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH_444,
-      SPS_CONSTRAINT_SET_FLAG_1, "high");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH_444,
-      SPS_CONSTRAINT_SET_FLAG_1, "high-10");
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH_444,
-      SPS_CONSTRAINT_SET_FLAG_1, "high-4:2:2");
-
-  verify_h264parse_compatible_caps (GST_H264_PROFILE_HIGH_444,
-      SPS_CONSTRAINT_SET_FLAG_3, "high-4:4:4");
-}
-
-GST_END_TEST;
-
 static Suite *
 h264parse_suite (void)
 {
@@ -697,8 +411,6 @@ h264parse_suite (void)
   tcase_add_test (tc_chain, test_parse_split);
   tcase_add_test (tc_chain, test_parse_skip_garbage);
   tcase_add_test (tc_chain, test_parse_detect_stream);
-  if (ctx_hdr_sei)
-    tcase_add_test (tc_chain, test_parse_detect_stream_with_hdr_sei);
   tcase_add_test (tc_chain, test_sink_caps_reordering);
 
   return s;
@@ -804,394 +516,6 @@ h264parse_packetized_suite (void)
   return s;
 }
 
-/* These were generated using pipeline:
- * gst-launch-1.0 videotestsrc num-buffers=2 pattern=green \
- *     ! video/x-raw,width=128,height=128 \
- *     ! openh264enc num-slices=2 \
- *     ! fakesink dump=1
- */
-
-/* codec-data */
-static guint8 h264_slicing_codec_data[] = {
-  0x01, 0x42, 0xc0, 0x0b, 0xff, 0xe1, 0x00, 0x0e,
-  0x67, 0x42, 0xc0, 0x0b, 0x8c, 0x8d, 0x41, 0x02,
-  0x24, 0x03, 0xc2, 0x21, 0x1a, 0x80, 0x01, 0x00,
-  0x04, 0x68, 0xce, 0x3c, 0x80
-};
-
-/* SPS */
-static guint8 h264_slicing_sps[] = {
-  0x00, 0x00, 0x00, 0x01, 0x67, 0x42, 0xc0, 0x0b,
-  0x8c, 0x8d, 0x41, 0x02, 0x24, 0x03, 0xc2, 0x21,
-  0x1a, 0x80
-};
-
-/* PPS */
-static guint8 h264_slicing_pps[] = {
-  0x00, 0x00, 0x00, 0x01, 0x68, 0xce, 0x3c, 0x80
-};
-
-/* IDR Slice 1 */
-static guint8 h264_idr_slice_1[] = {
-  0x00, 0x00, 0x00, 0x01, 0x65, 0xb8, 0x00, 0x04,
-  0x00, 0x00, 0x11, 0xff, 0xff, 0xf8, 0x22, 0x8a,
-  0x1f, 0x1c, 0x00, 0x04, 0x0a, 0x63, 0x80, 0x00,
-  0x81, 0xec, 0x9a, 0x93, 0x93, 0x93, 0x93, 0x93,
-  0x93, 0xad, 0x57, 0x5d, 0x75, 0xd7, 0x5d, 0x75,
-  0xd7, 0x5d, 0x75, 0xd7, 0x5d, 0x75, 0xd7, 0x5d,
-  0x75, 0xd7, 0x5d, 0x78
-};
-
-/* IDR Slice 2 */
-static guint8 h264_idr_slice_2[] = {
-  0x00, 0x00, 0x00, 0x01, 0x65, 0x04, 0x2e, 0x00,
-  0x01, 0x00, 0x00, 0x04, 0x7f, 0xff, 0xfe, 0x08,
-  0xa2, 0x87, 0xc7, 0x00, 0x01, 0x02, 0x98, 0xe0,
-  0x00, 0x20, 0x7b, 0x26, 0xa4, 0xe4, 0xe4, 0xe4,
-  0xe4, 0xe4, 0xeb, 0x55, 0xd7, 0x5d, 0x75, 0xd7,
-  0x5d, 0x75, 0xd7, 0x5d, 0x75, 0xd7, 0x5d, 0x75,
-  0xd7, 0x5d, 0x75, 0xd7, 0x5e
-};
-
-/* P Slice 1 */
-static guint8 h264_slice_1[] = {
-  0x00, 0x00, 0x00, 0x01, 0x61, 0xe0, 0x00, 0x40,
-  0x00, 0x9c, 0x82, 0x3c, 0x10, 0xc0
-};
-
-/* P Slice 2 */
-static guint8 h264_slice_2[] = {
-  0x00, 0x00, 0x00, 0x01, 0x61, 0x04, 0x38, 0x00,
-  0x10, 0x00, 0x27, 0x20, 0x8f, 0x04, 0x30
-};
-
-static inline GstBuffer *
-wrap_buffer (const guint8 * buf, gsize size, GstClockTime pts,
-    GstBufferFlags flags)
-{
-  GstBuffer *buffer;
-
-  buffer = gst_buffer_new_wrapped_full (GST_MEMORY_FLAG_READONLY,
-      (gpointer) buf, size, 0, size, NULL, NULL);
-  GST_BUFFER_PTS (buffer) = pts;
-  GST_BUFFER_FLAGS (buffer) |= flags;
-
-  return buffer;
-}
-
-static inline GstBuffer *
-composite_buffer (GstClockTime pts, GstBufferFlags flags, gint count, ...)
-{
-  va_list vl;
-  gint i;
-  const guint8 *data;
-  gsize size;
-  GstBuffer *buffer;
-
-  va_start (vl, count);
-
-  buffer = gst_buffer_new ();
-  for (i = 0; i < count; i++) {
-    data = va_arg (vl, guint8 *);
-    size = va_arg (vl, gsize);
-
-    buffer = gst_buffer_append (buffer, wrap_buffer (data, size, 0, 0));
-  }
-  GST_BUFFER_PTS (buffer) = pts;
-  GST_BUFFER_FLAGS (buffer) |= flags;
-
-  va_end (vl);
-
-  return buffer;
-}
-
-#define pull_and_check_full(h, data, size, pts, flags) \
-{ \
-  GstBuffer *b = gst_harness_pull (h); \
-  gst_check_buffer_data (b, data, size); \
-  fail_unless_equals_clocktime (GST_BUFFER_PTS (b), pts); \
-  if (flags) \
-    fail_unless (GST_BUFFER_FLAG_IS_SET (b, flags)); \
-  gst_buffer_unref (b); \
-}
-
-#define pull_and_check(h, data, pts, flags) \
-  pull_and_check_full (h, data, sizeof (data), pts, flags)
-
-#define pull_and_drop(h) \
-  G_STMT_START { \
-    GstBuffer *b = gst_harness_pull (h); \
-    gst_buffer_unref (b); \
-  } G_STMT_END;
-
-GST_START_TEST (test_parse_sliced_nal_nal)
-{
-  GstHarness *h = gst_harness_new ("h264parse");
-  GstBuffer *buf;
-
-  gst_harness_set_caps_str (h,
-      "video/x-h264,stream-format=byte-stream,alignment=nal,parsed=false,framerate=30/1",
-      "video/x-h264,stream-format=byte-stream,alignment=nal,parsed=true");
-
-  buf = wrap_buffer (h264_slicing_sps, sizeof (h264_slicing_sps), 10, 0);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-
-  buf = wrap_buffer (h264_slicing_pps, sizeof (h264_slicing_pps), 10, 0);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-
-  /* parser must have inserted AUD before the headers, with the same PTS */
-  pull_and_check (h, h264_aud, 10, 0);
-
-  /* drop the header buffers */
-  while ((buf = gst_harness_try_pull (h)))
-    gst_buffer_unref (buf);
-
-  /* reported latency must be zero */
-  fail_unless_equals_clocktime (gst_harness_query_latency (h), 0);
-
-  /* test some flow with 2 slices.
-   * 1st slice gets the input PTS, second gets NONE */
-  buf = wrap_buffer (h264_idr_slice_1, sizeof (h264_idr_slice_1), 100, 0);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 1);
-  pull_and_check (h, h264_idr_slice_1, 100, 0);
-
-  buf = wrap_buffer (h264_idr_slice_2, sizeof (h264_idr_slice_2), 100, 0);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 1);
-  pull_and_check (h, h264_idr_slice_2, -1, 0);
-
-  buf = wrap_buffer (h264_idr_slice_1, sizeof (h264_idr_slice_1), 200, 0);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 2);
-  pull_and_check (h, h264_aud, 200, 0);
-  pull_and_check (h, h264_idr_slice_1, 200, 0);
-
-  buf = wrap_buffer (h264_idr_slice_2, sizeof (h264_idr_slice_2), 200, 0);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 1);
-  pull_and_check (h, h264_idr_slice_2, -1, 0);
-
-  buf = wrap_buffer (h264_idr_slice_1, sizeof (h264_idr_slice_1), 250, 0);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 2);
-  pull_and_check (h, h264_aud, 250, 0);
-  pull_and_check (h, h264_idr_slice_1, 250, 0);
-
-  /* 1st slice starts a new AU, even though the previous one is incomplete.
-   * DISCONT must also be propagated */
-  buf = wrap_buffer (h264_idr_slice_1, sizeof (h264_idr_slice_1), 400,
-      GST_BUFFER_FLAG_DISCONT);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 2);
-  pull_and_check (h, h264_aud, 400, 0);
-  pull_and_check (h, h264_idr_slice_1, 400, GST_BUFFER_FLAG_DISCONT);
-
-  gst_harness_teardown (h);
-}
-
-GST_END_TEST;
-
-GST_START_TEST (test_parse_sliced_au_nal)
-{
-  GstHarness *h = gst_harness_new ("h264parse");
-  GstBuffer *buf;
-
-  gst_harness_set_caps_str (h,
-      "video/x-h264,stream-format=byte-stream,alignment=au,parsed=false,framerate=30/1",
-      "video/x-h264,stream-format=byte-stream,alignment=nal,parsed=true");
-
-  /* push the whole AU in a single buffer */
-  buf = composite_buffer (100, 0, 4,
-      h264_slicing_sps, sizeof (h264_slicing_sps),
-      h264_slicing_pps, sizeof (h264_slicing_pps),
-      h264_idr_slice_1, sizeof (h264_idr_slice_1),
-      h264_idr_slice_2, sizeof (h264_idr_slice_2));
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-
-  /* parser must have inserted AUD before the headers, with the same PTS */
-  pull_and_check (h, h264_aud, 100, 0);
-
-  /* drop the headers */
-  fail_unless (gst_harness_buffers_in_queue (h) > 2);
-  while (gst_harness_buffers_in_queue (h) > 2)
-    pull_and_drop (h);
-
-  /* reported latency must be zero */
-  fail_unless_equals_clocktime (gst_harness_query_latency (h), 0);
-
-  /* 1st slice here doens't have a PTS
-   * because it was present in the first header NAL */
-  pull_and_check (h, h264_idr_slice_1, -1, 0);
-  pull_and_check (h, h264_idr_slice_2, -1, 0);
-
-  /* new AU. we expect AUD to be inserted and 1st slice to have the same PTS */
-  buf = composite_buffer (200, 0, 2,
-      h264_idr_slice_1, sizeof (h264_idr_slice_1),
-      h264_idr_slice_2, sizeof (h264_idr_slice_2));
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 3);
-  pull_and_check (h, h264_aud, 200, 0);
-  pull_and_check (h, h264_idr_slice_1, 200, 0);
-  pull_and_check (h, h264_idr_slice_2, -1, 0);
-
-  /* DISCONT must be propagated */
-  buf = composite_buffer (400, GST_BUFFER_FLAG_DISCONT, 2,
-      h264_idr_slice_1, sizeof (h264_idr_slice_1),
-      h264_idr_slice_2, sizeof (h264_idr_slice_2));
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 3);
-  pull_and_check (h, h264_aud, 400, 0);
-  pull_and_check (h, h264_idr_slice_1, 400, GST_BUFFER_FLAG_DISCONT);
-  pull_and_check (h, h264_idr_slice_2, -1, 0);
-
-  gst_harness_teardown (h);
-}
-
-GST_END_TEST;
-
-GST_START_TEST (test_parse_sliced_nal_au)
-{
-  GstHarness *h = gst_harness_new ("h264parse");
-  GstBuffer *buf;
-
-  gst_harness_set_caps_str (h,
-      "video/x-h264,stream-format=byte-stream,alignment=nal,parsed=false,framerate=30/1",
-      "video/x-h264,stream-format=byte-stream,alignment=au,parsed=true");
-
-  buf = wrap_buffer (h264_slicing_sps, sizeof (h264_slicing_sps), 100, 0);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-
-  buf = wrap_buffer (h264_slicing_pps, sizeof (h264_slicing_pps), 100, 0);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-
-  buf = wrap_buffer (h264_idr_slice_1, sizeof (h264_idr_slice_1), 100, 0);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-
-  buf = wrap_buffer (h264_idr_slice_2, sizeof (h264_idr_slice_2), 100, 0);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-
-  /* no output yet, it will be pushed as soon as
-   * the parser recognizes the new AU */
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 0);
-
-  buf = wrap_buffer (h264_idr_slice_1, sizeof (h264_idr_slice_1), 200, 0);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 1);
-
-  {
-    GstMapInfo info;
-
-    buf = composite_buffer (100, 0, 5,
-        h264_aud, sizeof (h264_aud),
-        h264_slicing_sps, sizeof (h264_slicing_sps),
-        h264_slicing_pps, sizeof (h264_slicing_pps),
-        h264_idr_slice_1, sizeof (h264_idr_slice_1),
-        h264_idr_slice_2, sizeof (h264_idr_slice_2));
-    gst_buffer_map (buf, &info, GST_MAP_READ);
-
-    pull_and_check_full (h, info.data, info.size, 100, 0);
-
-    gst_buffer_unmap (buf, &info);
-    gst_buffer_unref (buf);
-  }
-
-  /* reported latency must be 1 frame (@ 30fps because of sink pad caps) */
-  fail_unless_equals_clocktime (gst_harness_query_latency (h),
-      gst_util_uint64_scale (GST_SECOND, 1, 30));
-
-  gst_harness_teardown (h);
-}
-
-GST_END_TEST;
-
-GST_START_TEST (test_parse_sliced_sps_pps_sps)
-{
-  GstHarness *h = gst_harness_new ("h264parse");
-  GstBuffer *buf;
-
-  gst_harness_set_caps_str (h,
-      "video/x-h264,stream-format=byte-stream,alignment=nal,parsed=false,framerate=30/1",
-      "video/x-h264,stream-format=byte-stream,alignment=au,parsed=true");
-
-  buf = wrap_buffer (h264_slicing_sps, sizeof (h264_slicing_sps), 100, 0);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-
-  buf = wrap_buffer (h264_slicing_pps, sizeof (h264_slicing_pps), 100, 0);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-
-  buf = wrap_buffer (h264_idr_slice_1, sizeof (h264_idr_slice_1), 100, 0);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-
-  /* no output yet, it will be pushed as soon as
-   * the parser recognizes the new AU */
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 0);
-
-  buf = wrap_buffer (h264_slicing_sps, sizeof (h264_slicing_sps), 200, 0);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-
-  /* no PP, just a SPS here is valid */
-
-  buf = wrap_buffer (h264_idr_slice_1, sizeof (h264_idr_slice_1), 200, 0);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 1);
-
-  buf = wrap_buffer (h264_idr_slice_1, sizeof (h264_idr_slice_1), 300, 0);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 2);
-
-  {
-    GstMapInfo info;
-
-    buf = composite_buffer (100, 0, 4,
-        h264_aud, sizeof (h264_aud),
-        h264_slicing_sps, sizeof (h264_slicing_sps),
-        h264_slicing_pps, sizeof (h264_slicing_pps),
-        h264_idr_slice_1, sizeof (h264_idr_slice_1));
-    gst_buffer_map (buf, &info, GST_MAP_READ);
-
-    pull_and_check_full (h, info.data, info.size, 100, 0);
-
-    gst_buffer_unmap (buf, &info);
-    gst_buffer_unref (buf);
-
-    buf = composite_buffer (200, 0, 3,
-        h264_aud, sizeof (h264_aud),
-        h264_slicing_sps, sizeof (h264_slicing_sps),
-        h264_idr_slice_1, sizeof (h264_idr_slice_1));
-    gst_buffer_map (buf, &info, GST_MAP_READ);
-
-    pull_and_check_full (h, info.data, info.size, 200, 0);
-
-    gst_buffer_unmap (buf, &info);
-    gst_buffer_unref (buf);
-  }
-
-  gst_harness_teardown (h);
-}
-
-GST_END_TEST;
-
-
-static Suite *
-h264parse_sliced_suite (void)
-{
-  Suite *s = suite_create (ctx_suite);
-  TCase *tc_chain = tcase_create ("general");
-
-  suite_add_tcase (s, tc_chain);
-  tcase_add_test (tc_chain, test_parse_sliced_nal_nal);
-  tcase_add_test (tc_chain, test_parse_sliced_au_nal);
-  tcase_add_test (tc_chain, test_parse_sliced_nal_au);
-  tcase_add_test (tc_chain, test_parse_sliced_sps_pps_sps);
-
-  return s;
-}
-
-
 GST_START_TEST (test_parse_sei_closedcaptions)
 {
   GstVideoCaptionMeta *cc;
@@ -1242,227 +566,6 @@ GST_START_TEST (test_parse_sei_closedcaptions)
 
 GST_END_TEST;
 
-GST_START_TEST (test_parse_skip_to_4bytes_sc)
-{
-  GstHarness *h;
-  GstBuffer *buf1, *buf2;
-  const guint8 initial_bytes[] = { 0x00, 0x00, 0x00, 0x00, 0x01 };
-  GstMapInfo map;
-
-  h = gst_harness_new ("h264parse");
-
-  gst_harness_set_caps_str (h, "video/x-h264, stream-format=byte-stream",
-      "video/x-h264, stream-format=byte-stream, alignment=nal");
-
-  /* padding bytes, four bytes start code. */
-  buf1 = wrap_buffer (initial_bytes, sizeof (initial_bytes), 100, 0);
-
-  /* The second contains the an AUD, starting from NAL identification byte,
-   * and is followed by SPS, PPS and IDR */
-  buf2 = composite_buffer (100, 0, 4, h264_aud + 4, sizeof (h264_aud) - 4,
-      h264_sps, sizeof (h264_sps), h264_pps, sizeof (h264_pps),
-      h264_idrframe, sizeof (h264_idrframe));
-
-  fail_unless_equals_int (gst_harness_push (h, buf1), GST_FLOW_OK);
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 0);
-
-  fail_unless_equals_int (gst_harness_push (h, buf2), GST_FLOW_OK);
-  /* The parser will deliver AUD, SPS, PPS as it now have complete caps */
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 3);
-
-  buf1 = gst_harness_pull (h);
-  gst_buffer_map (buf1, &map, GST_MAP_READ);
-  fail_unless_equals_int (gst_buffer_get_size (buf1), sizeof (h264_aud));
-  gst_buffer_unmap (buf1, &map);
-  gst_buffer_unref (buf1);
-
-  gst_harness_teardown (h);
-}
-
-GST_END_TEST;
-
-typedef enum
-{
-  PACKETIZED_AU = 0,
-  /* TODO: packetized with nal alignment if we expect that should work? */
-  BYTESTREAM_AU,
-  BYTESTREAM_NAL,
-} H264ParseStreamType;
-
-static const gchar *
-stream_type_to_caps_str (H264ParseStreamType type)
-{
-  switch (type) {
-    case PACKETIZED_AU:
-      return "video/x-h264,stream-format=avc,alignment=au";
-    case BYTESTREAM_AU:
-      return "video/x-h264,stream-format=byte-stream,alignment=au";
-    case BYTESTREAM_NAL:
-      return "video/x-h264,stream-format=byte-stream,alignment=nal";
-  }
-
-  g_assert_not_reached ();
-
-  return NULL;
-}
-
-static GstMemory *
-nalu_to_memory (H264ParseStreamType type, const guint8 * data, gsize size)
-{
-  gpointer dump = g_memdup2 (data, size);
-
-  if (type == PACKETIZED_AU) {
-    guint32 nalu_size;
-
-    nalu_size = size - 4;
-    nalu_size = GUINT32_TO_BE (nalu_size);
-    memcpy (dump, &nalu_size, sizeof (nalu_size));
-  }
-
-  return gst_memory_new_wrapped (0, dump, size, 0, size, dump, g_free);
-}
-
-static GList *
-create_aud_test_buffers (H264ParseStreamType type, gboolean inband_aud)
-{
-  GList *list = NULL;
-  GstBuffer *buf = NULL;
-
-#define APPEND_NALU_TO_BUFFER(type,nalu,end_of_au) G_STMT_START { \
-  if (!buf) { \
-    buf = gst_buffer_new (); \
-  } \
-  gst_buffer_append_memory (buf, nalu_to_memory (type, nalu, \
-      sizeof (nalu))); \
-  if (type == BYTESTREAM_NAL || end_of_au) { \
-    list = g_list_append (list, buf); \
-    buf = NULL; \
-  } \
-} G_STMT_END
-
-  if (inband_aud)
-    APPEND_NALU_TO_BUFFER (type, h264_aud, FALSE);
-
-  APPEND_NALU_TO_BUFFER (type, h264_slicing_sps, FALSE);
-  APPEND_NALU_TO_BUFFER (type, h264_slicing_pps, FALSE);
-  APPEND_NALU_TO_BUFFER (type, h264_idr_slice_1, FALSE);
-  APPEND_NALU_TO_BUFFER (type, h264_idr_slice_2, TRUE);
-
-  if (inband_aud)
-    APPEND_NALU_TO_BUFFER (type, h264_aud, FALSE);
-
-  APPEND_NALU_TO_BUFFER (type, h264_slice_1, FALSE);
-  APPEND_NALU_TO_BUFFER (type, h264_slice_2, TRUE);
-
-#undef APPEND_NALU_TO_BUFFER
-
-  return list;
-}
-
-static void
-check_aud_insertion (gboolean inband_aud, H264ParseStreamType in_type,
-    H264ParseStreamType out_type)
-{
-  GstHarness *h;
-  GList *in_buffers = NULL;
-  GList *expected_buffers = NULL;
-  GList *result_buffers = NULL;
-  GList *iter, *walk;
-  GstCaps *in_caps, *out_caps;
-  gboolean aud_in_output;
-  GstBuffer *buf;
-
-  h = gst_harness_new ("h264parse");
-
-  in_caps = gst_caps_from_string (stream_type_to_caps_str (in_type));
-  if (in_type == PACKETIZED_AU) {
-    GstBuffer *cdata_buf = gst_buffer_new_memdup (h264_slicing_codec_data,
-        sizeof (h264_slicing_codec_data));
-    gst_caps_set_simple (in_caps,
-        "codec_data", GST_TYPE_BUFFER, cdata_buf, NULL);
-    gst_buffer_unref (cdata_buf);
-  }
-
-  out_caps = gst_caps_from_string (stream_type_to_caps_str (out_type));
-
-  gst_harness_set_caps (h, in_caps, out_caps);
-
-  in_buffers = create_aud_test_buffers (in_type, inband_aud);
-
-  if (out_type == BYTESTREAM_AU || out_type == BYTESTREAM_NAL) {
-    /* In case of byte-stream output, parse will insert AUD always */
-    aud_in_output = TRUE;
-  } else if (inband_aud) {
-    /* Parse will not drop AUD in any case */
-    aud_in_output = TRUE;
-  } else {
-    /* Cases where input bitstream doesn't contain AUD and output format is
-     * packetized. In this case parse will not insert AUD */
-    aud_in_output = FALSE;
-  }
-
-  expected_buffers = create_aud_test_buffers (out_type, aud_in_output);
-
-  for (iter = in_buffers; iter; iter = g_list_next (iter)) {
-    buf = (GstBuffer *) iter->data;
-    fail_unless_equals_int (gst_harness_push (h, gst_buffer_ref (buf)),
-        GST_FLOW_OK);
-  }
-
-  /* EOS for pending buffers to be drained if any */
-  gst_harness_push_event (h, gst_event_new_eos ());
-
-  while ((buf = gst_harness_try_pull (h)))
-    result_buffers = g_list_append (result_buffers, buf);
-
-  fail_unless_equals_int (g_list_length (result_buffers),
-      g_list_length (expected_buffers));
-
-  for (iter = expected_buffers, walk = result_buffers; iter && walk;
-      iter = g_list_next (iter), walk = g_list_next (walk)) {
-    GstBuffer *buf1, *buf2;
-    GstMapInfo map1, map2;
-
-    buf1 = (GstBuffer *) iter->data;
-    buf2 = (GstBuffer *) walk->data;
-
-    gst_buffer_map (buf1, &map1, GST_MAP_READ);
-    gst_buffer_map (buf2, &map2, GST_MAP_READ);
-
-    fail_unless_equals_int (map1.size, map2.size);
-    fail_unless (memcmp (map1.data, map2.data, map1.size) == 0);
-    gst_buffer_unmap (buf1, &map1);
-    gst_buffer_unmap (buf2, &map2);
-  }
-
-  g_list_free_full (in_buffers, (GDestroyNotify) gst_buffer_unref);
-  g_list_free_full (expected_buffers, (GDestroyNotify) gst_buffer_unref);
-  g_list_free_full (result_buffers, (GDestroyNotify) gst_buffer_unref);
-
-  gst_harness_teardown (h);
-}
-
-GST_START_TEST (test_parse_aud_insert)
-{
-  gboolean inband_aud[] = {
-    TRUE, FALSE
-  };
-  H264ParseStreamType stream_types[] = {
-    PACKETIZED_AU, BYTESTREAM_AU, BYTESTREAM_NAL
-  };
-  guint i, j, k;
-
-  for (i = 0; i < G_N_ELEMENTS (inband_aud); i++) {
-    for (j = 0; j < G_N_ELEMENTS (stream_types); j++) {
-      for (k = 0; k < G_N_ELEMENTS (stream_types); k++) {
-        check_aud_insertion (inband_aud[i], stream_types[j], stream_types[k]);
-      }
-    }
-  }
-}
-
-GST_END_TEST;
-
 /*
  * TODO:
  *   - Both push- and pull-modes need to be tested
@@ -1496,7 +599,6 @@ main (int argc, char **argv)
   /* no timing info to parse */
   ctx_no_metadata = TRUE;
   ctx_codec_data = FALSE;
-  ctx_hdr_sei = FALSE;
 
   h264_codec_data = h264_avc_codec_data;
   h264_codec_data_size = sizeof (h264_avc_codec_data);
@@ -1511,7 +613,7 @@ main (int argc, char **argv)
   ctx_verify_buffer = verify_buffer_bs_au;
   ctx_discard = 0;
   ctx_frame_generated = FALSE;
-  ctx_hdr_sei = TRUE;
+
   s = h264parse_suite ();
   nf += gst_check_run_suite (s, ctx_suite, __FILE__ "_to_bs_au.c");
 
@@ -1521,7 +623,6 @@ main (int argc, char **argv)
   ctx_verify_buffer = verify_buffer;
   ctx_discard = 0;
   ctx_codec_data = TRUE;
-  ctx_hdr_sei = FALSE;
 
   s = h264parse_suite ();
   sr = srunner_create (s);
@@ -1562,19 +663,12 @@ main (int argc, char **argv)
   s = h264parse_packetized_suite ();
   nf += gst_check_run_suite (s, ctx_suite, __FILE__ "_packetized.c");
 
-  ctx_suite = "h264parse_sliced";
-  s = h264parse_sliced_suite ();
-  nf += gst_check_run_suite (s, ctx_suite, __FILE__ "_sliced.c");
-
   {
     TCase *tc_chain = tcase_create ("general");
 
     s = suite_create ("h264parse");
     suite_add_tcase (s, tc_chain);
     tcase_add_test (tc_chain, test_parse_sei_closedcaptions);
-    tcase_add_test (tc_chain, test_parse_compatible_caps);
-    tcase_add_test (tc_chain, test_parse_skip_to_4bytes_sc);
-    tcase_add_test (tc_chain, test_parse_aud_insert);
     nf += gst_check_run_suite (s, "h264parse", __FILE__);
   }
 

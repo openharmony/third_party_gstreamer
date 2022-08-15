@@ -20,7 +20,6 @@
 
 /**
  * SECTION:element-audioecho
- * @title: audioecho
  *
  * audioecho adds an echo or (simple) reverb effect to an audio stream. The echo
  * delay, intensity and the percentage of feedback can be configured.
@@ -39,13 +38,14 @@
  * channels that are configured surround channels for the delay are
  * selected using the surround-channels mask property.
  *
- * ## Example launch lines
+ * <refsect2>
+ * <title>Example launch lines</title>
  * |[
  * gst-launch-1.0 autoaudiosrc ! audioconvert ! audioecho delay=500000000 intensity=0.6 feedback=0.4 ! audioconvert ! autoaudiosink
  * gst-launch-1.0 filesrc location="melo1.ogg" ! decodebin ! audioconvert ! audioecho delay=50000000 intensity=0.6 feedback=0.4 ! audioconvert ! autoaudiosink
  * gst-launch-1.0 audiotestsrc ! audioconvert ! audio/x-raw,channels=4 ! audioecho surround-delay=true delay=500000000 ! audioconvert ! autoaudiosink
  * ]|
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -85,8 +85,6 @@ enum
 
 #define gst_audio_echo_parent_class parent_class
 G_DEFINE_TYPE (GstAudioEcho, gst_audio_echo, GST_TYPE_AUDIO_FILTER);
-GST_ELEMENT_REGISTER_DEFINE (audioecho, "audioecho",
-    GST_RANK_NONE, GST_TYPE_AUDIO_ECHO);
 
 static void gst_audio_echo_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);

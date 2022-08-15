@@ -19,16 +19,16 @@
 
 /**
  * SECTION:element-equalizer-10bands
- * @title: equalizer-10bands
  *
  * The 10 band equalizer element allows to change the gain of 10 equally distributed
  * frequency bands between 30 Hz and 15 kHz.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 filesrc location=song.ogg ! oggdemux ! vorbisdec ! audioconvert ! equalizer-10bands band2=3.0 ! alsasink
  * ]| This raises the volume of the 3rd band which is at 119 Hz by 3 db.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -65,9 +65,6 @@ GST_DEBUG_CATEGORY_EXTERN (equalizer_debug);
 #define gst_iir_equalizer_10bands_parent_class parent_class
 G_DEFINE_TYPE (GstIirEqualizer10Bands, gst_iir_equalizer_10bands,
     GST_TYPE_IIR_EQUALIZER);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (equalizer_10bands, "equalizer-10bands",
-    GST_RANK_NONE, GST_TYPE_IIR_EQUALIZER_10BANDS,
-    equalizer_element_init (plugin));
 
 /* equalizer implementation */
 

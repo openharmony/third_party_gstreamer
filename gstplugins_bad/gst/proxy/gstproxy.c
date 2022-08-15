@@ -29,12 +29,11 @@
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  gst_element_register (plugin, "proxysrc", GST_RANK_NONE, GST_TYPE_PROXY_SRC);
+  gst_element_register (plugin, "proxysink", GST_RANK_NONE,
+      GST_TYPE_PROXY_SINK);
 
-  ret |= GST_ELEMENT_REGISTER (proxysrc, plugin);
-  ret |= GST_ELEMENT_REGISTER (proxysink, plugin);
-
-  return ret;
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

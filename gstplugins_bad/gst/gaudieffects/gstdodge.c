@@ -64,6 +64,7 @@
 #include <gst/gst.h>
 #include <math.h>
 
+#include "gstplugin.h"
 #include "gstdodge.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_dodge_debug);
@@ -77,9 +78,6 @@ GST_DEBUG_CATEGORY_STATIC (gst_dodge_debug);
 
 #define gst_dodge_parent_class parent_class
 G_DEFINE_TYPE (GstDodge, gst_dodge, GST_TYPE_VIDEO_FILTER);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (dodge, "dodge", GST_RANK_NONE,
-    GST_TYPE_DODGE, GST_DEBUG_CATEGORY_INIT (gst_dodge_debug, "dodge", 0,
-        "Template dodge"));
 
 /* Filter signals and args. */
 enum
@@ -152,7 +150,7 @@ gst_dodge_class_init (GstDodgeClass * klass)
 
 /* Initialize the element,
  * instantiate pads and add them to element,
- * set pad callback functions, and
+ * set pad calback functions, and
  * initialize instance structure.
  */
 static void
@@ -223,6 +221,17 @@ gst_dodge_transform_frame (GstVideoFilter * vfilter,
   transform (src, dest, video_size);
 
   return GST_FLOW_OK;
+}
+
+/* Entry point to initialize the plug-in.
+ * Register the element factories and other features. */
+gboolean
+gst_dodge_plugin_init (GstPlugin * dodge)
+{
+  /* debug category for fltering log messages */
+  GST_DEBUG_CATEGORY_INIT (gst_dodge_debug, "dodge", 0, "Template dodge");
+
+  return gst_element_register (dodge, "dodge", GST_RANK_NONE, GST_TYPE_DODGE);
 }
 
 /*** Now the image processing work.... ***/

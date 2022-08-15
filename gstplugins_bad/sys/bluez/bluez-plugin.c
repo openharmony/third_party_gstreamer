@@ -22,23 +22,26 @@
 #include <config.h>
 #endif
 
-#include "gstbluezelements.h"
 #include "gsta2dpsink.h"
 #include "gstavdtpsink.h"
 #include "gstavdtpsrc.h"
 #include <string.h>
 
+GST_DEBUG_CATEGORY (avdtp_debug);
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  GST_DEBUG_CATEGORY_INIT (avdtp_debug, "avdtp", 0, "avdtp utils");
 
-  ret |= GST_ELEMENT_REGISTER (a2dpsink, plugin);
-  ret |= GST_ELEMENT_REGISTER (avdtpsink, plugin);
-  ret |= GST_ELEMENT_REGISTER (avdtpsrc, plugin);
+  gst_element_register (plugin, "a2dpsink", GST_RANK_NONE, GST_TYPE_A2DP_SINK);
 
-  return ret;
+  gst_element_register (plugin, "avdtpsink",
+      GST_RANK_NONE, GST_TYPE_AVDTP_SINK);
+
+  gst_element_register (plugin, "avdtpsrc", GST_RANK_NONE, GST_TYPE_AVDTP_SRC);
+
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

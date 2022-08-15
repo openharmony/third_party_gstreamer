@@ -38,8 +38,8 @@ GST_DEBUG_CATEGORY (netsim_debug);
 static GType
 distribution_get_type (void)
 {
-  static gsize static_g_define_type_id = 0;
-  if (g_once_init_enter (&static_g_define_type_id)) {
+  static volatile gsize g_define_type_id__volatile = 0;
+  if (g_once_init_enter (&g_define_type_id__volatile)) {
     static const GEnumValue values[] = {
       {DISTRIBUTION_UNIFORM, "uniform", "uniform"},
       {DISTRIBUTION_NORMAL, "normal", "normal"},
@@ -48,9 +48,9 @@ distribution_get_type (void)
     };
     GType g_define_type_id =
         g_enum_register_static ("GstNetSimDistribution", values);
-    g_once_init_leave (&static_g_define_type_id, g_define_type_id);
+    g_once_init_leave (&g_define_type_id__volatile, g_define_type_id);
   }
-  return static_g_define_type_id;
+  return g_define_type_id__volatile;
 }
 
 enum
@@ -68,7 +68,7 @@ enum
   PROP_ALLOW_REORDERING,
 };
 
-/* these numbers are nothing but wild guesses and don't reflect any reality */
+/* these numbers are nothing but wild guesses and dont reflect any reality */
 #define DEFAULT_MIN_DELAY 200
 #define DEFAULT_MAX_DELAY 400
 #define DEFAULT_DELAY_DISTRIBUTION DISTRIBUTION_UNIFORM
@@ -93,8 +93,6 @@ GST_STATIC_PAD_TEMPLATE ("src",
     GST_STATIC_CAPS_ANY);
 
 G_DEFINE_TYPE (GstNetSim, gst_net_sim, GST_TYPE_ELEMENT);
-GST_ELEMENT_REGISTER_DEFINE (netsim, "netsim",
-    GST_RANK_MARGINAL, GST_TYPE_NET_SIM);
 
 static gboolean
 gst_net_sim_source_dispatch (GSource * source,
@@ -758,14 +756,13 @@ gst_net_sim_class_init (GstNetSimClass * klass)
           G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS));
 
   GST_DEBUG_CATEGORY_INIT (netsim_debug, "netsim", 0, "Network simulator");
-
-  gst_type_mark_as_plugin_api (distribution_get_type (), 0);
 }
 
 static gboolean
 gst_net_sim_plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (netsim, plugin);
+  return gst_element_register (plugin, "netsim",
+      GST_RANK_MARGINAL, GST_TYPE_NET_SIM);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

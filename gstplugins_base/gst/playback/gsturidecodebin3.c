@@ -55,7 +55,7 @@
 
 #include "gstplay-enum.h"
 #include "gstrawcaps.h"
-#include "gstplaybackelements.h"
+#include "gstplayback.h"
 #include "gstplaybackutils.h"
 
 #define GST_TYPE_URI_DECODE_BIN3 \
@@ -169,7 +169,7 @@ struct _OutputPad
   /* Downstream event probe id */
   gulong probe_id;
 
-  /* TRUE if the pad saw EOS. Reset to FALSE on STREAM_START */
+  /* TRUE if the pad saw EOS. Resetted to FALSE on STREAM_START */
   gboolean is_eos;
 
   /* The last seen (i.e. current) group_id
@@ -236,15 +236,6 @@ struct _GstURIDecodeBin3
   gboolean posted_about_to_finish;
 };
 
-static gint
-gst_uridecodebin3_select_stream (GstURIDecodeBin3 * dbin,
-    GstStreamCollection * collection, GstStream * stream)
-{
-  GST_LOG_OBJECT (dbin, "default select-stream, returning -1");
-
-  return -1;
-}
-
 struct _GstURIDecodeBin3Class
 {
   GstBinClass parent_class;
@@ -273,6 +264,7 @@ static GstStaticCaps raw_video_caps = GST_STATIC_CAPS ("video/x-raw(ANY)");
 /* properties */
 #define DEFAULT_PROP_URI            NULL
 #define DEFAULT_PROP_SUBURI            NULL
+#define DEFAULT_PROP_SOURCE         NULL
 #define DEFAULT_CONNECTION_SPEED    0
 #define DEFAULT_CAPS                (gst_static_caps_get (&default_raw_caps))
 #define DEFAULT_BUFFER_DURATION     -1
@@ -329,12 +321,6 @@ GType gst_uri_decode_bin3_get_type (void);
 #define gst_uri_decode_bin3_parent_class parent_class
 G_DEFINE_TYPE (GstURIDecodeBin3, gst_uri_decode_bin3, GST_TYPE_BIN);
 
-#define _do_init \
-    GST_DEBUG_CATEGORY_INIT (gst_uri_decode_bin3_debug, "uridecodebin3", 0, "URI decoder element 3"); \
-    playback_element_init (plugin);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (uridecodebin3, "uridecodebin3",
-    GST_RANK_NONE, GST_TYPE_URI_DECODE_BIN3, _do_init);
-
 #define REMOVE_SIGNAL(obj,id)            \
 if (id) {                                \
   g_signal_handler_disconnect (obj, id); \
@@ -346,13 +332,9 @@ static void gst_uri_decode_bin3_set_property (GObject * object, guint prop_id,
 static void gst_uri_decode_bin3_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 static void gst_uri_decode_bin3_finalize (GObject * obj);
-static GstSourceHandler *new_source_handler (GstURIDecodeBin3 * uridecodebin,
-    gboolean is_main);
 
 static GstStateChangeReturn gst_uri_decode_bin3_change_state (GstElement *
     element, GstStateChange transition);
-static gboolean gst_uri_decodebin3_send_event (GstElement * element,
-    GstEvent * event);
 
 static gboolean
 _gst_int_accumulator (GSignalInvocationHint * ihint,
@@ -360,7 +342,8 @@ _gst_int_accumulator (GSignalInvocationHint * ihint,
 {
   gint res = g_value_get_int (handler_return);
 
-  g_value_set_int (return_accu, res);
+  if (!(ihint->run_type & G_SIGNAL_RUN_CLEANUP))
+    g_value_set_int (return_accu, res);
 
   if (res == -1)
     return TRUE;
@@ -472,18 +455,14 @@ gst_uri_decode_bin3_class_init (GstURIDecodeBin3Class * klass)
    * This signal is emitted whenever @decodebin needs to decide whether
    * to expose a @stream of a given @collection.
    *
-   * Note that the prefered way to select streams is to listen to
-   * GST_MESSAGE_STREAM_COLLECTION on the bus and send a
-   * GST_EVENT_SELECT_STREAMS with the streams the user wants.
-   *
    * Returns: 1 if the stream should be selected, 0 if it shouldn't be selected.
    * A value of -1 (default) lets @decodebin decide what to do with the stream.
    * */
   gst_uri_decode_bin3_signals[SIGNAL_SELECT_STREAM] =
       g_signal_new ("select-stream", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstURIDecodeBin3Class, select_stream),
-      _gst_int_accumulator, NULL, NULL, G_TYPE_INT, 2,
-      GST_TYPE_STREAM_COLLECTION, GST_TYPE_STREAM);
+      _gst_int_accumulator, NULL, g_cclosure_marshal_generic,
+      G_TYPE_INT, 2, GST_TYPE_STREAM_COLLECTION, GST_TYPE_STREAM);
 
   /**
    * GstURIDecodeBin3::source-setup:
@@ -497,16 +476,18 @@ gst_uri_decode_bin3_class_init (GstURIDecodeBin3Class * klass)
    */
   gst_uri_decode_bin3_signals[SIGNAL_SOURCE_SETUP] =
       g_signal_new ("source-setup", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 1, GST_TYPE_ELEMENT);
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL,
+      g_cclosure_marshal_generic, G_TYPE_NONE, 1, GST_TYPE_ELEMENT);
   /**
    * GstURIDecodeBin3::about-to-finish:
    *
    * This signal is emitted when the data for the selected URI is
-   * entirely buffered and it is safe to specify another URI.
+   * entirely buffered and it is safe to specify anothe URI.
    */
   gst_uri_decode_bin3_signals[SIGNAL_ABOUT_TO_FINISH] =
       g_signal_new ("about-to-finish", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 0, G_TYPE_NONE);
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE,
+      0, G_TYPE_NONE);
 
 
   gst_element_class_add_static_pad_template (gstelement_class,
@@ -522,10 +503,7 @@ gst_uri_decode_bin3_class_init (GstURIDecodeBin3Class * klass)
       "Edward Hervey <edward@centricular.com>, Jan Schmidt <jan@centricular.com>");
 
   gstelement_class->change_state = gst_uri_decode_bin3_change_state;
-  gstelement_class->send_event =
-      GST_DEBUG_FUNCPTR (gst_uri_decodebin3_send_event);
 
-  klass->select_stream = gst_uridecodebin3_select_stream;
 }
 
 static GstPadProbeReturn
@@ -546,7 +524,6 @@ add_output_pad (GstURIDecodeBin3 * dec, GstPad * target_pad)
 {
   OutputPad *output;
   gchar *pad_name;
-  GstEvent *stream_start;
 
   output = g_slice_new0 (OutputPad);
 
@@ -560,17 +537,6 @@ add_output_pad (GstURIDecodeBin3 * dec, GstPad * target_pad)
   g_free (pad_name);
 
   gst_pad_set_active (output->ghost_pad, TRUE);
-
-  stream_start = gst_pad_get_sticky_event (target_pad,
-      GST_EVENT_STREAM_START, 0);
-  if (stream_start) {
-    gst_pad_store_sticky_event (output->ghost_pad, stream_start);
-    gst_event_unref (stream_start);
-  } else {
-    GST_WARNING_OBJECT (target_pad,
-        "Exposing pad without stored stream-start event");
-  }
-
   gst_element_add_pad (GST_ELEMENT (dec), output->ghost_pad);
 
   output->probe_id =
@@ -658,15 +624,7 @@ gst_uri_decode_bin3_init (GstURIDecodeBin3 * dec)
 {
   g_mutex_init (&dec->lock);
 
-  dec->uri = DEFAULT_PROP_URI;
-  dec->suburi = DEFAULT_PROP_SUBURI;
-  dec->connection_speed = DEFAULT_CONNECTION_SPEED;
-  dec->caps = DEFAULT_CAPS;
-  dec->buffer_duration = DEFAULT_BUFFER_DURATION;
-  dec->buffer_size = DEFAULT_BUFFER_SIZE;
-  dec->download = DEFAULT_DOWNLOAD;
-  dec->use_buffering = DEFAULT_USE_BUFFERING;
-  dec->ring_buffer_max_size = DEFAULT_RING_BUFFER_MAX_SIZE;
+  dec->caps = gst_static_caps_get (&default_raw_caps);
 
   dec->decodebin = gst_element_factory_make ("decodebin3", NULL);
   gst_bin_add (GST_BIN_CAST (dec), dec->decodebin);
@@ -728,11 +686,8 @@ src_pad_added_cb (GstElement * element, GstPad * pad,
   GstURIDecodeBin3 *uridecodebin;
   GstPad *sinkpad = NULL;
   GstPadLinkReturn res;
-  GstPlayItem *current_play_item;
-  GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
 
   uridecodebin = handler->uridecodebin;
-  current_play_item = uridecodebin->current;
 
   GST_DEBUG_OBJECT (uridecodebin,
       "New pad %" GST_PTR_FORMAT " from source %" GST_PTR_FORMAT, pad, element);
@@ -749,8 +704,7 @@ src_pad_added_cb (GstElement * element, GstPad * pad,
   }
 
   if (sinkpad == NULL)
-    sinkpad =
-        gst_element_request_pad_simple (uridecodebin->decodebin, "sink_%u");
+    sinkpad = gst_element_get_request_pad (uridecodebin->decodebin, "sink_%u");
 
   if (sinkpad) {
     GST_DEBUG_OBJECT (uridecodebin,
@@ -760,17 +714,6 @@ src_pad_added_cb (GstElement * element, GstPad * pad,
     if (GST_PAD_LINK_FAILED (res))
       goto link_failed;
   }
-
-  /* Activate sub_item after the main source activation was finished */
-  if (handler->is_main_source && current_play_item->sub_item
-      && !current_play_item->sub_item->handler) {
-    current_play_item->sub_item->handler =
-        new_source_handler (uridecodebin, FALSE);
-    ret = activate_source_item (current_play_item->sub_item);
-    if (ret == GST_STATE_CHANGE_FAILURE)
-      goto sub_item_activation_failed;
-  }
-
   return;
 
 link_failed:
@@ -780,39 +723,13 @@ link_failed:
         GST_DEBUG_PAD_NAME (pad), gst_pad_link_get_name (res), res);
     return;
   }
-sub_item_activation_failed:
-  {
-    GST_ERROR_OBJECT (uridecodebin,
-        "failed to activate subtitle playback item");
-    return;
-  }
 }
 
 static void
 src_pad_removed_cb (GstElement * element, GstPad * pad,
     GstSourceHandler * handler)
 {
-  GstURIDecodeBin3 *uridecodebin = handler->uridecodebin;
-  GstPad *peer_pad = gst_pad_get_peer (pad);
-
-  if (peer_pad) {
-    GstPadTemplate *templ = gst_pad_get_pad_template (peer_pad);
-
-    GST_DEBUG_OBJECT (uridecodebin,
-        "Source %" GST_PTR_FORMAT " removed pad %" GST_PTR_FORMAT " peer %"
-        GST_PTR_FORMAT, element, pad, peer_pad);
-
-    if (templ) {
-      if (GST_PAD_TEMPLATE_PRESENCE (templ) == GST_PAD_REQUEST) {
-        GST_DEBUG_OBJECT (uridecodebin,
-            "Releasing decodebin pad %" GST_PTR_FORMAT, peer_pad);
-        gst_element_release_request_pad (uridecodebin->decodebin, peer_pad);
-      }
-      gst_object_unref (templ);
-    }
-
-    gst_object_unref (peer_pad);
-  }
+  /* FIXME : IMPLEMENT */
 }
 
 static void
@@ -936,25 +853,19 @@ gst_uri_decode_bin3_get_property (GObject * object, guint prop_id,
     }
     case PROP_CURRENT_URI:
     {
-      if (dec->current && dec->current->main_item) {
-        g_value_set_string (value, dec->current->main_item->uri);
-      } else {
-        g_value_set_string (value, NULL);
-      }
+      g_value_set_string (value, dec->suburi);
       break;
     }
     case PROP_SUBURI:
     {
-      g_value_set_string (value, dec->suburi);
+      /* FIXME : Return current uri */
+      g_value_set_string (value, dec->uri);
       break;
     }
     case PROP_CURRENT_SUBURI:
     {
-      if (dec->current && dec->current->sub_item) {
-        g_value_set_string (value, dec->current->sub_item->uri);
-      } else {
-        g_value_set_string (value, NULL);
-      }
+      /* FIXME : Return current suburi */
+      g_value_set_string (value, dec->suburi);
       break;
     }
     case PROP_SOURCE:
@@ -1078,6 +989,11 @@ assign_handlers_to_item (GstURIDecodeBin3 * dec, GstPlayItem * item)
       return ret;
   }
 
+  if (item->sub_item && item->sub_item->handler) {
+    item->sub_item->handler = new_source_handler (dec, FALSE);
+    ret = activate_source_item (item->sub_item);
+  }
+
   return ret;
 }
 
@@ -1099,7 +1015,6 @@ activate_next_play_item (GstURIDecodeBin3 * dec)
   }
 
   dec->play_items = g_list_append (dec->play_items, item);
-  dec->current = dec->play_items->data;
 
   return ret;
 }
@@ -1116,7 +1031,6 @@ free_play_items (GstURIDecodeBin3 * dec)
 
   g_list_free (dec->play_items);
   dec->play_items = NULL;
-  dec->current = NULL;
 }
 
 static GstStateChangeReturn
@@ -1127,9 +1041,6 @@ gst_uri_decode_bin3_change_state (GstElement * element,
   GstURIDecodeBin3 *uridecodebin = (GstURIDecodeBin3 *) element;
 
   switch (transition) {
-    case GST_STATE_CHANGE_NULL_TO_READY:
-      g_object_set (uridecodebin->decodebin, "caps", uridecodebin->caps, NULL);
-      break;
     case GST_STATE_CHANGE_READY_TO_PAUSED:
       ret = activate_next_play_item (uridecodebin);
       if (ret == GST_STATE_CHANGE_FAILURE)
@@ -1164,13 +1075,13 @@ failure:
   }
 }
 
-static gboolean
-gst_uri_decodebin3_send_event (GstElement * element, GstEvent * event)
+
+gboolean
+gst_uri_decode_bin3_plugin_init (GstPlugin * plugin)
 {
-  GstURIDecodeBin3 *self = GST_URI_DECODE_BIN3 (element);
+  GST_DEBUG_CATEGORY_INIT (gst_uri_decode_bin3_debug, "uridecodebin3", 0,
+      "URI decoder element 3");
 
-  if (GST_EVENT_IS_UPSTREAM (event) && self->decodebin)
-    return gst_element_send_event (self->decodebin, event);
-
-  return GST_ELEMENT_CLASS (parent_class)->send_event (element, event);
+  return gst_element_register (plugin, "uridecodebin3", GST_RANK_NONE,
+      GST_TYPE_URI_DECODE_BIN3);
 }

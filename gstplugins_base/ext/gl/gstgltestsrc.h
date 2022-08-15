@@ -24,6 +24,7 @@
 #define __GST_GL_TEST_SRC_H__
 
 #include <gst/gst.h>
+#include <gst/base/gstpushsrc.h>
 
 #include <gst/gl/gl.h>
 
@@ -50,7 +51,7 @@ typedef struct _GstGLTestSrcClass GstGLTestSrcClass;
  * Opaque data structure.
  */
 struct _GstGLTestSrc {
-    GstGLBaseSrc element;
+    GstPushSrc element;
 
     /*< private >*/
 
@@ -58,13 +59,32 @@ struct _GstGLTestSrc {
     GstGLTestSrcPattern set_pattern;
     GstGLTestSrcPattern active_pattern;
 
+    /* video state */
+    GstVideoInfo out_info;
+
     GstGLFramebuffer *fbo;
+    GstGLMemory *out_tex;
+
+    GstGLShader *shader;
+
+    GstBufferPool *pool;
+
+    GstGLDisplay *display;
+    GstGLContext *context, *other_context;
+    gint64 timestamp_offset;              /* base offset */
+    GstClockTime running_time;            /* total running time */
+    gint64 n_frames;                      /* total frames sent */
+    gboolean negotiated;
+
+    gboolean gl_result;
     const struct SrcFuncs *src_funcs;
     gpointer src_impl;
+
+    GstCaps *out_caps;
 };
 
 struct _GstGLTestSrcClass {
-    GstGLBaseSrcClass parent_class;
+    GstPushSrcClass parent_class;
 };
 
 GType gst_gl_test_src_get_type (void);

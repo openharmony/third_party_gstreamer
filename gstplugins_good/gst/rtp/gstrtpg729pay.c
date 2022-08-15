@@ -34,7 +34,6 @@
 #include <gst/base/gstadapter.h>
 #include <gst/audio/audio.h>
 
-#include "gstrtpelements.h"
 #include "gstrtpg729pay.h"
 #include "gstrtputils.h"
 
@@ -79,8 +78,6 @@ static GstStaticPadTemplate gst_rtp_g729_pay_src_template =
 
 #define gst_rtp_g729_pay_parent_class parent_class
 G_DEFINE_TYPE (GstRTPG729Pay, gst_rtp_g729_pay, GST_TYPE_RTP_BASE_PAYLOAD);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpg729pay, "rtpg729pay",
-    GST_RANK_SECONDARY, GST_TYPE_RTP_G729_PAY, rtp_element_init (plugin));
 
 static void
 gst_rtp_g729_pay_finalize (GObject * object)
@@ -170,9 +167,7 @@ gst_rtp_g729_pay_push (GstRTPG729Pay * rtpg729pay, GstBuffer * buf)
       payload_len, GST_TIME_ARGS (rtpg729pay->next_ts));
 
   /* create buffer to hold the payload */
-  outbuf =
-      gst_rtp_base_payload_allocate_output_buffer (GST_RTP_BASE_PAYLOAD
-      (rtpg729pay), 0, 0, 0);
+  outbuf = gst_rtp_buffer_new_allocate (0, 0, 0);
 
   gst_rtp_buffer_map (outbuf, GST_MAP_READWRITE, &rtp);
 
@@ -391,4 +386,11 @@ gst_rtp_g729_pay_change_state (GstElement * element, GstStateChange transition)
   }
 
   return ret;
+}
+
+gboolean
+gst_rtp_g729_pay_plugin_init (GstPlugin * plugin)
+{
+  return gst_element_register (plugin, "rtpg729pay",
+      GST_RANK_SECONDARY, GST_TYPE_RTP_G729_PAY);
 }

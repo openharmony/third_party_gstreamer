@@ -39,7 +39,6 @@
 #include "config.h"
 #endif
 
-#include "gstplaybackelements.h"
 #include "gstsubtitleoverlay.h"
 
 #include <gst/pbutils/missing-plugins.h>
@@ -85,13 +84,6 @@ enum
 G_DEFINE_TYPE (GstSubtitleOverlay, gst_subtitle_overlay, GST_TYPE_BIN);
 
 static GQuark _subtitle_overlay_event_marker_id = 0;
-
-#define _do_init \
-    GST_DEBUG_CATEGORY_INIT (subtitle_overlay_debug, "subtitleoverlay", 0, "Subtitle Overlay"); \
-    playback_element_init (plugin); \
-    _subtitle_overlay_event_marker_id = g_quark_from_static_string ("gst-subtitle-overlay-event-marker")
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (subtitleoverlay, "subtitleoverlay",
-    GST_RANK_NONE, GST_TYPE_SUBTITLE_OVERLAY, _do_init);
 
 static void
 do_async_start (GstSubtitleOverlay * self)
@@ -930,7 +922,7 @@ _link_renderer (GstSubtitleOverlay * self, GstElement * renderer,
         return FALSE;
       }
     } else {
-      /* Set src ghostpad target in the hardware accelerated case */
+      /* Set src ghostpad target in the harware accelerated case */
 
       src = gst_element_get_static_pad (renderer, "src");
       if (G_UNLIKELY (!src)) {
@@ -2113,4 +2105,17 @@ gst_subtitle_overlay_init (GstSubtitleOverlay * self)
 
   self->fps_n = 0;
   self->fps_d = 0;
+}
+
+gboolean
+gst_subtitle_overlay_plugin_init (GstPlugin * plugin)
+{
+  GST_DEBUG_CATEGORY_INIT (subtitle_overlay_debug, "subtitleoverlay", 0,
+      "Subtitle Overlay");
+
+  _subtitle_overlay_event_marker_id =
+      g_quark_from_static_string ("gst-subtitle-overlay-event-marker");
+
+  return gst_element_register (plugin, "subtitleoverlay", GST_RANK_NONE,
+      GST_TYPE_SUBTITLE_OVERLAY);
 }

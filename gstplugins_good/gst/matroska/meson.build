@@ -1,7 +1,6 @@
 matroska_sources = [
   'ebml-read.c',
   'ebml-write.c',
-  'gstmatroskaelement.c',
   'matroska.c',
   'matroska-demux.c',
   'matroska-parse.c',
@@ -13,7 +12,7 @@ matroska_sources = [
 ]
 
 bz2_dep = cc.find_library('bz2', required : get_option('bz2'))
-cdata.set('HAVE_BZ2', bz2_dep.found() and cc.has_header('bzlib.h'))
+cdata.set('HAVE_BZ2', bz2_dep.found())
 
 gstmatroska = library('gstmatroska',
   matroska_sources,
@@ -27,4 +26,3 @@ gstmatroska = library('gstmatroska',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstmatroska, install_dir : plugins_pkgconfig_install_dir)
-plugins += [gstmatroska]

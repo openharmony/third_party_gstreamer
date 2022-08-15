@@ -61,8 +61,6 @@ struct _GstGSMDecClass
 
 GType gst_gsmdec_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (gsmdec);
-
 G_END_DECLS
 
 #endif /* __GST_GSMDEC_H__ */

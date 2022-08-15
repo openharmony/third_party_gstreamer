@@ -41,10 +41,6 @@
 #include <gdk/gdkwin32.h>
 #elif defined (GDK_WINDOWING_QUARTZ)
 #include <gdk/gdkquartz.h>
-#if GTK_CHECK_VERSION(3, 24, 10)
-#include <AppKit/AppKit.h>
-NSView *gdk_quartz_window_get_nsview (GdkWindow * window);
-#endif
 #endif
 
 #include <gst/video/videooverlay.h>
@@ -153,7 +149,6 @@ typedef struct
   gboolean flush_seek;
   gboolean scrub;
   gboolean play_scrub;
-  gboolean instant_rate_change;
   gboolean skip_seek;
   gboolean skip_seek_key_only;
   gboolean skip_seek_no_audio;
@@ -549,9 +544,6 @@ do_seek (PlaybackApp * app, GstFormat format, gint64 position)
 {
   gboolean res = FALSE;
   GstEvent *s_event;
-  GstClockTime start, stop;
-  GstSeekType start_type = GST_SEEK_TYPE_SET;
-  GstSeekType stop_type = GST_SEEK_TYPE_SET;
   GstSeekFlags flags;
 
   flags = 0;
@@ -574,35 +566,18 @@ do_seek (PlaybackApp * app, GstFormat format, gint64 position)
   if (app->snap_after)
     flags |= GST_SEEK_FLAG_SNAP_AFTER;
 
-  if (app->instant_rate_change) {
-    flags |= GST_SEEK_FLAG_INSTANT_RATE_CHANGE;
-    start_type = stop_type = GST_SEEK_TYPE_NONE;
-    start = stop = GST_CLOCK_TIME_NONE;
-    if (app->flush_seek) {
-      g_warning ("Instant rate change seek not supported with flushing");
-      return;
-    }
-  } else if (position == GST_CLOCK_TIME_NONE) {
-    start_type = stop_type = GST_SEEK_TYPE_NONE;
-    start = stop = GST_CLOCK_TIME_NONE;
-  } else if (app->rate < 0) {
-    stop = position;
-    start = 0;
-  } else {
-    start = position;
-    stop = GST_CLOCK_TIME_NONE;
-  }
-
   if (app->rate >= 0) {
     s_event = gst_event_new_seek (app->rate,
-        format, flags, start_type, start, stop_type, stop);
+        format, flags, GST_SEEK_TYPE_SET, position, GST_SEEK_TYPE_SET,
+        GST_CLOCK_TIME_NONE);
     GST_DEBUG ("seek with rate %lf to %" GST_TIME_FORMAT " / %" GST_TIME_FORMAT,
-        app->rate, GST_TIME_ARGS (start), GST_TIME_ARGS (stop));
+        app->rate, GST_TIME_ARGS (position), GST_TIME_ARGS (app->duration));
   } else {
     s_event = gst_event_new_seek (app->rate,
-        format, flags, start_type, start, stop_type, stop);
+        format, flags, GST_SEEK_TYPE_SET, G_GINT64_CONSTANT (0),
+        GST_SEEK_TYPE_SET, position);
     GST_DEBUG ("seek with rate %lf to %" GST_TIME_FORMAT " / %" GST_TIME_FORMAT,
-        app->rate, GST_TIME_ARGS (start), GST_TIME_ARGS (stop));
+        app->rate, GST_TIME_ARGS (0), GST_TIME_ARGS (position));
   }
 
   res = send_event (app, s_event);
@@ -658,9 +633,6 @@ advanced_seek_button_cb (GtkButton * button, PlaybackApp * app)
   const gchar *text;
   gchar *endptr;
 
-  if (!app->seek_format)
-    return;
-
   fmt = app->seek_format->value;
 
   text = gtk_entry_get_text (GTK_ENTRY (app->seek_entry));
@@ -668,8 +640,6 @@ advanced_seek_button_cb (GtkButton * button, PlaybackApp * app)
   pos = g_ascii_strtoll (text, &endptr, 10);
   if (endptr != text && pos != G_MAXINT64 && pos != G_MININT64) {
     do_seek (app, fmt, pos);
-  } else if (strlen (text) == 0) {
-    do_seek (app, fmt, GST_CLOCK_TIME_NONE);
   }
 }
 
@@ -970,12 +940,6 @@ play_scrub_toggle_cb (GtkToggleButton * button, PlaybackApp * app)
 }
 
 static void
-instant_rate_change_toggle_cb (GtkToggleButton * button, PlaybackApp * app)
-{
-  app->instant_rate_change = gtk_toggle_button_get_active (button);
-}
-
-static void
 skip_toggle_common (gboolean * v, GtkToggleButton * button, PlaybackApp * app)
 {
   *v = gtk_toggle_button_get_active (button);
@@ -1013,9 +977,6 @@ rate_spinbutton_changed_cb (GtkSpinButton * button, PlaybackApp * app)
   gboolean res = FALSE;
   GstEvent *s_event;
   GstSeekFlags flags;
-  GstClockTime start, stop;
-  GstSeekType start_type = GST_SEEK_TYPE_SET;
-  GstSeekType stop_type = GST_SEEK_TYPE_SET;
 
   app->rate = gtk_spin_button_get_value (button);
 
@@ -1037,28 +998,14 @@ rate_spinbutton_changed_cb (GtkSpinButton * button, PlaybackApp * app)
   if (app->skip_seek_no_audio)
     flags |= GST_SEEK_FLAG_TRICKMODE_NO_AUDIO;
 
-  if (app->instant_rate_change) {
-    flags |= GST_SEEK_FLAG_INSTANT_RATE_CHANGE;
-    start_type = stop_type = GST_SEEK_TYPE_NONE;
-    start = stop = GST_CLOCK_TIME_NONE;
-    if (app->flush_seek) {
-      g_warning ("Instant rate change seek not supported with flushing");
-      return;
-    }
-  } else if (app->rate < 0) {
-    stop = app->position;
-    start = 0;
-  } else {
-    start = app->position;
-    stop = GST_CLOCK_TIME_NONE;
-  }
-
   if (app->rate >= 0.0) {
     s_event = gst_event_new_seek (app->rate,
-        GST_FORMAT_TIME, flags, start_type, start, stop_type, stop);
+        GST_FORMAT_TIME, flags, GST_SEEK_TYPE_SET, app->position,
+        GST_SEEK_TYPE_SET, GST_CLOCK_TIME_NONE);
   } else {
     s_event = gst_event_new_seek (app->rate,
-        GST_FORMAT_TIME, flags, start_type, start, stop_type, stop);
+        GST_FORMAT_TIME, flags, GST_SEEK_TYPE_SET, G_GINT64_CONSTANT (0),
+        GST_SEEK_TYPE_SET, app->position);
   }
 
   res = send_event (app, s_event);
@@ -1507,7 +1454,7 @@ shot_cb (GtkButton * button, PlaybackApp * app)
 
     /* get the snapshot buffer format now. We set the caps on the appsink so
      * that it can only be an rgb buffer. The only thing we have not specified
-     * on the caps is the height, which is dependent on the pixel-aspect-ratio
+     * on the caps is the height, which is dependant on the pixel-aspect-ratio
      * of the source material */
     caps = gst_sample_get_caps (sample);
     if (!caps) {
@@ -1586,6 +1533,34 @@ step_cb (GtkButton * button, PlaybackApp * app)
 static void
 message_received (GstBus * bus, GstMessage * message, PlaybackApp * app)
 {
+  const GstStructure *s;
+
+  switch (GST_MESSAGE_TYPE (message)) {
+    case GST_MESSAGE_ERROR:
+      GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS (GST_BIN (app->pipeline),
+          GST_DEBUG_GRAPH_SHOW_ALL, "seek.error");
+      break;
+    case GST_MESSAGE_WARNING:
+      GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS (GST_BIN (app->pipeline),
+          GST_DEBUG_GRAPH_SHOW_ALL, "seek.warning");
+      break;
+    default:
+      break;
+  }
+
+  s = gst_message_get_structure (message);
+  g_print ("message from \"%s\" (%s): ",
+      GST_STR_NULL (GST_ELEMENT_NAME (GST_MESSAGE_SRC (message))),
+      gst_message_type_get_name (GST_MESSAGE_TYPE (message)));
+  if (s) {
+    gchar *sstr;
+
+    sstr = gst_structure_to_string (s);
+    g_print ("%s\n", sstr);
+    g_free (sstr);
+  } else {
+    g_print ("no message details\n");
+  }
 }
 
 static void
@@ -2231,13 +2206,6 @@ draw_cb (GtkWidget * widget, cairo_t * cr, PlaybackApp * app)
     return TRUE;
   }
 
-  /* "prepare-window-handle" message might not be posted yet depending on
-   * videosink implementation */
-  if (!app->overlay_element) {
-    app->overlay_element = gst_bin_get_by_interface (GST_BIN (app->pipeline),
-        GST_TYPE_VIDEO_OVERLAY);
-  }
-
   if (app->overlay_element)
     gst_video_overlay_expose (GST_VIDEO_OVERLAY (app->overlay_element));
 
@@ -2321,39 +2289,6 @@ motion_notify_cb (GtkWidget * widget, GdkEventMotion * event, PlaybackApp * app)
 
   return FALSE;
 }
-
-#ifdef G_OS_WIN32
-/* On Windows, videosink elements expect full-size overlay window handle.
- * And an expectation for window resize scenario is that WM_SIZE event of
- * parent HWND is forwarded to child window.
- * But some GUI applications like GTK might handle WM_SIZE event by themselves
- * and therefore child HWND wouldn't be able to understand any resize event.
- *
- * In this example, we will watch "configure-event" of GTK widget and
- * GstVideoOverlay::set_render_rectangle() will be used to notify videosink
- * elements of resized render area.
- */
-static gboolean
-configure_event_cb (GtkWidget * widget, GdkEventConfigure * event,
-    PlaybackApp * app)
-{
-  /* GdkEventConfigure::x and GdkEventConfigure::y are positions of this
-   * video widget relative to parent. So, we should not forward it to videosink.
-   * From videosink point of view, its parent window is this video widget */
-
-  if (!app->overlay_element) {
-    app->overlay_element = gst_bin_get_by_interface (GST_BIN (app->pipeline),
-        GST_TYPE_VIDEO_OVERLAY);
-  }
-
-  if (app->overlay_element) {
-    gst_video_overlay_set_render_rectangle (GST_VIDEO_OVERLAY
-        (app->overlay_element), 0, 0, event->width, event->height);
-  }
-
-  return FALSE;
-}
-#endif
 
 static void
 msg_eos (GstBus * bus, GstMessage * message, PlaybackApp * app)
@@ -2487,10 +2422,6 @@ connect_bus_signals (PlaybackApp * app)
   gst_object_unref (bus);
 }
 
-#if !GLIB_CHECK_VERSION(2,70,0)
-#define g_pattern_spec_match_string g_pattern_match_string
-#endif
-
 /* Return GList of paths described in location string */
 static GList *
 handle_wildcards (const gchar * location)
@@ -2510,7 +2441,7 @@ handle_wildcards (const gchar * location)
   }
 
   while ((name = g_dir_read_name (dir)) != NULL) {
-    if (g_pattern_spec_match_string (pspec, name)) {
+    if (g_pattern_match_string (pspec, name)) {
       res = g_list_append (res, g_strjoin ("/", path, name, NULL));
       g_print ("  found clip %s\n", name);
     }
@@ -2730,10 +2661,6 @@ create_ui (PlaybackApp * app)
       G_CALLBACK (key_release_cb), app);
   g_signal_connect (app->video_window, "motion-notify-event",
       G_CALLBACK (motion_notify_cb), app);
-#ifdef G_OS_WIN32
-  g_signal_connect (app->video_window, "configure-event",
-      G_CALLBACK (configure_event_cb), app);
-#endif
   gtk_widget_set_can_focus (app->video_window, TRUE);
   gtk_widget_add_events (app->video_window,
       GDK_POINTER_MOTION_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK
@@ -2759,11 +2686,11 @@ create_ui (PlaybackApp * app)
 
   /* seek expander */
   {
-    GtkWidget *accurate_checkbox, *key_checkbox, *loop_checkbox;
-    GtkWidget *flush_checkbox, *snap_before_checkbox, *snap_after_checkbox;
+    GtkWidget *accurate_checkbox, *key_checkbox, *loop_checkbox,
+        *flush_checkbox, *snap_before_checkbox, *snap_after_checkbox;
     GtkWidget *scrub_checkbox, *play_scrub_checkbox, *rate_label;
-    GtkWidget *skip_checkbox, *skip_key_checkbox, *skip_audio_checkbox;
-    GtkWidget *instant_checkbox, *rate_spinbutton;
+    GtkWidget *skip_checkbox, *skip_key_checkbox, *skip_audio_checkbox,
+        *rate_spinbutton;
     GtkWidget *flagtable, *advanced_seek, *advanced_seek_grid;
     GtkWidget *duration_label, *position_label, *seek_button;
     GtkWidget *start_label, *stop_label;
@@ -2781,7 +2708,6 @@ create_ui (PlaybackApp * app)
     flush_checkbox = gtk_check_button_new_with_label ("Flush");
     scrub_checkbox = gtk_check_button_new_with_label ("Scrub");
     play_scrub_checkbox = gtk_check_button_new_with_label ("Play Scrub");
-    instant_checkbox = gtk_check_button_new_with_label ("Instant Rate Change");
     skip_checkbox = gtk_check_button_new_with_label ("Trickmode Play");
     skip_key_checkbox =
         gtk_check_button_new_with_label ("Trickmode - Keyframes Only");
@@ -2805,7 +2731,6 @@ create_ui (PlaybackApp * app)
     gtk_widget_set_tooltip_text (scrub_checkbox, "show images while seeking");
     gtk_widget_set_tooltip_text (play_scrub_checkbox,
         "play video while seeking");
-    gtk_widget_set_tooltip_text (instant_checkbox, "do instant rate changes");
     gtk_widget_set_tooltip_text (skip_checkbox,
         "Skip frames while playing at high frame rates");
     gtk_widget_set_tooltip_text (skip_key_checkbox,
@@ -2834,8 +2759,6 @@ create_ui (PlaybackApp * app)
         G_CALLBACK (scrub_toggle_cb), app);
     g_signal_connect (G_OBJECT (play_scrub_checkbox), "toggled",
         G_CALLBACK (play_scrub_toggle_cb), app);
-    g_signal_connect (G_OBJECT (instant_checkbox), "toggled",
-        G_CALLBACK (instant_rate_change_toggle_cb), app);
     g_signal_connect (G_OBJECT (skip_checkbox), "toggled",
         G_CALLBACK (skip_toggle_cb), app);
     g_signal_connect (G_OBJECT (skip_key_checkbox), "toggled",
@@ -2855,7 +2778,6 @@ create_ui (PlaybackApp * app)
     gtk_grid_attach (GTK_GRID (flagtable), key_checkbox, 0, 1, 1, 1);
     gtk_grid_attach (GTK_GRID (flagtable), scrub_checkbox, 1, 1, 1, 1);
     gtk_grid_attach (GTK_GRID (flagtable), play_scrub_checkbox, 2, 1, 1, 1);
-    gtk_grid_attach (GTK_GRID (flagtable), instant_checkbox, 2, 2, 1, 1);
     gtk_grid_attach (GTK_GRID (flagtable), skip_checkbox, 3, 0, 1, 1);
     gtk_grid_attach (GTK_GRID (flagtable), skip_key_checkbox, 3, 1, 1, 1);
     gtk_grid_attach (GTK_GRID (flagtable), skip_audio_checkbox, 3, 2, 1, 1);
@@ -3432,8 +3354,7 @@ create_ui (PlaybackApp * app)
   } else {
     playbin = NULL;
   }
-  if (app->pipeline_type == 0)
-    gtk_window_set_title (GTK_WINDOW (app->window), app->current_path->data);
+
   /* do the packing stuff ... */
   gtk_window_set_default_size (GTK_WINDOW (app->window), 250, 96);
   /* FIXME: can we avoid this for audio only? */
@@ -3494,19 +3415,14 @@ set_defaults (PlaybackApp * app)
 static void
 reset_app (PlaybackApp * app)
 {
-  GstBus *bus = gst_pipeline_get_bus (GST_PIPELINE (app->pipeline));
-  gst_bus_remove_signal_watch (bus);
-  gst_object_unref (bus);
-
   g_list_free (app->formats);
+
   g_mutex_clear (&app->state_mutex);
 
   if (app->overlay_element)
     gst_object_unref (app->overlay_element);
   if (app->navigation_element)
     gst_object_unref (app->navigation_element);
-  if (app->colorbalance_element)
-    gst_object_unref (app->colorbalance_element);
 
   g_list_foreach (app->paths, (GFunc) g_free, NULL);
   g_list_free (app->paths);
@@ -3646,7 +3562,6 @@ main (int argc, char **argv)
   gst_element_set_state (app.pipeline, GST_STATE_NULL);
 
   reset_app (&app);
-  gst_deinit ();
 
   return 0;
 }

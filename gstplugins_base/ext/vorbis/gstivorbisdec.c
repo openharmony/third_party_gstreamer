@@ -21,12 +21,22 @@
 #include "config.h"
 #endif
 
-#include "gstvorbiselements.h"
+#include "gstvorbisdec.h"
+
+GST_DEBUG_CATEGORY (ivorbisdec_debug);
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (ivorbisdec, plugin);
+
+  if (!gst_element_register (plugin, "ivorbisdec", GST_RANK_SECONDARY,
+          gst_vorbis_dec_get_type ()))
+    return FALSE;
+
+  GST_DEBUG_CATEGORY_INIT (ivorbisdec_debug, "ivorbisdec", 0,
+      "vorbis decoding element (integer decoder)");
+
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

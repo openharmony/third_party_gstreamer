@@ -27,10 +27,19 @@
 #include <gst/video/gstvideoencoder.h>
 #include <png.h>
 
-G_BEGIN_DECLS
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
-#define GST_TYPE_PNGENC (gst_pngenc_get_type())
-G_DECLARE_FINAL_TYPE (GstPngEnc, gst_pngenc, GST, PNGENC, GstVideoEncoder)
+
+#define GST_TYPE_PNGENC            (gst_pngenc_get_type())
+#define GST_PNGENC(obj)            (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_PNGENC,GstPngEnc))
+#define GST_PNGENC_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_PNGENC,GstPngEncClass))
+#define GST_IS_PNGENC(obj)         (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_PNGENC))
+#define GST_IS_PNGENC_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_PNGENC))
+
+typedef struct _GstPngEnc GstPngEnc;
+typedef struct _GstPngEncClass GstPngEncClass;
 
 struct _GstPngEnc
 {
@@ -50,8 +59,17 @@ struct _GstPngEnc
   gboolean newmedia;
 };
 
-GST_ELEMENT_REGISTER_DECLARE (pngenc);
+struct _GstPngEncClass
+{
+  GstVideoEncoderClass parent_class;
+};
 
-G_END_DECLS
+GType gst_pngenc_get_type(void);
+
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
 
 #endif /* __GST_PNGENC_H__ */

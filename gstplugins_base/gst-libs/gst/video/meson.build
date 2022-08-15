@@ -1,9 +1,8 @@
-video_sources = files([
+video_sources = [
   'colorbalance.c',
   'colorbalancechannel.c',
   'convertframe.c',
   'gstvideoaffinetransformationmeta.c',
-  'gstvideocodecalphameta.c',
   'gstvideoaggregator.c',
   'gstvideodecoder.c',
   'gstvideoencoder.c',
@@ -25,7 +24,6 @@ video_sources = files([
   'video-event.c',
   'video-format.c',
   'video-frame.c',
-  'video-hdr.c',
   'video-info.c',
   'video-multiview.c',
   'video-resampler.c',
@@ -35,13 +33,12 @@ video_sources = files([
   'videodirection.c',
   'videoorientation.c',
   'videooverlay.c',
-])
+]
 
-video_headers = files([
+video_headers = [
   'colorbalance.h',
   'colorbalancechannel.h',
   'gstvideoaffinetransformationmeta.h',
-  'gstvideocodecalphameta.h',
   'gstvideoaggregator.h',
   'gstvideodecoder.h',
   'gstvideoencoder.h',
@@ -60,7 +57,6 @@ video_headers = files([
   'video-color.h',
   'video-converter.h',
   'video-dither.h',
-  'video-hdr.h',
   'video-info.h',
   'video-frame.h',
   'video-prelude.h',
@@ -73,7 +69,7 @@ video_headers = files([
   'video-blend.h',
   'video-overlay-composition.h',
   'video-multiview.h',
-])
+]
 install_headers(video_headers, subdir : 'gstreamer-1.0/gst/video/')
 
 video_mkenum_headers = [
@@ -90,11 +86,6 @@ video_mkenum_headers = [
   'video-resampler.h',
   'video-scaler.h',
   'video-tile.h',
-  'gstvideometa.h',
-  'gstvideotimecode.h',
-  'gstvideoutils.h',
-  'gstvideoencoder.h',
-  'gstvideodecoder.h',
   'colorbalance.h',
   'navigation.h',
 ]
@@ -122,7 +113,6 @@ if have_orcc
     input : orcsrc + '.orc',
     output : orcsrc + '.c',
     command : orcc_args + ['--implementation', '-o', '@OUTPUT@', '@INPUT@'])
-  orc_targets += {'name': orcsrc, 'orc-source': files(orcsrc + '.orc'), 'header': orc_h, 'source': orc_c}
 else
   orc_h = configure_file(input : orcsrc + '-dist.h',
     output : orcsrc + '.h',
@@ -134,7 +124,7 @@ endif
 
 gstvideo = library('gstvideo-@0@'.format(api_version),
   video_sources, gstvideo_h, gstvideo_c, orc_c, orc_h,
-  c_args : gst_plugins_base_args + ['-DBUILDING_GST_VIDEO', '-DG_LOG_DOMAIN="GStreamer-Video"'],
+  c_args : gst_plugins_base_args + ['-DBUILDING_GST_VIDEO'],
   include_directories: [configinc, libsinc],
   version : libversion,
   soversion : soversion,
@@ -143,41 +133,23 @@ gstvideo = library('gstvideo-@0@'.format(api_version),
   dependencies : gstvideo_deps,
 )
 
-library_def = {'lib': gstvideo}
-pkg_name = 'gstreamer-video-1.0'
-pkgconfig.generate(gstvideo,
-  libraries : [gst_dep, gst_base_dep],
-  variables : pkgconfig_variables,
-  subdirs : pkgconfig_subdirs,
-  name : pkg_name,
-  description : 'Video base classes and helper functions',
-)
-
 if build_gir
   gst_gir_extra_args = gir_init_section + [ '--c-include=gst/video/video.h' ]
-  gir = {
-    'sources' : video_sources + video_headers + [gstvideo_c] + [gstvideo_h],
-    'namespace' : 'GstVideo',
-    'nsversion' : api_version,
-    'identifier_prefix' : 'Gst',
-    'symbol_prefix' : 'gst',
-    'export_packages' : pkg_name,
-    'includes' : ['Gst-1.0','GstBase-1.0'],
-    'install' : true,
-    'extra_args' : gst_gir_extra_args,
-    'dependencies' : gstvideo_deps
-  }
-  library_def += {'gir': [gir]}
-  if not static_build
-    video_gir = gnome.generate_gir(gstvideo, kwargs: gir)
-    video_gen_sources += [video_gir]
-  endif
+  video_gen_sources += [gnome.generate_gir(gstvideo,
+    sources : video_sources + video_headers + [gstvideo_c] + [gstvideo_h],
+    namespace : 'GstVideo',
+    nsversion : api_version,
+    identifier_prefix : 'Gst',
+    symbol_prefix : 'gst',
+    export_packages : 'gstreamer-video-1.0',
+    includes : ['Gst-1.0', 'GstBase-1.0'],
+    install : true,
+    extra_args : gst_gir_extra_args,
+    dependencies : gstvideo_deps
+  )]
 endif
-libraries += [[pkg_name, library_def]]
 
 video_dep = declare_dependency(link_with : gstvideo,
   include_directories : [libsinc],
   dependencies : gstvideo_deps,
   sources : video_gen_sources)
-
-meson.override_dependency(pkg_name, video_dep)

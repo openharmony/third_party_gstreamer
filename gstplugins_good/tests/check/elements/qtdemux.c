@@ -22,7 +22,6 @@
 
 #include "qtdemux.h"
 #include <glib/gprintf.h>
-#include <gst/check/gstharness.h>
 
 typedef struct
 {
@@ -72,106 +71,6 @@ qtdemux_pad_added_cb (GstElement * element, GstPad * pad, CommonTestData * data)
   gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_DATA_DOWNSTREAM,
       (GstPadProbeCallback) qtdemux_probe, data, NULL);
 }
-
-GST_START_TEST (test_qtdemux_fuzzed0)
-{
-  GstHarness *h;
-  GstBuffer *buf;
-  guchar *fuzzed_qtdemux;
-  gsize fuzzed_qtdemux_len;
-
-  /* The goal of this test is to check that qtdemux can properly handle
-   * a stream that does not contain any stsd entries, by correctly identifying
-   * the case and erroring out appropriately.
-   */
-
-  h = gst_harness_new_parse ("qtdemux");
-  gst_harness_set_src_caps_str (h, "video/quicktime");
-
-  fuzzed_qtdemux =
-      g_base64_decode
-      ("AAAAIGZ0eXBtcDQyAAAAAG1wNDJtcDQxaXNvbWlzbzIAAAAIZnJlZQAAAMltZGF0AAAADGdCwAyV"
-      "oQkgHhEI1AAAAARozjyAAAAAIWW4AA5///wRRQAfHAxwABAJkxWTk6xWuuuupaupa6668AAAABJB"
-      "4CBX8Zd3d3d3d3d3eJ7E8ZAAAABWQeBAO/wpFAYoDFAYoDFAYkeKAzx4+gAA+kcPHBQGePPHF6jj"
-      "HP0Qdj/og7H/SHY/6jsf9R2P+o7H/Udj/qOx/1HY/6jsf9R2P+o7H/Udj/qOx/1HY/AAAAAGQeBg"
-      "O8IwAAAABkHggDvCMAAAA1dtb292AAAAbG12aGQAAAAA1lbpxdZW6cYAAAfQAAAH0AABAAABAAAA"
-      "AAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAA"
-      "AAAAAAAAAAAAAAAAAAACAAACpnRyYWsAAABcdGtoZAAAAAfWVunF1lbpxgAAAAEAAAAAAAAH0AAA"
-      "AAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAQAAAAEA"
-      "AAAAACRlZHRzAAAAHGVsc3QAAIAAAAAAAQAAB9AAAAAAAAEAAAAAAeFtZGlhAAAAIG1kaGQAAAAA"
-      "1lbpxdZW6cYAAAH0AAAB9FXEAAAAAAAtaGRscgAAAAAAAAAAdmlkZUAAAAAAAAAAAAAAAFZpZGVv"
-      "SGFuZGxlcgAAAAGMbWluZgAAABR2bWhkAAAAAQAAAAAAAAAAAAAAJGRpbmYAAAAcZHJlZgAAAAAA"
-      "AAABAAAADHVybCAAAAABAAABTHN0YmwAAADAc3RzZAAAAAAAAAAAAAAAsGF2YzEAAAAAAAAAAQAA"
-      "AAAAAAAZAAAAAAAAAAAAQABAAEgAAABIAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-      "AAAAAAAAAAAY//8AAAAjYXZjQwFCwAz/4QAMZ0LADJWhCSAeEQjUAQAEaM48gAAAABRidHJ0AAAA"
-      "AAAAAAAAAAYIAAAAE2NvbHJuY2x4AAYAAQAGAAAAABBwYXNwAAAAAQAAAAEAAAAYc3R0cwAAAAAA"
-      "AAABAAAABQAAAAAAAAAUc3RzcwAAAAAAAAABAAAAAQAAABxzdHNjAAAAAAAAAAEAAAABAAAABQAA"
-      "AAEAAAAoc3RzegAAAAAAAAAAAAAAAQAAAAAAAAAWAAAAWgAAAAoAAAAKAAAAFHN0Y28AAAAAAAAA"
-      "AQAAADAAAAA9dWR0YQAAADVtZXRhAAAAAAAAACFoZGxyAAAAAG1obJJtZGlyAAAAAAAAAAAAAAAA"
-      "AAAAAAhpbHN0AAAAPXVkdGEAAAA1bWV0YQAAAAAAAAAhaGRscgAAAABtaGxybWRpcgAAAAAAAAAA"
-      "AAAAAAAAAAAIaWxzdA==", &fuzzed_qtdemux_len);
-
-  buf = gst_buffer_new_and_alloc (fuzzed_qtdemux_len);
-  gst_buffer_fill (buf, 0, fuzzed_qtdemux, fuzzed_qtdemux_len);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-
-  fail_unless (gst_harness_buffers_received (h) == 0);
-
-  g_free (fuzzed_qtdemux);
-  gst_harness_teardown (h);
-}
-
-GST_END_TEST;
-
-GST_START_TEST (test_qtdemux_fuzzed1)
-{
-  GstHarness *h;
-  GstBuffer *buf;
-  guchar *fuzzed_qtdemux;
-  gsize fuzzed_qtdemux_len;
-
-  /* The goal of this test is to check that qtdemux can properly handle
-   * a stream that claims it contains more stsd entries than it can possibly have,
-   * by correctly identifying the case and erroring out appropriately.
-   */
-
-  h = gst_harness_new_parse ("qtdemux");
-  gst_harness_set_src_caps_str (h, "video/quicktime");
-
-  fuzzed_qtdemux =
-      g_base64_decode
-      ("AAAAIGZ0eXBtcDQyAAAAAG1wNDJtcDQxaXNvbWlzbzIAAAAIZnJlZQAAAMltZGF0AAAADGdCwAyV"
-      "oQkgHhEI1AAAAARozjyAAAAAIWW4BA5///wRRQAfHAxwABAJkxWTk6xWuuuupaupa6668AAAABJB"
-      "4CBX8Zd3d3d3d3d3eJ7E8ZAAAABWQeBAO+opFAYoDFAYoDFAYkeKAzx4oDFAYkcPHBQGePPHF6jj"
-      "HP0Qdj/og7H/SHY/6jsf9R2P+o7H/Udj/qOx/1HY/6jsf9R2P+o7H/Udj/qOx/1HY/AAAAAGQeBg"
-      "O8IwAAAABkHggDvCMAAAA1dtb292AAAAbG12aGQAAAAA1lbpxdZW6cYAAAfQAAAH0AABAAABAAAA"
-      "AAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAA"
-      "AAAAAAAAAAAAAAAAAAACAAACpnRyYWsAAABcdGtoZAAAAAfWVunF1lbpxgAAAAEAAAAAAAAH0AAA"
-      "AAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAQAAAAEA"
-      "AAAAACRlZHRzAAAAHGVsc3QAAAAAAAAAAQAAB9AAAAAAAAEAAAAAAeFtZGlhAAAAIG1kaGQAAAAA"
-      "1lbpxdZW6cYAAAH0AAAB9FXEAAAAAAAtaGRscgAAAAAAAAAAdmlkZQAAAAAAAAAAAAAAAFZpZGVv"
-      "SGFuZGxlcgAAAAGMbWluZgAAABR2bWhkAAAAAQAAAAAAAAAAAAAAJGRpbmYAAAAcZHJlZgAAAAAA"
-      "AAABAAAADHVybCAAAAABAAABTHN0YmwAAADAc3RzZAAAAADv/wABAAAAsGF2YzEAAAAAAAAAAQAA"
-      "AAAAAAAAAAAAAAAAAAAAQABAAEgAAABIAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-      "AAAAAAAAAAAY//8AAAAjYXZjQwFCwAz/4QAMZ0LADJWhCSAeEQjUAQAEaM48gAAAABRidHJ0AAAA"
-      "AAAAAAAAAAYIAAAAE2NvbHJuY2x4AAYAAQAGAAAAABBwYXNwAAAAAQAAAAEAAAAYc3R0cwAAAAAA"
-      "AAABAAAABQAAAGQAAAAUc3RzcwAAAAAAAAABAAAAAQAAABxzdHNjAAAAAAAAAAEAAAABAAAABQAA"
-      "AAEAAAAoc3RzegAAAAAAAAAAAAAABQAAAD0AAAAWAAAAWgAAAAoAAAAKAAAAFHN0Y28AAAAAAAAA"
-      "AQAAADAAAAA9dWR0YQAAADVtZXRhAAAAAAAAACFoZGxyAAAAAG1obHJtZGlyAAAAAAAAAAAAAAAA"
-      "AAAAAAhpbHN0AAAAPXVkdGEAAAA1bWV0YQAAAAAAAAAhaGRscgAAAABtaGxybWRpcgAAAAAAAAAA"
-      "AAAAAAAAAAAIaWxzdA==", &fuzzed_qtdemux_len);
-
-  buf = gst_buffer_new_and_alloc (fuzzed_qtdemux_len);
-  gst_buffer_fill (buf, 0, fuzzed_qtdemux, fuzzed_qtdemux_len);
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-
-  fail_unless (gst_harness_buffers_received (h) == 0);
-
-  g_free (fuzzed_qtdemux);
-  gst_harness_teardown (h);
-}
-
-GST_END_TEST;
 
 GST_START_TEST (test_qtdemux_input_gap)
 {
@@ -740,154 +639,6 @@ GST_START_TEST (test_qtdemux_stream_change)
 
 GST_END_TEST;
 
-static void
-qtdemux_pad_added_cb_check_name (GstElement * element, GstPad * pad,
-    gchar * data)
-{
-  gchar *pad_name = gst_pad_get_name (pad);
-
-  GST_DEBUG_OBJECT (pad, "New pad added");
-  fail_unless (!g_strcmp0 (pad_name, data));
-  g_free (pad_name);
-}
-
-GST_START_TEST (test_qtdemux_pad_names)
-{
-  GstElement *qtdemux_v;
-  GstElement *qtdemux_a;
-  GstPad *sinkpad;
-  gchar *expected_video_pad_name;
-  gchar *expected_audio_pad_name;
-  GstBuffer *inbuf;
-  GstSegment segment;
-  GstEvent *event;
-  GstCaps *caps;
-  GstCaps *mediacaps;
-
-  /* The goal of this test is to check that qtdemux can create proper
-   * pad names with encrypted stream caps in mss mode.
-   *
-   * Input Caps:
-   *   - media-caps with cenc
-   *
-   * Expected behaviour
-   *  - Demux exposes src pad with names in accordance to their media types
-   */
-  expected_video_pad_name = g_strdup ("video_0");
-  qtdemux_v = gst_element_factory_make ("qtdemux", NULL);
-  gst_element_set_state (qtdemux_v, GST_STATE_PLAYING);
-  sinkpad = gst_element_get_static_pad (qtdemux_v, "sink");
-
-  /* We'll want to know when the source pad is added */
-  g_signal_connect (qtdemux_v, "pad-added", (GCallback)
-      qtdemux_pad_added_cb_check_name, expected_video_pad_name);
-
-  /* Send the initial STREAM_START and segment (TIME) event */
-  event = gst_event_new_stream_start ("TEST");
-  GST_DEBUG ("Pushing stream-start event");
-  fail_unless (gst_pad_send_event (sinkpad, event) == TRUE);
-
-  /* Send CAPS event* */
-  mediacaps = gst_caps_new_simple ("application/x-cenc",
-      "stream-format", G_TYPE_STRING, "avc",
-      "format", G_TYPE_STRING, "H264",
-      "width", G_TYPE_INT, 512,
-      "height", G_TYPE_INT, 288,
-      "original-media-type", G_TYPE_STRING, "video/x-h264",
-      "protection-system", G_TYPE_STRING,
-      "9a04f079-9840-4286-ab92-e65be0885f95", NULL);
-  caps =
-      gst_caps_new_simple ("video/quicktime",
-      "variant", G_TYPE_STRING, "mss-fragmented",
-      "timescale", G_TYPE_UINT64, G_GUINT64_CONSTANT (10000000),
-      "media-caps", GST_TYPE_CAPS, mediacaps, NULL);
-
-  /* Send segment event* */
-  event = gst_event_new_caps (caps);
-  GST_DEBUG ("Pushing caps event");
-  fail_unless (gst_pad_send_event (sinkpad, event) == TRUE);
-  gst_caps_unref (mediacaps);
-  gst_caps_unref (caps);
-
-  gst_segment_init (&segment, GST_FORMAT_TIME);
-  event = gst_event_new_segment (&segment);
-  GST_DEBUG ("Pushing segment event");
-  fail_unless (gst_pad_send_event (sinkpad, event) == TRUE);
-
-  /* Send the first fragment */
-  /* NOTE: mss streams don't have moov */
-  inbuf = gst_buffer_new_and_alloc (seg_1_moof_size);
-  gst_buffer_fill (inbuf, 0, seg_1_m4f, seg_1_moof_size);
-  GST_BUFFER_PTS (inbuf) = 0;
-  GST_BUFFER_OFFSET (inbuf) = 0;
-  GST_BUFFER_FLAG_SET (inbuf, GST_BUFFER_FLAG_DISCONT);
-  GST_DEBUG ("Pushing video fragment");
-  fail_unless (gst_pad_chain (sinkpad, inbuf) == GST_FLOW_OK);
-
-  gst_object_unref (sinkpad);
-  gst_element_set_state (qtdemux_v, GST_STATE_NULL);
-  gst_object_unref (qtdemux_v);
-  g_free (expected_video_pad_name);
-
-  /* Repeat test for audio media type */
-  expected_audio_pad_name = g_strdup ("audio_0");
-  qtdemux_a = gst_element_factory_make ("qtdemux", NULL);
-  gst_element_set_state (qtdemux_a, GST_STATE_PLAYING);
-  sinkpad = gst_element_get_static_pad (qtdemux_a, "sink");
-
-  /* We'll want to know when the source pad is added */
-  g_signal_connect (qtdemux_a, "pad-added", (GCallback)
-      qtdemux_pad_added_cb_check_name, expected_audio_pad_name);
-
-  /* Send the initial STREAM_START and segment (TIME) event */
-  event = gst_event_new_stream_start ("TEST");
-  GST_DEBUG ("Pushing stream-start event");
-  fail_unless (gst_pad_send_event (sinkpad, event) == TRUE);
-
-  /* Send CAPS event* */
-  mediacaps = gst_caps_new_simple ("application/x-cenc",
-      "mpegversion", G_TYPE_INT, 4,
-      "channels", G_TYPE_INT, 2,
-      "rate", G_TYPE_INT, 48000,
-      "original-media-type", G_TYPE_STRING, "audio/mpeg",
-      "protection-system", G_TYPE_STRING,
-      "9a04f079-9840-4286-ab92-e65be0885f95", NULL);
-  caps =
-      gst_caps_new_simple ("video/quicktime",
-      "variant", G_TYPE_STRING, "mss-fragmented",
-      "timescale", G_TYPE_UINT64, G_GUINT64_CONSTANT (10000000),
-      "media-caps", GST_TYPE_CAPS, mediacaps, NULL);
-
-  /* Send segment event* */
-  event = gst_event_new_caps (caps);
-  GST_DEBUG ("Pushing caps event");
-  fail_unless (gst_pad_send_event (sinkpad, event) == TRUE);
-  gst_caps_unref (mediacaps);
-  gst_caps_unref (caps);
-
-  gst_segment_init (&segment, GST_FORMAT_TIME);
-  event = gst_event_new_segment (&segment);
-  GST_DEBUG ("Pushing segment event");
-  fail_unless (gst_pad_send_event (sinkpad, event) == TRUE);
-
-  /* Send the first fragment */
-  /* NOTE: mss streams don't have moov */
-  inbuf = gst_buffer_new_and_alloc (seg_1_moof_size);
-  gst_buffer_fill (inbuf, 0, seg_1_m4f, seg_1_moof_size);
-  GST_BUFFER_PTS (inbuf) = 0;
-  GST_BUFFER_OFFSET (inbuf) = 0;
-  GST_BUFFER_FLAG_SET (inbuf, GST_BUFFER_FLAG_DISCONT);
-  GST_DEBUG ("Pushing audio fragment");
-  fail_unless (gst_pad_chain (sinkpad, inbuf) == GST_FLOW_OK);
-
-  gst_object_unref (sinkpad);
-  gst_element_set_state (qtdemux_a, GST_STATE_NULL);
-  gst_object_unref (qtdemux_a);
-  g_free (expected_audio_pad_name);
-}
-
-GST_END_TEST;
-
 static Suite *
 qtdemux_suite (void)
 {
@@ -895,12 +646,9 @@ qtdemux_suite (void)
   TCase *tc_chain = tcase_create ("general");
 
   suite_add_tcase (s, tc_chain);
-  tcase_add_test (tc_chain, test_qtdemux_fuzzed0);
-  tcase_add_test (tc_chain, test_qtdemux_fuzzed1);
   tcase_add_test (tc_chain, test_qtdemux_input_gap);
   tcase_add_test (tc_chain, test_qtdemux_duplicated_moov);
   tcase_add_test (tc_chain, test_qtdemux_stream_change);
-  tcase_add_test (tc_chain, test_qtdemux_pad_names);
 
   return s;
 }

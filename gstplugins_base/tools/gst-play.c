@@ -39,12 +39,6 @@
 
 #include <glib/gprintf.h>
 
-#ifdef HAVE_WINMM
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <mmsystem.h>
-#endif
-
 #include "gst-play-kb.h"
 
 #define VOLUME_STEPS 20
@@ -61,14 +55,7 @@ typedef enum
   GST_PLAY_TRICK_MODE_DEFAULT_NO_AUDIO,
   GST_PLAY_TRICK_MODE_KEY_UNITS,
   GST_PLAY_TRICK_MODE_KEY_UNITS_NO_AUDIO,
-  GST_PLAY_TRICK_MODE_LAST,
-
-  /* The instant-rate setting is a flag,
-   * applied on top of the trick-mode enum value.
-   * It needs to have a 2^n value bigger than 
-   * any of the enum values so setting it
-   * won't affect the trickmode value */
-  GST_PLAY_TRICK_MODE_INSTANT_RATE = (1 << 3)
+  GST_PLAY_TRICK_MODE_LAST
 } GstPlayTrickMode;
 
 typedef enum
@@ -114,14 +101,9 @@ typedef struct
 
   GstPlayTrickMode trick_mode;
   gdouble rate;
-  gdouble start_position;
-
-  /* keyboard state tracking */
-  gboolean shift_pressed;
 } GstPlay;
 
 static gboolean quiet = FALSE;
-static gboolean instant_rate_changes = FALSE;
 
 static gboolean play_bus_msg (GstBus * bus, GstMessage * msg, gpointer data);
 static gboolean play_next (GstPlay * play);
@@ -167,7 +149,7 @@ gst_play_printf (const gchar * format, ...)
 static GstPlay *
 play_new (gchar ** uris, const gchar * audio_sink, const gchar * video_sink,
     gboolean gapless, gdouble initial_volume, gboolean verbose,
-    const gchar * flags_string, gboolean use_playbin3, gdouble start_position)
+    const gchar * flags_string, gboolean use_playbin3)
 {
   GstElement *sink, *playbin;
   GstPlay *play;
@@ -267,7 +249,7 @@ play_new (gchar ** uris, const gchar * audio_sink, const gchar * video_sink,
 
   play->rate = 1.0;
   play->trick_mode = GST_PLAY_TRICK_MODE_NONE;
-  play->start_position = start_position;
+
   return play;
 }
 
@@ -329,23 +311,6 @@ play_set_relative_volume (GstPlay * play, gdouble volume_step)
   gst_print ("                  \n");
 }
 
-static void
-play_toggle_audio_mute (GstPlay * play)
-{
-  gboolean mute;
-
-  mute = gst_stream_volume_get_mute (GST_STREAM_VOLUME (play->playbin));
-
-  mute = !mute;
-  gst_stream_volume_set_mute (GST_STREAM_VOLUME (play->playbin), mute);
-
-  if (mute)
-    gst_print (_("Mute: on"));
-  else
-    gst_print (_("Mute: off"));
-  gst_print ("                  \n");
-}
-
 /* returns TRUE if something was installed and we should restart playback */
 static gboolean
 play_install_missing_plugins (GstPlay * play)
@@ -372,11 +337,6 @@ play_bus_msg (GstBus * bus, GstMessage * msg, gpointer user_data)
         gst_print ("New plugins installed, trying again...\n");
         --play->cur_idx;
         play_next (play);
-      }
-      if (play->start_position > 0.0) {
-        play_do_seek (play, play->start_position * GST_SECOND,
-            play->rate, play->trick_mode);
-        play->start_position = 0;
       }
       break;
     case GST_MESSAGE_BUFFERING:{
@@ -513,35 +473,12 @@ play_bus_msg (GstBus * bus, GstMessage * msg, gpointer user_data)
                   key = GST_PLAY_KB_ARROW_UP;
                 else if (strcmp (key, "Down") == 0)
                   key = GST_PLAY_KB_ARROW_DOWN;
-                else if (strncmp (key, "Shift", 5) == 0) {
-                  play->shift_pressed = TRUE;
-                  break;
-                } else if (strcmp (key, "space") == 0 ||
-                    strcmp (key, "Space") == 0) {
+                else if (strcmp (key, "space") == 0)
                   key = " ";
-                } else if (strcmp (key, "minus") == 0) {
-                  key = "-";
-                } else if (strcmp (key, "plus") == 0
-                    /* TODO: That's not universally correct at all, but still handy */
-                    || (strcmp (key, "equal") == 0 && play->shift_pressed)) {
-                  key = "+";
-                } else if (strlen (key) > 1) {
+                else if (strlen (key) > 1)
                   break;
-                }
 
                 keyboard_cb (key, user_data);
-              }
-              break;
-            }
-            case GST_NAVIGATION_EVENT_KEY_RELEASE:
-            {
-              const gchar *key;
-
-              if (gst_navigation_event_parse_key_event (ev, &key)) {
-                GST_INFO ("Key release: %s", key);
-                if (strncmp (key, "Shift", 5) == 0) {
-                  play->shift_pressed = FALSE;
-                }
               }
               break;
             }
@@ -643,7 +580,7 @@ play_bus_msg (GstBus * bus, GstMessage * msg, gpointer user_data)
             } else if (type & GST_STREAM_TYPE_TEXT) {
               play->cur_text_sid = g_strdup (stream_id);
             } else {
-              gst_print ("Unknown stream type with stream-id %s\n", stream_id);
+              gst_print ("Unknown stream type with stream-id %s", stream_id);
             }
             gst_object_unref (stream);
           }
@@ -692,7 +629,7 @@ play_timeout (gpointer user_data)
     status[len] = '\0';
   }
 
-  if (pos >= 0) {
+  if (pos >= 0 && dur > 0) {
     gchar dstr[32], pstr[32];
 
     /* FIXME: pretty print in nicer format */
@@ -996,7 +933,7 @@ play_do_seek (GstPlay * play, gint64 pos, gdouble rate, GstPlayTrickMode mode)
   if (!seekable)
     return FALSE;
 
-  seek_flags = 0;
+  seek_flags = GST_SEEK_FLAG_FLUSH;
 
   switch (mode) {
     case GST_PLAY_TRICK_MODE_DEFAULT:
@@ -1017,19 +954,6 @@ play_do_seek (GstPlay * play, gint64 pos, gdouble rate, GstPlayTrickMode mode)
       break;
   }
 
-  /* See if we can do an instant rate change (not changing dir) */
-  if (mode & GST_PLAY_TRICK_MODE_INSTANT_RATE && rate * play->rate > 0) {
-    seek = gst_event_new_seek (rate, GST_FORMAT_TIME,
-        seek_flags | GST_SEEK_FLAG_INSTANT_RATE_CHANGE,
-        GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE,
-        GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE);
-    if (gst_element_send_event (play->playbin, seek)) {
-      goto done;
-    }
-  }
-
-  /* No instant rate change, need to do a flushing seek */
-  seek_flags |= GST_SEEK_FLAG_FLUSH;
   if (rate >= 0)
     seek = gst_event_new_seek (rate, GST_FORMAT_TIME,
         seek_flags | GST_SEEK_FLAG_ACCURATE,
@@ -1044,21 +968,15 @@ play_do_seek (GstPlay * play, gint64 pos, gdouble rate, GstPlayTrickMode mode)
   if (!gst_element_send_event (play->playbin, seek))
     return FALSE;
 
-done:
   play->rate = rate;
-  play->trick_mode = mode & ~GST_PLAY_TRICK_MODE_INSTANT_RATE;
+  play->trick_mode = mode;
   return TRUE;
 }
 
 static void
 play_set_playback_rate (GstPlay * play, gdouble rate)
 {
-  GstPlayTrickMode mode = play->trick_mode;
-
-  if (instant_rate_changes)
-    mode |= GST_PLAY_TRICK_MODE_INSTANT_RATE;
-
-  if (play_set_rate_and_trick_mode (play, rate, mode)) {
+  if (play_set_rate_and_trick_mode (play, rate, play->trick_mode)) {
     gst_print (_("Playback rate: %.2f"), rate);
     gst_print ("                               \n");
   } else {
@@ -1362,7 +1280,6 @@ play_cycle_track_selection (GstPlay * play, GstPlayTrackType track_type)
 static void
 print_keyboard_help (void)
 {
-  /* *INDENT-OFF* */
   static struct
   {
     const gchar *key_desc;
@@ -1377,7 +1294,6 @@ print_keyboard_help (void)
     "\342\206\220", N_("seek backward")}, {
     "\342\206\221", N_("volume up")}, {
     "\342\206\223", N_("volume down")}, {
-    "m", N_("toggle audio mute on/off")}, {
     "+", N_("increase playback rate")}, {
     "-", N_("decrease playback rate")}, {
     "d", N_("change playback direction")}, {
@@ -1387,7 +1303,6 @@ print_keyboard_help (void)
     "s", N_("change subtitle track")}, {
     "0", N_("seek to beginning")}, {
   "k", N_("show keyboard shortcuts")},};
-  /* *INDENT-ON* */
   guint i, chars_to_pad, desc_len, max_desc_len = 0;
 
   gst_print ("\n\n%s\n\n", _("Interactive mode - keyboard controls:"));
@@ -1482,9 +1397,6 @@ keyboard_cb (const gchar * key_input, gpointer user_data)
     case '0':
       play_do_seek (play, 0, play->rate, play->trick_mode);
       break;
-    case 'm':
-      play_toggle_audio_mute (play);
-      break;
     default:
       if (strcmp (key_input, GST_PLAY_KB_ARROW_RIGHT) == 0) {
         relative_seek (play, +0.08);
@@ -1503,43 +1415,6 @@ keyboard_cb (const gchar * key_input, gpointer user_data)
   }
 }
 
-#ifdef HAVE_WINMM
-static guint
-enable_winmm_timer_resolution (void)
-{
-  TIMECAPS time_caps;
-  guint resolution = 0;
-  MMRESULT res;
-
-  res = timeGetDevCaps (&time_caps, sizeof (TIMECAPS));
-  if (res != TIMERR_NOERROR) {
-    g_warning ("timeGetDevCaps() returned non-zero code %d", res);
-    return 0;
-  }
-
-  resolution = MIN (MAX (time_caps.wPeriodMin, 1), time_caps.wPeriodMax);
-  res = timeBeginPeriod (resolution);
-  if (res != TIMERR_NOERROR) {
-    g_warning ("timeBeginPeriod() returned non-zero code %d", res);
-    return 0;
-  }
-
-  gst_println (_("Use Windows high-resolution clock, precision: %u ms\n"),
-      resolution);
-
-  return resolution;
-}
-
-static void
-clear_winmm_timer_resolution (guint resolution)
-{
-  if (resolution == 0)
-    return;
-
-  timeEndPeriod (resolution);
-}
-#endif
-
 int
 main (int argc, char **argv)
 {
@@ -1551,7 +1426,6 @@ main (int argc, char **argv)
   gboolean gapless = FALSE;
   gboolean shuffle = FALSE;
   gdouble volume = -1;
-  gdouble start_position = 0;
   gchar **filenames = NULL;
   gchar *audio_sink = NULL;
   gchar *video_sink = NULL;
@@ -1562,9 +1436,6 @@ main (int argc, char **argv)
   GOptionContext *ctx;
   gchar *playlist_file = NULL;
   gboolean use_playbin3 = FALSE;
-#ifdef HAVE_WINMM
-  guint winmm_timer_resolution = 0;
-#endif
   GOptionEntry options[] = {
     {"verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose,
         N_("Output status information and property notifications"), NULL},
@@ -1586,14 +1457,8 @@ main (int argc, char **argv)
         N_("Disable interactive control via the keyboard"), NULL},
     {"volume", 0, 0, G_OPTION_ARG_DOUBLE, &volume,
         N_("Volume"), NULL},
-    {"start-position", 's', 0, G_OPTION_ARG_DOUBLE, &start_position,
-        N_("Start position in seconds."), NULL},
     {"playlist", 0, 0, G_OPTION_ARG_FILENAME, &playlist_file,
         N_("Playlist file containing input media files"), NULL},
-    {"instant-rate-changes", 'i', 0, G_OPTION_ARG_NONE, &instant_rate_changes,
-          N_
-          ("Use the experimental instant-rate-change flag when changing rate"),
-        NULL},
     {"quiet", 'q', 0, G_OPTION_ARG_NONE, &quiet,
         N_("Do not print any output (apart from errors)"), NULL},
     {"use-playbin3", 0, 0, G_OPTION_ARG_NONE, &use_playbin3,
@@ -1714,29 +1579,13 @@ main (int argc, char **argv)
 
   /* prepare */
   play = play_new (uris, audio_sink, video_sink, gapless, volume, verbose,
-      flags, use_playbin3, start_position);
+      flags, use_playbin3);
 
   if (play == NULL) {
     gst_printerr
         ("Failed to create 'playbin' element. Check your GStreamer installation.\n");
     return EXIT_FAILURE;
   }
-#ifdef HAVE_WINMM
-  /* Enable high-precision clock which will improve accuracy of various
-   * Windows timer APIs (e.g., Sleep()), and it will increase the precision
-   * of GstSystemClock as well
-   */
-
-  /* NOTE: Once timer resolution is updated via timeBeginPeriod(),
-   * application should undo it by calling timeEndPeriod()
-   *
-   * Prior to Windows 10, version 2004, timeBeginPeriod() affects global
-   * Windows setting (meaning that it will affect other processes),
-   * but starting with Windows 10, version 2004, this function no longer
-   * affects global timer resolution
-   */
-  winmm_timer_resolution = enable_winmm_timer_resolution ();
-#endif
 
   if (interactive) {
     if (gst_play_kb_set_key_handler (keyboard_cb, play)) {
@@ -1749,11 +1598,6 @@ main (int argc, char **argv)
 
   /* play */
   do_play (play);
-
-#ifdef HAVE_WINMM
-  /* Undo timeBeginPeriod() if required */
-  clear_winmm_timer_resolution (winmm_timer_resolution);
-#endif
 
   /* clean up */
   play_free (play);

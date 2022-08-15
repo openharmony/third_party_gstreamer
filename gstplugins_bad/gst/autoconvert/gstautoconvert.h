@@ -41,7 +41,7 @@ struct _GstAutoConvert
   /*< private >*/
   GstBin bin;                   /* we extend GstBin */
 
-  GList *factories;
+  volatile GList *factories;
 
   GstPad *sinkpad;
   GstPad *srcpad;
@@ -61,7 +61,6 @@ struct _GstAutoConvertClass
 };
 
 GType gst_auto_convert_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (autoconvert);
 
 G_END_DECLS
 #endif /* __GST_AUTO_CONVERT_H__ */

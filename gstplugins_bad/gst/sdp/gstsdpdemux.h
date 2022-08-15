@@ -50,7 +50,6 @@ typedef struct _GstSDPStream GstSDPStream;
 
 struct _GstSDPStream {
   gint          id;
-  guint32       ssrc;
 
   GstSDPDemux    *parent; /* parent, no extra ref to parent is taken */
 
@@ -113,7 +112,6 @@ struct _GstSDPDemuxClass {
 };
 
 GType gst_sdp_demux_get_type(void);
-GST_ELEMENT_REGISTER_DECLARE (sdpdemux);
 
 G_END_DECLS
 

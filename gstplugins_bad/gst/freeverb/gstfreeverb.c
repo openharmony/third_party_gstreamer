@@ -347,8 +347,6 @@ struct _GstFreeverbPrivate
 G_DEFINE_TYPE_WITH_CODE (GstFreeverb, gst_freeverb, GST_TYPE_BASE_TRANSFORM,
     G_ADD_PRIVATE (GstFreeverb)
     G_IMPLEMENT_INTERFACE (GST_TYPE_PRESET, NULL));
-GST_ELEMENT_REGISTER_DEFINE (freeverb, "freeverb",
-    GST_RANK_NONE, GST_TYPE_FREEVERB);
 
 static void
 freeverb_revmodel_init (GstFreeverb * filter)
@@ -930,7 +928,8 @@ gst_freeverb_transform (GstBaseTransform * base, GstBuffer * inbuf,
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (freeverb, plugin);
+  return gst_element_register (plugin, "freeverb",
+      GST_RANK_NONE, GST_TYPE_FREEVERB);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

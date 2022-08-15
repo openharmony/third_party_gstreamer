@@ -324,27 +324,6 @@ gst_gl_view_convert_new (void)
   return convert;
 }
 
-static void
-_reset_gl (GstGLContext * context, GstGLViewConvert * viewconvert)
-{
-  const GstGLFuncs *gl = context->gl_vtable;
-
-  if (viewconvert->priv->vao) {
-    gl->DeleteVertexArrays (1, &viewconvert->priv->vao);
-    viewconvert->priv->vao = 0;
-  }
-
-  if (viewconvert->priv->vertex_buffer) {
-    gl->DeleteBuffers (1, &viewconvert->priv->vertex_buffer);
-    viewconvert->priv->vertex_buffer = 0;
-  }
-
-  if (viewconvert->priv->vbo_indices) {
-    gl->DeleteBuffers (1, &viewconvert->priv->vbo_indices);
-    viewconvert->priv->vbo_indices = 0;
-  }
-}
-
 /**
  * gst_gl_view_convert_set_context:
  * @viewconvert: a #GstGLViewConvert
@@ -358,26 +337,17 @@ void
 gst_gl_view_convert_set_context (GstGLViewConvert * viewconvert,
     GstGLContext * context)
 {
-  GstGLContext *old_context = NULL;
-
   g_return_if_fail (GST_IS_GL_VIEW_CONVERT (viewconvert));
 
-  GST_OBJECT_LOCK (viewconvert);
-  if (context != viewconvert->context) {
+  if (gst_object_replace ((GstObject **) & viewconvert->context,
+          GST_OBJECT (context)))
     gst_gl_view_convert_reset (viewconvert);
-    if (viewconvert->context)
-      old_context = viewconvert->context;
-    viewconvert->context = context ? gst_object_ref (context) : NULL;
-  }
-  GST_OBJECT_UNLOCK (viewconvert);
-
-  gst_clear_object (&old_context);
 }
 
 static gboolean
 _view_convert_set_format (GstGLViewConvert * viewconvert,
-    const GstVideoInfo * in_info, GstGLTextureTarget from_target,
-    const GstVideoInfo * out_info, GstGLTextureTarget to_target)
+    GstVideoInfo * in_info, GstGLTextureTarget from_target,
+    GstVideoInfo * out_info, GstGLTextureTarget to_target)
 {
   gboolean passthrough;
   g_return_val_if_fail (GST_IS_GL_VIEW_CONVERT (viewconvert), FALSE);
@@ -1366,14 +1336,13 @@ void
 gst_gl_view_convert_reset (GstGLViewConvert * viewconvert)
 {
   g_return_if_fail (GST_IS_GL_VIEW_CONVERT (viewconvert));
+  if (viewconvert->shader)
+    gst_object_unref (viewconvert->shader);
+  viewconvert->shader = NULL;
 
-  gst_clear_object (&viewconvert->shader);
-  gst_clear_object (&viewconvert->fbo);
-
-  if (viewconvert->context) {
-    gst_gl_context_thread_add (viewconvert->context,
-        (GstGLContextThreadFunc) _reset_gl, viewconvert);
-  }
+  if (viewconvert->fbo)
+    gst_object_unref (viewconvert->fbo);
+  viewconvert->fbo = NULL;
 
   viewconvert->initted = FALSE;
   viewconvert->reconfigure = FALSE;
@@ -1920,7 +1889,7 @@ _do_view_convert_draw (GstGLContext * context, GstGLViewConvert * viewconvert)
 
   gst_gl_shader_use (viewconvert->shader);
 
-  /* FIXME: the auxiliary buffer could have a different transform matrix */
+  /* FIXME: the auxillary buffer could have a different transform matrix */
   {
     GstVideoAffineTransformationMeta *af_meta;
     gfloat matrix[16];
@@ -1974,7 +1943,6 @@ _gen_buffer (GstGLViewConvert * viewconvert, GstBuffer ** target)
   GstGLVideoAllocationParams *params;
   GstGLMemoryAllocator *mem_allocator;
   GstAllocator *allocator;
-  GstVideoMeta *meta;
 
   *target = gst_buffer_new ();
 
@@ -1991,19 +1959,15 @@ _gen_buffer (GstGLViewConvert * viewconvert, GstBuffer ** target)
     gst_object_unref (allocator);
     return FALSE;
   }
+  gst_gl_allocation_params_free ((GstGLAllocationParams *) params);
   gst_object_unref (allocator);
 
-  meta = gst_buffer_add_video_meta_full (*target, 0,
+  gst_buffer_add_video_meta_full (*target, 0,
       GST_VIDEO_INFO_FORMAT (&viewconvert->out_info),
       GST_VIDEO_INFO_WIDTH (&viewconvert->out_info),
       GST_VIDEO_INFO_HEIGHT (&viewconvert->out_info),
       GST_VIDEO_INFO_N_PLANES (&viewconvert->out_info),
       viewconvert->out_info.offset, viewconvert->out_info.stride);
-
-  if (params->valign)
-    gst_video_meta_set_alignment (meta, *params->valign);
-
-  gst_gl_allocation_params_free ((GstGLAllocationParams *) params);
 
   return TRUE;
 }
@@ -2115,7 +2079,7 @@ _do_view_convert (GstGLContext * context, GstGLViewConvert * viewconvert)
         || out_tex->tex_format == GST_GL_LUMINANCE_ALPHA
         || out_width != width || out_height != height) {
       /* Luminance formats are not color renderable */
-      /* rendering to a framebuffer only renders the intersection of all
+      /* renderering to a framebuffer only renders the intersection of all
        * the attachments i.e. the smallest attachment size */
       if (!priv->out_tex[j]) {
         GstGLVideoAllocationParams *params;
@@ -2263,7 +2227,7 @@ gst_gl_view_convert_submit_input_buffer (GstGLViewConvert * viewconvert,
   target = &viewconvert->priv->primary_in;
 
   /* For frame-by-frame mode, we need to collect the 2nd eye into
-   * our auxiliary buffer */
+   * our auxilliary buffer */
   if (mode == GST_VIDEO_MULTIVIEW_MODE_FRAME_BY_FRAME) {
     if (!GST_BUFFER_FLAG_IS_SET (input, GST_VIDEO_BUFFER_FLAG_FIRST_IN_BUNDLE))
       target = &viewconvert->priv->auxilliary_in;

@@ -22,11 +22,10 @@
 
 /**
  * SECTION:element-rganalysis
- * @title: rganalysis
  * @see_also: #GstRgVolume
  *
  * This element analyzes raw audio sample data in accordance with the proposed
- * [ReplayGain standard](https://wiki.hydrogenaud.io/index.php?title=ReplayGain) for
+ * <ulink url="http://replaygain.org">ReplayGain standard</ulink> for
  * calculating the ideal replay gain for music tracks and albums.  The element
  * is designed as a pass-through filter that never modifies any data.  As it
  * receives an EOS event, it finalizes the ongoing analysis and generates a tag
@@ -34,7 +33,7 @@
  * posted on the message bus with a tag message.  The EOS event is forwarded as
  * normal afterwards.  Result tag lists at least contain the tags
  * #GST_TAG_TRACK_GAIN, #GST_TAG_TRACK_PEAK and #GST_TAG_REFERENCE_LEVEL.
- *
+ * 
  * Because the generated metadata tags become available at the end of streams,
  * downstream muxer and encoder elements are normally unable to save them in
  * their output since they generally save metadata in the file header.
@@ -43,8 +42,9 @@
  * needed for album processing (see #GstRgAnalysis:num-tracks property) since
  * the album gain and peak values need to be associated with all tracks of an
  * album, not just the last one.
- *
- * ## Example launch lines
+ * 
+ * <refsect2>
+ * <title>Example launch lines</title>
  * |[
  * gst-launch-1.0 -t audiotestsrc wave=sine num-buffers=512 ! rganalysis ! fakesink
  * ]| Analyze a simple test waveform
@@ -56,17 +56,21 @@
  * gst-launch-1.0 -t gnomevfssrc location=http://replaygain.hydrogenaudio.org/ref_pink.wav \
  *     ! wavparse ! rganalysis ! fakesink
  * ]| Analyze the pink noise reference file
- *
+ * <para>
  * The above launch line yields a result gain of +6 dB (instead of the expected
  * +0 dB).  This is not in error, refer to the #GstRgAnalysis:reference-level
  * property documentation for more information.
- *
- * ## Acknowledgements
- *
- * This element is based on code used in the [vorbisgain](https://sjeng.org/vorbisgain.html)
- * program and many others.  The relevant parts are copyrighted by David Robinson, Glen Sawyer
+ * </para>
+ * </refsect2>
+ * <refsect2>
+ * <title>Acknowledgements</title>
+ * <para>
+ * This element is based on code used in the <ulink
+ * url="http://sjeng.org/vorbisgain.html">vorbisgain</ulink> program and many
+ * others.  The relevant parts are copyrighted by David Robinson, Glen Sawyer
  * and Frank Klemm.
- *
+ * </para>
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -125,8 +129,6 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
 
 #define gst_rg_analysis_parent_class parent_class
 G_DEFINE_TYPE (GstRgAnalysis, gst_rg_analysis, GST_TYPE_BASE_TRANSFORM);
-GST_ELEMENT_REGISTER_DEFINE (rganalysis, "rganalysis", GST_RANK_NONE,
-    GST_TYPE_RG_ANALYSIS);
 
 static void gst_rg_analysis_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -167,7 +169,7 @@ gst_rg_analysis_class_init (GstRgAnalysisClass * klass)
    * GstRgAnalysis:num-tracks:
    *
    * Number of remaining album tracks.
-   *
+   * 
    * Analyzing several streams sequentially and assigning them a common result
    * gain is known as "album processing".  If this gain is used during playback
    * (by switching to "album mode"), all tracks of an album receive the same
@@ -231,8 +233,10 @@ gst_rg_analysis_class_init (GstRgAnalysisClass * klass)
    * ReplayGain, set this property to 83.
    *
    * Almost all software uses 89 dB as a reference however, and this value has
-   * become the new official value, and that change has been acclaimed by the
-   * original author of the ReplayGain proposal.
+   * become the new official value.  That is to say, while the change has been
+   * acclaimed by the author of the ReplayGain proposal, the <ulink
+   * url="http://replaygain.org">webpage</ulink> is still outdated at the time
+   * of this writing.
    *
    * The value was changed because the original proposal recommends a default
    * pre-amp value of +6 dB for playback.  This seemed a bit odd, as it means

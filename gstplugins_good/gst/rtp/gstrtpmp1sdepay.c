@@ -24,7 +24,6 @@
 #include <gst/rtp/gstrtpbuffer.h>
 
 #include <string.h>
-#include "gstrtpelements.h"
 #include "gstrtpmp1sdepay.h"
 #include "gstrtputils.h"
 
@@ -64,8 +63,6 @@ static GstStaticPadTemplate gst_rtp_mp1s_depay_sink_template =
 
 G_DEFINE_TYPE (GstRtpMP1SDepay, gst_rtp_mp1s_depay,
     GST_TYPE_RTP_BASE_DEPAYLOAD);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpmp1sdepay, "rtpmp1sdepay",
-    GST_RANK_SECONDARY, GST_TYPE_RTP_MP1S_DEPAY, rtp_element_init (plugin));
 
 static gboolean gst_rtp_mp1s_depay_setcaps (GstRTPBaseDepayload * depayload,
     GstCaps * caps);
@@ -136,4 +133,11 @@ gst_rtp_mp1s_depay_process (GstRTPBaseDepayload * depayload, GstRTPBuffer * rtp)
   }
 
   return outbuf;
+}
+
+gboolean
+gst_rtp_mp1s_depay_plugin_init (GstPlugin * plugin)
+{
+  return gst_element_register (plugin, "rtpmp1sdepay",
+      GST_RANK_SECONDARY, GST_TYPE_RTP_MP1S_DEPAY);
 }

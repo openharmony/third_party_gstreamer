@@ -59,8 +59,7 @@ struct _GstGoomClass
 };
 
 GType gst_goom_get_type (void);
-
-GST_ELEMENT_REGISTER_DECLARE (goom);
+gboolean gst_goom_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 

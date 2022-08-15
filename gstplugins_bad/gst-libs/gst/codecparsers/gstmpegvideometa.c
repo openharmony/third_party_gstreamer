@@ -96,7 +96,7 @@ gst_mpeg_video_meta_transform (GstBuffer * dest, GstMeta * meta,
 GType
 gst_mpeg_video_meta_api_get_type (void)
 {
-  static GType type;
+  static volatile GType type;
   static const gchar *tags[] = { "memory", NULL };      /* don't know what to set here */
 
   if (g_once_init_enter (&type)) {

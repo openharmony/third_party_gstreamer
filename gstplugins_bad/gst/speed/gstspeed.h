@@ -61,7 +61,6 @@ struct _GstSpeedClass {
 };
 
 GType gst_speed_get_type(void);
-GST_ELEMENT_REGISTER_DECLARE (speed);
 
 G_END_DECLS
 

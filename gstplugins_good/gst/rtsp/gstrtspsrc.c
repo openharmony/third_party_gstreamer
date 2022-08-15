@@ -73,7 +73,7 @@
  *
  * The message's structure contains three fields:
  *
- *   GstRTSPSrcTimeoutCause `cause`: the cause of the timeout.
+ *   #GstRTSPSrcTimeoutCause `cause`: the cause of the timeout.
  *
  *   #gint `stream-number`: an internal identifier of the stream that timed out.
  *
@@ -85,14 +85,6 @@
  * ]| Establish a connection to an RTSP server and send the raw RTP packets to a
  * fakesink.
  *
- * NOTE: rtspsrc will send a PAUSE command to the server if you set the
- * element to the PAUSED state, and will send a PLAY command if you set it to
- * the PLAYING state.
- *
- * Unfortunately, going to the NULL state involves going through PAUSED, so
- * rtspsrc does not know the difference and will send a PAUSE when you wanted
- * a TEARDOWN. The workaround is to hook into the `before-send` signal and
- * return FALSE in this case.
  */
 
 #ifdef HAVE_CONFIG_H
@@ -114,7 +106,6 @@
 
 #include "gst/gst-i18n-plugin.h"
 
-#include "gstrtspelements.h"
 #include "gstrtspsrc.h"
 
 GST_DEBUG_CATEGORY_STATIC (rtspsrc_debug);
@@ -160,23 +151,6 @@ enum _GstRtspSrcRtcpSyncMode
   RTCP_SYNC_INITIAL,
   RTCP_SYNC_RTP
 };
-
-#define GST_TYPE_RTSP_SRC_TIMEOUT_CAUSE (gst_rtsp_src_timeout_cause_get_type())
-static GType
-gst_rtsp_src_timeout_cause_get_type (void)
-{
-  static GType timeout_cause_type = 0;
-  static const GEnumValue timeout_causes[] = {
-    {GST_RTSP_SRC_TIMEOUT_CAUSE_RTCP, "timeout triggered by RTCP", "RTCP"},
-    {0, NULL, NULL},
-  };
-
-  if (!timeout_cause_type) {
-    timeout_cause_type =
-        g_enum_register_static ("GstRTSPSrcTimeoutCause", timeout_causes);
-  }
-  return timeout_cause_type;
-}
 
 enum _GstRtspSrcBufferMode
 {
@@ -306,10 +280,6 @@ gst_rtsp_backchannel_get_type (void)
 #define DEFAULT_VERSION         GST_RTSP_VERSION_1_0
 #define DEFAULT_BACKCHANNEL  GST_RTSP_BACKCHANNEL_NONE
 #define DEFAULT_TEARDOWN_TIMEOUT  (100 * GST_MSECOND)
-#define DEFAULT_ONVIF_MODE FALSE
-#define DEFAULT_ONVIF_RATE_CONTROL TRUE
-#define DEFAULT_IS_LIVE TRUE
-#define DEFAULT_IGNORE_X_SERVER_REPLY FALSE
 
 enum
 {
@@ -355,10 +325,6 @@ enum
   PROP_DEFAULT_VERSION,
   PROP_BACKCHANNEL,
   PROP_TEARDOWN_TIMEOUT,
-  PROP_ONVIF_MODE,
-  PROP_ONVIF_RATE_CONTROL,
-  PROP_IS_LIVE,
-  PROP_IGNORE_X_SERVER_REPLY
 };
 
 #define GST_TYPE_RTSP_NAT_METHOD (gst_rtsp_nat_method_get_type())
@@ -499,8 +465,6 @@ static guint gst_rtspsrc_signals[LAST_SIGNAL] = { 0 };
 #define gst_rtspsrc_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstRTSPSrc, gst_rtspsrc, GST_TYPE_BIN,
     G_IMPLEMENT_INTERFACE (GST_TYPE_URI_HANDLER, gst_rtspsrc_uri_handler_init));
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtspsrc, "rtspsrc", GST_RANK_NONE,
-    GST_TYPE_RTSPSRC, rtsp_element_init (plugin));
 
 #ifndef GST_DISABLE_GST_DEBUG
 static inline const char *
@@ -842,7 +806,7 @@ gst_rtspsrc_class_init (GstRTSPSrcClass * klass)
    */
   g_object_class_install_property (gobject_class, PROP_TLS_INTERACTION,
       g_param_spec_object ("tls-interaction", "TLS interaction",
-          "A GTlsInteraction object to prompt the user for password or certificate",
+          "A GTlsInteraction object to promt the user for password or certificate",
           G_TYPE_TLS_INTERACTION, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /**
@@ -958,7 +922,7 @@ gst_rtspsrc_class_init (GstRTSPSrcClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /**
-   * GstRTSPSrc:teardown-timeout
+   * GstRtspSrc:teardown-timeout
    *
    * When transitioning PAUSED-READY, allow up to timeout (in nanoseconds)
    * delay in order to send teardown (0 = disabled)
@@ -970,94 +934,6 @@ gst_rtspsrc_class_init (GstRTSPSrcClass * klass)
           "When transitioning PAUSED-READY, allow up to timeout (in nanoseconds) "
           "delay in order to send teardown (0 = disabled)",
           0, G_MAXUINT64, DEFAULT_TEARDOWN_TIMEOUT,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  /**
-   * GstRTSPSrc:onvif-mode
-   *
-   * Act as an ONVIF client. When set to %TRUE:
-   *
-   * - seeks will be interpreted as nanoseconds since prime epoch (1900-01-01)
-   *
-   * - #GstRTSPSrc:onvif-rate-control can be used to request that the server sends
-   *   data as fast as it can
-   *
-   * - TCP is picked as the transport protocol
-   *
-   * - Trickmode flags in seek events are transformed into the appropriate ONVIF
-   *   request headers
-   *
-   * Since: 1.18
-   */
-  g_object_class_install_property (gobject_class, PROP_ONVIF_MODE,
-      g_param_spec_boolean ("onvif-mode", "Onvif Mode",
-          "Act as an ONVIF client",
-          DEFAULT_ONVIF_MODE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  /**
-   * GstRTSPSrc:onvif-rate-control
-   *
-   * When in onvif-mode, whether to set Rate-Control to yes or no. When set
-   * to %FALSE, the server will deliver data as fast as the client can consume
-   * it.
-   *
-   * Since: 1.18
-   */
-  g_object_class_install_property (gobject_class, PROP_ONVIF_RATE_CONTROL,
-      g_param_spec_boolean ("onvif-rate-control", "Onvif Rate Control",
-          "When in onvif-mode, whether to set Rate-Control to yes or no",
-          DEFAULT_ONVIF_RATE_CONTROL,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  /**
-   * GstRTSPSrc:is-live
-   *
-   * Whether to act as a live source. This is useful in combination with
-   * #GstRTSPSrc:onvif-rate-control set to %FALSE and usage of the TCP
-   * protocol. In that situation, data delivery rate can be entirely
-   * controlled from the client side, enabling features such as frame
-   * stepping and instantaneous rate changes.
-   *
-   * Since: 1.18
-   */
-  g_object_class_install_property (gobject_class, PROP_IS_LIVE,
-      g_param_spec_boolean ("is-live", "Is live",
-          "Whether to act as a live source",
-          DEFAULT_IS_LIVE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  /**
-   * GstRTSPSrc:ignore-x-server-reply
-   *
-   * When connecting to an RTSP server in tunneled mode (HTTP) the server
-   * usually replies with an x-server-ip-address header. This contains the
-   * address of the intended streaming server. However some servers return an
-   * "invalid" address. Here follows two examples when it might happen.
-   *
-   * 1. A server uses Apache combined with a separate RTSP process to handle
-   *    HTTPS requests on port 443. In this case Apache handles TLS and
-   *    connects to the local RTSP server, which results in a local
-   *    address 127.0.0.1 or ::1 in the header reply. This address is
-   *    returned to the actual RTSP client in the header. The client will
-   *    receive this address and try to connect to it and fail.
-   *
-   * 2. The client uses an IPv6 link local address with a specified scope id
-   *    fe80::aaaa:bbbb:cccc:dddd%eth0 and connects via HTTP on port 80.
-   *    The RTSP server receives the connection and returns the address
-   *    in the x-server-ip-address header. The client will receive this
-   *    address and try to connect to it "as is" without the scope id and
-   *    fail.
-   *
-   * In the case of streaming data from RTSP servers like 1 and 2, it's
-   * useful to have the option to simply ignore the x-server-ip-address
-   * header reply and continue using the original address.
-   *
-   * Since: 1.20
-   */
-  g_object_class_install_property (gobject_class, PROP_IGNORE_X_SERVER_REPLY,
-      g_param_spec_boolean ("ignore-x-server-reply",
-          "Ignore x-server-ip-address",
-          "Whether to ignore the x-server-ip-address server header reply",
-          DEFAULT_IGNORE_X_SERVER_REPLY,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /**
@@ -1078,9 +954,8 @@ gst_rtspsrc_class_init (GstRTSPSrcClass * klass)
    */
   gst_rtspsrc_signals[SIGNAL_HANDLE_REQUEST] =
       g_signal_new ("handle-request", G_TYPE_FROM_CLASS (klass), 0,
-      0, NULL, NULL, NULL, G_TYPE_NONE, 2,
-      GST_TYPE_RTSP_MESSAGE | G_SIGNAL_TYPE_STATIC_SCOPE,
-      GST_TYPE_RTSP_MESSAGE | G_SIGNAL_TYPE_STATIC_SCOPE);
+      0, NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 2,
+      G_TYPE_POINTER, G_TYPE_POINTER);
 
   /**
    * GstRTSPSrc::on-sdp:
@@ -1100,7 +975,7 @@ gst_rtspsrc_class_init (GstRTSPSrcClass * klass)
    */
   gst_rtspsrc_signals[SIGNAL_ON_SDP] =
       g_signal_new ("on-sdp", G_TYPE_FROM_CLASS (klass), 0,
-      0, NULL, NULL, NULL, G_TYPE_NONE, 1,
+      0, NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 1,
       GST_TYPE_SDP_MESSAGE | G_SIGNAL_TYPE_STATIC_SCOPE);
 
   /**
@@ -1119,9 +994,10 @@ gst_rtspsrc_class_init (GstRTSPSrcClass * klass)
    */
   gst_rtspsrc_signals[SIGNAL_SELECT_STREAM] =
       g_signal_new_class_handler ("select-stream", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST,
-      (GCallback) default_select_stream, select_stream_accum, NULL, NULL,
-      G_TYPE_BOOLEAN, 2, G_TYPE_UINT, GST_TYPE_CAPS);
+      G_SIGNAL_RUN_FIRST | G_SIGNAL_RUN_CLEANUP,
+      (GCallback) default_select_stream, select_stream_accum, NULL,
+      g_cclosure_marshal_generic, G_TYPE_BOOLEAN, 2, G_TYPE_UINT,
+      GST_TYPE_CAPS);
   /**
    * GstRTSPSrc::new-manager:
    * @rtspsrc: a #GstRTSPSrc
@@ -1134,7 +1010,8 @@ gst_rtspsrc_class_init (GstRTSPSrcClass * klass)
    */
   gst_rtspsrc_signals[SIGNAL_NEW_MANAGER] =
       g_signal_new_class_handler ("new-manager", G_TYPE_FROM_CLASS (klass),
-      0, 0, NULL, NULL, NULL, G_TYPE_NONE, 1, GST_TYPE_ELEMENT);
+      G_SIGNAL_RUN_FIRST | G_SIGNAL_RUN_CLEANUP, 0, NULL, NULL,
+      g_cclosure_marshal_generic, G_TYPE_NONE, 1, GST_TYPE_ELEMENT);
 
   /**
    * GstRTSPSrc::request-rtcp-key:
@@ -1149,7 +1026,7 @@ gst_rtspsrc_class_init (GstRTSPSrcClass * klass)
    */
   gst_rtspsrc_signals[SIGNAL_REQUEST_RTCP_KEY] =
       g_signal_new ("request-rtcp-key", G_TYPE_FROM_CLASS (klass),
-      0, 0, NULL, NULL, NULL, GST_TYPE_CAPS, 1, G_TYPE_UINT);
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, GST_TYPE_CAPS, 1, G_TYPE_UINT);
 
   /**
    * GstRTSPSrc::accept-certificate:
@@ -1172,8 +1049,8 @@ gst_rtspsrc_class_init (GstRTSPSrcClass * klass)
       G_TYPE_BOOLEAN, 3, G_TYPE_TLS_CONNECTION, G_TYPE_TLS_CERTIFICATE,
       G_TYPE_TLS_CERTIFICATE_FLAGS);
 
-  /**
-   * GstRTSPSrc::before-send:
+  /*
+   * GstRTSPSrc::before-send
    * @rtspsrc: a #GstRTSPSrc
    * @num: the stream number
    *
@@ -1190,22 +1067,23 @@ gst_rtspsrc_class_init (GstRTSPSrcClass * klass)
    */
   gst_rtspsrc_signals[SIGNAL_BEFORE_SEND] =
       g_signal_new_class_handler ("before-send", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST,
-      (GCallback) default_before_send, before_send_accum, NULL, NULL,
-      G_TYPE_BOOLEAN, 1, GST_TYPE_RTSP_MESSAGE | G_SIGNAL_TYPE_STATIC_SCOPE);
+      G_SIGNAL_RUN_FIRST | G_SIGNAL_RUN_CLEANUP,
+      (GCallback) default_before_send, before_send_accum, NULL,
+      g_cclosure_marshal_generic, G_TYPE_BOOLEAN,
+      1, GST_TYPE_RTSP_MESSAGE | G_SIGNAL_TYPE_STATIC_SCOPE);
 
   /**
    * GstRTSPSrc::push-backchannel-buffer:
    * @rtspsrc: a #GstRTSPSrc
-   * @sample: RTP sample to send back
+   * @buffer: RTP buffer to send back
    *
    *
    */
   gst_rtspsrc_signals[SIGNAL_PUSH_BACKCHANNEL_BUFFER] =
       g_signal_new ("push-backchannel-buffer", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION, G_STRUCT_OFFSET (GstRTSPSrcClass,
-          push_backchannel_buffer), NULL, NULL, NULL,
-      GST_TYPE_FLOW_RETURN, 2, G_TYPE_UINT, GST_TYPE_SAMPLE);
+          push_backchannel_buffer), NULL, NULL, NULL, GST_TYPE_FLOW_RETURN, 2,
+      G_TYPE_UINT, GST_TYPE_BUFFER);
 
   /**
    * GstRTSPSrc::get-parameter:
@@ -1222,7 +1100,7 @@ gst_rtspsrc_class_init (GstRTSPSrcClass * klass)
   gst_rtspsrc_signals[SIGNAL_GET_PARAMETER] =
       g_signal_new ("get-parameter", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION, G_STRUCT_OFFSET (GstRTSPSrcClass,
-          get_parameter), NULL, NULL, NULL,
+          get_parameter), NULL, NULL, g_cclosure_marshal_generic,
       G_TYPE_BOOLEAN, 3, G_TYPE_STRING, G_TYPE_STRING, GST_TYPE_PROMISE);
 
   /**
@@ -1240,7 +1118,7 @@ gst_rtspsrc_class_init (GstRTSPSrcClass * klass)
   gst_rtspsrc_signals[SIGNAL_GET_PARAMETERS] =
       g_signal_new ("get-parameters", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION, G_STRUCT_OFFSET (GstRTSPSrcClass,
-          get_parameters), NULL, NULL, NULL,
+          get_parameters), NULL, NULL, g_cclosure_marshal_generic,
       G_TYPE_BOOLEAN, 3, G_TYPE_STRV, G_TYPE_STRING, GST_TYPE_PROMISE);
 
   /**
@@ -1259,8 +1137,9 @@ gst_rtspsrc_class_init (GstRTSPSrcClass * klass)
   gst_rtspsrc_signals[SIGNAL_SET_PARAMETER] =
       g_signal_new ("set-parameter", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION, G_STRUCT_OFFSET (GstRTSPSrcClass,
-          set_parameter), NULL, NULL, NULL, G_TYPE_BOOLEAN, 4, G_TYPE_STRING,
-      G_TYPE_STRING, G_TYPE_STRING, GST_TYPE_PROMISE);
+          set_parameter), NULL, NULL, g_cclosure_marshal_generic,
+      G_TYPE_BOOLEAN, 4, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING,
+      GST_TYPE_PROMISE);
 
   gstelement_class->send_event = gst_rtspsrc_send_event;
   gstelement_class->provide_clock = gst_rtspsrc_provide_clock;
@@ -1283,12 +1162,6 @@ gst_rtspsrc_class_init (GstRTSPSrcClass * klass)
   klass->set_parameter = GST_DEBUG_FUNCPTR (set_parameter);
 
   gst_rtsp_ext_list_init ();
-
-  gst_type_mark_as_plugin_api (GST_TYPE_RTSP_SRC_TIMEOUT_CAUSE, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_RTSP_SRC_BUFFER_MODE, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_RTSP_SRC_NTP_TIME_SOURCE, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_RTSP_BACKCHANNEL, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_RTSP_NAT_METHOD, 0);
 }
 
 static gboolean
@@ -1463,11 +1336,6 @@ gst_rtspsrc_init (GstRTSPSrc * src)
   src->default_version = DEFAULT_VERSION;
   src->version = GST_RTSP_VERSION_INVALID;
   src->teardown_timeout = DEFAULT_TEARDOWN_TIMEOUT;
-  src->onvif_mode = DEFAULT_ONVIF_MODE;
-  src->onvif_rate_control = DEFAULT_ONVIF_RATE_CONTROL;
-  src->is_live = DEFAULT_IS_LIVE;
-  src->seek_seqnum = GST_SEQNUM_INVALID;
-  src->group_id = GST_GROUP_ID_INVALID;
 
   /* get a list of all extensions */
   src->extensions = gst_rtsp_ext_list_get ();
@@ -1491,8 +1359,6 @@ gst_rtspsrc_init (GstRTSPSrc * src)
   g_mutex_init (&src->conninfo.recv_lock);
   g_cond_init (&src->cmd_cond);
 
-  g_mutex_init (&src->group_lock);
-
   GST_OBJECT_FLAG_SET (src, GST_ELEMENT_FLAG_SOURCE);
   gst_bin_set_suppressed_flags (GST_BIN (src),
       GST_ELEMENT_FLAG_SOURCE | GST_ELEMENT_FLAG_SINK);
@@ -1506,6 +1372,15 @@ free_param_data (ParameterRequest * req)
     g_string_free (req->body, TRUE);
   g_free (req->content_type);
   g_free (req);
+}
+
+static void
+free_param_queue (gpointer data)
+{
+  ParameterRequest *req = data;
+
+  gst_promise_expire (req->promise);
+  free_param_data (req);
 }
 
 static void
@@ -1547,8 +1422,6 @@ gst_rtspsrc_finalize (GObject * object)
   g_mutex_clear (&rtspsrc->conninfo.send_lock);
   g_mutex_clear (&rtspsrc->conninfo.recv_lock);
   g_cond_clear (&rtspsrc->cmd_cond);
-
-  g_mutex_clear (&rtspsrc->group_lock);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -1628,7 +1501,13 @@ gst_rtspsrc_set_proxy (GstRTSPSrc * rtsp, const gchar * proxy)
 static void
 gst_rtspsrc_set_tcp_timeout (GstRTSPSrc * rtspsrc, guint64 timeout)
 {
-  rtspsrc->tcp_timeout = timeout;
+  rtspsrc->tcp_timeout.tv_sec = timeout / G_USEC_PER_SEC;
+  rtspsrc->tcp_timeout.tv_usec = timeout % G_USEC_PER_SEC;
+
+  if (timeout != 0)
+    rtspsrc->ptcp_timeout = &rtspsrc->tcp_timeout;
+  else
+    rtspsrc->ptcp_timeout = NULL;
 }
 
 static void
@@ -1795,18 +1674,6 @@ gst_rtspsrc_set_property (GObject * object, guint prop_id, const GValue * value,
     case PROP_TEARDOWN_TIMEOUT:
       rtspsrc->teardown_timeout = g_value_get_uint64 (value);
       break;
-    case PROP_ONVIF_MODE:
-      rtspsrc->onvif_mode = g_value_get_boolean (value);
-      break;
-    case PROP_ONVIF_RATE_CONTROL:
-      rtspsrc->onvif_rate_control = g_value_get_boolean (value);
-      break;
-    case PROP_IS_LIVE:
-      rtspsrc->is_live = g_value_get_boolean (value);
-      break;
-    case PROP_IGNORE_X_SERVER_REPLY:
-      rtspsrc->ignore_x_server_reply = g_value_get_boolean (value);
-      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1838,8 +1705,14 @@ gst_rtspsrc_get_property (GObject * object, guint prop_id, GValue * value,
       g_value_set_uint64 (value, rtspsrc->udp_timeout);
       break;
     case PROP_TCP_TIMEOUT:
-      g_value_set_uint64 (value, rtspsrc->tcp_timeout);
+    {
+      guint64 timeout;
+
+      timeout = ((guint64) rtspsrc->tcp_timeout.tv_sec) * G_USEC_PER_SEC +
+          rtspsrc->tcp_timeout.tv_usec;
+      g_value_set_uint64 (value, timeout);
       break;
+    }
     case PROP_LATENCY:
       g_value_set_uint (value, rtspsrc->latency);
       break;
@@ -1964,18 +1837,6 @@ gst_rtspsrc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_TEARDOWN_TIMEOUT:
       g_value_set_uint64 (value, rtspsrc->teardown_timeout);
-      break;
-    case PROP_ONVIF_MODE:
-      g_value_set_boolean (value, rtspsrc->onvif_mode);
-      break;
-    case PROP_ONVIF_RATE_CONTROL:
-      g_value_set_boolean (value, rtspsrc->onvif_rate_control);
-      break;
-    case PROP_IS_LIVE:
-      g_value_set_boolean (value, rtspsrc->is_live);
-      break;
-    case PROP_IGNORE_X_SERVER_REPLY:
-      g_value_set_boolean (value, rtspsrc->ignore_x_server_reply);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -2299,7 +2160,7 @@ gst_rtspsrc_create_stream (GstRTSPSrc * src, GstSDPMessage * sdp, gint idx,
     gint n_streams)
 {
   GstRTSPStream *stream;
-  const gchar *control_path;
+  const gchar *control_url;
   const GstSDPMedia *media;
 
   /* get media, should not return NULL */
@@ -2351,65 +2212,45 @@ gst_rtspsrc_create_stream (GstRTSPSrc * src, GstSDPMessage * sdp, gint idx,
   /* get control url to construct the setup url. The setup url is used to
    * configure the transport of the stream and is used to identity the stream in
    * the RTP-Info header field returned from PLAY. */
-  control_path = gst_sdp_media_get_attribute_val (media, "control");
-  if (control_path == NULL)
-    control_path = gst_sdp_message_get_attribute_val_n (sdp, "control", 0);
+  control_url = gst_sdp_media_get_attribute_val (media, "control");
+  if (control_url == NULL)
+    control_url = gst_sdp_message_get_attribute_val_n (sdp, "control", 0);
 
   GST_DEBUG_OBJECT (src, "stream %d, (%p)", stream->id, stream);
   GST_DEBUG_OBJECT (src, " port: %d", stream->port);
   GST_DEBUG_OBJECT (src, " container: %d", stream->container);
-  GST_DEBUG_OBJECT (src, " control: %s", GST_STR_NULL (control_path));
+  GST_DEBUG_OBJECT (src, " control: %s", GST_STR_NULL (control_url));
 
-  /* RFC 2326, C.3: missing control_path permitted in case of a single stream */
-  if (control_path == NULL && n_streams == 1) {
-    control_path = "";
+  /* RFC 2326, C.3: missing control_url permitted in case of a single stream */
+  if (control_url == NULL && n_streams == 1) {
+    control_url = "";
   }
 
-  if (control_path != NULL) {
-    stream->control_url = g_strdup (control_path);
+  if (control_url != NULL) {
+    stream->control_url = g_strdup (control_url);
     /* Build a fully qualified url using the content_base if any or by prefixing
      * the original request.
-     * If the control_path starts with a non rtsp: protocol we will most
+     * If the control_url starts with a '/' or a non rtsp: protocol we will most
      * likely build a URL that the server will fail to understand, this is ok,
      * we will fail then. */
-    if (g_str_has_prefix (control_path, "rtsp://"))
-      stream->conninfo.location = g_strdup (control_path);
+    if (g_str_has_prefix (control_url, "rtsp://"))
+      stream->conninfo.location = g_strdup (control_url);
     else {
-      if (g_strcmp0 (control_path, "*") == 0)
-        control_path = "";
-      /* handle url with query */
-      if (src->conninfo.url && src->conninfo.url->query) {
-        stream->conninfo.location =
-            gst_rtsp_url_get_request_uri_with_control (src->conninfo.url,
-            control_path);
-      } else {
-        const gchar *base;
-        gboolean has_slash;
-        const gchar *slash;
-        const gchar *actual_control_path = NULL;
+      const gchar *base;
+      gboolean has_slash;
 
-        base = get_aggregate_control (src);
-        has_slash = g_str_has_suffix (base, "/");
-        /* manage existence or non-existence of / in control path */
-        if (control_path && strlen (control_path) > 0) {
-          gboolean control_has_slash = g_str_has_prefix (control_path, "/");
+      if (g_strcmp0 (control_url, "*") == 0)
+        control_url = "";
 
-          actual_control_path = control_path;
-          if (has_slash && control_has_slash) {
-            if (strlen (control_path) == 1) {
-              actual_control_path = NULL;
-            } else {
-              actual_control_path = control_path + 1;
-            }
-          } else {
-            has_slash = has_slash || control_has_slash;
-          }
-        }
-        slash = (!has_slash && (actual_control_path != NULL)) ? "/" : "";
-        /* concatenate the two strings, insert / when not present */
-        stream->conninfo.location =
-            g_strdup_printf ("%s%s%s", base, slash, control_path);
-      }
+      base = get_aggregate_control (src);
+
+      /* check if the base ends or control starts with / */
+      has_slash = g_str_has_prefix (control_url, "/");
+      has_slash = has_slash || g_str_has_suffix (base, "/");
+
+      /* concatenate the two strings, insert / when not present */
+      stream->conninfo.location =
+          g_strdup_printf ("%s%s%s", base, has_slash ? "" : "/", control_url);
     }
   }
   GST_DEBUG_OBJECT (src, " setup: %s",
@@ -2491,7 +2332,6 @@ static void
 gst_rtspsrc_cleanup (GstRTSPSrc * src)
 {
   GList *walk;
-  ParameterRequest *req;
 
   GST_DEBUG_OBJECT (src, "cleanup");
 
@@ -2532,20 +2372,15 @@ gst_rtspsrc_cleanup (GstRTSPSrc * src)
   }
 
   src->need_segment = FALSE;
-  src->clip_out_segment = FALSE;
 
   if (src->provided_clock) {
     gst_object_unref (src->provided_clock);
     src->provided_clock = NULL;
   }
 
-  GST_OBJECT_LOCK (src);
   /* free parameter requests queue */
-  while ((req = g_queue_pop_head (&src->set_get_param_q))) {
-    gst_promise_expire (req->promise);
-    free_param_data (req);
-  }
-  GST_OBJECT_UNLOCK (src);
+  if (!g_queue_is_empty (&src->set_get_param_q))
+    g_queue_free_full (&src->set_get_param_q, free_param_queue);
 
 }
 
@@ -2761,7 +2596,7 @@ gst_rtspsrc_flush (GstRTSPSrc * src, gboolean flush, gboolean playing,
     cmd = CMD_WAIT;
     state = GST_STATE_PAUSED;
   } else {
-    event = gst_event_new_flush_stop (TRUE);
+    event = gst_event_new_flush_stop (FALSE);
     gst_event_set_seqnum (event, seqnum);
     GST_DEBUG_OBJECT (src, "stop flush; playing %d", playing);
     cmd = CMD_LOOP;
@@ -2777,14 +2612,13 @@ gst_rtspsrc_flush (GstRTSPSrc * src, gboolean flush, gboolean playing,
 
 static GstRTSPResult
 gst_rtspsrc_connection_send (GstRTSPSrc * src, GstRTSPConnInfo * conninfo,
-    GstRTSPMessage * message, gint64 timeout)
+    GstRTSPMessage * message, GTimeVal * timeout)
 {
   GstRTSPResult ret;
 
   if (conninfo->connection) {
     g_mutex_lock (&conninfo->send_lock);
-    ret =
-        gst_rtsp_connection_send_usec (conninfo->connection, message, timeout);
+    ret = gst_rtsp_connection_send (conninfo->connection, message, timeout);
     g_mutex_unlock (&conninfo->send_lock);
   } else {
     ret = GST_RTSP_ERROR;
@@ -2795,14 +2629,13 @@ gst_rtspsrc_connection_send (GstRTSPSrc * src, GstRTSPConnInfo * conninfo,
 
 static GstRTSPResult
 gst_rtspsrc_connection_receive (GstRTSPSrc * src, GstRTSPConnInfo * conninfo,
-    GstRTSPMessage * message, gint64 timeout)
+    GstRTSPMessage * message, GTimeVal * timeout)
 {
   GstRTSPResult ret;
 
   if (conninfo->connection) {
     g_mutex_lock (&conninfo->recv_lock);
-    ret = gst_rtsp_connection_receive_usec (conninfo->connection, message,
-        timeout);
+    ret = gst_rtsp_connection_receive (conninfo->connection, message, timeout);
     g_mutex_unlock (&conninfo->recv_lock);
   } else {
     ret = GST_RTSP_ERROR;
@@ -2848,23 +2681,23 @@ gst_rtspsrc_perform_seek (GstRTSPSrc * src, GstEvent * event)
   gdouble rate;
   GstFormat format;
   GstSeekFlags flags;
-  GstSeekType cur_type = GST_SEEK_TYPE_NONE, stop_type = GST_SEEK_TYPE_NONE;
+  GstSeekType cur_type = GST_SEEK_TYPE_NONE, stop_type;
   gint64 cur, stop;
-  gboolean flush, server_side_trickmode;
+  gboolean flush, skip;
   gboolean update;
   gboolean playing;
   GstSegment seeksegment = { 0, };
   GList *walk;
   const gchar *seek_style = NULL;
-  gboolean rate_change_only = FALSE;
-  gboolean rate_change_same_direction = FALSE;
 
   GST_DEBUG_OBJECT (src, "doing seek with event %" GST_PTR_FORMAT, event);
 
   gst_event_parse_seek (event, &rate, &format, &flags,
       &cur_type, &cur, &stop_type, &stop);
-  rate_change_only = cur_type == GST_SEEK_TYPE_NONE
-      && stop_type == GST_SEEK_TYPE_NONE;
+
+  /* no negative rates yet */
+  if (rate < 0.0)
+    goto negative_rate;
 
   /* we need TIME format */
   if (format != src->segment.format)
@@ -2883,9 +2716,7 @@ gst_rtspsrc_perform_seek (GstRTSPSrc * src, GstEvent * event)
 
   /* get flush flag */
   flush = flags & GST_SEEK_FLAG_FLUSH;
-  server_side_trickmode = flags & GST_SEEK_FLAG_TRICKMODE;
-
-  gst_event_parse_seek_trickmode_interval (event, &src->trickmode_interval);
+  skip = flags & GST_SEEK_FLAG_SKIP;
 
   /* now we need to make sure the streaming thread is stopped. We do this by
    * either sending a FLUSH_START event downstream which will cause the
@@ -2913,14 +2744,18 @@ gst_rtspsrc_perform_seek (GstRTSPSrc * src, GstEvent * event)
 
   /* copy segment, we need this because we still need the old
    * segment when we close the current segment. */
-  seeksegment = src->segment;
+  memcpy (&seeksegment, &src->segment, sizeof (GstSegment));
 
   /* configure the seek parameters in the seeksegment. We will then have the
    * right values in the segment to perform the seek */
   GST_DEBUG_OBJECT (src, "configuring seek");
-  rate_change_same_direction = (rate * seeksegment.rate) > 0;
   gst_segment_do_seek (&seeksegment, rate, format, flags,
       cur_type, cur, stop_type, stop, &update);
+
+  /* figure out the last position we need to play. If it's configured (stop !=
+   * -1), use that, else we play until the total duration of the file */
+  if ((stop = seeksegment.stop) == -1)
+    stop = seeksegment.duration;
 
   /* if we were playing, pause first */
   playing = (src->state == GST_RTSP_STATE_PLAYING);
@@ -2929,17 +2764,12 @@ gst_rtspsrc_perform_seek (GstRTSPSrc * src, GstEvent * event)
     gst_rtspsrc_get_position (src);
     gst_rtspsrc_pause (src, FALSE);
   }
-  src->server_side_trickmode = server_side_trickmode;
+  src->skip = skip;
 
   src->state = GST_RTSP_STATE_SEEKING;
 
   /* PLAY will add the range header now. */
   src->need_range = TRUE;
-
-  /* If an accurate seek was requested, we want to clip the segment we
-   * output in ONVIF mode to the requested bounds */
-  src->clip_out_segment = ! !(flags & GST_SEEK_FLAG_ACCURATE);
-  src->seek_seqnum = gst_event_get_seqnum (event);
 
   /* prepare for streaming again */
   if (flush) {
@@ -2949,7 +2779,7 @@ gst_rtspsrc_perform_seek (GstRTSPSrc * src, GstEvent * event)
   }
 
   /* now we did the seek and can activate the new segment values */
-  src->segment = seeksegment;
+  memcpy (&src->segment, &seeksegment, sizeof (GstSegment));
 
   /* if we're doing a segment seek, post a SEGMENT_START message */
   if (src->segment.flags & GST_SEEK_FLAG_SEGMENT) {
@@ -2958,23 +2788,22 @@ gst_rtspsrc_perform_seek (GstRTSPSrc * src, GstEvent * event)
             src->segment.format, src->segment.position));
   }
 
-  /* mark discont when needed */
-  if (!(rate_change_only && rate_change_same_direction)) {
-    GST_DEBUG_OBJECT (src, "mark DISCONT, we did a seek to another position");
-    for (walk = src->streams; walk; walk = g_list_next (walk)) {
-      GstRTSPStream *stream = (GstRTSPStream *) walk->data;
-      stream->discont = TRUE;
-    }
+  /* now create the newsegment */
+  GST_DEBUG_OBJECT (src, "Creating newsegment from %" G_GINT64_FORMAT
+      " to %" G_GINT64_FORMAT, src->segment.position, stop);
+
+  /* mark discont */
+  GST_DEBUG_OBJECT (src, "mark DISCONT, we did a seek to another position");
+  for (walk = src->streams; walk; walk = g_list_next (walk)) {
+    GstRTSPStream *stream = (GstRTSPStream *) walk->data;
+    stream->discont = TRUE;
   }
 
-  /* and continue playing if needed. If we are not acting as a live source,
-   * then only the RTSP PLAYING state, set earlier, matters. */
+  /* and continue playing if needed */
   GST_OBJECT_LOCK (src);
-  if (src->is_live) {
-    playing = (GST_STATE_PENDING (src) == GST_STATE_VOID_PENDING
-        && GST_STATE (src) == GST_STATE_PLAYING)
-        || (GST_STATE_PENDING (src) == GST_STATE_PLAYING);
-  }
+  playing = (GST_STATE_PENDING (src) == GST_STATE_VOID_PENDING
+      && GST_STATE (src) == GST_STATE_PLAYING)
+      || (GST_STATE_PENDING (src) == GST_STATE_PLAYING);
   GST_OBJECT_UNLOCK (src);
 
   if (src->version >= GST_RTSP_VERSION_2_0) {
@@ -2997,6 +2826,11 @@ gst_rtspsrc_perform_seek (GstRTSPSrc * src, GstEvent * event)
   return TRUE;
 
   /* ERRORS */
+negative_rate:
+  {
+    GST_DEBUG_OBJECT (src, "negative playback rates are not supported yet.");
+    return FALSE;
+  }
 no_format:
   {
     GST_DEBUG_OBJECT (src, "unsupported format given, seek aborted.");
@@ -3029,15 +2863,7 @@ gst_rtspsrc_handle_src_event (GstPad * pad, GstObject * parent,
 
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_SEEK:
-    {
-      guint32 seqnum = gst_event_get_seqnum (event);
-      if (seqnum == src->seek_seqnum) {
-        GST_LOG_OBJECT (pad, "Drop duplicated SEEK event seqnum %"
-            G_GUINT32_FORMAT, seqnum);
-      } else {
-        res = gst_rtspsrc_perform_seek (src, event);
-      }
-    }
+      res = gst_rtspsrc_perform_seek (src, event);
       forward = FALSE;
       break;
     case GST_EVENT_QOS:
@@ -3063,53 +2889,27 @@ gst_rtspsrc_handle_src_event (GstPad * pad, GstObject * parent,
   return res;
 }
 
-static void
-gst_rtspsrc_stream_start_event_add_group_id (GstRTSPSrc * src, GstEvent * event)
-{
-  g_mutex_lock (&src->group_lock);
-
-  if (src->group_id == GST_GROUP_ID_INVALID)
-    src->group_id = gst_util_group_id_next ();
-
-  g_mutex_unlock (&src->group_lock);
-
-  gst_event_set_group_id (event, src->group_id);
-}
-
 static gboolean
 gst_rtspsrc_handle_src_sink_event (GstPad * pad, GstObject * parent,
     GstEvent * event)
 {
   GstRTSPStream *stream;
-  GstRTSPSrc *self = GST_RTSPSRC (GST_OBJECT_PARENT (parent));
 
   stream = gst_pad_get_element_private (pad);
 
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_STREAM_START:{
-      GChecksum *cs;
-      gchar *uri;
+      const gchar *upstream_id;
       gchar *stream_id;
 
-      cs = g_checksum_new (G_CHECKSUM_SHA256);
-      uri = self->conninfo.location;
-      g_checksum_update (cs, (const guchar *) uri, strlen (uri));
+      gst_event_parse_stream_start (event, &upstream_id);
+      stream_id = g_strdup_printf ("%s/%s", upstream_id, stream->stream_id);
 
-      stream_id =
-          g_strdup_printf ("%s/%s", g_checksum_get_string (cs),
-          stream->stream_id);
-
-      g_checksum_free (cs);
       gst_event_unref (event);
       event = gst_event_new_stream_start (stream_id);
-      gst_rtspsrc_stream_start_event_add_group_id (self, event);
       g_free (stream_id);
       break;
     }
-    case GST_EVENT_SEGMENT:
-      if (self->seek_seqnum != GST_SEQNUM_INVALID)
-        GST_EVENT_SEQNUM (event) = self->seek_seqnum;
-      break;
     default:
       break;
   }
@@ -3147,7 +2947,7 @@ gst_rtspsrc_handle_internal_src_query (GstPad * pad, GstObject * parent,
     GstQuery * query)
 {
   GstRTSPSrc *src;
-  gboolean res = FALSE;
+  gboolean res = TRUE;
 
   src = GST_RTSPSRC_CAST (gst_pad_get_element_private (pad));
 
@@ -3169,9 +2969,9 @@ gst_rtspsrc_handle_internal_src_query (GstPad * pad, GstObject * parent,
       switch (format) {
         case GST_FORMAT_TIME:
           gst_query_set_duration (query, format, src->segment.duration);
-          res = TRUE;
           break;
         default:
+          res = FALSE;
           break;
       }
       break;
@@ -3180,8 +2980,7 @@ gst_rtspsrc_handle_internal_src_query (GstPad * pad, GstObject * parent,
     {
       /* we are live with a min latency of 0 and unlimited max latency, this
        * result will be updated by the session manager if there is any. */
-      gst_query_set_latency (query, src->is_live, 0, -1);
-      res = TRUE;
+      gst_query_set_latency (query, TRUE, 0, -1);
       break;
     }
     default:
@@ -3227,7 +3026,8 @@ gst_rtspsrc_handle_src_query (GstPad * pad, GstObject * parent,
 
       gst_query_parse_seeking (query, &format, NULL, NULL, NULL);
       if (format == GST_FORMAT_TIME) {
-        gboolean seekable = TRUE;
+        gboolean seekable =
+            src->cur_protocols != GST_RTSP_LOWER_TRANS_UDP_MCAST;
         GstClockTime start = 0, duration = src->segment.duration;
 
         /* seeking without duration is unlikely */
@@ -3244,9 +3044,7 @@ gst_rtspsrc_handle_src_query (GstPad * pad, GstObject * parent,
           }
         }
 
-        GST_LOG_OBJECT (src, "seekable: %d, duration: %" GST_TIME_FORMAT
-            ", src->seekable: %f", seekable,
-            GST_TIME_ARGS (src->segment.duration), src->seekable);
+        GST_LOG_OBJECT (src, "seekable : %d", seekable);
 
         gst_query_set_seeking (query, GST_FORMAT_TIME, seekable, start,
             duration);
@@ -3290,6 +3088,9 @@ gst_rtspsrc_sink_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
   GstRTSPSrc *src;
   GstRTSPStream *stream;
   GstFlowReturn res = GST_FLOW_OK;
+  GstMapInfo map;
+  guint8 *data;
+  guint size;
   GstRTSPResult ret;
   GstRTSPMessage message = { 0 };
   GstRTSPConnInfo *conninfo;
@@ -3297,23 +3098,30 @@ gst_rtspsrc_sink_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
   stream = (GstRTSPStream *) gst_pad_get_element_private (pad);
   src = stream->parent;
 
+  gst_buffer_map (buffer, &map, GST_MAP_READ);
+  size = map.size;
+  data = map.data;
+
   gst_rtsp_message_init_data (&message, stream->channel[1]);
 
   /* lend the body data to the message */
-  gst_rtsp_message_set_body_buffer (&message, buffer);
+  gst_rtsp_message_take_body (&message, data, size);
 
   if (stream->conninfo.connection)
     conninfo = &stream->conninfo;
   else
     conninfo = &src->conninfo;
 
-  GST_DEBUG_OBJECT (src, "sending %u bytes RTCP",
-      (guint) gst_buffer_get_size (buffer));
-  ret = gst_rtspsrc_connection_send (src, conninfo, &message, 0);
+  GST_DEBUG_OBJECT (src, "sending %u bytes RTCP", size);
+  ret = gst_rtspsrc_connection_send (src, conninfo, &message, NULL);
   GST_DEBUG_OBJECT (src, "sent RTCP, %d", ret);
 
+  /* and steal it away again because we will free it when unreffing the
+   * buffer */
+  gst_rtsp_message_steal_body (&message, &data, &size);
   gst_rtsp_message_unset (&message);
 
+  gst_buffer_unmap (buffer, &map);
   gst_buffer_unref (buffer);
 
   return res;
@@ -3337,28 +3145,39 @@ gst_rtspsrc_push_backchannel_buffer (GstRTSPSrc * src, guint id,
 
   if (src->interleaved) {
     GstBuffer *buffer;
+    GstMapInfo map;
+    guint8 *data;
+    guint size;
     GstRTSPResult ret;
     GstRTSPMessage message = { 0 };
     GstRTSPConnInfo *conninfo;
 
     buffer = gst_sample_get_buffer (sample);
 
+    gst_buffer_map (buffer, &map, GST_MAP_READ);
+    size = map.size;
+    data = map.data;
+
     gst_rtsp_message_init_data (&message, stream->channel[0]);
 
     /* lend the body data to the message */
-    gst_rtsp_message_set_body_buffer (&message, buffer);
+    gst_rtsp_message_take_body (&message, data, size);
 
     if (stream->conninfo.connection)
       conninfo = &stream->conninfo;
     else
       conninfo = &src->conninfo;
 
-    GST_DEBUG_OBJECT (src, "sending %u bytes backchannel RTP",
-        (guint) gst_buffer_get_size (buffer));
-    ret = gst_rtspsrc_connection_send (src, conninfo, &message, 0);
+    GST_DEBUG_OBJECT (src, "sending %u bytes backchannel RTP", size);
+    ret = gst_rtspsrc_connection_send (src, conninfo, &message, NULL);
     GST_DEBUG_OBJECT (src, "sent backchannel RTP, %d", ret);
 
+    /* and steal it away again because we will free it when unreffing the
+     * buffer */
+    gst_rtsp_message_steal_body (&message, &data, &size);
     gst_rtsp_message_unset (&message);
+
+    gst_buffer_unmap (buffer, &map);
 
     res = GST_FLOW_OK;
   } else {
@@ -3650,15 +3469,12 @@ on_timeout (GObject * session, GObject * source, GstRTSPStream * stream)
   /* timeout, post element message */
   gst_element_post_message (GST_ELEMENT_CAST (src),
       gst_message_new_element (GST_OBJECT_CAST (src),
-          gst_structure_new ("GstRTSPSrcTimeout", "cause",
-              GST_TYPE_RTSP_SRC_TIMEOUT_CAUSE, GST_RTSP_SRC_TIMEOUT_CAUSE_RTCP,
+          gst_structure_new ("GstRTSPSrcTimeout",
+              "cause", G_TYPE_ENUM, GST_RTSP_SRC_TIMEOUT_CAUSE_RTCP,
               "stream-number", G_TYPE_INT, stream->id, "ssrc", G_TYPE_UINT,
               stream->ssrc, NULL)));
 
-  /* In non-live mode, timeouts can occur if we are PAUSED, this doesn't mean
-   * the stream is EOS, it may simply be blocked */
-  if (src->is_live || !src->interleaved)
-    on_timeout_common (session, source, stream);
+  on_timeout_common (session, source, stream);
 }
 
 static void
@@ -3850,7 +3666,7 @@ request_rtcp_encoder (GstElement * rtpbin, guint session,
     }
   }
   name = g_strdup_printf ("rtcp_sink_%d", session);
-  pad = gst_element_request_pad_simple (stream->srtpenc, name);
+  pad = gst_element_get_request_pad (stream->srtpenc, name);
   g_free (name);
   gst_object_unref (pad);
 
@@ -3986,9 +3802,6 @@ gst_rtspsrc_stream_configure_manager (GstRTSPSrc * src, GstRTSPStream * stream,
   gchar *name;
   GstStateChangeReturn ret;
 
-  if (!src->is_live)
-    goto use_no_manager;
-
   /* find a manager */
   if (gst_rtsp_transport_get_manager (transport->trans, &manager, 0) < 0)
     goto no_manager;
@@ -4120,10 +3933,10 @@ gst_rtspsrc_stream_configure_manager (GstRTSPSrc * src, GstRTSPStream * stream,
     /* we stream directly to the manager, get some pads. Each RTSP stream goes
      * into a separate RTP session. */
     name = g_strdup_printf ("recv_rtp_sink_%u", stream->id);
-    stream->channelpad[0] = gst_element_request_pad_simple (src->manager, name);
+    stream->channelpad[0] = gst_element_get_request_pad (src->manager, name);
     g_free (name);
     name = g_strdup_printf ("recv_rtcp_sink_%u", stream->id);
-    stream->channelpad[1] = gst_element_request_pad_simple (src->manager, name);
+    stream->channelpad[1] = gst_element_get_request_pad (src->manager, name);
     g_free (name);
 
     /* now configure the bandwidth in the manager */
@@ -4309,7 +4122,7 @@ gst_rtspsrc_stream_configure_tcp (GstRTSPSrc * src, GstRTSPStream * stream,
 
     /* get session RTCP pad */
     name = g_strdup_printf ("send_rtcp_src_%u", stream->id);
-    pad = gst_element_request_pad_simple (src->manager, name);
+    pad = gst_element_get_request_pad (src->manager, name);
     g_free (name);
 
     /* and link */
@@ -4700,7 +4513,7 @@ gst_rtspsrc_stream_configure_udp_sinks (GstRTSPSrc * src,
 
     /* get session RTCP pad */
     name = g_strdup_printf ("send_rtcp_src_%u", stream->id);
-    pad = gst_element_request_pad_simple (src->manager, name);
+    pad = gst_element_get_request_pad (src->manager, name);
     g_free (name);
 
     /* and link */
@@ -4954,8 +4767,8 @@ gst_rtspsrc_configure_caps (GstRTSPSrc * src, GstSegment * segment,
 
   GST_DEBUG_OBJECT (src, "configuring stream caps");
 
-  start = segment->rate > 0.0 ? segment->start : segment->stop;
-  stop = segment->rate > 0.0 ? segment->stop : segment->start;
+  start = segment->position;
+  stop = segment->duration;
   play_speed = segment->rate;
   play_scale = segment->applied_rate;
 
@@ -4987,8 +4800,6 @@ gst_rtspsrc_configure_caps (GstRTSPSrc * src, GstSegment * segment,
         gst_caps_set_simple (caps, "npt-stop", G_TYPE_UINT64, stop, NULL);
       gst_caps_set_simple (caps, "play-speed", G_TYPE_DOUBLE, play_speed, NULL);
       gst_caps_set_simple (caps, "play-scale", G_TYPE_DOUBLE, play_scale, NULL);
-      gst_caps_set_simple (caps, "onvif-mode", G_TYPE_BOOLEAN, src->onvif_mode,
-          NULL);
 
       item->caps = caps;
       GST_DEBUG_OBJECT (src, "stream %p, pt %d, caps %" GST_PTR_FORMAT, stream,
@@ -5173,11 +4984,8 @@ gst_rtsp_conninfo_connect (GstRTSPSrc * src, GstRTSPConnInfo * info,
             accept_certificate_cb, src, NULL);
       }
 
-      if (info->url->transports & GST_RTSP_LOWER_TRANS_HTTP) {
+      if (info->url->transports & GST_RTSP_LOWER_TRANS_HTTP)
         gst_rtsp_connection_set_tunneled (info->connection, TRUE);
-        gst_rtsp_connection_set_ignore_x_server_reply (info->connection,
-            src->ignore_x_server_reply);
-      }
 
       if (src->proxy_host) {
         GST_DEBUG_OBJECT (src, "setting proxy %s:%d", src->proxy_host,
@@ -5193,8 +5001,8 @@ gst_rtsp_conninfo_connect (GstRTSPSrc * src, GstRTSPConnInfo * info,
         GST_ELEMENT_PROGRESS (src, CONTINUE, "connect",
             ("Connecting to %s", info->location));
       GST_DEBUG_OBJECT (src, "connecting (%s)...", info->location);
-      res = gst_rtsp_connection_connect_with_response_usec (info->connection,
-          src->tcp_timeout, &response);
+      res = gst_rtsp_connection_connect_with_response (info->connection,
+          src->ptcp_timeout, &response);
 
       if (response.type == GST_RTSP_MESSAGE_HTTP_RESPONSE &&
           response.type_data.response.code == GST_RTSP_STS_UNAUTHORIZED) {
@@ -5345,7 +5153,7 @@ gst_rtspsrc_handle_request (GstRTSPSrc * src, GstRTSPConnInfo * conninfo,
 
     DEBUG_RTSP (src, &response);
 
-    res = gst_rtspsrc_connection_send (src, conninfo, &response, 0);
+    res = gst_rtspsrc_connection_send (src, conninfo, &response, NULL);
     if (res < 0)
       goto send_error;
 
@@ -5396,7 +5204,7 @@ gst_rtspsrc_send_keep_alive (GstRTSPSrc * src)
 
   request.type_data.request.version = src->version;
 
-  res = gst_rtspsrc_connection_send (src, &src->conninfo, &request, 0);
+  res = gst_rtspsrc_connection_send (src, &src->conninfo, &request, NULL);
   if (res < 0)
     goto send_error;
 
@@ -5489,6 +5297,7 @@ gst_rtspsrc_handle_data (GstRTSPSrc * src, GstRTSPMessage * message)
     GChecksum *cs;
     gchar *uri;
     GList *streams;
+    guint group_id = gst_util_group_id_next ();
 
     /* generate an SHA256 sum of the URI */
     cs = g_checksum_new (G_CHECKSUM_SHA256);
@@ -5499,17 +5308,10 @@ gst_rtspsrc_handle_data (GstRTSPSrc * src, GstRTSPMessage * message)
       GstRTSPStream *ostream = (GstRTSPStream *) streams->data;
       GstCaps *caps;
 
-      /* Activate in advance so that the stream-start event is registered */
-      if (stream->srcpad) {
-        gst_pad_set_active (stream->srcpad, TRUE);
-      }
-
       stream_id =
           g_strdup_printf ("%s/%d", g_checksum_get_string (cs), ostream->id);
-
       event = gst_event_new_stream_start (stream_id);
-
-      gst_rtspsrc_stream_start_event_add_group_id (src, event);
+      gst_event_set_group_id (event, group_id);
 
       g_free (stream_id);
       gst_rtspsrc_stream_push_event (src, ostream, event);
@@ -5586,15 +5388,10 @@ gst_rtspsrc_handle_data (GstRTSPSrc * src, GstRTSPMessage * message)
   /* If needed send a new segment, don't forget we are live and buffer are
    * timestamped with running time */
   if (src->need_segment) {
+    GstSegment segment;
     src->need_segment = FALSE;
-    if (src->onvif_mode) {
-      gst_rtspsrc_push_event (src, gst_event_new_segment (&src->out_segment));
-    } else {
-      GstSegment segment;
-
-      gst_segment_init (&segment, GST_FORMAT_TIME);
-      gst_rtspsrc_push_event (src, gst_event_new_segment (&segment));
-    }
+    gst_segment_init (&segment, GST_FORMAT_TIME);
+    gst_rtspsrc_push_event (src, gst_event_new_segment (&segment));
   }
 
   if (stream->need_caps) {
@@ -5665,19 +5462,31 @@ gst_rtspsrc_loop_interleaved (GstRTSPSrc * src)
   GstRTSPMessage message = { 0 };
   GstRTSPResult res;
   GstFlowReturn ret = GST_FLOW_OK;
+  GTimeVal tv_timeout;
 
   while (TRUE) {
-    gst_rtsp_message_unset (&message);
+    /* get the next timeout interval */
+    gst_rtsp_connection_next_timeout (src->conninfo.connection, &tv_timeout);
 
-    if (src->conninfo.flushing) {
-      /* do not attempt to receive if flushing */
-      res = GST_RTSP_EINTR;
-    } else {
-      /* protect the connection with the connection lock so that we can see when
-       * we are finished doing server communication */
-      res = gst_rtspsrc_connection_receive (src, &src->conninfo, &message,
-          src->tcp_timeout);
+    /* see if the timeout period expired */
+    if ((tv_timeout.tv_sec | tv_timeout.tv_usec) == 0) {
+      GST_DEBUG_OBJECT (src, "timout, sending keep-alive");
+      /* send keep-alive, only act on interrupt, a warning will be posted for
+       * other errors. */
+      if ((res = gst_rtspsrc_send_keep_alive (src)) == GST_RTSP_EINTR)
+        goto interrupt;
+      /* get new timeout */
+      gst_rtsp_connection_next_timeout (src->conninfo.connection, &tv_timeout);
     }
+
+    GST_DEBUG_OBJECT (src, "doing receive with timeout %ld seconds, %ld usec",
+        tv_timeout.tv_sec, tv_timeout.tv_usec);
+
+    /* protect the connection with the connection lock so that we can see when
+     * we are finished doing server communication */
+    res =
+        gst_rtspsrc_connection_receive (src, &src->conninfo,
+        &message, src->ptcp_timeout);
 
     switch (res) {
       case GST_RTSP_OK:
@@ -5779,26 +5588,21 @@ gst_rtspsrc_loop_udp (GstRTSPSrc * src)
   gint retry = 0;
 
   while (TRUE) {
-    gint64 timeout;
+    GTimeVal tv_timeout;
 
     /* get the next timeout interval */
-    timeout = gst_rtsp_connection_next_timeout_usec (src->conninfo.connection);
+    gst_rtsp_connection_next_timeout (src->conninfo.connection, &tv_timeout);
 
     GST_DEBUG_OBJECT (src, "doing receive with timeout %d seconds",
-        (gint) timeout / G_USEC_PER_SEC);
+        (gint) tv_timeout.tv_sec);
 
     gst_rtsp_message_unset (&message);
 
     /* we should continue reading the TCP socket because the server might
      * send us requests. When the session timeout expires, we need to send a
      * keep-alive request to keep the session open. */
-    if (src->conninfo.flushing) {
-      /* do not attempt to receive if flushing */
-      res = GST_RTSP_EINTR;
-    } else {
-      res = gst_rtspsrc_connection_receive (src, &src->conninfo, &message,
-          timeout);
-    }
+    res = gst_rtspsrc_connection_receive (src, &src->conninfo,
+        &message, &tv_timeout);
 
     switch (res) {
       case GST_RTSP_OK:
@@ -5827,7 +5631,7 @@ gst_rtspsrc_loop_udp (GstRTSPSrc * src)
         }
         continue;
       case GST_RTSP_ENET:
-        GST_DEBUG_OBJECT (src, "An ethernet problem occurred.");
+        GST_DEBUG_OBJECT (src, "An ethernet problem occured.");
       default:
         GST_ELEMENT_WARNING (src, RESOURCE, READ, (NULL),
             ("Unhandled return value %d.", res));
@@ -6442,16 +6246,8 @@ gst_rtsp_src_receive_response (GstRTSPSrc * src, GstRTSPConnInfo * conninfo,
 {
   GstRTSPStatusCode thecode;
   gchar *content_base = NULL;
-  GstRTSPResult res;
-
-next:
-  if (conninfo->flushing) {
-    /* do not attempt to receive if flushing */
-    res = GST_RTSP_EINTR;
-  } else {
-    res = gst_rtspsrc_connection_receive (src, conninfo, response,
-        src->tcp_timeout);
-  }
+  GstRTSPResult res = gst_rtspsrc_connection_receive (src, conninfo,
+      response, src->ptcp_timeout);
 
   if (res < 0)
     goto receive_error;
@@ -6467,7 +6263,7 @@ next:
         goto handle_request_failed;
 
       /* Not a response, receive next message */
-      goto next;
+      return gst_rtsp_src_receive_response (src, conninfo, response, code);
     case GST_RTSP_MESSAGE_RESPONSE:
       /* ok, a response is good */
       GST_DEBUG_OBJECT (src, "received response message");
@@ -6478,13 +6274,13 @@ next:
       gst_rtspsrc_handle_data (src, response);
 
       /* Not a response, receive next message */
-      goto next;
+      return gst_rtsp_src_receive_response (src, conninfo, response, code);
     default:
       GST_WARNING_OBJECT (src, "ignoring unknown message type %d",
           response->type);
 
       /* Not a response, receive next message */
-      goto next;
+      return gst_rtsp_src_receive_response (src, conninfo, response, code);
   }
 
   thecode = response->type_data.response.code;
@@ -6572,7 +6368,7 @@ again:
 
   DEBUG_RTSP (src, request);
 
-  res = gst_rtspsrc_connection_send (src, conninfo, request, src->tcp_timeout);
+  res = gst_rtspsrc_connection_send (src, conninfo, request, src->ptcp_timeout);
   if (res < 0)
     goto send_error;
 
@@ -6591,10 +6387,6 @@ again:
         goto again;
     }
   }
-
-  if (res < 0)
-    goto receive_error;
-
   gst_rtsp_ext_list_after_send (src->extensions, request, response);
 
   return res;
@@ -6608,20 +6400,6 @@ send_error:
           ("Could not send message. (%s)", str));
     } else {
       GST_WARNING_OBJECT (src, "send interrupted");
-    }
-    g_free (str);
-    return res;
-  }
-
-receive_error:
-  {
-    gchar *str = gst_rtsp_strresult (res);
-
-    if (res != GST_RTSP_EINTR) {
-      GST_ELEMENT_ERROR (src, RESOURCE, READ, (NULL),
-          ("Could not receive message. (%s)", str));
-    } else {
-      GST_WARNING_OBJECT (src, "receive interrupted");
     }
     g_free (str);
     return res;
@@ -6706,7 +6484,7 @@ gst_rtspsrc_send (GstRTSPSrc * src, GstRTSPConnInfo * conninfo,
           version_retry++;
           break;
         }
-        /* fallthrough */
+        /* falltrough */
       default:
         break;
     }
@@ -6776,16 +6554,6 @@ error_response:
       case GST_RTSP_STS_NOT_ACCEPTABLE:
       case GST_RTSP_STS_NOT_IMPLEMENTED:
       case GST_RTSP_STS_METHOD_NOT_ALLOWED:
-        /* Some cameras (e.g. HikVision DS-2CD2732F-IS) return "551
-         * Option not supported" when a command is sent that is not implemented
-         * (e.g. PAUSE). Instead; it should return "501 Not Implemented".
-         *
-         * This is wrong, as previously, the camera did announce support
-         * for PAUSE in the OPTIONS.
-         *
-         * In this case, handle the 551 as if it was 501 to avoid throwing
-         * errors to application level. */
-      case GST_RTSP_STS_OPTION_NOT_SUPPORTED:
         GST_WARNING_OBJECT (src, "got NOT IMPLEMENTED, disable method %s",
             gst_rtsp_method_as_text (method));
         src->methods &= ~method;
@@ -7344,10 +7112,6 @@ gst_rtspsrc_setup_streams_start (GstRTSPSrc * src, gboolean async)
     protocols = src->cur_protocols;
   }
 
-  /* In ONVIF mode, we only want to try TCP transport */
-  if (src->onvif_mode && (protocols & GST_RTSP_LOWER_TRANS_TCP))
-    protocols = GST_RTSP_LOWER_TRANS_TCP;
-
   if (protocols == 0)
     goto no_protocols;
 
@@ -7704,9 +7468,8 @@ cleanup_error:
 
 static gboolean
 gst_rtspsrc_parse_range (GstRTSPSrc * src, const gchar * range,
-    GstSegment * segment, gboolean update_duration)
+    GstSegment * segment)
 {
-  GstClockTime begin_seconds, end_seconds;
   gint64 seconds;
   GstRTSPTimeRange *therange;
 
@@ -7723,8 +7486,6 @@ gst_rtspsrc_parse_range (GstRTSPSrc * src, const gchar * range,
     return FALSE;
   }
 
-  gst_rtsp_range_get_times (therange, &begin_seconds, &end_seconds);
-
   GST_DEBUG_OBJECT (src, "range: type %d, min %f - type %d,  max %f ",
       therange->min.type, therange->min.seconds, therange->max.type,
       therange->max.seconds);
@@ -7734,18 +7495,14 @@ gst_rtspsrc_parse_range (GstRTSPSrc * src, const gchar * range,
   else if (therange->min.type == GST_RTSP_TIME_END)
     seconds = 0;
   else
-    seconds = begin_seconds;
+    seconds = therange->min.seconds * GST_SECOND;
 
   GST_DEBUG_OBJECT (src, "range: min %" GST_TIME_FORMAT,
       GST_TIME_ARGS (seconds));
 
   /* we need to start playback without clipping from the position reported by
    * the server */
-  if (segment->rate > 0.0)
-    segment->start = seconds;
-  else
-    segment->stop = seconds;
-
+  segment->start = seconds;
   segment->position = seconds;
 
   if (therange->max.type == GST_RTSP_TIME_NOW)
@@ -7753,7 +7510,7 @@ gst_rtspsrc_parse_range (GstRTSPSrc * src, const gchar * range,
   else if (therange->max.type == GST_RTSP_TIME_END)
     seconds = -1;
   else
-    seconds = end_seconds;
+    seconds = therange->max.seconds * GST_SECOND;
 
   GST_DEBUG_OBJECT (src, "range: max %" GST_TIME_FORMAT,
       GST_TIME_ARGS (seconds));
@@ -7766,28 +7523,13 @@ gst_rtspsrc_parse_range (GstRTSPSrc * src, const gchar * range,
   }
 
   /* live (WMS) might send min == max, which is not worth recording */
-  if (segment->duration == -1 && seconds == begin_seconds)
+  if (segment->duration == -1 && seconds == segment->start)
     seconds = -1;
 
   /* don't change duration with unknown value, we might have a valid value
-   * there that we want to keep. Also, the total duration of the stream
-   * can only be determined from the response to a DESCRIBE request, not
-   * from a PLAY request where we might have requested a custom range, so
-   * don't update duration in that case */
-  if (update_duration && seconds != -1) {
+   * there that we want to keep. */
+  if (seconds != -1)
     segment->duration = seconds;
-    GST_DEBUG_OBJECT (src, "set duration from range as %" GST_TIME_FORMAT,
-        GST_TIME_ARGS (seconds));
-  } else {
-    GST_DEBUG_OBJECT (src, "not updating existing duration %" GST_TIME_FORMAT
-        " from range %" GST_TIME_FORMAT, GST_TIME_ARGS (segment->duration),
-        GST_TIME_ARGS (seconds));
-  }
-
-  if (segment->rate > 0.0)
-    segment->stop = seconds;
-  else
-    segment->start = seconds;
 
   return TRUE;
 }
@@ -7889,7 +7631,7 @@ gst_rtspsrc_open_from_sdp (GstRTSPSrc * src, GstSDPMessage * sdp,
         break;
 
       /* keep track of the range and configure it in the segment */
-      if (gst_rtspsrc_parse_range (src, range, &src->segment, TRUE))
+      if (gst_rtspsrc_parse_range (src, range, &src->segment))
         break;
     }
   }
@@ -7953,8 +7695,7 @@ gst_rtspsrc_open_from_sdp (GstRTSPSrc * src, GstSDPMessage * sdp,
 
   /* reset our state */
   src->need_range = TRUE;
-  src->server_side_trickmode = FALSE;
-  src->trickmode_interval = 0;
+  src->skip = FALSE;
 
   src->state = GST_RTSP_STATE_READY;
 
@@ -8198,12 +7939,6 @@ gst_rtspsrc_open (GstRTSPSrc * src, gboolean async)
   if ((ret = gst_rtspsrc_open_from_sdp (src, src->sdp, async)) < 0)
     goto open_failed;
 
-  if (src->initial_seek) {
-    if (!gst_rtspsrc_perform_seek (src, src->initial_seek))
-      goto initial_seek_failed;
-    gst_event_replace (&src->initial_seek, NULL);
-  }
-
 done:
   if (async)
     gst_rtspsrc_loop_end_cmd (src, CMD_OPEN, ret);
@@ -8220,13 +7955,6 @@ no_sdp:
 open_failed:
   {
     GST_WARNING_OBJECT (src, "can't setup streaming from sdp");
-    src->open_error = TRUE;
-    goto done;
-  }
-initial_seek_failed:
-  {
-    GST_WARNING_OBJECT (src, "Failed to perform initial seek");
-    ret = GST_RTSP_ERROR;
     src->open_error = TRUE;
     goto done;
   }
@@ -8483,77 +8211,19 @@ gst_rtspsrc_get_float (const gchar * dstr)
 static gchar *
 gen_range_header (GstRTSPSrc * src, GstSegment * segment)
 {
-  GstRTSPTimeRange range = { 0, };
-  gdouble begin_seconds, end_seconds;
+  gchar val_str[G_ASCII_DTOSTR_BUF_SIZE] = { 0, };
 
-  if (segment->rate > 0) {
-    begin_seconds = (gdouble) segment->start / GST_SECOND;
-    end_seconds = (gdouble) segment->stop / GST_SECOND;
+  if (src->range && src->range->min.type == GST_RTSP_TIME_NOW) {
+    g_strlcpy (val_str, "now", sizeof (val_str));
   } else {
-    begin_seconds = (gdouble) segment->stop / GST_SECOND;
-    end_seconds = (gdouble) segment->start / GST_SECOND;
-  }
-
-  if (src->onvif_mode) {
-    GDateTime *prime_epoch, *datetime;
-
-    range.unit = GST_RTSP_RANGE_CLOCK;
-
-    prime_epoch = g_date_time_new_utc (1900, 1, 1, 0, 0, 0);
-
-    datetime = g_date_time_add_seconds (prime_epoch, begin_seconds);
-
-    range.min.type = GST_RTSP_TIME_UTC;
-    range.min2.year = g_date_time_get_year (datetime);
-    range.min2.month = g_date_time_get_month (datetime);
-    range.min2.day = g_date_time_get_day_of_month (datetime);
-    range.min.seconds =
-        g_date_time_get_seconds (datetime) +
-        g_date_time_get_minute (datetime) * 60 +
-        g_date_time_get_hour (datetime) * 60 * 60;
-
-    g_date_time_unref (datetime);
-
-    datetime = g_date_time_add_seconds (prime_epoch, end_seconds);
-
-    range.max.type = GST_RTSP_TIME_UTC;
-    range.max2.year = g_date_time_get_year (datetime);
-    range.max2.month = g_date_time_get_month (datetime);
-    range.max2.day = g_date_time_get_day_of_month (datetime);
-    range.max.seconds =
-        g_date_time_get_seconds (datetime) +
-        g_date_time_get_minute (datetime) * 60 +
-        g_date_time_get_hour (datetime) * 60 * 60;
-
-    g_date_time_unref (datetime);
-    g_date_time_unref (prime_epoch);
-  } else {
-    range.unit = GST_RTSP_RANGE_NPT;
-
-    if (src->range && src->range->min.type == GST_RTSP_TIME_NOW) {
-      range.min.type = GST_RTSP_TIME_NOW;
+    if (segment->position == 0) {
+      g_strlcpy (val_str, "0", sizeof (val_str));
     } else {
-      range.min.type = GST_RTSP_TIME_SECONDS;
-      range.min.seconds = begin_seconds;
-    }
-
-    if (src->range && src->range->max.type == GST_RTSP_TIME_END) {
-      range.max.type = GST_RTSP_TIME_END;
-    } else {
-      range.max.type = GST_RTSP_TIME_SECONDS;
-      range.max.seconds = end_seconds;
+      g_ascii_dtostr (val_str, sizeof (val_str),
+          ((gdouble) segment->position) / GST_SECOND);
     }
   }
-
-  /* Don't set end bounds when not required to */
-  if (!GST_CLOCK_TIME_IS_VALID (segment->stop)) {
-    if (segment->rate > 0)
-      range.max.type = GST_RTSP_TIME_END;
-    else
-      range.min.type = GST_RTSP_TIME_END;
-  }
-
-  return gst_rtsp_range_to_string (&range);
+  return g_strdup_printf ("npt=%s-", val_str);
 }
 
 static void
@@ -8616,7 +8286,6 @@ gst_rtspsrc_play (GstRTSPSrc * src, GstSegment * segment, gboolean async,
   gchar *hval;
   gint hval_idx;
   const gchar *control;
-  GstSegment requested;
 
   GST_DEBUG_OBJECT (src, "PLAY...");
 
@@ -8632,8 +8301,6 @@ restart:
 
   if (!src->conninfo.connection || !src->conninfo.connected)
     goto done;
-
-  requested = *segment;
 
   /* send some dummy packets before we activate the receive in the
    * udp sources */
@@ -8680,44 +8347,13 @@ restart:
     }
 
     if (segment->rate != 1.0) {
-      gchar scale_val[G_ASCII_DTOSTR_BUF_SIZE];
-      gchar speed_val[G_ASCII_DTOSTR_BUF_SIZE];
+      gchar hval[G_ASCII_DTOSTR_BUF_SIZE];
 
-      if (src->server_side_trickmode) {
-        g_ascii_dtostr (scale_val, sizeof (scale_val), segment->rate);
-        gst_rtsp_message_add_header (&request, GST_RTSP_HDR_SCALE, scale_val);
-      } else if (segment->rate < 0.0) {
-        g_ascii_dtostr (scale_val, sizeof (scale_val), -1.0);
-        gst_rtsp_message_add_header (&request, GST_RTSP_HDR_SCALE, scale_val);
-
-        if (ABS (segment->rate) != 1.0) {
-          g_ascii_dtostr (speed_val, sizeof (speed_val), ABS (segment->rate));
-          gst_rtsp_message_add_header (&request, GST_RTSP_HDR_SPEED, speed_val);
-        }
-      } else {
-        g_ascii_dtostr (speed_val, sizeof (speed_val), segment->rate);
-        gst_rtsp_message_add_header (&request, GST_RTSP_HDR_SPEED, speed_val);
-      }
-    }
-
-    if (src->onvif_mode) {
-      if (segment->flags & GST_SEEK_FLAG_TRICKMODE_KEY_UNITS) {
-        gchar *hval;
-
-        if (src->trickmode_interval)
-          hval =
-              g_strdup_printf ("intra/%" G_GUINT64_FORMAT,
-              src->trickmode_interval / GST_MSECOND);
-        else
-          hval = g_strdup ("intra");
-
-        gst_rtsp_message_add_header (&request, GST_RTSP_HDR_FRAMES, hval);
-
-        g_free (hval);
-      } else if (segment->flags & GST_SEEK_FLAG_TRICKMODE_FORWARD_PREDICTED) {
-        gst_rtsp_message_add_header (&request, GST_RTSP_HDR_FRAMES,
-            "predicted");
-      }
+      g_ascii_dtostr (hval, sizeof (hval), segment->rate);
+      if (src->skip)
+        gst_rtsp_message_add_header (&request, GST_RTSP_HDR_SCALE, hval);
+      else
+        gst_rtsp_message_add_header (&request, GST_RTSP_HDR_SPEED, hval);
     }
 
     if (seek_style)
@@ -8730,14 +8366,6 @@ restart:
         (control || stream->is_backchannel))
       gst_rtsp_message_add_header (&request, GST_RTSP_HDR_REQUIRE,
           BACKCHANNEL_ONVIF_HDR_REQUIRE_VAL);
-
-    if (src->onvif_mode) {
-      if (src->onvif_rate_control)
-        gst_rtsp_message_add_header (&request, GST_RTSP_HDR_RATE_CONTROL,
-            "yes");
-      else
-        gst_rtsp_message_add_header (&request, GST_RTSP_HDR_RATE_CONTROL, "no");
-    }
 
     if (async)
       GST_ELEMENT_PROGRESS (src, CONTINUE, "request", ("Sending PLAY request"));
@@ -8792,7 +8420,7 @@ restart:
      * Play Time) and should be put in the NEWSEGMENT position field. */
     if (gst_rtsp_message_get_header (&response, GST_RTSP_HDR_RANGE, &hval,
             0) == GST_RTSP_OK)
-      gst_rtspsrc_parse_range (src, hval, segment, FALSE);
+      gst_rtspsrc_parse_range (src, hval, segment);
 
     /* assume 1.0 rate now, overwrite when the SCALE or SPEED headers are present. */
     segment->rate = 1.0;
@@ -8827,21 +8455,6 @@ restart:
     if (control)
       break;
   }
-
-  src->out_segment = *segment;
-
-  if (src->clip_out_segment) {
-    /* Only clip the output segment when the server has answered with valid
-     * values, we cannot know otherwise whether the requested bounds were
-     * available */
-    if (GST_CLOCK_TIME_IS_VALID (src->segment.start) &&
-        GST_CLOCK_TIME_IS_VALID (requested.start))
-      src->out_segment.start = MAX (src->out_segment.start, requested.start);
-    if (GST_CLOCK_TIME_IS_VALID (src->segment.stop) &&
-        GST_CLOCK_TIME_IS_VALID (requested.stop))
-      src->out_segment.stop = MIN (src->out_segment.stop, requested.stop);
-  }
-
   /* configure the caps of the streams after we parsed all headers. Only reset
    * the manager object when we set a new Range header (we did a seek) */
   gst_rtspsrc_configure_caps (src, segment, src->need_range);
@@ -8983,7 +8596,7 @@ gst_rtspsrc_pause (GstRTSPSrc * src, gboolean async)
     gst_rtsp_message_unset (&request);
     gst_rtsp_message_unset (&response);
 
-    /* exit early when we did aggregate control */
+    /* exit early when we did agregate control */
     if (control)
       break;
   }
@@ -9049,7 +8662,6 @@ gst_rtspsrc_handle_message (GstBin * bin, GstMessage * message)
   rtspsrc = GST_RTSPSRC (bin);
 
   switch (GST_MESSAGE_TYPE (message)) {
-    case GST_MESSAGE_STREAM_START:
     case GST_MESSAGE_EOS:
       gst_message_unref (message);
       break;
@@ -9138,9 +8750,7 @@ gst_rtspsrc_thread (GstRTSPSrc * src)
       src->pending_cmd = CMD_LOOP;
     } else {
       ParameterRequest *next_req;
-      if (cmd == CMD_GET_PARAMETER || cmd == CMD_SET_PARAMETER) {
-        req = g_queue_pop_head (&src->set_get_param_q);
-      }
+      req = g_queue_pop_head (&src->set_get_param_q);
       next_req = g_queue_peek_head (&src->set_get_param_q);
       src->pending_cmd = next_req ? next_req->cmd : CMD_LOOP;
     }
@@ -9281,26 +8891,20 @@ gst_rtspsrc_change_state (GstElement * element, GstStateChange transition)
       /* first attempt, don't ignore timeouts */
       rtspsrc->ignore_timeout = FALSE;
       rtspsrc->open_error = FALSE;
-      if (rtspsrc->is_live)
-        gst_rtspsrc_loop_send_cmd (rtspsrc, CMD_OPEN, 0);
-      else
-        gst_rtspsrc_loop_send_cmd (rtspsrc, CMD_PLAY, 0);
+      gst_rtspsrc_loop_send_cmd (rtspsrc, CMD_OPEN, 0);
       break;
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
       set_manager_buffer_mode (rtspsrc);
       /* fall-through */
     case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-      if (rtspsrc->is_live) {
-        /* unblock the tcp tasks and make the loop waiting */
-        if (gst_rtspsrc_loop_send_cmd (rtspsrc, CMD_WAIT, CMD_LOOP)) {
-          /* make sure it is waiting before we send PAUSE or PLAY below */
-          GST_RTSP_STREAM_LOCK (rtspsrc);
-          GST_RTSP_STREAM_UNLOCK (rtspsrc);
-        }
+      /* unblock the tcp tasks and make the loop waiting */
+      if (gst_rtspsrc_loop_send_cmd (rtspsrc, CMD_WAIT, CMD_LOOP)) {
+        /* make sure it is waiting before we send PAUSE or PLAY below */
+        GST_RTSP_STREAM_LOCK (rtspsrc);
+        GST_RTSP_STREAM_UNLOCK (rtspsrc);
       }
       break;
     case GST_STATE_CHANGE_PAUSED_TO_READY:
-      rtspsrc->group_id = GST_GROUP_ID_INVALID;
       break;
     default:
       break;
@@ -9315,25 +8919,18 @@ gst_rtspsrc_change_state (GstElement * element, GstStateChange transition)
       ret = GST_STATE_CHANGE_SUCCESS;
       break;
     case GST_STATE_CHANGE_READY_TO_PAUSED:
-      if (rtspsrc->is_live)
-        ret = GST_STATE_CHANGE_NO_PREROLL;
-      else
-        ret = GST_STATE_CHANGE_SUCCESS;
+      ret = GST_STATE_CHANGE_NO_PREROLL;
       break;
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
-      if (rtspsrc->is_live)
-        gst_rtspsrc_loop_send_cmd (rtspsrc, CMD_PLAY, 0);
+      gst_rtspsrc_loop_send_cmd (rtspsrc, CMD_PLAY, 0);
       ret = GST_STATE_CHANGE_SUCCESS;
       break;
     case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-      if (rtspsrc->is_live) {
-        /* send pause request and keep the idle task around */
-        gst_rtspsrc_loop_send_cmd (rtspsrc, CMD_PAUSE, CMD_LOOP);
-      }
-      ret = GST_STATE_CHANGE_SUCCESS;
+      /* send pause request and keep the idle task around */
+      gst_rtspsrc_loop_send_cmd (rtspsrc, CMD_PAUSE, CMD_LOOP);
+      ret = GST_STATE_CHANGE_NO_PREROLL;
       break;
     case GST_STATE_CHANGE_PAUSED_TO_READY:
-      rtspsrc->seek_seqnum = GST_SEQNUM_INVALID;
       gst_rtspsrc_loop_send_cmd_and_wait (rtspsrc, CMD_CLOSE, CMD_ALL,
           rtspsrc->teardown_timeout);
       ret = GST_STATE_CHANGE_SUCCESS;
@@ -9374,16 +8971,7 @@ gst_rtspsrc_send_event (GstElement * element, GstEvent * event)
 
   rtspsrc = GST_RTSPSRC (element);
 
-  if (GST_EVENT_TYPE (event) == GST_EVENT_SEEK) {
-    if (rtspsrc->state >= GST_RTSP_STATE_READY) {
-      res = gst_rtspsrc_perform_seek (rtspsrc, event);
-      gst_event_unref (event);
-    } else {
-      /* Store for later use */
-      res = TRUE;
-      rtspsrc->initial_seek = event;
-    }
-  } else if (GST_EVENT_IS_DOWNSTREAM (event)) {
+  if (GST_EVENT_IS_DOWNSTREAM (event)) {
     res = gst_rtspsrc_push_event (rtspsrc, event);
   } else {
     res = GST_ELEMENT_CLASS (parent_class)->send_event (element, event);
@@ -9535,8 +9123,6 @@ gst_rtspsrc_get_parameter (GstRTSPSrc * src, ParameterRequest * req)
 
   GST_DEBUG_OBJECT (src, "creating server get_parameter");
 
-  g_assert (req);
-
   if ((res = gst_rtspsrc_ensure_open (src, FALSE)) < 0)
     goto open_failed;
 
@@ -9653,8 +9239,6 @@ gst_rtspsrc_set_parameter (GstRTSPSrc * src, ParameterRequest * req)
   const gchar *control;
 
   GST_DEBUG_OBJECT (src, "creating server set_parameter");
-
-  g_assert (req);
 
   if ((res = gst_rtspsrc_ensure_open (src, FALSE)) < 0)
     goto open_failed;

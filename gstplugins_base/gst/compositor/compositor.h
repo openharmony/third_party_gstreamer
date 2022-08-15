@@ -24,19 +24,36 @@
 #include <gst/gst.h>
 #include <gst/video/video.h>
 #include <gst/video/gstvideoaggregator.h>
-#include <gst/base/base.h>
 
 #include "blend.h"
 
 G_BEGIN_DECLS
 
 #define GST_TYPE_COMPOSITOR (gst_compositor_get_type())
-G_DECLARE_FINAL_TYPE (GstCompositor, gst_compositor, GST, COMPOSITOR,
-    GstVideoAggregator)
+#define GST_COMPOSITOR(obj) \
+        (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_COMPOSITOR, GstCompositor))
+#define GST_COMPOSITOR_CLASS(klass) \
+        (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_COMPOSITOR, GstCompositorClass))
+#define GST_IS_COMPOSITOR(obj) \
+        (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_COMPOSITOR))
+#define GST_IS_COMPOSITOR_CLASS(klass) \
+        (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_COMPOSITOR))
 
 #define GST_TYPE_COMPOSITOR_PAD (gst_compositor_pad_get_type())
-G_DECLARE_FINAL_TYPE (GstCompositorPad, gst_compositor_pad, GST, COMPOSITOR_PAD,
-    GstVideoAggregatorParallelConvertPad)
+#define GST_COMPOSITOR_PAD(obj) \
+        (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_COMPOSITOR_PAD, GstCompositorPad))
+#define GST_COMPOSITOR_PAD_CLASS(klass) \
+        (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_COMPOSITOR_PAD, GstCompositorPadClass))
+#define GST_IS_COMPOSITOR_PAD(obj) \
+        (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_COMPOSITOR_PAD))
+#define GST_IS_COMPOSITOR_PAD_CLASS(klass) \
+        (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_COMPOSITOR_PAD))
+
+typedef struct _GstCompositor GstCompositor;
+typedef struct _GstCompositorClass GstCompositorClass;
+
+typedef struct _GstCompositorPad GstCompositorPad;
+typedef struct _GstCompositorPadClass GstCompositorPadClass;
 
 /**
  * GstCompositorBackground:
@@ -78,45 +95,6 @@ typedef enum
 } GstCompositorOperator;
 
 /**
- * GstCompositorSizingPolicy:
- * @COMPOSITOR_SIZING_POLICY_NONE: Scaling image without padding
- * @COMPOSITOR_SIZING_POLICY_KEEP_ASPECT_RATIO: Scaling image to fit destination
- *    resolution with preserving aspect ratio. Resulting image will be centered
- *    in the configured destination rectangle and it might have padding area
- *    if aspect ratio of destination rectangle is different from that of
- *    input image.
- *
- * Since: 1.20
- */
-typedef enum
-{
-  COMPOSITOR_SIZING_POLICY_NONE,
-  COMPOSITOR_SIZING_POLICY_KEEP_ASPECT_RATIO,
-} GstCompositorSizingPolicy;
-
-/* copied from video-converter.c */
-typedef void (*GstParallelizedTaskFunc) (gpointer user_data);
-
-typedef struct _GstParallelizedTaskRunner GstParallelizedTaskRunner;
-
-struct _GstParallelizedTaskRunner
-{
-  GstTaskPool *pool;
-  gboolean own_pool;
-  guint n_threads;
-
-  GstQueueArray *tasks;
-
-  GstParallelizedTaskFunc func;
-  gpointer *task_data;
-
-  GMutex lock;
-  gint n_todo;
-
-  gboolean async_tasks;
-};
-
-/**
  * GstCompositor:
  *
  * The opaque #GstCompositor structure.
@@ -126,25 +104,17 @@ struct _GstCompositor
   GstVideoAggregator videoaggregator;
   GstCompositorBackground background;
 
-  /* Property to allow overriding the default behaviour of
-   * pad.width == 0 or pad.height == 0: by default it means the input
-   * image should be left unscaled in that dimension, but it may be desirable
-   * to have it simply mean the image should not be composited into the output
-   * image, for example when animating the property.
-   */
-  gboolean zero_size_is_unscaled;
-
-  /* Max num of allowed for blending/rendering threads  */
-  guint max_threads;
-
   /* The 'blend' compositing function does not preserve the alpha value of the
    * background, while 'overlay' does; i.e., COMPOSITOR_OPERATOR_ADD is the
    * same as COMPOSITOR_OPERATOR_OVER when using the 'blend' BlendFunction. */
   BlendFunction blend, overlay;
   FillCheckerFunction fill_checker;
   FillColorFunction fill_color;
+};
 
-  GstParallelizedTaskRunner *blend_runner;
+struct _GstCompositorClass
+{
+  GstVideoAggregatorClass parent_class;
 };
 
 /**
@@ -154,23 +124,23 @@ struct _GstCompositor
  */
 struct _GstCompositorPad
 {
-  GstVideoAggregatorParallelConvertPad parent;
+  GstVideoAggregatorConvertPad parent;
 
   /* properties */
   gint xpos, ypos;
   gint width, height;
   gdouble alpha;
-  GstCompositorSizingPolicy sizing_policy;
 
   GstCompositorOperator op;
-
-  /* offset values for xpos and ypos used when sizing-policy is equal to
-   * keep-aspect-ratio */
-  gint x_offset;
-  gint y_offset;
 };
 
-GST_ELEMENT_REGISTER_DECLARE (compositor);
+struct _GstCompositorPadClass
+{
+  GstVideoAggregatorConvertPadClass parent_class;
+};
+
+GType gst_compositor_get_type (void);
+GType gst_compositor_pad_get_type (void);
 
 G_END_DECLS
 #endif /* __GST_COMPOSITOR_H__ */

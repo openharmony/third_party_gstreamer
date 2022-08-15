@@ -105,7 +105,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_gl_marker_debug);
 static void
 _init_debug (void)
 {
-  static gsize _init = 0;
+  static volatile gsize _init = 0;
 
   if (g_once_init_enter (&_init)) {
     GST_DEBUG_CATEGORY_GET (gst_performance, "GST_PERFORMANCE");
@@ -420,7 +420,7 @@ gst_gl_insert_debug_marker (GstGLContext * context, const gchar * format, ...)
  * gst_gl_async_debug_store_log_msg_valist:
  * @ad: the #GstGLAsyncDebug to store the message in
  * @cat: the #GstDebugCategory to output the message in
- * @level: the #GstDebugLevel
+ * @level: the #GstLevel
  * @file: the file where the debug message originates from
  * @function: the function where the debug message originates from
  * @line: the line in @file where the debug message originates from
@@ -487,7 +487,7 @@ gst_gl_async_debug_output_log_msg (GstGLAsyncDebug * ad)
  * gst_gl_async_debug_store_log_msg:
  * @ad: the #GstGLAsyncDebug to store the message in
  * @cat: the #GstDebugCategory to output the message in
- * @level: the #GstDebugLevel
+ * @level: the #GstLevel
  * @file: the file where the debug message originates from
  * @function: the function where the debug message originates from
  * @line: the line in @file where the debug message originates from

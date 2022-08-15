@@ -30,12 +30,14 @@
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  if (!gst_element_register (plugin, "rtponviftimestamp", GST_RANK_NONE,
+          GST_TYPE_RTP_ONVIF_TIMESTAMP))
+    return FALSE;
+  if (!gst_element_register (plugin, "rtponvifparse", GST_RANK_NONE,
+          GST_TYPE_RTP_ONVIF_PARSE))
+    return FALSE;
 
-  ret |= GST_ELEMENT_REGISTER (rtponviftimestamp, plugin);
-  ret |= GST_ELEMENT_REGISTER (rtponvifparse, plugin);
-
-  return ret;
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

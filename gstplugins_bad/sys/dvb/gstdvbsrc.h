@@ -144,6 +144,7 @@ struct _GstDvbSrcClass
 
 
 GType gst_dvbsrc_get_type (void);
+gboolean gst_dvbsrc_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 #endif /* __GST_DVBSRC_H__ */

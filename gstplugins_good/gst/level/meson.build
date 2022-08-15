@@ -7,4 +7,3 @@ gstlevel = library('gstlevel',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstlevel, install_dir : plugins_pkgconfig_install_dir)
-plugins += [gstlevel]

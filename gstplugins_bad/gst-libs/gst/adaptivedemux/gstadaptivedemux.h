@@ -193,7 +193,7 @@ struct _GstAdaptiveDemuxStream
   guint moving_index;
   guint64 *fragment_bitrates;
 
-  /* QoS data : UNUSED !!! */
+  /* QoS data */
   GstClockTime qos_earliest_time;
 
   GstAdaptiveDemuxStreamFragment fragment;
@@ -545,9 +545,6 @@ GDateTime *gst_adaptive_demux_get_client_now_utc (GstAdaptiveDemux * demux);
 
 GST_ADAPTIVE_DEMUX_API
 gboolean gst_adaptive_demux_is_running (GstAdaptiveDemux * demux);
-
-GST_ADAPTIVE_DEMUX_API
-GstClockTime gst_adaptive_demux_get_qos_earliest_time (GstAdaptiveDemux *demux);
 
 G_END_DECLS
 

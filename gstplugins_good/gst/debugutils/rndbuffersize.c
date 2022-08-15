@@ -18,7 +18,6 @@
  */
 /**
  * SECTION:element-rndbuffersize
- * @title: rndbuffersize
  *
  * This element pulls buffers with random sizes from the source.
  */
@@ -29,8 +28,6 @@
 
 #include <gst/gst.h>
 #include <gst/base/gstadapter.h>
-
-#include "gstdebugutilselements.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_rnd_buffer_size_debug);
 #define GST_CAT_DEFAULT gst_rnd_buffer_size_debug
@@ -109,8 +106,6 @@ static GstFlowReturn gst_rnd_buffer_size_chain (GstPad * pad,
 GType gst_rnd_buffer_size_get_type (void);
 #define gst_rnd_buffer_size_parent_class parent_class
 G_DEFINE_TYPE (GstRndBufferSize, gst_rnd_buffer_size, GST_TYPE_ELEMENT);
-GST_ELEMENT_REGISTER_DEFINE (rndbuffersize, "rndbuffersize",
-    GST_RANK_NONE, gst_rnd_buffer_size_get_type ());
 
 static void
 gst_rnd_buffer_size_class_init (GstRndBufferSizeClass * klass)
@@ -141,7 +136,7 @@ gst_rnd_buffer_size_class_init (GstRndBufferSizeClass * klass)
           0, G_MAXUINT32, DEFAULT_SEED,
           G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_MINIMUM,
-      g_param_spec_int ("min", "minimum", "minimum buffer size",
+      g_param_spec_int ("min", "mininum", "mininum buffer size",
           0, G_MAXINT32, DEFAULT_MIN,
           G_PARAM_READWRITE | G_PARAM_CONSTRUCT | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_MAXIMUM,

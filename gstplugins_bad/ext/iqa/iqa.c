@@ -88,7 +88,6 @@ enum
   PROP_0,
   PROP_DO_SSIM,
   PROP_SSIM_ERROR_THRESHOLD,
-  PROP_MODE,
   PROP_LAST,
 };
 
@@ -98,87 +97,11 @@ static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink_%u",
     GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE (SINK_FORMATS))
     );
 
-/* Child proxy implementation */
-static GObject *
-gst_iqa_child_proxy_get_child_by_index (GstChildProxy * child_proxy,
-    guint index)
-{
-  GstIqa *iqa = GST_IQA (child_proxy);
-  GObject *obj = NULL;
-
-  GST_OBJECT_LOCK (iqa);
-  obj = g_list_nth_data (GST_ELEMENT_CAST (iqa)->sinkpads, index);
-  if (obj)
-    gst_object_ref (obj);
-  GST_OBJECT_UNLOCK (iqa);
-
-  return obj;
-}
-
-static guint
-gst_iqa_child_proxy_get_children_count (GstChildProxy * child_proxy)
-{
-  guint count = 0;
-  GstIqa *iqa = GST_IQA (child_proxy);
-
-  GST_OBJECT_LOCK (iqa);
-  count = GST_ELEMENT_CAST (iqa)->numsinkpads;
-  GST_OBJECT_UNLOCK (iqa);
-  GST_INFO_OBJECT (iqa, "Children Count: %d", count);
-
-  return count;
-}
-
-static void
-gst_iqa_child_proxy_init (gpointer g_iface, gpointer iface_data)
-{
-  GstChildProxyInterface *iface = g_iface;
-
-  iface->get_child_by_index = gst_iqa_child_proxy_get_child_by_index;
-  iface->get_children_count = gst_iqa_child_proxy_get_children_count;
-}
-
-/**
- * GstIqaMode:
- * @GST_IQA_MODE_STRICT: Strict checks of the frames is enabled, this for
- * example implies that an error will be posted in case all the streams don't
- * have the exact same number of frames.
- *
- * Since: 1.18
- */
-typedef enum
-{
-  GST_IQA_MODE_STRICT = (1 << 1),
-} GstIqaMode;
-
-#define GST_TYPE_IQA_MODE (gst_iqa_mode_flags_get_type())
-static GType
-gst_iqa_mode_flags_get_type (void)
-{
-  static const GFlagsValue values[] = {
-    {GST_IQA_MODE_STRICT, "Strict comparison of frames.", "strict"},
-    {0, NULL, NULL}
-  };
-  static GType id = 0;
-
-  if (g_once_init_enter ((gsize *) & id)) {
-    GType _id;
-
-    _id = g_flags_register_static ("GstIqaMode", values);
-
-    g_once_init_leave ((gsize *) & id, _id);
-  }
-
-  return id;
-}
 
 /* GstIqa */
+
 #define gst_iqa_parent_class parent_class
-G_DEFINE_TYPE_WITH_CODE (GstIqa, gst_iqa, GST_TYPE_VIDEO_AGGREGATOR,
-    G_IMPLEMENT_INTERFACE (GST_TYPE_CHILD_PROXY, gst_iqa_child_proxy_init);
-    GST_DEBUG_CATEGORY_INIT (gst_iqa_debug, "iqa", 0, "iqa");
-    );
-GST_ELEMENT_REGISTER_DEFINE (iqa, "iqa", GST_RANK_PRIMARY, GST_TYPE_IQA);
+G_DEFINE_TYPE (GstIqa, gst_iqa, GST_TYPE_VIDEO_AGGREGATOR);
 
 #ifdef HAVE_DSSIM
 inline static unsigned char
@@ -195,7 +118,7 @@ static gboolean
 do_dssim (GstIqa * self, GstVideoFrame * ref, GstVideoFrame * cmp,
     GstBuffer * outbuf, GstStructure * msg_structure, gchar * padname)
 {
-  dssim_attr *attr;
+  dssim_attr *attr = dssim_create_attr ();
   gint y;
   unsigned char **ptrs, **ptrs2;
   GstMapInfo ref_info;
@@ -209,8 +132,11 @@ do_dssim (GstIqa * self, GstVideoFrame * ref, GstVideoFrame * cmp,
   gint i;
   dssim_rgba *out;
   GstStructure *dssim_structure;
-  gboolean ret = TRUE;
 
+  gst_structure_get (msg_structure, "dssim", GST_TYPE_STRUCTURE,
+      &dssim_structure, NULL);
+
+  dssim_set_save_ssim_maps (attr, 1, 1);
   if (ref->info.width != cmp->info.width ||
       ref->info.height != cmp->info.height) {
     GST_OBJECT_UNLOCK (self);
@@ -226,12 +152,6 @@ do_dssim (GstIqa * self, GstVideoFrame * ref, GstVideoFrame * cmp,
     GST_OBJECT_LOCK (self);
     return FALSE;
   }
-
-  gst_structure_get (msg_structure, "dssim", GST_TYPE_STRUCTURE,
-      &dssim_structure, NULL);
-
-  attr = dssim_create_attr ();
-  dssim_set_save_ssim_maps (attr, 1, 1);
 
   gst_buffer_map (ref->buffer, &ref_info, GST_MAP_READ);
   gst_buffer_map (cmp->buffer, &cmp_info, GST_MAP_READ);
@@ -277,8 +197,7 @@ do_dssim (GstIqa * self, GstVideoFrame * ref, GstVideoFrame * cmp,
 
     GST_OBJECT_LOCK (self);
 
-    ret = FALSE;
-    goto cleanup_return;
+    return FALSE;
   }
 
   if (dssim > self->max_dssim) {
@@ -297,11 +216,6 @@ do_dssim (GstIqa * self, GstVideoFrame * ref, GstVideoFrame * cmp,
   gst_structure_set (dssim_structure, padname, G_TYPE_DOUBLE, dssim, NULL);
   gst_structure_set (msg_structure, "dssim", GST_TYPE_STRUCTURE,
       dssim_structure, NULL);
-
-  ret = TRUE;
-
-cleanup_return:
-
   gst_structure_free (dssim_structure);
 
   free (map_meta.data);
@@ -314,7 +228,7 @@ cleanup_return:
   dssim_dealloc_image (cmp_image);
   dssim_dealloc_attr (attr);
 
-  return ret;
+  return TRUE;
 }
 #endif
 
@@ -369,16 +283,6 @@ gst_iqa_aggregate_frames (GstVideoAggregator * vagg, GstBuffer * outbuf)
         if (!res)
           goto failed;
       }
-    } else if ((self->mode & GST_IQA_MODE_STRICT) && ref_frame) {
-      GST_OBJECT_UNLOCK (vagg);
-
-      GST_ELEMENT_ERROR (self, STREAM, FAILED,
-          ("All sources are supposed to have the same number of buffers"
-              " but got no buffer matching %" GST_PTR_FORMAT " on pad: %"
-              GST_PTR_FORMAT, outbuf, pad), (NULL));
-
-      GST_OBJECT_LOCK (vagg);
-      break;
     }
   }
 
@@ -415,11 +319,6 @@ _set_property (GObject * object, guint prop_id, const GValue * value,
       self->ssim_threshold = g_value_get_double (value);
       GST_OBJECT_UNLOCK (self);
       break;
-    case PROP_MODE:
-      GST_OBJECT_LOCK (self);
-      self->mode = g_value_get_flags (value);
-      GST_OBJECT_UNLOCK (self);
-      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -441,11 +340,6 @@ _get_property (GObject * object,
     case PROP_SSIM_ERROR_THRESHOLD:
       GST_OBJECT_LOCK (self);
       g_value_set_double (value, self->ssim_threshold);
-      GST_OBJECT_UNLOCK (self);
-      break;
-    case PROP_MODE:
-      GST_OBJECT_LOCK (self);
-      g_value_set_flags (value, self->mode);
       GST_OBJECT_UNLOCK (self);
       break;
     default:
@@ -485,20 +379,6 @@ gst_iqa_class_init (GstIqaClass * klass)
           -1.0, G_MAXDOUBLE, DEFAULT_DSSIM_ERROR_THRESHOLD, G_PARAM_READWRITE));
 #endif
 
-  /**
-   * iqa:mode:
-   *
-   * Controls the frame comparison mode.
-   *
-   * Since: 1.18
-   */
-  g_object_class_install_property (gobject_class, PROP_MODE,
-      g_param_spec_flags ("mode", "IQA mode",
-          "Controls the frame comparison mode.", GST_TYPE_IQA_MODE,
-          0, G_PARAM_READWRITE));
-
-  gst_type_mark_as_plugin_api (GST_TYPE_IQA_MODE, 0);
-
   gst_element_class_set_static_metadata (gstelement_class, "Iqa",
       "Filter/Analyzer/Video",
       "Provides various Image Quality Assessment metrics",
@@ -513,10 +393,11 @@ gst_iqa_init (GstIqa * self)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (iqa, plugin);
+  GST_DEBUG_CATEGORY_INIT (gst_iqa_debug, "iqa", 0, "iqa");
+
+  return gst_element_register (plugin, "iqa", GST_RANK_PRIMARY, GST_TYPE_IQA);
 }
 
-// FIXME: effective iqa plugin license should be AGPL3+ !
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     iqa,

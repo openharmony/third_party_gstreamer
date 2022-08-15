@@ -31,21 +31,7 @@
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/**
- * SECTION: element-msdkvc1dec
- * @title: msdkvc1dec
- * @short_description: Intel MSDK VC1 decoder
- *
- * VC1/WMV video decoder based on Intel MFX
- *
- * ## Example launch line
- * ```
- * gst-launch-1.0 filesrc location=video.wmv ! asfdemux ! vc1parse ! msdkvc1dec ! videoconvert ! xvimagesink
- * ```
- *
- * Since: 1.14
- *
- */
+/* sample pipeline: gst-launch-1.0 filesrc location=video.wmv ! asfdemux ! vc1parse !  msdkvc1dec ! videoconvert ! xvimagesink */
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
@@ -106,7 +92,7 @@ gst_msdkvc1dec_configure (GstMsdkDec * decoder)
     decoder->param.mfx.CodecProfile = MFX_PROFILE_VC1_MAIN;
   else {
     decoder->param.mfx.CodecProfile = MFX_PROFILE_VC1_ADVANCED;
-    /* asf advanced profile codec-data has 1 byte in the beginning
+    /* asf advanced profile codec-data has 1 byte in the begining
      * which is the ASF binding byte. MediaSDK can't recognize this
      * byte, so discard it */
     if (decoder->input_state->codec_data) {
@@ -116,13 +102,15 @@ gst_msdkvc1dec_configure (GstMsdkDec * decoder)
       gst_adapter_push (decoder->adapter, buffer);
     }
 
-    gst_video_decoder_set_packetized (GST_VIDEO_DECODER (decoder), FALSE);
+    decoder->is_packetized = FALSE;
   }
 
   /* This is a deprecated attribute in msdk-2017 version, but some
    * customers still using this for low-latency streaming of non-b-frame
    * encoded streams */
   decoder->param.mfx.DecodedOrder = vc1dec->output_order;
+  return TRUE;
+
   return TRUE;
 }
 
@@ -203,7 +191,7 @@ gst_msdkvc1dec_class_init (GstMsdkVC1DecClass * klass)
   gst_element_class_set_static_metadata (element_class,
       "Intel MSDK VC1 decoder",
       "Codec/Decoder/Video/Hardware",
-      "VC1/WMV video decoder based on " MFX_API_SDK,
+      "VC1/WMV video decoder based on Intel Media SDK",
       "Sreerenj Balachandran <sreerenj.balachandran@intel.com>");
 
   gst_msdkdec_prop_install_output_oder_property (gobject_class);

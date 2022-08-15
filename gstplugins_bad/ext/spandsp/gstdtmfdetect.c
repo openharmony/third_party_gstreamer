@@ -34,7 +34,7 @@
  * * gint `type` (0-1): The application uses this field to specify which of the two methods
  *   specified in RFC 2833 to use. The value should be 0 for tones and 1 for
  *   named events. Tones are specified by their frequencies and events are
- *   specified by their number. This element can only take events as input.
+ *   specfied by their number. This element can only take events as input.
  *   Do not confuse with "method" which specified the output.
  * * gint `number` (0-16): The event number.
  * * gint `method` (2): This field will always been 2 (ie sound) from this element.
@@ -93,8 +93,6 @@ static gboolean gst_dtmf_detect_sink_event (GstBaseTransform * trans,
     GstEvent * event);
 
 G_DEFINE_TYPE (GstDtmfDetect, gst_dtmf_detect, GST_TYPE_BASE_TRANSFORM);
-GST_ELEMENT_REGISTER_DEFINE (dtmfdetect, "dtmfdetect",
-    GST_RANK_MARGINAL, GST_TYPE_DTMF_DETECT);
 
 static void
 gst_dtmf_detect_class_init (GstDtmfDetectClass * klass)
@@ -279,4 +277,12 @@ gst_dtmf_detect_sink_event (GstBaseTransform * trans, GstEvent * event)
 
   return GST_BASE_TRANSFORM_CLASS (gst_dtmf_detect_parent_class)->sink_event
       (trans, event);
+}
+
+
+gboolean
+gst_dtmf_detect_plugin_init (GstPlugin * plugin)
+{
+  return gst_element_register (plugin, "dtmfdetect",
+      GST_RANK_MARGINAL, GST_TYPE_DTMF_DETECT);
 }

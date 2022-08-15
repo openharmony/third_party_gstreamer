@@ -89,7 +89,6 @@ struct _GstPitchClass
 };
 
 GType gst_pitch_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (pitch);
 
 G_END_DECLS
 

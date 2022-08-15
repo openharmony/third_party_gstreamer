@@ -112,11 +112,6 @@ struct _GstTaskPrivate
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
-typedef HRESULT (WINAPI * pSetThreadDescription) (HANDLE hThread,
-    PCWSTR lpThreadDescription);
-static pSetThreadDescription SetThreadDescriptionFunc = NULL;
-HMODULE kernel32_module = NULL;
-
 struct _THREADNAME_INFO
 {
   DWORD dwType;                 // must be 0x1000
@@ -126,7 +121,7 @@ struct _THREADNAME_INFO
 };
 typedef struct _THREADNAME_INFO THREADNAME_INFO;
 
-static void
+void
 SetThreadName (DWORD dwThreadID, LPCSTR szThreadName)
 {
   THREADNAME_INFO info;
@@ -142,57 +137,6 @@ SetThreadName (DWORD dwThreadID, LPCSTR szThreadName)
   __except (EXCEPTION_CONTINUE_EXECUTION) {
   }
 }
-
-static gboolean
-gst_task_win32_load_library (void)
-{
-  /* FIXME: Add support for UWP app */
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
-  static gsize _init_once = 0;
-  if (g_once_init_enter (&_init_once)) {
-    kernel32_module = LoadLibraryW (L"kernel32.dll");
-    if (kernel32_module) {
-      SetThreadDescriptionFunc =
-          (pSetThreadDescription) GetProcAddress (kernel32_module,
-          "SetThreadDescription");
-      if (!SetThreadDescriptionFunc)
-        FreeLibrary (kernel32_module);
-    }
-    g_once_init_leave (&_init_once, 1);
-  }
-#endif
-
-  return ! !SetThreadDescriptionFunc;
-}
-
-static gboolean
-gst_task_win32_set_thread_desc (const gchar * name)
-{
-  HRESULT hr;
-  wchar_t *namew;
-
-  if (!gst_task_win32_load_library () || !name)
-    return FALSE;
-
-  namew = g_utf8_to_utf16 (name, -1, NULL, NULL, NULL);
-  if (!namew)
-    return FALSE;
-
-  hr = SetThreadDescriptionFunc (GetCurrentThread (), namew);
-
-  g_free (namew);
-  return SUCCEEDED (hr);
-}
-
-static void
-gst_task_win32_set_thread_name (const gchar * name)
-{
-  /* Prefer SetThreadDescription over exception based way if available,
-   * since thread description set by SetThreadDescription will be preserved
-   * in dump file */
-  if (!gst_task_win32_set_thread_desc (name))
-    SetThreadName ((DWORD) - 1, name);
-}
 #endif
 
 static void gst_task_finalize (GObject * object);
@@ -200,8 +144,6 @@ static void gst_task_finalize (GObject * object);
 static void gst_task_func (GstTask * task);
 
 static GMutex pool_lock;
-
-static GstTaskPool *_global_task_pool = NULL;
 
 #define _do_init \
 { \
@@ -211,18 +153,19 @@ static GstTaskPool *_global_task_pool = NULL;
 G_DEFINE_TYPE_WITH_CODE (GstTask, gst_task, GST_TYPE_OBJECT,
     G_ADD_PRIVATE (GstTask) _do_init);
 
-/* Called with pool_lock */
 static void
-ensure_klass_pool (GstTaskClass * klass)
+init_klass_pool (GstTaskClass * klass)
 {
-  if (G_UNLIKELY (_global_task_pool == NULL)) {
-    _global_task_pool = gst_task_pool_new ();
-    gst_task_pool_prepare (_global_task_pool, NULL);
-
-    /* Classes are never destroyed so this ref will never be dropped */
-    GST_OBJECT_FLAG_SET (_global_task_pool, GST_OBJECT_FLAG_MAY_BE_LEAKED);
+  g_mutex_lock (&pool_lock);
+  if (klass->pool) {
+    gst_task_pool_cleanup (klass->pool);
+    gst_object_unref (klass->pool);
   }
-  klass->pool = _global_task_pool;
+  klass->pool = gst_task_pool_new ();
+  /* Classes are never destroyed so this ref will never be dropped */
+  GST_OBJECT_FLAG_SET (klass->pool, GST_OBJECT_FLAG_MAY_BE_LEAKED);
+  gst_task_pool_prepare (klass->pool, NULL);
+  g_mutex_unlock (&pool_lock);
 }
 
 static void
@@ -233,6 +176,8 @@ gst_task_class_init (GstTaskClass * klass)
   gobject_class = (GObjectClass *) klass;
 
   gobject_class->finalize = gst_task_finalize;
+
+  init_klass_pool (klass);
 }
 
 static void
@@ -252,7 +197,6 @@ gst_task_init (GstTask * task)
   /* use the default klass pool for this task, users can
    * override this later */
   g_mutex_lock (&pool_lock);
-  ensure_klass_pool (klass);
   task->priv->pool = gst_object_ref (klass->pool);
   g_mutex_unlock (&pool_lock);
 }
@@ -321,7 +265,7 @@ gst_task_configure_name (GstTask * task)
 
   /* set the thread name to something easily identifiable */
   GST_DEBUG_OBJECT (task, "Setting thread name to '%s'", name);
-  gst_task_win32_set_thread_name (name);
+  SetThreadName (-1, name);
 #endif
 }
 
@@ -434,14 +378,7 @@ gst_task_cleanup_all (void)
   GstTaskClass *klass;
 
   if ((klass = g_type_class_peek (GST_TYPE_TASK))) {
-    if (klass->pool) {
-      g_mutex_lock (&pool_lock);
-      gst_task_pool_cleanup (klass->pool);
-      gst_object_unref (klass->pool);
-      klass->pool = NULL;
-      _global_task_pool = NULL;
-      g_mutex_unlock (&pool_lock);
-    }
+    init_klass_pool (klass);
   }
 
   /* GstElement owns a GThreadPool */
@@ -720,14 +657,33 @@ start_task (GstTask * task)
   return res;
 }
 
-static inline gboolean
-gst_task_set_state_unlocked (GstTask * task, GstTaskState state)
+
+/**
+ * gst_task_set_state:
+ * @task: a #GstTask
+ * @state: the new task state
+ *
+ * Sets the state of @task to @state.
+ *
+ * The @task must have a lock associated with it using
+ * gst_task_set_lock() when going to GST_TASK_STARTED or GST_TASK_PAUSED or
+ * this function will return %FALSE.
+ *
+ * MT safe.
+ *
+ * Returns: %TRUE if the state could be changed.
+ */
+gboolean
+gst_task_set_state (GstTask * task, GstTaskState state)
 {
   GstTaskState old;
   gboolean res = TRUE;
 
+  g_return_val_if_fail (GST_IS_TASK (task), FALSE);
+
   GST_DEBUG_OBJECT (task, "Changing task %p to state %d", task, state);
 
+  GST_OBJECT_LOCK (task);
   if (state != GST_TASK_STOPPED)
     if (G_UNLIKELY (GST_TASK_GET_LOCK (task) == NULL))
       goto no_lock;
@@ -753,6 +709,7 @@ gst_task_set_state_unlocked (GstTask * task, GstTaskState state)
         break;
     }
   }
+  GST_OBJECT_UNLOCK (task);
 
   return res;
 
@@ -760,39 +717,10 @@ gst_task_set_state_unlocked (GstTask * task, GstTaskState state)
 no_lock:
   {
     GST_WARNING_OBJECT (task, "state %d set on task without a lock", state);
+    GST_OBJECT_UNLOCK (task);
     g_warning ("task without a lock can't be set to state %d", state);
     return FALSE;
   }
-}
-
-
-/**
- * gst_task_set_state:
- * @task: a #GstTask
- * @state: the new task state
- *
- * Sets the state of @task to @state.
- *
- * The @task must have a lock associated with it using
- * gst_task_set_lock() when going to GST_TASK_STARTED or GST_TASK_PAUSED or
- * this function will return %FALSE.
- *
- * MT safe.
- *
- * Returns: %TRUE if the state could be changed.
- */
-gboolean
-gst_task_set_state (GstTask * task, GstTaskState state)
-{
-  gboolean res = TRUE;
-
-  g_return_val_if_fail (GST_IS_TASK (task), FALSE);
-
-  GST_OBJECT_LOCK (task);
-  res = gst_task_set_state_unlocked (task, state);
-  GST_OBJECT_UNLOCK (task);
-
-  return res;
 }
 
 /**
@@ -847,32 +775,6 @@ gboolean
 gst_task_pause (GstTask * task)
 {
   return gst_task_set_state (task, GST_TASK_PAUSED);
-}
-
-/**
- * gst_task_resume:
- * @task: The #GstTask to resume
- *
- * Resume @task in case it was paused. If the task was stopped, it will
- * remain in that state and this function will return %FALSE.
- *
- * Returns: %TRUE if the task could be resumed.
- *
- * MT safe.
- * Since: 1.18
- */
-gboolean
-gst_task_resume (GstTask * task)
-{
-  gboolean res = FALSE;
-  g_return_val_if_fail (GST_IS_TASK (task), FALSE);
-
-  GST_OBJECT_LOCK (task);
-  if (GET_TASK_STATE (task) != GST_TASK_STOPPED)
-    res = gst_task_set_state_unlocked (task, GST_TASK_STARTED);
-  GST_OBJECT_UNLOCK (task);
-
-  return res;
 }
 
 /**

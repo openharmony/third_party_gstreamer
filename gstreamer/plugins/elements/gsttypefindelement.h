@@ -65,7 +65,6 @@ struct _GstTypeFindElement {
   gboolean need_stream_start;
   GstSegment segment;
   guint64 offset;
-  guint32 seqnum;
 #ifdef OHOS_OPT_COMPAT
   // ohos.opt.compat.0004
   guint pre_prebability;

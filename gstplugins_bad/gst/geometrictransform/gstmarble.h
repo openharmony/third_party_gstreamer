@@ -88,7 +88,7 @@ struct _GstMarbleClass
 
 GType gst_marble_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (marble);
+gboolean gst_marble_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 

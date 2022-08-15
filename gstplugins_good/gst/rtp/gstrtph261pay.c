@@ -20,7 +20,6 @@
 
 /**
  * SECTION:element-rtph261pay
- * @title: rtph261pay
  * @see_also: rtph261depay
  *
  * Payload encoded H.261 video frames into RTP packets according to RFC 4587.
@@ -36,19 +35,19 @@
  * encoder does not produce a continuous bit-stream but the decoder requires
  * it.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 videotestsrc ! avenc_h261 ! rtph261pay ! udpsink
  * ]| This will encode a test video and payload it. Refer to the rtph261depay
  * example to depayload and play the RTP stream.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
 #  include "config.h"
 #endif
 
-#include "gstrtpelements.h"
 #include "gstrtph261pay.h"
 #include "gstrtputils.h"
 #include <gst/rtp/gstrtpbuffer.h>
@@ -83,10 +82,8 @@ static GstStaticPadTemplate gst_rtp_h261_pay_src_template =
         "clock-rate = (int) 90000, " "encoding-name = (string) \"H261\"")
     );
 
-#define parent_class gst_rtp_h261_pay_parent_class
 G_DEFINE_TYPE (GstRtpH261Pay, gst_rtp_h261_pay, GST_TYPE_RTP_BASE_PAYLOAD);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtph261pay, "rtph261pay",
-    GST_RANK_SECONDARY, GST_TYPE_RTP_H261_PAY, rtp_element_init (plugin));
+#define parent_class gst_rtp_h261_pay_parent_class
 
 typedef struct
 {
@@ -776,7 +773,7 @@ find_gob (GstRtpH261Pay * pay, const guint8 * data, guint size, guint pos)
   return ret;
 }
 
-/* Scans after all GOB start codes and initializes the GOB structure with start
+/* Scans after all GOB start codes and initalizes the GOB structure with start
  * and end positions. */
 static ParseReturn
 gst_rtp_h261_pay_init_gobs (GstRtpH261Pay * pay, Gob * gobs, gint num_gobs,
@@ -816,9 +813,8 @@ gst_rtp_h261_pay_fragment_push (GstRtpH261Pay * pay, GstBuffer * buffer,
 
   nbytes = bitrange_to_bytes (start, end);
 
-  outbuf =
-      gst_rtp_base_payload_allocate_output_buffer (GST_RTP_BASE_PAYLOAD (pay),
-      nbytes + GST_RTP_H261_PAYLOAD_HEADER_LEN, 0, 0);
+  outbuf = gst_rtp_buffer_new_allocate (nbytes +
+      GST_RTP_H261_PAYLOAD_HEADER_LEN, 0, 0);
   gst_rtp_buffer_map (outbuf, GST_MAP_WRITE, &rtp);
   payload = gst_rtp_buffer_get_payload (&rtp);
   header = (GstRtpH261PayHeader *) payload;
@@ -951,7 +947,7 @@ gst_rtp_h261_pay_shift_buffer (GstRtpH261Pay * pay, const guint8 * data,
     gsize size, gint offset, gsize * newsize)
 {
   /* In order to read variable length codes at the very end of the buffer
-   * without peeking into possibly unallocated data, we pad with extra 0's
+   * wihout peeking into possibly unallocated data, we pad with extra 0's
    * which will generate an invalid code at the end of the buffer. */
   guint pad = 4;
   gsize allocsize = size + pad;
@@ -1065,4 +1061,11 @@ gst_rtp_h261_pay_class_init (GstRtpH261PayClass * klass)
 
   GST_DEBUG_CATEGORY_INIT (rtph261pay_debug, "rtph261pay", 0,
       "H261 RTP Payloader");
+}
+
+gboolean
+gst_rtp_h261_pay_plugin_init (GstPlugin * plugin)
+{
+  return gst_element_register (plugin, "rtph261pay",
+      GST_RANK_SECONDARY, GST_TYPE_RTP_H261_PAY);
 }

@@ -106,7 +106,7 @@ gst_visual_class_init (gpointer g_class, gpointer class_data)
     gst_element_class_add_static_pad_template (element_class, &src_template);
     gst_element_class_add_static_pad_template (element_class, &sink_template);
 
-    gst_element_class_set_metadata (element_class,
+    gst_element_class_set_static_metadata (element_class,
         longname, "Visualization",
         klass->plugin->info->about, "Benjamin Otte <otte@gnome.org>");
 
@@ -117,8 +117,6 @@ gst_visual_class_init (gpointer g_class, gpointer class_data)
 
   scope_class->setup = GST_DEBUG_FUNCPTR (gst_visual_setup);
   scope_class->render = GST_DEBUG_FUNCPTR (gst_visual_render);
-
-  gst_type_mark_as_plugin_api (GST_TYPE_VISUAL, 0);
 }
 
 static void

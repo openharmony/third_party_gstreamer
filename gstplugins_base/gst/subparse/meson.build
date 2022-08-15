@@ -1,8 +1,6 @@
 subparse_sources = [
   'gstssaparse.c',
   'gstsubparse.c',
-  'gstsubparseelement.c',
-  'gstsubparseplugin.c',
   'samiparse.c',
   'tmplayerparse.c',
   'mpl2parse.c',
@@ -18,4 +16,3 @@ gstsubparse = library('gstsubparse',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstsubparse, install_dir : plugins_pkgconfig_install_dir)
-plugins += [gstsubparse]

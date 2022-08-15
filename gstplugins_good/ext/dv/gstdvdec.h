@@ -30,8 +30,22 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_DVDEC (gst_dvdec_get_type())
-G_DECLARE_FINAL_TYPE (GstDVDec, gst_dvdec, GST, DVDEC, GstElement)
+
+#define GST_TYPE_DVDEC \
+  (gst_dvdec_get_type())
+#define GST_DVDEC(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_DVDEC,GstDVDec))
+#define GST_DVDEC_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_DVDEC,GstDVDecClass))
+#define GST_IS_DVDEC(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_DVDEC))
+#define GST_IS_DVDEC_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_DVDEC))
+
+
+typedef struct _GstDVDec GstDVDec;
+typedef struct _GstDVDecClass GstDVDecClass;
+
 
 struct _GstDVDec {
   GstElement     element;
@@ -69,6 +83,14 @@ struct _GstDVDec {
   GstSegment     segment;
   gboolean       need_segment;
 };
+
+struct _GstDVDecClass {
+  GstElementClass parent_class;
+};
+
+
+GType gst_dvdec_get_type (void);
+
 
 G_END_DECLS
 

@@ -34,7 +34,7 @@
 #include <gst/adaptivedemux/gstadaptivedemux.h>
 #include <gst/base/gstadapter.h>
 #include <gst/base/gstdataqueue.h>
-#include "gstmpdclient.h"
+#include "gstmpdparser.h"
 #include <gst/isoff/gstisoff.h>
 #include <gst/uridownloader/gsturidownloader.h>
 
@@ -125,7 +125,7 @@ struct _GstDashDemux
 
   GSList *next_periods;
 
-  GstMPDClient *client;         /* MPD client */
+  GstMpdClient *client;         /* MPD client */
   GMutex client_lock;
 
   GstDashDemuxClockDrift *clock_drift;
@@ -154,8 +154,6 @@ struct _GstDashDemuxClass
 };
 
 GType gst_dash_demux_get_type (void);
-
-GST_ELEMENT_REGISTER_DECLARE (dashdemux);
 
 G_END_DECLS
 #endif /* __GST_DASH_DEMUX_H__ */

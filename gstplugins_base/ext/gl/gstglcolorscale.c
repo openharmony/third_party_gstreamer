@@ -22,20 +22,21 @@
  * SECTION:element-glcolorscale
  * @title: glcolorscale
  *
- * glcolorscale implements scaling of GL video frames, equivalent to
- * #videoscale. The initial implementation also performed colorspace
- * conversion, hence the name of the element, but support has since
- * been removed. You should use #glcolorconvert for that purpose.
+ * video frame scaling and colorspace conversion.
+ *
+ * ## Scaling and Color space conversion
+ *
+ * Equivalent to glupload ! gldownload.
  *
  * ## Examples
- *
- * ``` shell
- * gst-launch-1.0 videotestsrc ! video/x-raw, width=640, height=480 ! glupload ! \
- * glcolorscale ! glcolorconvert ! gldownload ! video/x-raw, width=320, height=240 ! \
- * autovideosink
- * ```
- *
- * A pipeline to test hardware scaling and colorspace conversion.
+ * |[
+ * gst-launch-1.0 -v videotestsrc ! video/x-raw ! glcolorscale ! ximagesink
+ * ]| A pipeline to test colorspace conversion.
+ * FBO is required.
+  |[
+ * gst-launch-1.0 -v videotestsrc ! video/x-raw, width=640, height=480, format=AYUV ! glcolorscale ! \
+ *   video/x-raw, width=320, height=240, format=YV12 ! videoconvert ! autovideosink
+ * ]| A pipeline to test hardware scaling and colorspace conversion.
  * FBO and GLSL are required.
  *
  */
@@ -44,7 +45,6 @@
 #include "config.h"
 #endif
 
-#include "gstglelements.h"
 #include "gstglcolorscale.h"
 
 #define GST_CAT_DEFAULT gst_gl_colorscale_debug
@@ -61,8 +61,6 @@ enum
 #define gst_gl_colorscale_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstGLColorscale, gst_gl_colorscale,
     GST_TYPE_GL_FILTER, DEBUG_INIT);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (glcolorscale, "glcolorscale",
-    GST_RANK_NONE, GST_TYPE_GL_COLORSCALE, gl_element_init (plugin));
 
 static void gst_gl_colorscale_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);

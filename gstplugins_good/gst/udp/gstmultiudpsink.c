@@ -22,7 +22,6 @@
 
 /**
  * SECTION:element-multiudpsink
- * @title: multiudpsink
  * @see_also: udpsink, multifdsink
  *
  * multiudpsink is a network sink that sends UDP packets to multiple
@@ -33,18 +32,17 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-#include "gstudpelements.h"
 #include "gstmultiudpsink.h"
 
 #include <string.h>
-
 #ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
 #endif
 
-#include <gio/gnetworking.h>
+#ifndef G_OS_WIN32
+#include <netinet/in.h>
+#endif
 
-#include "gst/net/net.h"
 #include "gst/glib-compat-private.h"
 
 GST_DEBUG_CATEGORY_STATIC (multiudpsink_debug);
@@ -143,8 +141,6 @@ static guint gst_multiudpsink_signals[LAST_SIGNAL] = { 0 };
 
 #define gst_multiudpsink_parent_class parent_class
 G_DEFINE_TYPE (GstMultiUDPSink, gst_multiudpsink, GST_TYPE_BASE_SINK);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (multiudpsink, "multiudpsink",
-    GST_RANK_NONE, GST_TYPE_MULTIUDPSINK, udp_element_init (plugin));
 
 static void
 gst_multiudpsink_class_init (GstMultiUDPSinkClass * klass)
@@ -180,7 +176,8 @@ gst_multiudpsink_class_init (GstMultiUDPSinkClass * klass)
       g_signal_new ("add", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
       G_STRUCT_OFFSET (GstMultiUDPSinkClass, add),
-      NULL, NULL, NULL, G_TYPE_NONE, 2, G_TYPE_STRING, G_TYPE_INT);
+      NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 2,
+      G_TYPE_STRING, G_TYPE_INT);
   /**
    * GstMultiUDPSink::remove:
    * @gstmultiudpsink: the sink on which the signal is emitted
@@ -194,7 +191,8 @@ gst_multiudpsink_class_init (GstMultiUDPSinkClass * klass)
       g_signal_new ("remove", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
       G_STRUCT_OFFSET (GstMultiUDPSinkClass, remove),
-      NULL, NULL, NULL, G_TYPE_NONE, 2, G_TYPE_STRING, G_TYPE_INT);
+      NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 2,
+      G_TYPE_STRING, G_TYPE_INT);
   /**
    * GstMultiUDPSink::clear:
    * @gstmultiudpsink: the sink on which the signal is emitted
@@ -204,8 +202,8 @@ gst_multiudpsink_class_init (GstMultiUDPSinkClass * klass)
   gst_multiudpsink_signals[SIGNAL_CLEAR] =
       g_signal_new ("clear", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
-      G_STRUCT_OFFSET (GstMultiUDPSinkClass, clear), NULL, NULL, NULL,
-      G_TYPE_NONE, 0);
+      G_STRUCT_OFFSET (GstMultiUDPSinkClass, clear),
+      NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 0);
   /**
    * GstMultiUDPSink::get-stats:
    * @gstmultiudpsink: the sink on which the signal is emitted
@@ -214,15 +212,15 @@ gst_multiudpsink_class_init (GstMultiUDPSinkClass * klass)
    *
    * Get the statistics of the client with destination @host and @port.
    *
-   * Returns: a GstStructure: bytes_sent, packets_sent, connect_time
-   *           (in epoch nanoseconds), disconnect_time (in epoch
-   *           nanoseconds)
+   * Returns: a GstStructure: bytes_sent, packets_sent,
+   *           connect_time (in epoch seconds), disconnect_time (in epoch seconds)
    */
   gst_multiudpsink_signals[SIGNAL_GET_STATS] =
       g_signal_new ("get-stats", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
       G_STRUCT_OFFSET (GstMultiUDPSinkClass, get_stats),
-      NULL, NULL, NULL, GST_TYPE_STRUCTURE, 2, G_TYPE_STRING, G_TYPE_INT);
+      NULL, NULL, g_cclosure_marshal_generic, GST_TYPE_STRUCTURE, 2,
+      G_TYPE_STRING, G_TYPE_INT);
   /**
    * GstMultiUDPSink::client-added:
    * @gstmultiudpsink: the sink emitting the signal
@@ -235,7 +233,8 @@ gst_multiudpsink_class_init (GstMultiUDPSinkClass * klass)
   gst_multiudpsink_signals[SIGNAL_CLIENT_ADDED] =
       g_signal_new ("client-added", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstMultiUDPSinkClass, client_added),
-      NULL, NULL, NULL, G_TYPE_NONE, 2, G_TYPE_STRING, G_TYPE_INT);
+      NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 2,
+      G_TYPE_STRING, G_TYPE_INT);
   /**
    * GstMultiUDPSink::client-removed:
    * @gstmultiudpsink: the sink emitting the signal
@@ -248,7 +247,7 @@ gst_multiudpsink_class_init (GstMultiUDPSinkClass * klass)
   gst_multiudpsink_signals[SIGNAL_CLIENT_REMOVED] =
       g_signal_new ("client-removed", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstMultiUDPSinkClass,
-          client_removed), NULL, NULL, NULL,
+          client_removed), NULL, NULL, g_cclosure_marshal_generic,
       G_TYPE_NONE, 2, G_TYPE_STRING, G_TYPE_INT);
 
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_BYTES_TO_SERVE,
@@ -328,7 +327,7 @@ gst_multiudpsink_class_init (GstMultiUDPSinkClass * klass)
   /**
    * GstMultiUDPSink::send-duplicates:
    *
-   * When a host/port pair is added multiple times, send the packet to the host
+   * When a host/port pair is added mutliple times, send the packet to the host
    * multiple times as well.
    */
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_SEND_DUPLICATES,
@@ -444,12 +443,11 @@ gst_udp_client_new (GstMultiUDPSink * sink, const gchar * host, gint port)
 {
   GstUDPClient *client;
   GInetAddress *addr;
-  GSocketAddress *sockaddr;
   GResolver *resolver;
   GError *err = NULL;
 
-  sockaddr = g_inet_socket_address_new_from_string (host, port);
-  if (!sockaddr) {
+  addr = g_inet_address_new_from_string (host);
+  if (!addr) {
     GList *results;
 
     resolver = g_resolver_get_default ();
@@ -458,13 +456,10 @@ gst_udp_client_new (GstMultiUDPSink * sink, const gchar * host, gint port)
     if (!results)
       goto name_resolve;
     addr = G_INET_ADDRESS (g_object_ref (results->data));
-    sockaddr = g_inet_socket_address_new (addr, port);
 
     g_resolver_free_addresses (results);
     g_object_unref (resolver);
-    g_object_unref (addr);
   }
-  addr = g_inet_socket_address_get_address (G_INET_SOCKET_ADDRESS (sockaddr));
 #ifndef GST_DISABLE_GST_DEBUG
   {
     gchar *ip = g_inet_address_to_string (addr);
@@ -479,7 +474,8 @@ gst_udp_client_new (GstMultiUDPSink * sink, const gchar * host, gint port)
   client->add_count = 0;
   client->host = g_strdup (host);
   client->port = port;
-  client->addr = sockaddr;
+  client->addr = g_inet_socket_address_new (addr, port);
+  g_object_unref (addr);
 
   return client;
 
@@ -565,6 +561,45 @@ gst_multiudpsink_finalize (GObject * object)
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
+
+/* replacement until we can depend unconditionally on the real one in GLib */
+#ifndef HAVE_G_SOCKET_SEND_MESSAGES
+#define g_socket_send_messages gst_socket_send_messages
+
+static gint
+gst_socket_send_messages (GSocket * socket, GstOutputMessage * messages,
+    guint num_messages, gint flags, GCancellable * cancellable, GError ** error)
+{
+  gssize result;
+  gint i;
+
+  for (i = 0; i < num_messages; ++i) {
+    GstOutputMessage *msg = &messages[i];
+    GError *msg_error = NULL;
+
+    result = g_socket_send_message (socket, msg->address,
+        msg->vectors, msg->num_vectors,
+        msg->control_messages, msg->num_control_messages,
+        flags, cancellable, &msg_error);
+
+    if (result < 0) {
+      /* if we couldn't send all messages, just return how many we did
+       * manage to send, provided we managed to send at least one */
+      if (msg_error->code == G_IO_ERROR_WOULD_BLOCK && i > 0) {
+        g_error_free (msg_error);
+        return i;
+      } else {
+        g_propagate_error (error, msg_error);
+        return -1;
+      }
+    }
+
+    msg->bytes_sent = result;
+  }
+
+  return i;
+}
+#endif /* HAVE_G_SOCKET_SEND_MESSAGES */
 
 static gsize
 fill_vectors (GOutputVector * vecs, GstMapInfo * maps, guint n, GstBuffer * buf)
@@ -800,7 +835,7 @@ gst_multiudpsink_render_buffers (GstMultiUDPSink * sink, GstBuffer ** buffers,
   sink->bytes_to_serve += size;
 
   /* now copy the pre-filled num_buffer messages over to the next num_buffer
-   * messages for the next client, where we also change the target address */
+   * messages for the next client, where we also change the target adddress */
   for (i = 1; i < num_addr; ++i) {
     for (j = 0; j < num_buffers; ++j) {
       msgs[i * num_buffers + j] = msgs[j];
@@ -1001,8 +1036,30 @@ gst_multiudpsink_setup_qos_dscp (GstMultiUDPSink * sink, GSocket * socket)
   if (socket == NULL)
     return;
 
-  if (!gst_net_utils_set_socket_tos (socket, sink->qos_dscp))
-    GST_ERROR_OBJECT (sink, "could not set qos dscp: %d", sink->qos_dscp);
+#ifdef IP_TOS
+  {
+    gint tos;
+    gint fd;
+
+    fd = g_socket_get_fd (socket);
+
+    GST_DEBUG_OBJECT (sink, "setting TOS to %d", sink->qos_dscp);
+
+    /* Extract and shift 6 bits of DSFIELD */
+    tos = (sink->qos_dscp & 0x3f) << 2;
+
+    if (setsockopt (fd, IPPROTO_IP, IP_TOS, &tos, sizeof (tos)) < 0) {
+      GST_ERROR_OBJECT (sink, "could not set TOS: %s", g_strerror (errno));
+    }
+#ifdef IPV6_TCLASS
+    if (g_socket_get_family (socket) == G_SOCKET_FAMILY_IPV6) {
+      if (setsockopt (fd, IPPROTO_IPV6, IPV6_TCLASS, &tos, sizeof (tos)) < 0) {
+        GST_ERROR_OBJECT (sink, "could not set TCLASS: %s", g_strerror (errno));
+      }
+    }
+#endif
+  }
+#endif
 }
 
 static void
@@ -1343,9 +1400,10 @@ gst_multiudpsink_start (GstBaseSink * bsink)
   }
 #ifdef SO_SNDBUF
   {
-    gint sndsize;
-    GError *opt_err = NULL;
+    socklen_t len;
+    gint sndsize, ret;
 
+    len = sizeof (sndsize);
     if (sink->buffer_size != 0) {
       sndsize = sink->buffer_size;
 
@@ -1355,22 +1413,24 @@ gst_multiudpsink_start (GstBaseSink * bsink)
        * Linux. */
 
       if (sink->used_socket) {
-        if (!g_socket_set_option (sink->used_socket, SOL_SOCKET, SO_SNDBUF,
-                sndsize, &opt_err)) {
+        ret =
+            setsockopt (g_socket_get_fd (sink->used_socket), SOL_SOCKET,
+            SO_SNDBUF, (void *) &sndsize, len);
+        if (ret != 0) {
           GST_ELEMENT_WARNING (sink, RESOURCE, SETTINGS, (NULL),
-              ("Could not create a buffer of requested %d bytes (%s)",
-                  sndsize, opt_err->message));
-          g_clear_error (&opt_err);
+              ("Could not create a buffer of requested %d bytes, %d: %s",
+                  sndsize, ret, g_strerror (errno)));
         }
       }
 
       if (sink->used_socket_v6) {
-        if (!g_socket_set_option (sink->used_socket_v6, SOL_SOCKET, SO_SNDBUF,
-                sndsize, &opt_err)) {
+        ret =
+            setsockopt (g_socket_get_fd (sink->used_socket_v6), SOL_SOCKET,
+            SO_SNDBUF, (void *) &sndsize, len);
+        if (ret != 0) {
           GST_ELEMENT_WARNING (sink, RESOURCE, SETTINGS, (NULL),
-              ("Could not create a buffer of requested %d bytes (%s)",
-                  sndsize, opt_err->message));
-          g_clear_error (&opt_err);
+              ("Could not create a buffer of requested %d bytes, %d: %s",
+                  sndsize, ret, g_strerror (errno)));
         }
       }
     }
@@ -1379,21 +1439,23 @@ gst_multiudpsink_start (GstBaseSink * bsink)
      * value we set because the kernel allocates extra memory for metadata.
      * The default on Linux is about 100K (which is about 50K without metadata) */
     if (sink->used_socket) {
-      if (g_socket_get_option (sink->used_socket, SOL_SOCKET, SO_SNDBUF,
-              &sndsize, NULL)) {
+      ret =
+          getsockopt (g_socket_get_fd (sink->used_socket), SOL_SOCKET,
+          SO_SNDBUF, (void *) &sndsize, &len);
+      if (ret == 0)
         GST_DEBUG_OBJECT (sink, "have UDP buffer of %d bytes", sndsize);
-      } else {
+      else
         GST_DEBUG_OBJECT (sink, "could not get UDP buffer size");
-      }
     }
 
     if (sink->used_socket_v6) {
-      if (g_socket_get_option (sink->used_socket_v6, SOL_SOCKET, SO_SNDBUF,
-              &sndsize, NULL)) {
+      ret =
+          getsockopt (g_socket_get_fd (sink->used_socket_v6), SOL_SOCKET,
+          SO_SNDBUF, (void *) &sndsize, &len);
+      if (ret == 0)
         GST_DEBUG_OBJECT (sink, "have UDPv6 buffer of %d bytes", sndsize);
-      } else {
+      else
         GST_DEBUG_OBJECT (sink, "could not get UDPv6 buffer size");
-      }
     }
   }
 #endif
@@ -1525,6 +1587,7 @@ gst_multiudpsink_add_internal (GstMultiUDPSink * sink, const gchar * host,
   GSocketFamily family;
   GstUDPClient *client;
   GstUDPClient udpclient;
+  GTimeVal now;
   GList *find;
 
   udpclient.host = (gchar *) host;
@@ -1559,7 +1622,8 @@ gst_multiudpsink_add_internal (GstMultiUDPSink * sink, const gchar * host,
 
     family = g_socket_address_get_family (client->addr);
 
-    client->connect_time = g_get_real_time () * GST_USECOND;
+    g_get_current_time (&now);
+    client->connect_time = GST_TIMEVAL_TO_TIME (now);
 
     if (sink->used_socket)
       gst_multiudpsink_configure_client (sink, client);
@@ -1617,6 +1681,7 @@ gst_multiudpsink_remove (GstMultiUDPSink * sink, const gchar * host, gint port)
   GList *find;
   GstUDPClient udpclient;
   GstUDPClient *client;
+  GTimeVal now;
 
   udpclient.host = (gchar *) host;
   udpclient.port = port;
@@ -1653,7 +1718,8 @@ gst_multiudpsink_remove (GstMultiUDPSink * sink, const gchar * host, gint port)
 
     GST_DEBUG_OBJECT (sink, "remove client with host %s, port %d", host, port);
 
-    client->disconnect_time = g_get_real_time () * GST_USECOND;
+    g_get_current_time (&now);
+    client->disconnect_time = GST_TIMEVAL_TO_TIME (now);
 
     if (socket && sink->auto_multicast
         && g_inet_address_get_is_multicast (addr)) {

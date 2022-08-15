@@ -65,8 +65,6 @@ struct _GstShmSrcClass
 
 GType gst_shm_src_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (shmsrc);
-
 struct _GstShmPipe {
   int use_count;
 

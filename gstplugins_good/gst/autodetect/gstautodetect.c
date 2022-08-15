@@ -27,6 +27,12 @@
 #include <gst/gst.h>
 
 #include "gstautodetect.h"
+#include "gstautoaudiosink.h"
+#include "gstautoaudiosrc.h"
+#include "gstautovideosink.h"
+#include "gstautovideosrc.h"
+
+GST_DEBUG_CATEGORY (autodetect_debug);
 
 #define DEFAULT_SYNC                TRUE
 
@@ -78,15 +84,12 @@ gst_auto_detect_class_init (GstAutoDetectClass * klass)
   g_object_class_install_property (gobject_class, PROP_CAPS,
       g_param_spec_boxed ("filter-caps", "Filter caps",
           "Filter sink candidates using these caps.", GST_TYPE_CAPS,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
-          GST_PARAM_DOC_SHOW_DEFAULT));
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_SYNC,
       g_param_spec_boolean ("sync", "Sync",
           "Sync on the clock", DEFAULT_SYNC,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  gst_type_mark_as_plugin_api (GST_TYPE_AUTO_DETECT, 0);
 }
 
 static void
@@ -151,7 +154,7 @@ gst_auto_detect_attach_ghost_pad (GstAutoDetect * self)
   return res;
 }
 
-/* Hack to make initial linking work; ideally, this would work even when
+/* Hack to make initial linking work; ideally, this'd work even when
  * no target has been assigned to the ghostpad yet. */
 static void
 gst_auto_detect_reset (GstAutoDetect * self)
@@ -480,3 +483,25 @@ gst_auto_detect_get_property (GObject * object, guint prop_id,
       break;
   }
 }
+
+static gboolean
+plugin_init (GstPlugin * plugin)
+{
+  GST_DEBUG_CATEGORY_INIT (autodetect_debug, "autodetect", 0,
+      "Autodetection audio/video output wrapper elements");
+
+  return gst_element_register (plugin, "autovideosink",
+      GST_RANK_NONE, GST_TYPE_AUTO_VIDEO_SINK) &&
+      gst_element_register (plugin, "autovideosrc",
+      GST_RANK_NONE, GST_TYPE_AUTO_VIDEO_SRC) &&
+      gst_element_register (plugin, "autoaudiosink",
+      GST_RANK_NONE, GST_TYPE_AUTO_AUDIO_SINK) &&
+      gst_element_register (plugin, "autoaudiosrc",
+      GST_RANK_NONE, GST_TYPE_AUTO_AUDIO_SRC);
+}
+
+GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
+    GST_VERSION_MINOR,
+    autodetect,
+    "Plugin contains auto-detection plugins for video/audio in- and outputs",
+    plugin_init, VERSION, GST_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)

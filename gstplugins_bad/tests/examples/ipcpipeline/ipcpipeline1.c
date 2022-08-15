@@ -26,10 +26,6 @@
  * running in a different process than videotestsrc.
  */
 
-#ifdef HAVE_CONFIG_H
-#  include "config.h"
-#endif
-
 #define _GNU_SOURCE
 #include <unistd.h>
 #include <fcntl.h>

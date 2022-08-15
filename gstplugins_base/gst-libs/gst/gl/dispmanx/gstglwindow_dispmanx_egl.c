@@ -153,7 +153,7 @@ gst_gl_window_dispmanx_egl_open (GstGLWindow * window, GError ** error)
         GST_GL_WINDOW_ERROR_RESOURCE_UNAVAILABLE, "Can't open display");
     return FALSE;
   }
-  GST_DEBUG ("Got display size: %dx%d", window_egl->dp_width,
+  GST_DEBUG ("Got display size: %dx%d\n", window_egl->dp_width,
       window_egl->dp_height);
 
   window_egl->native.element = 0;
@@ -286,52 +286,18 @@ window_resize (GstGLWindowDispmanxEGL * window_egl, guint width, guint height,
   window_egl->native.height = height;
 }
 
-struct SetRenderRectangle
-{
-  GstGLWindowDispmanxEGL *window_egl;
-  GstVideoRectangle rect;
-};
-
-static void
-_free_set_render_rectangle (struct SetRenderRectangle *render)
-{
-  if (render) {
-    if (render->window_egl)
-      gst_object_unref (render->window_egl);
-    g_free (render);
-  }
-}
-
-static void
-_set_render_rectangle (gpointer data)
-{
-  struct SetRenderRectangle *render = data;
-
-  GST_LOG_OBJECT (render->window_egl, "setting render rectangle %i,%i+%ix%i",
-      render->rect.x, render->rect.y, render->rect.w, render->rect.h);
-
-  render->window_egl->render_rect = render->rect;
-  window_resize (render->window_egl, render->rect.w, render->rect.h, TRUE);
-}
-
 static gboolean
 gst_gl_window_dispmanx_egl_set_render_rectangle (GstGLWindow * window,
     gint x, gint y, gint width, gint height)
 {
   GstGLWindowDispmanxEGL *window_egl = GST_GL_WINDOW_DISPMANX_EGL (window);
-  struct SetRenderRectangle *render;
+  window_egl->render_rect.x = x;
+  window_egl->render_rect.y = y;
+  window_egl->render_rect.w = width;
+  window_egl->render_rect.h = height;
 
-  render = g_new0 (struct SetRenderRectangle, 1);
-  render->window_egl = gst_object_ref (window_egl);
-  render->rect.x = x;
-  render->rect.y = y;
-  render->rect.w = width;
-  render->rect.h = height;
-
-  gst_gl_window_send_message_async (window,
-      (GstGLWindowCB) _set_render_rectangle, render,
-      (GDestroyNotify) _free_set_render_rectangle);
-
+  window_resize (window_egl, window_egl->render_rect.w,
+      window_egl->render_rect.h, TRUE);
   return TRUE;
 }
 

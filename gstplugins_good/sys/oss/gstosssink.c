@@ -22,7 +22,6 @@
 
 /**
  * SECTION:element-osssink
- * @title: osssink
  *
  * This element lets you output sound using the Open Sound System (OSS).
  *
@@ -31,7 +30,8 @@
  * your pipeline works under all circumstances (those conversion elements will
  * act in passthrough-mode if no conversion is necessary).
  *
- * ## Example pipelines
+ * <refsect2>
+ * <title>Example pipelines</title>
  * |[
  * gst-launch-1.0 -v audiotestsrc ! audioconvert ! volume volume=0.1 ! osssink
  * ]| will output a sine wave (continuous beep sound) to your sound card (with
@@ -39,7 +39,7 @@
  * |[
  * gst-launch-1.0 -v filesrc location=music.ogg ! decodebin ! audioconvert ! audioresample ! osssink
  * ]| will play an Ogg/Vorbis audio file and output it using the Open Sound System.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -66,7 +66,6 @@
 #endif /* HAVE_OSS_INCLUDE_IN_SYS */
 
 #include "common.h"
-#include "gstossaudioelements.h"
 #include "gstosssink.h"
 
 #include <gst/gst-i18n-plugin.h>
@@ -129,8 +128,6 @@ static GstStaticPadTemplate osssink_sink_factory =
 
 #define gst_oss_sink_parent_class parent_class
 G_DEFINE_TYPE (GstOssSink, gst_oss_sink, GST_TYPE_AUDIO_SINK);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (osssink, "osssink", GST_RANK_SECONDARY,
-    GST_TYPE_OSSSINK, oss_element_init (plugin));
 
 static void
 gst_oss_sink_dispose (GObject * object)

@@ -113,7 +113,6 @@ enum
 G_DEFINE_TYPE_WITH_CODE (GstVolume, gst_volume,
     GST_TYPE_AUDIO_FILTER,
     G_IMPLEMENT_INTERFACE (GST_TYPE_STREAM_VOLUME, NULL));
-GST_ELEMENT_REGISTER_DEFINE (volume, "volume", GST_RANK_NONE, GST_TYPE_VOLUME);
 
 static void volume_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -866,7 +865,8 @@ plugin_init (GstPlugin * plugin)
 {
   GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "volume", 0, "Volume gain");
 
-  return GST_ELEMENT_REGISTER (volume, plugin);
+  return gst_element_register (plugin, "volume", GST_RANK_NONE,
+      GST_TYPE_VOLUME);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

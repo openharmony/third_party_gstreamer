@@ -685,7 +685,6 @@ gst_audio_base_sink_set_alignment_threshold (GstAudioBaseSink * sink,
     GstClockTime alignment_threshold)
 {
   g_return_if_fail (GST_IS_AUDIO_BASE_SINK (sink));
-  g_return_if_fail (GST_CLOCK_TIME_IS_VALID (alignment_threshold));
 
   GST_OBJECT_LOCK (sink);
   sink->priv->alignment_threshold = alignment_threshold;
@@ -726,7 +725,6 @@ gst_audio_base_sink_set_discont_wait (GstAudioBaseSink * sink,
     GstClockTime discont_wait)
 {
   g_return_if_fail (GST_IS_AUDIO_BASE_SINK (sink));
-  g_return_if_fail (GST_CLOCK_TIME_IS_VALID (discont_wait));
 
   GST_OBJECT_LOCK (sink);
   sink->priv->discont_wait = discont_wait;
@@ -1286,7 +1284,7 @@ gst_audio_base_sink_custom_slaving (GstAudioBaseSink * sink,
   etime = etime > cexternal ? etime - cexternal : 0;
   itime = itime > cinternal ? itime - cinternal : 0;
 
-  /* don't do any skewing unless the callback explicitly requests one */
+  /* don't do any skewing unless the callback explicitely requests one */
   requested_skew = 0;
 
   if (sink->priv->custom_slaving_callback != NULL) {
@@ -1360,7 +1358,7 @@ gst_audio_base_sink_resample_slaving (GstAudioBaseSink * sink,
   /* FIXME, we can sample and add observations here or use the timeouts on the
    * clock. No idea which one is better or more stable. The timeout seems more
    * arbitrary but this one seems more demanding and does not work when there is
-   * no data coming in to the sink. */
+   * no data comming in to the sink. */
 #if 0
   GstClockTime etime, itime;
   gdouble r_squared;
@@ -1642,7 +1640,7 @@ gst_audio_base_sink_sync_latency (GstBaseSink * bsink, GstMiniObject * obj)
       goto flushing;
 
     /* retry if we got unscheduled, which means we did not reach the timeout
-     * yet. if some other error occurs, we continue. */
+     * yet. if some other error occures, we continue. */
   } while (status == GST_CLOCK_UNSCHEDULED);
 
   GST_DEBUG_OBJECT (sink, "latency synced");
@@ -1866,7 +1864,7 @@ gst_audio_base_sink_render (GstBaseSink * bsink, GstBuffer * buf)
 
   samples = size / bpf;
 
-  time = GST_BUFFER_PTS (buf);
+  time = GST_BUFFER_TIMESTAMP (buf);
 
   /* Last ditch attempt to ensure that we only play silence if
    * we are in trickmode no-audio mode (or if a buffer is marked as a GAP)
@@ -1990,9 +1988,6 @@ gst_audio_base_sink_render (GstBaseSink * bsink, GstBuffer * buf)
       gst_segment_to_running_time (&bsink->segment, GST_FORMAT_TIME, time);
   render_stop =
       gst_segment_to_running_time (&bsink->segment, GST_FORMAT_TIME, stop);
-
-  if (render_start == GST_CLOCK_TIME_NONE || render_stop == GST_CLOCK_TIME_NONE)
-    goto too_late;
 
   GST_DEBUG_OBJECT (sink,
       "running: start %" GST_TIME_FORMAT " - stop %" GST_TIME_FORMAT,
@@ -2350,7 +2345,6 @@ eos:
     gst_element_post_message (GST_ELEMENT_CAST (sink),
         gst_message_new_eos (GST_OBJECT_CAST (sink)));
     GST_PAD_STREAM_UNLOCK (basesink->sinkpad);
-    return;
   }
 flushing:
   {
@@ -2427,7 +2421,7 @@ gst_audio_base_sink_change_state (GstElement * element,
       gst_audio_ring_buffer_may_start (sink->ringbuffer, FALSE);
 
       /* Only post clock-provide messages if this is the clock that
-       * we've created. If the subclass has overridden it the subclass
+       * we've created. If the subclass has overriden it the subclass
        * should post this messages whenever necessary */
       if (gst_audio_base_sink_is_self_provided_clock (sink))
         gst_element_post_message (element,
@@ -2447,7 +2441,7 @@ gst_audio_base_sink_change_state (GstElement * element,
       gst_audio_ring_buffer_may_start (sink->ringbuffer, TRUE);
       if (GST_BASE_SINK_CAST (sink)->pad_mode == GST_PAD_MODE_PULL ||
           g_atomic_int_get (&sink->eos_rendering) || eos) {
-        /* we always start the ringbuffer in pull mode immediately */
+        /* we always start the ringbuffer in pull mode immediatly */
         /* sync rendering on eos needs running clock,
          * and others need running clock when finished rendering eos */
         gst_audio_ring_buffer_start (sink->ringbuffer);
@@ -2465,7 +2459,7 @@ gst_audio_base_sink_change_state (GstElement * element,
       break;
     case GST_STATE_CHANGE_PAUSED_TO_READY:
       /* Only post clock-lost messages if this is the clock that
-       * we've created. If the subclass has overridden it the subclass
+       * we've created. If the subclass has overriden it the subclass
        * should post this messages whenever necessary */
       if (gst_audio_base_sink_is_self_provided_clock (sink))
         gst_element_post_message (element,

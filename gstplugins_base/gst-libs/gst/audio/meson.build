@@ -1,4 +1,4 @@
-audio_src = files([
+audio_src= [
   'audio.c',
   'audio-buffer.c',
   'audio-channel-mixer.c',
@@ -24,9 +24,9 @@ audio_src = files([
   'gstaudioutilsprivate.c',
   'streamvolume.c',
   'gstaudiostreamalign.c',
-])
+]
 
-audio_mkenum_headers = files([
+audio_mkenum_headers = [
   'audio.h',
   'audio-format.h',
   'audio-channels.h',
@@ -41,10 +41,10 @@ audio_mkenum_headers = files([
   'gstaudiocdsrc.h',
   'gstaudiobasesink.h',
   'gstaudiostreamalign.h',
-])
+]
 
 # FIXME: check headers
-audio_headers = audio_mkenum_headers + files([
+audio_headers = audio_mkenum_headers + [
   'audio-prelude.h',
   'audio-buffer.h',
   'gstaudiobasesink.h',
@@ -59,7 +59,7 @@ audio_headers = audio_mkenum_headers + files([
   'gstaudiosink.h',
   'gstaudiosrc.h',
   'streamvolume.h',
-])
+]
 install_headers(audio_headers, subdir : 'gstreamer-1.0/gst/audio/')
 
 audio_enums = gnome.mkenums_simple('audio-enumtypes',
@@ -86,7 +86,6 @@ if have_orcc
     input : orcsrc + '.orc',
     output : orcsrc + '.c',
     command : orcc_args + ['--implementation', '-o', '@OUTPUT@', '@INPUT@'])
-  orc_targets += {'name': orcsrc, 'orc-source': files(orcsrc + '.orc'), 'header': orc_h, 'source': orc_c}
 else
   orc_h = configure_file(input : orcsrc + '-dist.h',
     output : orcsrc + '.h',
@@ -142,7 +141,7 @@ endif
 
 gstaudio = library('gstaudio-@0@'.format(api_version),
   audio_src, gstaudio_h, gstaudio_c, orc_c, orc_h,
-  c_args : gst_plugins_base_args + simd_cargs + ['-DBUILDING_GST_AUDIO', '-DG_LOG_DOMAIN="GStreamer-Audio"'],
+  c_args : gst_plugins_base_args + simd_cargs + ['-DBUILDING_GST_AUDIO'],
   include_directories: [configinc, libsinc],
   link_with : simd_dependencies,
   version : libversion,
@@ -151,41 +150,24 @@ gstaudio = library('gstaudio-@0@'.format(api_version),
   install : true,
   dependencies : gstaudio_deps,
 )
-pkg_name = 'gstreamer-audio-1.0'
-pkgconfig.generate(gstaudio,
-  libraries : [gst_dep, gst_base_dep],
-  variables : pkgconfig_variables,
-  subdirs : pkgconfig_subdirs,
-  name : pkg_name,
-  description : 'Audio helper functions and base classes',
-)
 
-library_def = {'lib': gstaudio}
 if build_gir
   gst_gir_extra_args = gir_init_section + [ '--c-include=gst/audio/audio.h' ]
-  gir = {
-    'sources' : audio_src + audio_headers + [gstaudio_c] + [gstaudio_h],
-    'namespace' : 'GstAudio',
-    'nsversion' : api_version,
-    'identifier_prefix' : 'Gst',
-    'symbol_prefix' : 'gst',
-    'export_packages' : pkg_name,
-    'includes' : ['Gst-1.0', 'GstBase-1.0', 'GLib-2.0', 'GObject-2.0', 'GModule-2.0' ],
-    'install' : true,
-    'extra_args' : gst_gir_extra_args,
-    'dependencies' : gstaudio_deps
-  }
-  library_def = {'lib': library_def['lib'], 'gir': [gir]}
-  if not static_build
-    audio_gir = gnome.generate_gir(gstaudio, kwargs: gir)
-    audio_gen_sources += [audio_gir]
-  endif
+  audio_gen_sources += [gnome.generate_gir(gstaudio,
+    sources : audio_src + audio_headers + [gstaudio_c] + [gstaudio_h],
+    namespace : 'GstAudio',
+    nsversion : api_version,
+    identifier_prefix : 'Gst',
+    symbol_prefix : 'gst',
+    export_packages : 'gstreamer-audio-1.0',
+    includes : ['Gst-1.0', 'GstBase-1.0', 'GLib-2.0', 'GObject-2.0', 'GModule-2.0' ],
+    install : true,
+    extra_args : gst_gir_extra_args,
+    dependencies : gstaudio_deps
+  )]
 endif
-libraries += [[pkg_name, library_def]]
 
 audio_dep = declare_dependency(link_with : gstaudio,
   include_directories : [libsinc],
   dependencies : gstaudio_deps,
   sources : audio_gen_sources)
-
-meson.override_dependency(pkg_name, audio_dep)

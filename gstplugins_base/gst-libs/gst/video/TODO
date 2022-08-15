@@ -19,7 +19,7 @@ be backported (at least partially).
 
 
 Specifics:
- * Use a GInstancePrivate for extensibility.
+ * Use a GInstancePrivate for extensability.
 
  * Try to move more common video objects to video.[ch]
 

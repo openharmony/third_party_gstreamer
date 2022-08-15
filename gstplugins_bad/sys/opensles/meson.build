@@ -4,7 +4,6 @@ opensles_sources = [
   'openslessink.c',
   'openslessrc.c',
   'opensles.c',
-  'openslesplugin.c',
 ]
 
 opensles_option = get_option('opensles')
@@ -27,5 +26,4 @@ if have_opensles_h and opensles_dep.found()
     install : true,
     install_dir : plugins_install_dir)
   pkgconfig.generate(gstopensles, install_dir : plugins_pkgconfig_install_dir)
-  plugins += [gstopensles]
 endif

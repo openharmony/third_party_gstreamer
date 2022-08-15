@@ -117,7 +117,7 @@ struct _GstFaceDetectClass
 
 GType gst_face_detect_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (facedetect);
+gboolean gst_face_detect_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 #endif /* __GST_FACE_DETECT_H__ */

@@ -81,7 +81,6 @@ struct _GstBurnClass
 };
 
 GType gst_burn_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (burn);
 
 G_END_DECLS
 

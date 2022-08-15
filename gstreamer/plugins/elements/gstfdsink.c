@@ -60,7 +60,6 @@
 
 #include "gstfdsink.h"
 #include "gstelements_private.h"
-#include "gstcoreelementselements.h"
 
 #ifdef G_OS_WIN32
 #include <io.h>                 /* lseek, open, close, read */
@@ -70,14 +69,10 @@
 #define off_t guint64
 #endif
 
-#define struct_stat struct stat
-
 #if defined(__BIONIC__)         /* Android */
 #if defined(__ANDROID_API__) && __ANDROID_API__ >= 21
 #undef fstat
 #define fstat fstat64
-#undef struct_stat
-#define struct_stat struct stat64
 #endif
 #endif
 
@@ -111,9 +106,6 @@ static void gst_fd_sink_uri_handler_init (gpointer g_iface,
   GST_DEBUG_CATEGORY_INIT (gst_fd_sink__debug, "fdsink", 0, "fdsink element");
 #define gst_fd_sink_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstFdSink, gst_fd_sink, GST_TYPE_BASE_SINK, _do_init);
-#if defined(HAVE_SYS_SOCKET_H) || defined(_MSC_VER)
-GST_ELEMENT_REGISTER_DEFINE (fdsink, "fdsink", GST_RANK_NONE, GST_TYPE_FD_SINK);
-#endif
 
 static void gst_fd_sink_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -174,6 +166,7 @@ gst_fd_sink_init (GstFdSink * fdsink)
 {
   fdsink->fd = 1;
   fdsink->uri = g_strdup_printf ("fd://%d", fdsink->fd);
+  fdsink->bytes_written = 0;
   fdsink->current_pos = 0;
 
   gst_base_sink_set_sync (GST_BASE_SINK (fdsink), FALSE);
@@ -246,29 +239,23 @@ gst_fd_sink_query (GstBaseSink * bsink, GstQuery * query)
 }
 
 static GstFlowReturn
-gst_fd_sink_render_list (GstBaseSink * bsink, GstBufferList * buffer_list)
+gst_fd_sink_render_buffers (GstFdSink * sink, GstBuffer ** buffers,
+    guint num_buffers, guint8 * mem_nums, guint total_mems)
 {
-  GstFdSink *sink;
   GstFlowReturn ret;
   guint64 skip = 0;
-  guint num_buffers;
-
-  sink = GST_FD_SINK_CAST (bsink);
-
-  num_buffers = gst_buffer_list_length (buffer_list);
-  if (num_buffers == 0)
-    goto no_data;
 
   for (;;) {
     guint64 bytes_written = 0;
 
-    ret = gst_writev_buffer_list (GST_OBJECT_CAST (sink), sink->fd, sink->fdset,
-        buffer_list, &bytes_written, skip, 0, -1, NULL);
+    ret = gst_writev_buffers (GST_OBJECT_CAST (sink), sink->fd, sink->fdset,
+        buffers, num_buffers, mem_nums, total_mems, &bytes_written, skip);
 
+    sink->bytes_written += bytes_written;
     sink->current_pos += bytes_written;
     skip += bytes_written;
 
-    if (!sink->unlock || ret != GST_FLOW_FLUSHING)
+    if (!sink->unlock)
       break;
 
     ret = gst_base_sink_wait_preroll (GST_BASE_SINK (sink));
@@ -277,6 +264,38 @@ gst_fd_sink_render_list (GstBaseSink * bsink, GstBufferList * buffer_list)
   }
 
   return ret;
+}
+
+static GstFlowReturn
+gst_fd_sink_render_list (GstBaseSink * bsink, GstBufferList * buffer_list)
+{
+  GstFlowReturn flow;
+  GstBuffer **buffers;
+  GstFdSink *sink;
+  guint8 *mem_nums;
+  guint total_mems;
+  guint i, num_buffers;
+
+  sink = GST_FD_SINK_CAST (bsink);
+
+  num_buffers = gst_buffer_list_length (buffer_list);
+  if (num_buffers == 0)
+    goto no_data;
+
+  /* extract buffers from list and count memories */
+  buffers = g_newa (GstBuffer *, num_buffers);
+  mem_nums = g_newa (guint8, num_buffers);
+  for (i = 0, total_mems = 0; i < num_buffers; ++i) {
+    buffers[i] = gst_buffer_list_get (buffer_list, i);
+    mem_nums[i] = gst_buffer_n_memory (buffers[i]);
+    total_mems += mem_nums[i];
+  }
+
+  flow =
+      gst_fd_sink_render_buffers (sink, buffers, num_buffers, mem_nums,
+      total_mems);
+
+  return flow;
 
 no_data:
   {
@@ -288,36 +307,26 @@ no_data:
 static GstFlowReturn
 gst_fd_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
 {
+  GstFlowReturn flow;
   GstFdSink *sink;
-  GstFlowReturn ret;
-  guint64 skip = 0;
+  guint8 n_mem;
 
   sink = GST_FD_SINK_CAST (bsink);
 
-  for (;;) {
-    guint64 bytes_written = 0;
+  n_mem = gst_buffer_n_memory (buffer);
 
-    ret = gst_writev_buffer (GST_OBJECT_CAST (sink), sink->fd, sink->fdset,
-        buffer, &bytes_written, skip, 0, -1, NULL);
+  if (n_mem > 0)
+    flow = gst_fd_sink_render_buffers (sink, &buffer, 1, &n_mem, n_mem);
+  else
+    flow = GST_FLOW_OK;
 
-    sink->current_pos += bytes_written;
-    skip += bytes_written;
-
-    if (!sink->unlock || ret != GST_FLOW_FLUSHING)
-      break;
-
-    ret = gst_base_sink_wait_preroll (GST_BASE_SINK (sink));
-    if (ret != GST_FLOW_OK)
-      return ret;
-  }
-
-  return ret;
+  return flow;
 }
 
 static gboolean
 gst_fd_sink_check_fd (GstFdSink * fdsink, int fd, GError ** error)
 {
-  struct_stat stat_results;
+  struct stat stat_results;
   off_t result;
 
   /* see that it is a valid file descriptor */
@@ -375,6 +384,7 @@ gst_fd_sink_start (GstBaseSink * basesink)
   gst_poll_add_fd (fdsink->fdset, &fd);
   gst_poll_fd_ctl_write (fdsink->fdset, &fd, TRUE);
 
+  fdsink->bytes_written = 0;
   fdsink->current_pos = 0;
 
   fdsink->seekable = gst_fd_sink_do_seek (fdsink, 0);

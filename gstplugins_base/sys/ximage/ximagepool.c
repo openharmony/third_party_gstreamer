@@ -32,7 +32,7 @@
 #include <gst/video/gstvideometa.h>
 #include <gst/video/gstvideopool.h>
 
-GST_DEBUG_CATEGORY (gst_debug_x_image_pool);
+GST_DEBUG_CATEGORY_EXTERN (gst_debug_x_image_pool);
 #define GST_CAT_DEFAULT gst_debug_x_image_pool
 
 /* X11 stuff */
@@ -335,7 +335,7 @@ ximage_memory_alloc (GstXImageBufferPool * xpool)
     align = 15;
     mem->ximage->data = g_malloc (allocsize + align);
     GST_LOG_OBJECT (ximagesink,
-        "non-XShm image size is %" G_GSIZE_FORMAT " (allocated: %u), width %d, "
+        "non-XShm image size is %" G_GSIZE_FORMAT " (alloced: %u), width %d, "
         "stride %d", mem->size, allocsize, width, mem->ximage->bytes_per_line);
 
     XSync (xcontext->disp, FALSE);
@@ -648,16 +648,12 @@ ximage_buffer_pool_alloc (GstBufferPool * pool, GstBuffer ** buffer,
   gst_buffer_append_memory (ximage, mem);
 
   if (xpool->add_metavideo) {
-    GstVideoMeta *meta;
-
     GST_DEBUG_OBJECT (pool, "adding GstVideoMeta");
     /* these are just the defaults for now */
-    meta = gst_buffer_add_video_meta_full (ximage, GST_VIDEO_FRAME_FLAG_NONE,
+    gst_buffer_add_video_meta_full (ximage, GST_VIDEO_FRAME_FLAG_NONE,
         GST_VIDEO_INFO_FORMAT (info), GST_VIDEO_INFO_WIDTH (info),
         GST_VIDEO_INFO_HEIGHT (info), GST_VIDEO_INFO_N_PLANES (info),
         info->offset, info->stride);
-
-    gst_video_meta_set_alignment (meta, xpool->align);
   }
   *buffer = ximage;
 

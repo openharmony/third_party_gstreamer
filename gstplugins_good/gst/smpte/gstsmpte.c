@@ -19,24 +19,24 @@
 
 /**
  * SECTION:element-smpte
- * @title: smpte
  *
  * smpte can accept I420 video streams with the same width, height and
  * framerate. The two incoming buffers are blended together using an effect
  * specific alpha mask. 
  *
- * The #GstSMPTE:depth property defines the presision in bits of the mask. A
+ * The #GstSmpte:depth property defines the presision in bits of the mask. A
  * higher presision will create a mask with smoother gradients in order to avoid
  * banding.
  *
- * ## Sample pipelines
+ * <refsect2>
+ * <title>Sample pipelines</title>
  * |[
  * gst-launch-1.0 -v videotestsrc pattern=1 ! smpte name=s border=20000 type=234 duration=2000000000 ! videoconvert ! ximagesink videotestsrc ! s.
  * ]| A pipeline to demonstrate the smpte transition.
  * It shows a pinwheel transition a from a snow videotestsrc to an smpte
  * pattern videotestsrc. The transition will take 2 seconds to complete. The
  * edges of the transition are smoothed with a 20000 big border.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -149,9 +149,6 @@ static GstStateChangeReturn gst_smpte_change_state (GstElement * element,
 
 #define gst_smpte_parent_class parent_class
 G_DEFINE_TYPE (GstSMPTE, gst_smpte, GST_TYPE_ELEMENT);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (smpte, "smpte", GST_RANK_NONE,
-    GST_TYPE_SMPTE, GST_DEBUG_CATEGORY_INIT (gst_smpte_debug, "smpte", 0,
-        "SMPTE transition effect"));
 
 static void
 gst_smpte_class_init (GstSMPTEClass * klass)
@@ -202,8 +199,6 @@ gst_smpte_class_init (GstSMPTEClass * klass)
       "Filter/Editor/Video",
       "Apply the standard SMPTE transitions on video images",
       "Wim Taymans <wim.taymans@chello.be>");
-
-  gst_type_mark_as_plugin_api (GST_TYPE_SMPTE_TRANSITION_TYPE, 0);
 }
 
 /*                              wht  yel  cya  grn  mag  red  blu  blk   -I    Q */
@@ -664,4 +659,13 @@ gst_smpte_change_state (GstElement * element, GstStateChange transition)
       break;
   }
   return ret;
+}
+
+gboolean
+gst_smpte_plugin_init (GstPlugin * plugin)
+{
+  GST_DEBUG_CATEGORY_INIT (gst_smpte_debug, "smpte", 0,
+      "SMPTE transition effect");
+
+  return gst_element_register (plugin, "smpte", GST_RANK_NONE, GST_TYPE_SMPTE);
 }

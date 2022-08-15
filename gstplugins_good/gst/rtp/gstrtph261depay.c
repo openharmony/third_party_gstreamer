@@ -20,7 +20,6 @@
 
 /**
  * SECTION:element-rtph261depay
- * @title: rtph261depay
  * @see_also: rtph261pay
  *
  * Extract encoded H.261 video frames from RTP packets according to RFC 4587.
@@ -30,12 +29,13 @@
  * aggregates the extracted stream until a complete frame is received before
  * it pushes it downstream.
  *
- * ## Example pipeline
+ * <refsect2>
+ * <title>Example pipeline</title>
  * |[
  * gst-launch-1.0 udpsrc caps='application/x-rtp, payload=31' ! rtph261depay ! avdec_h261 ! autovideosink
  * ]| This example pipeline will depayload and decode an RTP H.261 video stream.
  * Refer to the rtph261pay example to create the RTP stream.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -46,7 +46,6 @@
 
 #include <gst/rtp/gstrtpbuffer.h>
 #include <gst/video/video.h>
-#include "gstrtpelements.h"
 #include "gstrtph261depay.h"
 #include "gstrtph261pay.h"      /* GstRtpH261PayHeader */
 #include "gstrtputils.h"
@@ -76,11 +75,10 @@ static GstStaticPadTemplate gst_rtp_h261_depay_sink_template =
         "payload = (int) " GST_RTP_PAYLOAD_DYNAMIC_STRING ", "
         "clock-rate = (int) 90000, " "encoding-name = (string) \"H261\"")
     );
-#define parent_class gst_rtp_h261_depay_parent_class
+
 G_DEFINE_TYPE (GstRtpH261Depay, gst_rtp_h261_depay,
     GST_TYPE_RTP_BASE_DEPAYLOAD);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtph261depay, "rtph261depay",
-    GST_RANK_SECONDARY, GST_TYPE_RTP_H261_DEPAY, rtp_element_init (plugin));
+#define parent_class gst_rtp_h261_depay_parent_class
 
 static GstBuffer *
 gst_rtp_h261_depay_process (GstRTPBaseDepayload * depayload, GstRTPBuffer * rtp)
@@ -286,4 +284,11 @@ gst_rtp_h261_depay_init (GstRtpH261Depay * depay)
 {
   depay->adapter = gst_adapter_new ();
   depay->leftover = NO_LEFTOVER;
+}
+
+gboolean
+gst_rtp_h261_depay_plugin_init (GstPlugin * plugin)
+{
+  return gst_element_register (plugin, "rtph261depay",
+      GST_RANK_SECONDARY, GST_TYPE_RTP_H261_DEPAY);
 }

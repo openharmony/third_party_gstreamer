@@ -81,8 +81,7 @@ struct _GstRtpAsfPayClass
 };
 
 GType gst_rtp_asf_pay_get_type (void);
-
-GST_ELEMENT_REGISTER_DECLARE (rtpasfpay);
+gboolean gst_rtp_asf_pay_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 #endif /* __GST_RTP_ASF_PAY_H__ */

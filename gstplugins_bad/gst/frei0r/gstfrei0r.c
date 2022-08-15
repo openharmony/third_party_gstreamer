@@ -103,8 +103,7 @@ gst_frei0r_klass_install_properties (GObjectClass * gobject_class,
             g_param_spec_boolean (prop_name, param_info->name,
                 param_info->explanation,
                 properties[i].default_value.data.b ? TRUE : FALSE,
-                G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE |
-                GST_PARAM_DOC_SHOW_DEFAULT));
+                G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE));
         properties[i].n_prop_ids = 1;
         break;
       case F0R_PARAM_DOUBLE:{
@@ -117,8 +116,7 @@ gst_frei0r_klass_install_properties (GObjectClass * gobject_class,
         g_object_class_install_property (gobject_class, count++,
             g_param_spec_double (prop_name, param_info->name,
                 param_info->explanation, 0.0, 1.0, def,
-                G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE |
-                GST_PARAM_DOC_SHOW_DEFAULT));
+                G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE));
         properties[i].n_prop_ids = 1;
         break;
       }
@@ -126,8 +124,7 @@ gst_frei0r_klass_install_properties (GObjectClass * gobject_class,
         g_object_class_install_property (gobject_class, count++,
             g_param_spec_string (prop_name, param_info->name,
                 param_info->explanation, properties[i].default_value.data.s,
-                G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE |
-                GST_PARAM_DOC_SHOW_DEFAULT));
+                G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE));
         properties[i].n_prop_ids = 1;
         break;
       case F0R_PARAM_COLOR:{
@@ -144,8 +141,7 @@ gst_frei0r_klass_install_properties (GObjectClass * gobject_class,
         g_object_class_install_property (gobject_class, count++,
             g_param_spec_float (prop_name_full, prop_nick_full,
                 param_info->explanation, 0.0, 1.0, def,
-                G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE |
-                GST_PARAM_DOC_SHOW_DEFAULT));
+                G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE));
         g_free (prop_name_full);
         g_free (prop_nick_full);
 
@@ -158,8 +154,7 @@ gst_frei0r_klass_install_properties (GObjectClass * gobject_class,
         g_object_class_install_property (gobject_class, count++,
             g_param_spec_float (prop_name_full, prop_nick_full,
                 param_info->explanation, 0.0, 1.0, def,
-                G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE |
-                GST_PARAM_DOC_SHOW_DEFAULT));
+                G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE));
         g_free (prop_name_full);
         g_free (prop_nick_full);
 
@@ -172,8 +167,7 @@ gst_frei0r_klass_install_properties (GObjectClass * gobject_class,
         g_object_class_install_property (gobject_class, count++,
             g_param_spec_float (prop_name_full, prop_nick_full,
                 param_info->explanation, 0.0, 1.0, def,
-                G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE |
-                GST_PARAM_DOC_SHOW_DEFAULT));
+                G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE));
         g_free (prop_name_full);
         g_free (prop_nick_full);
 
@@ -194,8 +188,7 @@ gst_frei0r_klass_install_properties (GObjectClass * gobject_class,
         g_object_class_install_property (gobject_class, count++,
             g_param_spec_double (prop_name_full, prop_nick_full,
                 param_info->explanation, 0.0, 1.0, def,
-                G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE |
-                GST_PARAM_DOC_SHOW_DEFAULT));
+                G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE));
         g_free (prop_name_full);
         g_free (prop_nick_full);
 
@@ -208,8 +201,7 @@ gst_frei0r_klass_install_properties (GObjectClass * gobject_class,
         g_object_class_install_property (gobject_class, count++,
             g_param_spec_double (prop_name_full, prop_nick_full,
                 param_info->explanation, 0.0, 1.0, def,
-                G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE |
-                GST_PARAM_DOC_SHOW_DEFAULT));
+                G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE));
         g_free (prop_name_full);
         g_free (prop_nick_full);
 
@@ -550,7 +542,7 @@ register_plugin (GstPlugin * plugin, const gchar * vendor,
 
   instance = ftable.construct (640, 480);
   if (!instance) {
-    GST_WARNING ("Failed to instantiate plugin '%s'", info.name);
+    GST_WARNING ("Failed to instanciate plugin '%s'", info.name);
     ftable.deinit ();
     g_module_close (module);
     return FALSE;

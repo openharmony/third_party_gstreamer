@@ -73,28 +73,33 @@
  * Use the GST_RAW_BASE_PARSE_CONFIG_MUTEX_LOCK and GST_RAW_BASE_PARSE_CONFIG_MUTEX_UNLOCK
  * macros to protect configuration modifications.
  *
- * ## Summary of the subclass requirements
- *
- * * Sink caps and properties configurations must both be
- *   implemented and supported. It must also be ensured that there is a
- *   "current" configuration.
- *
- * * Modifications to the configurations must be protected with the
- *   GstRawBaseParse lock. This is typically necessary when the
- *   properties configuration is modified by setting new property values.
- *   (Note that the lock is held during *all* vfunc calls.)
- *
- * * If the properties configuration is updated (typically by
- *   setting new property values), gst_raw_base_parse_invalidate_src_caps()
- *   must be called if the properties config is the current one. This is
- *   necessary to ensure that GstBaseParse pushes a new caps event downstream
- *   which contains caps from the updated configuration.
- *
- * * In case there are bytes in each frame that aren't part of the actual
- *   payload, the `get_overhead_size()` vfunc must be defined, and the
- *   `get_config_frame_size()` vfunc must return a frame size that includes
- *   the number of non-payload bytes (= the overhead). Otherwise, the
- *   timestamps will incorrectly include the overhead bytes.
+ * <listitem>
+ *   <itemizedlist>
+ *   <title>Summary of the subclass requirements</title>
+ *     <listitem><para>
+ *       Sink caps and properties configurations must both be
+ *       implemented and supported. It must also be ensured that there is a
+ *       "current" configuration.
+ *     </para></listitem>
+ *       Modifications to the configurations must be protected with the
+ *       GstRawBaseParse lock. This is typically necessary when the
+ *       properties configuration is modified by setting new property values.
+ *       (Note that the lock is held during *all* vfunc calls.)
+ *     <listitem><para>
+ *       If the properties configuration is updated (typically by
+ *       setting new property values), gst_raw_base_parse_invalidate_src_caps()
+ *       must be called if the properties config is the current one. This is
+ *       necessary to ensure that GstBaseParse pushes a new caps event downstream
+ *       which contains caps from the updated configuration.
+ *     </para></listitem>
+ *     <listitem><para>
+ *       In case there are bytes in each frame that aren't part of the actual
+ *       payload, the get_overhead_size() vfunc must be defined, and the
+ *       @get_config_frame_size() vfunc must return a frame size that includes
+ *       the number of non-payload bytes (= the overhead). Otherwise, the
+ *       timestamps will incorrectly include the overhead bytes.
+ *     </para></listitem>
+ * </listitem>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -182,8 +187,6 @@ gst_raw_base_parse_class_init (GstRawBaseParseClass * klass)
           "Use the sink caps for defining the output format",
           DEFAULT_USE_SINK_CAPS, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)
       );
-
-  gst_type_mark_as_plugin_api (GST_TYPE_RAW_BASE_PARSE, 0);
 }
 
 static void
@@ -700,8 +703,7 @@ gst_raw_base_parse_convert (GstBaseParse * parse, GstFormat src_format,
     *dest_value = src_value;
   } else if ((src_format == GST_FORMAT_TIME || dest_format == GST_FORMAT_TIME)
       && gst_raw_base_parse_is_gstformat_supported (raw_base_parse, src_format)
-      && gst_raw_base_parse_is_gstformat_supported (raw_base_parse,
-          dest_format)) {
+      && gst_raw_base_parse_is_gstformat_supported (raw_base_parse, src_format)) {
     /* Perform conversions here if either the src or dest format
      * are GST_FORMAT_TIME and the other format is supported by
      * the subclass. This is because we perform TIME<->non-TIME

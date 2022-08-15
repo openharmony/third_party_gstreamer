@@ -23,18 +23,32 @@
 #include "config.h"
 #endif
 
-#include "gstavielements.h"
+#include "gst/gst-i18n-plugin.h"
+
+#include "gstavidemux.h"
+#include "gstavimux.h"
+#include "gstavisubtitle.h"
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  gst_riff_init ();
 
-  ret |= GST_ELEMENT_REGISTER (avidemux, plugin);
-  ret |= GST_ELEMENT_REGISTER (avimux, plugin);
-  ret |= GST_ELEMENT_REGISTER (avisubtitle, plugin);
+#ifdef ENABLE_NLS
+  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
+  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
+#endif /* ENABLE_NLS */
 
-  return ret;
+  if (!gst_element_register (plugin, "avidemux", GST_RANK_PRIMARY,
+          GST_TYPE_AVI_DEMUX) ||
+      !gst_element_register (plugin, "avimux", GST_RANK_PRIMARY,
+          GST_TYPE_AVI_MUX) ||
+      !gst_element_register (plugin, "avisubtitle", GST_RANK_PRIMARY,
+          GST_TYPE_AVI_SUBTITLE)) {
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

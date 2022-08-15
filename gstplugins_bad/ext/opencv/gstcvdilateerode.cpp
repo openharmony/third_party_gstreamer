@@ -87,7 +87,7 @@ static void gst_cv_dilate_erode_get_property (GObject * object, guint prop_id,
 GType
 gst_cv_dilate_erode_get_type (void)
 {
-  static gsize opencv_dilate_erode_type = 0;
+  static volatile gsize opencv_dilate_erode_type = 0;
 
   if (g_once_init_enter (&opencv_dilate_erode_type)) {
     GType _type;
@@ -145,13 +145,11 @@ gst_cv_dilate_erode_class_init (GstCvDilateErodeClass * klass)
   templ = gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS, caps);
   gst_element_class_add_pad_template (element_class, templ);
   gst_caps_unref (caps);
-
-  gst_type_mark_as_plugin_api (GST_TYPE_CV_DILATE_ERODE, (GstPluginAPIFlags) 0);
 }
 
 /* initialize the new element
  * instantiate pads and add them to element
- * set pad callback functions
+ * set pad calback functions
  * initialize instance structure
  */
 static void

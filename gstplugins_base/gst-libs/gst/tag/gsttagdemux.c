@@ -377,8 +377,7 @@ gst_tag_demux_trim_buffer (GstTagDemux * tagdemux, GstBuffer ** buf_ref,
   guint trim_start = 0;
   guint out_size, bsize;
   guint64 out_offset, boffset;
-  gboolean need_fixup = FALSE;
-  gboolean is_writable;
+  gboolean need_sub = FALSE;
 
   bsize = out_size = gst_buffer_get_size (buf);
   boffset = out_offset = GST_BUFFER_OFFSET (buf);
@@ -403,7 +402,7 @@ gst_tag_demux_trim_buffer (GstTagDemux * tagdemux, GstBuffer ** buf_ref,
 
       if (out_offset + out_size > v1tag_offset) {
         out_size = v1tag_offset - out_offset;
-        need_fixup = TRUE;
+        need_sub = TRUE;
       }
     }
   }
@@ -422,16 +421,11 @@ gst_tag_demux_trim_buffer (GstTagDemux * tagdemux, GstBuffer ** buf_ref,
     } else {
       out_offset -= tagdemux->priv->strip_start;
     }
-    need_fixup = TRUE;
+    need_sub = TRUE;
   }
 
-  if (!need_fixup)
-    goto done;
-
-  is_writable = gst_buffer_is_writable (buf);
-
-  if (out_size != bsize || !is_writable) {
-    if (!is_writable) {
+  if (need_sub) {
+    if (out_size != bsize || !gst_buffer_is_writable (buf)) {
       GstBuffer *sub;
 
       GST_DEBUG_OBJECT (tagdemux, "Sub-buffering to trim size %d offset %"
@@ -450,22 +444,14 @@ gst_tag_demux_trim_buffer (GstTagDemux * tagdemux, GstBuffer ** buf_ref,
       *buf_ref = buf = sub;
       *buf_size = out_size;
     } else {
-      GST_DEBUG_OBJECT (tagdemux, "Resizing buffer to trim size %d offset %"
+      GST_DEBUG_OBJECT (tagdemux, "Adjusting buffer from size %d offset %"
           G_GINT64_FORMAT " to %d offset %" G_GINT64_FORMAT,
           bsize, boffset, out_size, out_offset);
-
-      gst_buffer_resize (buf, trim_start, out_size);
     }
-  } else {
-    GST_DEBUG_OBJECT (tagdemux, "Adjusting buffer from size %d offset %"
-        G_GINT64_FORMAT " to %d offset %" G_GINT64_FORMAT,
-        bsize, boffset, out_size, out_offset);
+
+    GST_BUFFER_OFFSET (buf) = out_offset;
+    GST_BUFFER_OFFSET_END (buf) = out_offset + out_size;
   }
-
-  GST_BUFFER_OFFSET (buf) = out_offset;
-  GST_BUFFER_OFFSET_END (buf) = out_offset + out_size;
-
-done:
 
   return TRUE;
 
@@ -655,11 +641,9 @@ gst_tag_demux_chain_buffer (GstTagDemux * demux, GstBuffer * buf,
 
       /* Trim the buffer and adjust offset for typefinding */
       typefind_buf = demux->priv->collect;
-      if (typefind_buf) {
-        gst_buffer_ref (typefind_buf);
-        if (!gst_tag_demux_trim_buffer (demux, &typefind_buf, &typefind_size))
-          return GST_FLOW_EOS;
-      }
+      gst_buffer_ref (typefind_buf);
+      if (!gst_tag_demux_trim_buffer (demux, &typefind_buf, &typefind_size))
+        return GST_FLOW_EOS;
 
       if (typefind_buf == NULL)
         break;                  /* Still need more data */

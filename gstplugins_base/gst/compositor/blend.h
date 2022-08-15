@@ -38,31 +38,20 @@ typedef enum
   COMPOSITOR_BLEND_MODE_ADD,
 } GstCompositorBlendMode;
 
-/*
- * @srcframe: source #GstVideoFrame
- * @xpos: horizontal start position of @srcframe, leftmost pixel line.
- * @ypos: vertical start position of @srcframe, topmost pixel line.
- * @gdouble: src_alpha, alpha factor applied to @srcframe
- * @destframe: destination #GstVideoFrame
- * @dst_y_start: start position of where to write into @destframe. Used for splitting work across multiple sequences.
- * @dst_y_end: end position of where to write into @destframe. Used for splitting work across multiple sequences.
- */
 typedef void (*BlendFunction) (GstVideoFrame *srcframe, gint xpos, gint ypos, gdouble src_alpha, GstVideoFrame * destframe,
-    gint dst_y_start, gint dst_y_end, GstCompositorBlendMode mode);
-typedef void (*FillCheckerFunction) (GstVideoFrame * frame, guint y_start, guint y_end);
-typedef void (*FillColorFunction) (GstVideoFrame * frame, guint y_start, guint y_end, gint c1, gint c2, gint c3);
+    GstCompositorBlendMode mode);
+typedef void (*FillCheckerFunction) (GstVideoFrame * frame);
+typedef void (*FillColorFunction) (GstVideoFrame * frame, gint c1, gint c2, gint c3);
 
 extern BlendFunction gst_compositor_blend_argb;
 extern BlendFunction gst_compositor_blend_bgra;
 #define gst_compositor_blend_ayuv gst_compositor_blend_argb
-#define gst_compositor_blend_vuya gst_compositor_blend_bgra
 #define gst_compositor_blend_abgr gst_compositor_blend_argb
 #define gst_compositor_blend_rgba gst_compositor_blend_bgra
 
 extern BlendFunction gst_compositor_overlay_argb;
 extern BlendFunction gst_compositor_overlay_bgra;
 #define gst_compositor_overlay_ayuv gst_compositor_overlay_argb
-#define gst_compositor_overlay_vuya gst_compositor_overlay_bgra
 #define gst_compositor_overlay_abgr gst_compositor_overlay_argb
 #define gst_compositor_overlay_rgba gst_compositor_overlay_bgra
 extern BlendFunction gst_compositor_blend_i420;
@@ -87,7 +76,6 @@ extern FillCheckerFunction gst_compositor_fill_checker_argb;
 extern FillCheckerFunction gst_compositor_fill_checker_bgra;
 #define gst_compositor_fill_checker_rgba gst_compositor_fill_checker_bgra
 extern FillCheckerFunction gst_compositor_fill_checker_ayuv;
-extern FillCheckerFunction gst_compositor_fill_checker_vuya;
 extern FillCheckerFunction gst_compositor_fill_checker_i420;
 #define gst_compositor_fill_checker_yv12 gst_compositor_fill_checker_i420
 extern FillCheckerFunction gst_compositor_fill_checker_nv12;
@@ -99,8 +87,8 @@ extern FillCheckerFunction gst_compositor_fill_checker_rgb;
 #define gst_compositor_fill_checker_bgr gst_compositor_fill_checker_rgb
 extern FillCheckerFunction gst_compositor_fill_checker_rgbx;
 #define gst_compositor_fill_checker_bgrx gst_compositor_fill_checker_rgbx
-extern FillCheckerFunction gst_compositor_fill_checker_xrgb;
-#define gst_compositor_fill_checker_xbgr gst_compositor_fill_checker_xrgb
+#define gst_compositor_fill_checker_xrgb gst_compositor_fill_checker_rgbx
+#define gst_compositor_fill_checker_xbgr gst_compositor_fill_checker_rgbx
 extern FillCheckerFunction gst_compositor_fill_checker_yuy2;
 #define gst_compositor_fill_checker_yvyu gst_compositor_fill_checker_yuy2;
 extern FillCheckerFunction gst_compositor_fill_checker_uyvy;
@@ -110,7 +98,6 @@ extern FillColorFunction gst_compositor_fill_color_abgr;
 extern FillColorFunction gst_compositor_fill_color_bgra;
 extern FillColorFunction gst_compositor_fill_color_rgba;
 extern FillColorFunction gst_compositor_fill_color_ayuv;
-extern FillColorFunction gst_compositor_fill_color_vuya;
 extern FillColorFunction gst_compositor_fill_color_i420;
 extern FillColorFunction gst_compositor_fill_color_yv12;
 extern FillColorFunction gst_compositor_fill_color_nv12;

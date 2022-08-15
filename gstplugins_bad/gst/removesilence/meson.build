@@ -12,4 +12,3 @@ gstremovesilence = library('gstremovesilence',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstremovesilence, install_dir : plugins_pkgconfig_install_dir)
-plugins += [gstremovesilence]

@@ -28,7 +28,10 @@
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (libde265dec, plugin);
+  gboolean ret;
+
+  ret = gst_libde265_dec_plugin_init (plugin);
+  return ret;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

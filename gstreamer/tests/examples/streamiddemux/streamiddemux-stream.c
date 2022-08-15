@@ -69,7 +69,7 @@ sink_do_reconfigure (App * app)
 
   for (i = 0; i < NUM_STREAM; i++) {
     sync_sinkpad[i] =
-        gst_element_request_pad_simple (app->stream_synchronizer, "sink_%u");
+        gst_element_get_request_pad (app->stream_synchronizer, "sink_%u");
     it = gst_pad_iterate_internal_links (sync_sinkpad[i]);
     g_assert (it);
     gst_iterator_next (it, &item);
@@ -189,7 +189,7 @@ main (gint argc, gchar * argv[])
 
   bus = gst_element_get_bus (app->pipeline);
   bus_watch_id = gst_bus_add_watch (bus, bus_call, loop);
-  gst_object_unref (bus);
+  g_object_unref (bus);
 
   for (stream_cnt = 0; stream_cnt < NUM_STREAM; stream_cnt++) {
     gst_bin_add_many (GST_BIN (app->pipeline), app->audiotestsrc[stream_cnt],
@@ -210,7 +210,7 @@ main (gint argc, gchar * argv[])
 
   for (stream_cnt = 0; stream_cnt < NUM_STREAM; stream_cnt++) {
     funnel_sinkpad[stream_cnt] =
-        gst_element_request_pad_simple (app->funnel, "sink_%u");
+        gst_element_get_request_pad (app->funnel, "sink_%u");
     oggmux_srcpad[stream_cnt] =
         gst_element_get_static_pad (app->oggmux[stream_cnt], "src");
     gst_pad_link (oggmux_srcpad[stream_cnt], funnel_sinkpad[stream_cnt]);
@@ -225,7 +225,7 @@ main (gint argc, gchar * argv[])
   g_main_loop_run (loop);
 
   gst_element_set_state (app->pipeline, GST_STATE_NULL);
-  gst_object_unref (app->pipeline);
+  g_object_unref (app->pipeline);
   g_source_remove (bus_watch_id);
   g_main_loop_unref (loop);
 

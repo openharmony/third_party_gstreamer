@@ -50,7 +50,6 @@ struct _GstInterVideoSinkClass
 };
 
 GType gst_inter_video_sink_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (intervideosink);
 
 G_END_DECLS
 

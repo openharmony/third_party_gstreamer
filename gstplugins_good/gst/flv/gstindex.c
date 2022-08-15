@@ -22,7 +22,6 @@
 
 /**
  * SECTION:gstindex
- * @title: GstIndex
  * @short_description: Generate indexes on objects
  * @see_also: #GstIndexFactory
  *
@@ -39,7 +38,7 @@
  * The application that wants to index the stream will create a new index object
  * using gst_index_new() or gst_index_factory_make(). The index is assigned to a
  * specific element, a bin or the whole pipeline. This will cause indexable
- * elements to add entries to the index while playing.
+ * elements to add entires to the index while playing.
  */
 
 /* FIXME: complete gobject annotations */
@@ -326,7 +325,7 @@ gst_index_new (void)
 /**
  * gst_index_commit:
  * @index: the index to commit
- * @id: the writer that committed the index
+ * @id: the writer that commited the index
  *
  * Tell the index that the writer with the given id is done
  * with this index and is not going to write any more entries
@@ -703,9 +702,11 @@ gst_index_gtype_resolver (GstIndex * index, GstObject * writer,
  * to a string. That string will be used to register or look up an id
  * in the index.
  *
- * > The caller must not hold @writer's #GST_OBJECT_LOCK, as the default
- * > resolver may call functions that take the object lock as well, and
- * > the lock is not recursive.
+ * <note>
+ * The caller must not hold @writer's #GST_OBJECT_LOCK, as the default
+ * resolver may call functions that take the object lock as well, and
+ * the lock is not recursive.
+ * </note>
  *
  * Returns: TRUE if the writer would be mapped to an id.
  */
@@ -787,7 +788,7 @@ gst_index_add_entry (GstIndex * index, GstIndexEntry * entry)
  * gst_index_add_associationv:
  * @index: the index to add the entry to
  * @id: the id of the index writer
- * @flags: optional flags for this entry
+ * @flags: optinal flags for this entry
  * @n: number of associations
  * @list: list of associations
  *
@@ -813,7 +814,7 @@ gst_index_add_associationv (GstIndex * index, gint id,
   entry->type = GST_INDEX_ENTRY_ASSOCIATION;
   entry->id = id;
   entry->data.assoc.flags = flags;
-  entry->data.assoc.assocs = g_memdup2 (list, sizeof (GstIndexAssociation) * n);
+  entry->data.assoc.assocs = g_memdup (list, sizeof (GstIndexAssociation) * n);
   entry->data.assoc.nassocs = n;
 
   gst_index_add_entry (index, entry);
@@ -826,7 +827,7 @@ gst_index_add_associationv (GstIndex * index, gint id,
  * gst_index_add_association:
  * @index: the index to add the entry to
  * @id: the id of the index writer
- * @flags: optional flags for this entry
+ * @flags: optinal flags for this entry
  * @format: the format of the value
  * @value: the value
  * @...: other format/value pairs or 0 to end the list

@@ -16,5 +16,4 @@ if sbc_dep.found()
     install_dir : plugins_install_dir,
   )
   pkgconfig.generate(gstsbc, install_dir : plugins_pkgconfig_install_dir)
-  plugins += [gstsbc]
 endif

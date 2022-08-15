@@ -26,14 +26,24 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_RAW_AUDIO_PARSE (gst_raw_audio_parse_get_type())
-#define GST_RAW_AUDIO_PARSE_CAST(obj) ((GstRawAudioParse *)(obj))
-G_DECLARE_FINAL_TYPE (GstRawAudioParse, gst_raw_audio_parse,
-    GST, RAW_AUDIO_PARSE, GstRawBaseParse)
+#define GST_TYPE_RAW_AUDIO_PARSE \
+  (gst_raw_audio_parse_get_type())
+#define GST_RAW_AUDIO_PARSE(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST((obj), GST_TYPE_RAW_AUDIO_PARSE, GstRawAudioParse))
+#define GST_RAW_AUDIO_PARSE_CAST(obj) \
+  ((GstRawAudioParse *)(obj))
+#define GST_RAW_AUDIO_PARSE_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST((klass), GST_TYPE_RAW_AUDIO_PARSE, GstRawAudioParseClass))
+#define GST_IS_RAW_AUDIO_PARSE(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE((obj), GST_TYPE_RAW_AUDIO_PARSE))
+#define GST_IS_RAW_AUDIO_PARSE_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE((klass), GST_TYPE_RAW_AUDIO_PARSE))
 
 typedef enum _GstRawAudioParseFormat GstRawAudioParseFormat;
 
 typedef struct _GstRawAudioParseConfig GstRawAudioParseConfig;
+typedef struct _GstRawAudioParse GstRawAudioParse;
+typedef struct _GstRawAudioParseClass GstRawAudioParseClass;
 
 enum _GstRawAudioParseFormat
 {
@@ -65,7 +75,7 @@ struct _GstRawAudioParseConfig
 
   /* Array of channel positions, one position per channel; its first
    * num_channels values are valid. They are computed out of the number
-   * of channels if no positions are explicitly given. */
+   * of channels if no positions are explicitely given. */
   GstAudioChannelPosition channel_positions[64];
 
   /* If the channel_positions are in a valid GStreamer channel order, then
@@ -101,7 +111,12 @@ struct _GstRawAudioParse
   GstRawAudioParseConfig *current_config;
 };
 
-#define GST_TYPE_RAW_AUDIO_PARSE_FORMAT (gst_raw_audio_parse_format_get_type())
+struct _GstRawAudioParseClass
+{
+  GstRawBaseParseClass parent_class;
+};
+
+GType gst_raw_audio_parse_get_type (void);
 GType gst_raw_audio_parse_format_get_type (void);
 
 G_END_DECLS

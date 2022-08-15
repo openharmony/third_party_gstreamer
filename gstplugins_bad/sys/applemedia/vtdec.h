@@ -27,9 +27,6 @@
 #include <VideoToolbox/VideoToolbox.h>
 #include "videotexturecache.h"
 #include "glcontexthelper.h"
-#if defined(APPLEMEDIA_MOLTENVK)
-#include <gst/vulkan/vulkan.h>
-#endif
 
 G_BEGIN_DECLS
 
@@ -53,11 +50,6 @@ struct _GstVtdec
   gint reorder_queue_length;
   GstVideoTextureCache *texture_cache;
   GstGLContextHelper *ctxh;
-
-#if defined(APPLEMEDIA_MOLTENVK)
-  GstVulkanInstance *instance;
-  GstVulkanDevice *device;
-#endif
 
   gboolean require_hardware;
 };

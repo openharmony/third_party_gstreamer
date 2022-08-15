@@ -30,15 +30,15 @@
 
 /**
  * SECTION:element-streaktv
- * @title: streaktv
  *
  * StreakTV makes after images of moving objects.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 -v videotestsrc ! streaktv ! videoconvert ! autovideosink
  * ]| This pipeline shows the effect of streaktv on a test stream.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -61,8 +61,6 @@ enum
 
 #define gst_streaktv_parent_class parent_class
 G_DEFINE_TYPE (GstStreakTV, gst_streaktv, GST_TYPE_VIDEO_FILTER);
-GST_ELEMENT_REGISTER_DEFINE (streaktv, "streaktv", GST_RANK_NONE,
-    GST_TYPE_STREAKTV);
 
 static GstStaticPadTemplate gst_streaktv_src_template =
 GST_STATIC_PAD_TEMPLATE ("src",

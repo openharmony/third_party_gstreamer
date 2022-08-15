@@ -21,9 +21,8 @@
  * SECTION:element-voaacenc
  * @title: voaacenc
  *
- * AAC audio encoder based on vo-aacenc library.
- *
- * [vo-aacenc library source file](http://sourceforge.net/projects/opencore-amr/files/vo-aacenc/)
+ * AAC audio encoder based on vo-aacenc library
+ * <ulink url="http://sourceforge.net/projects/opencore-amr/files/vo-aacenc/">vo-aacenc library source file</ulink>.
  *
  * ## Example launch line
  * |[
@@ -107,8 +106,6 @@ static GstFlowReturn gst_voaacenc_handle_frame (GstAudioEncoder * enc,
     GstBuffer * in_buf);
 
 G_DEFINE_TYPE (GstVoAacEnc, gst_voaacenc, GST_TYPE_AUDIO_ENCODER);
-GST_ELEMENT_REGISTER_DEFINE (voaacenc, "voaacenc",
-    GST_RANK_SECONDARY, GST_TYPE_VOAACENC);
 
 static void
 gst_voaacenc_set_property (GObject * object, guint prop_id,

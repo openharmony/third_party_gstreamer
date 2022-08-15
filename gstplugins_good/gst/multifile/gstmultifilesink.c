@@ -25,7 +25,6 @@
  */
 /**
  * SECTION:element-multifilesink
- * @title: multifilesink
  * @see_also: #GstFileSrc
  *
  * Write incoming data to a series of sequentially-named files.
@@ -42,25 +41,77 @@
  * be substituted with the index for each filename.
  *
  * If the #GstMultiFileSink:post-messages property is %TRUE, it sends an application
- * message named `GstMultiFileSink` after writing each buffer.
+ * message named
+ * <classname>&quot;GstMultiFileSink&quot;</classname> after writing each
+ * buffer.
  *
  * The message's structure contains these fields:
+ * <itemizedlist>
+ * <listitem>
+ *   <para>
+ *   #gchar *
+ *   <classname>&quot;filename&quot;</classname>:
+ *   the filename where the buffer was written.
+ *   </para>
+ * </listitem>
+ * <listitem>
+ *   <para>
+ *   #gint
+ *   <classname>&quot;index&quot;</classname>:
+ *   the index of the buffer.
+ *   </para>
+ * </listitem>
+ * <listitem>
+ *   <para>
+ *   #GstClockTime
+ *   <classname>&quot;timestamp&quot;</classname>:
+ *   the timestamp of the buffer.
+ *   </para>
+ * </listitem>
+ * <listitem>
+ *   <para>
+ *   #GstClockTime
+ *   <classname>&quot;stream-time&quot;</classname>:
+ *   the stream time of the buffer.
+ *   </para>
+ * </listitem>
+ * <listitem>
+ *   <para>
+ *   #GstClockTime
+ *   <classname>&quot;running-time&quot;</classname>:
+ *   the running_time of the buffer.
+ *   </para>
+ * </listitem>
+ * <listitem>
+ *   <para>
+ *   #GstClockTime
+ *   <classname>&quot;duration&quot;</classname>:
+ *   the duration of the buffer.
+ *   </para>
+ * </listitem>
+ * <listitem>
+ *   <para>
+ *   #guint64
+ *   <classname>&quot;offset&quot;</classname>:
+ *   the offset of the buffer that triggered the message.
+ *   </para>
+ * </listitem>
+ * <listitem>
+ *   <para>
+ *   #guint64
+ *   <classname>&quot;offset-end&quot;</classname>:
+ *   the offset-end of the buffer that triggered the message.
+ *   </para>
+ * </listitem>
+ * </itemizedlist>
  *
- * * #gchararray `filename`: the filename where the buffer was written.
- * * #gint `index`: index of the buffer.
- * * #GstClockTime `timestamp`: the timestamp of the buffer.
- * * #GstClockTime `stream-time`: the stream time of the buffer.
- * * #GstClockTime running-time`: the running_time of the buffer.
- * * #GstClockTime `duration`: the duration of the buffer.
- * * #guint64 `offset`: the offset of the buffer that triggered the message.
- * * #guint64 `offset-end`: the offset-end of the buffer that triggered the message.
- *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 audiotestsrc ! multifilesink
  * gst-launch-1.0 videotestsrc ! multifilesink post-messages=true location="frame%d"
  * ]|
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -87,7 +138,6 @@ GST_DEBUG_CATEGORY_STATIC (gst_multi_file_sink_debug);
 #define DEFAULT_MAX_FILE_SIZE G_GUINT64_CONSTANT(2*1024*1024*1024)
 #define DEFAULT_MAX_FILE_DURATION GST_CLOCK_TIME_NONE
 #define DEFAULT_AGGREGATE_GOPS FALSE
-#define DEFAULT_MIN_KEYFRAME_DISTANCE (10 * GST_SECOND)
 
 enum
 {
@@ -99,8 +149,7 @@ enum
   PROP_MAX_FILES,
   PROP_MAX_FILE_SIZE,
   PROP_MAX_FILE_DURATION,
-  PROP_AGGREGATE_GOPS,
-  PROP_MIN_KEYFRAME_DISTANCE
+  PROP_AGGREGATE_GOPS
 };
 
 static void gst_multi_file_sink_finalize (GObject * object);
@@ -162,8 +211,6 @@ gst_multi_file_sink_next_get_type (void)
 
 #define gst_multi_file_sink_parent_class parent_class
 G_DEFINE_TYPE (GstMultiFileSink, gst_multi_file_sink, GST_TYPE_BASE_SINK);
-GST_ELEMENT_REGISTER_DEFINE (multifilesink, "multifilesink", GST_RANK_NONE,
-    gst_multi_file_sink_get_type ());
 
 static void
 gst_multi_file_sink_class_init (GstMultiFileSinkClass * klass)
@@ -238,7 +285,7 @@ gst_multi_file_sink_class_init (GstMultiFileSinkClass * klass)
    */
   g_object_class_install_property (gobject_class, PROP_MAX_FILE_DURATION,
       g_param_spec_uint64 ("max-file-duration", "Maximum File Duration",
-          "Maximum file duration before starting a new file in max-duration mode "
+          "Maximum file duration before starting a new file in max-size mode "
           "(in nanoseconds)", 0, G_MAXUINT64, DEFAULT_MAX_FILE_DURATION,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
@@ -257,21 +304,6 @@ gst_multi_file_sink_class_init (GstMultiFileSinkClass * klass)
       g_param_spec_boolean ("aggregate-gops", "Aggregate GOPs",
           "Whether to aggregate GOPs and process them as a whole without "
           "splitting", DEFAULT_AGGREGATE_GOPS,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  /**
-   * GstMultiFileSink:min-keyframe-distance:
-   *
-   * Minimum distance between keyframes in `next-file=key-frame` that causes a
-   * new file to be created. If two keyframes arrive closer to each other they
-   * will end up in the same file.
-   *
-   * Since: 1.20
-   */
-  g_object_class_install_property (gobject_class, PROP_MIN_KEYFRAME_DISTANCE,
-      g_param_spec_uint64 ("min-keyframe-distance", "Minimum Keyframe Distance",
-          "Minimum distance between keyframes to start a new file", 0,
-          G_MAXUINT64, DEFAULT_MIN_KEYFRAME_DISTANCE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gobject_class->finalize = gst_multi_file_sink_finalize;
@@ -293,8 +325,6 @@ gst_multi_file_sink_class_init (GstMultiFileSinkClass * klass)
       "Sink/File",
       "Write buffers to a sequentially named set of files",
       "David Schleef <ds@schleef.org>");
-
-  gst_type_mark_as_plugin_api (GST_TYPE_MULTI_FILE_SINK_NEXT, 0);
 }
 
 static void
@@ -306,7 +336,6 @@ gst_multi_file_sink_init (GstMultiFileSink * multifilesink)
   multifilesink->max_files = DEFAULT_MAX_FILES;
   multifilesink->max_file_size = DEFAULT_MAX_FILE_SIZE;
   multifilesink->max_file_duration = DEFAULT_MAX_FILE_DURATION;
-  multifilesink->min_keyframe_distance = DEFAULT_MIN_KEYFRAME_DISTANCE;
 
   multifilesink->aggregate_gops = DEFAULT_AGGREGATE_GOPS;
   multifilesink->gop_adapter = NULL;
@@ -369,9 +398,6 @@ gst_multi_file_sink_set_property (GObject * object, guint prop_id,
     case PROP_AGGREGATE_GOPS:
       sink->aggregate_gops = g_value_get_boolean (value);
       break;
-    case PROP_MIN_KEYFRAME_DISTANCE:
-      sink->min_keyframe_distance = g_value_get_uint64 (value);
-      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -408,9 +434,6 @@ gst_multi_file_sink_get_property (GObject * object, guint prop_id,
       break;
     case PROP_AGGREGATE_GOPS:
       g_value_set_boolean (value, sink->aggregate_gops);
-      break;
-    case PROP_MIN_KEYFRAME_DISTANCE:
-      g_value_set_uint64 (value, sink->min_keyframe_distance);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -631,7 +654,7 @@ gst_multi_file_sink_write_buffer (GstMultiFileSink * multifilesink,
       if (multifilesink->next_segment == GST_CLOCK_TIME_NONE) {
         if (GST_BUFFER_TIMESTAMP_IS_VALID (buffer)) {
           multifilesink->next_segment = GST_BUFFER_TIMESTAMP (buffer) +
-              multifilesink->min_keyframe_distance;
+              10 * GST_SECOND;
         }
       }
 
@@ -642,7 +665,7 @@ gst_multi_file_sink_write_buffer (GstMultiFileSink * multifilesink,
           first_file = FALSE;
           gst_multi_file_sink_close_file (multifilesink, buffer);
         }
-        multifilesink->next_segment += multifilesink->min_keyframe_distance;
+        multifilesink->next_segment += 10 * GST_SECOND;
       }
 
       if (multifilesink->file == NULL) {

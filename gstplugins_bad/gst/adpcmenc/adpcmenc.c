@@ -132,12 +132,7 @@ typedef struct _ADPCMEnc
 } ADPCMEnc;
 
 GType adpcmenc_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (adpcmenc);
-G_DEFINE_TYPE_WITH_CODE (ADPCMEnc, adpcmenc, GST_TYPE_AUDIO_ENCODER,
-    GST_DEBUG_CATEGORY_INIT (adpcmenc_debug, "adpcmenc", 0, "ADPCM Encoders");
-    );
-GST_ELEMENT_REGISTER_DEFINE (adpcmenc, "adpcmenc", GST_RANK_PRIMARY,
-    GST_TYPE_ADPCM_ENC);
+G_DEFINE_TYPE (ADPCMEnc, adpcmenc, GST_TYPE_AUDIO_ENCODER);
 
 static gboolean
 adpcmenc_setup (ADPCMEnc * enc)
@@ -468,14 +463,17 @@ adpcmenc_class_init (ADPCMEncClass * klass)
           MIN_ADPCM_BLOCK_SIZE, MAX_ADPCM_BLOCK_SIZE,
           DEFAULT_ADPCM_BLOCK_SIZE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  gst_type_mark_as_plugin_api (GST_TYPE_ADPCMENC_LAYOUT, 0);
 }
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (adpcmenc, plugin);
+  GST_DEBUG_CATEGORY_INIT (adpcmenc_debug, "adpcmenc", 0, "ADPCM Encoders");
+  if (!gst_element_register (plugin, "adpcmenc", GST_RANK_PRIMARY,
+          GST_TYPE_ADPCM_ENC)) {
+    return FALSE;
+  }
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR, GST_VERSION_MINOR, adpcmenc,

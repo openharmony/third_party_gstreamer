@@ -169,9 +169,14 @@ GST_START_TEST (test_get_allowed_caps)
 {
   GstPad *src, *sink;
   GstCaps *caps, *gotcaps;
+  GstBuffer *buffer;
   GstPadLinkReturn plr;
 
   ASSERT_CRITICAL (gst_pad_get_allowed_caps (NULL));
+
+  buffer = gst_buffer_new ();
+  ASSERT_CRITICAL (gst_pad_get_allowed_caps ((GstPad *) buffer));
+  gst_buffer_unref (buffer);
 
   src = gst_pad_new ("src", GST_PAD_SRC);
   fail_if (src == NULL);
@@ -1724,6 +1729,9 @@ probe_remove_self_cb (GstPad * pad, GstPadProbeInfo * info, gpointer user_data)
 {
   gst_pad_remove_probe (pad, info->id);
 
+  fail_unless (pad->num_probes == 0);
+  fail_unless (pad->num_blocked == 0);
+
   return GST_PAD_PROBE_REMOVE;
 }
 
@@ -1760,52 +1768,6 @@ GST_START_TEST (test_pad_probe_remove)
 }
 
 GST_END_TEST;
-
-GST_START_TEST (test_pad_disjoint_blocks_probe_remove)
-{
-  GstPad *pad;
-
-  /* Test that installing 2 separate blocking probes - one on events
-   * and one on buffers, and then removing the blocking event probe
-   * releases the dataflow until a buffer is caught
-   *
-   * https://gitlab.freedesktop.org/gstreamer/gstreamer/-/issues/658
-   */
-  pad = gst_pad_new ("src", GST_PAD_SRC);
-  fail_unless (pad != NULL);
-
-  gst_pad_set_active (pad, TRUE);
-  fail_unless (pad->num_probes == 0);
-  fail_unless (pad->num_blocked == 0);
-  gst_pad_add_probe (pad,
-      GST_PAD_PROBE_TYPE_BLOCK | GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM,
-      probe_remove_self_cb, NULL, probe_remove_notify_cb);
-  fail_unless (pad->num_probes == 1);
-  fail_unless (pad->num_blocked == 1);
-
-  gst_pad_add_probe (pad,
-      GST_PAD_PROBE_TYPE_BLOCK | GST_PAD_PROBE_TYPE_BUFFER,
-      probe_remove_self_cb, NULL, probe_remove_notify_cb);
-  fail_unless (pad->num_probes == 2);
-  fail_unless (pad->num_blocked == 2);
-
-  pad_probe_remove_notifiy_called = FALSE;
-  gst_pad_push_event (pad, gst_event_new_stream_start ("asda"));
-
-  fail_unless (gst_pad_push_event (pad,
-          gst_event_new_segment (&dummy_segment)) == TRUE);
-
-  pad_probe_remove_notifiy_called = FALSE;
-  gst_pad_push (pad, gst_buffer_new ());
-
-  fail_unless (pad->num_probes == 0);
-  fail_unless (pad->num_blocked == 0);
-
-  gst_object_unref (pad);
-}
-
-GST_END_TEST;
-
 
 typedef struct
 {
@@ -2699,13 +2661,11 @@ GST_START_TEST (test_last_flow_return_push)
 
   /* initial value is flushing */
   fail_unless (gst_pad_get_last_flow_return (srcpad) == GST_FLOW_FLUSHING);
-  fail_unless (gst_pad_get_last_flow_return (sinkpad) == GST_FLOW_FLUSHING);
 
   /* when active it goes to ok */
   gst_pad_set_active (srcpad, TRUE);
   fail_unless (gst_pad_get_last_flow_return (srcpad) == GST_FLOW_OK);
   gst_pad_set_active (sinkpad, TRUE);
-  fail_unless (gst_pad_get_last_flow_return (sinkpad) == GST_FLOW_OK);
 
   /* startup events */
   gst_pad_push_event (srcpad, gst_event_new_stream_start ("test"));
@@ -2717,13 +2677,11 @@ GST_START_TEST (test_last_flow_return_push)
   next_return = GST_FLOW_OK;
   fail_unless (gst_pad_push (srcpad, gst_buffer_new ()) == GST_FLOW_OK);
   fail_unless (gst_pad_get_last_flow_return (srcpad) == GST_FLOW_OK);
-  fail_unless (gst_pad_get_last_flow_return (sinkpad) == GST_FLOW_OK);
 
   /* push not-linked */
   next_return = GST_FLOW_NOT_LINKED;
   fail_unless (gst_pad_push (srcpad, gst_buffer_new ()) == GST_FLOW_NOT_LINKED);
   fail_unless (gst_pad_get_last_flow_return (srcpad) == GST_FLOW_NOT_LINKED);
-  fail_unless (gst_pad_get_last_flow_return (sinkpad) == GST_FLOW_NOT_LINKED);
 
   /* push not-linked */
   next_return = GST_FLOW_NOT_NEGOTIATED;
@@ -2731,32 +2689,25 @@ GST_START_TEST (test_last_flow_return_push)
           gst_buffer_new ()) == GST_FLOW_NOT_NEGOTIATED);
   fail_unless (gst_pad_get_last_flow_return (srcpad) ==
       GST_FLOW_NOT_NEGOTIATED);
-  fail_unless (gst_pad_get_last_flow_return (sinkpad) ==
-      GST_FLOW_NOT_NEGOTIATED);
 
   /* push error */
   next_return = GST_FLOW_ERROR;
   fail_unless (gst_pad_push (srcpad, gst_buffer_new ()) == GST_FLOW_ERROR);
   fail_unless (gst_pad_get_last_flow_return (srcpad) == GST_FLOW_ERROR);
-  fail_unless (gst_pad_get_last_flow_return (sinkpad) == GST_FLOW_ERROR);
 
   /* back to ok */
   next_return = GST_FLOW_OK;
   fail_unless (gst_pad_push (srcpad, gst_buffer_new ()) == GST_FLOW_OK);
   fail_unless (gst_pad_get_last_flow_return (srcpad) == GST_FLOW_OK);
-  fail_unless (gst_pad_get_last_flow_return (sinkpad) == GST_FLOW_OK);
 
   /* unlinked push */
   gst_pad_unlink (srcpad, sinkpad);
   fail_unless (gst_pad_push (srcpad, gst_buffer_new ()) == GST_FLOW_NOT_LINKED);
   fail_unless (gst_pad_get_last_flow_return (srcpad) == GST_FLOW_NOT_LINKED);
-  /* The last flow ret from the peer pad shouldn't have changed */
-  fail_unless (gst_pad_get_last_flow_return (sinkpad) == GST_FLOW_OK);
 
   gst_pad_link (srcpad, sinkpad);
   fail_unless (gst_pad_push_event (srcpad, gst_event_new_eos ()));
   fail_unless (gst_pad_get_last_flow_return (srcpad) == GST_FLOW_EOS);
-  fail_unless (gst_pad_get_last_flow_return (sinkpad) == GST_FLOW_EOS);
 
   gst_object_unref (srcpad);
   gst_object_unref (sinkpad);
@@ -2795,20 +2746,17 @@ GST_START_TEST (test_last_flow_return_pull)
   gst_pad_link (srcpad, sinkpad);
 
   /* initial value is flushing */
-  fail_unless (gst_pad_get_last_flow_return (srcpad) == GST_FLOW_FLUSHING);
   fail_unless (gst_pad_get_last_flow_return (sinkpad) == GST_FLOW_FLUSHING);
 
   /* when active it goes to ok */
   gst_pad_set_active (sinkpad, TRUE);
   fail_unless (gst_pad_get_last_flow_return (sinkpad) == GST_FLOW_OK);
   gst_pad_set_active (srcpad, TRUE);
-  fail_unless (gst_pad_get_last_flow_return (srcpad) == GST_FLOW_OK);
 
   /* pull Ok */
   next_return = GST_FLOW_OK;
   fail_unless (gst_pad_pull_range (sinkpad, 0, 1, &buf) == GST_FLOW_OK);
   fail_unless (gst_pad_get_last_flow_return (sinkpad) == GST_FLOW_OK);
-  fail_unless (gst_pad_get_last_flow_return (srcpad) == GST_FLOW_OK);
   gst_buffer_unref (buf);
   buf = NULL;
 
@@ -2816,13 +2764,11 @@ GST_START_TEST (test_last_flow_return_pull)
   next_return = GST_FLOW_NOT_LINKED;
   fail_unless (gst_pad_pull_range (sinkpad, 0, 1, &buf) == GST_FLOW_NOT_LINKED);
   fail_unless (gst_pad_get_last_flow_return (sinkpad) == GST_FLOW_NOT_LINKED);
-  fail_unless (gst_pad_get_last_flow_return (srcpad) == GST_FLOW_NOT_LINKED);
 
   /* pull error */
   next_return = GST_FLOW_ERROR;
   fail_unless (gst_pad_pull_range (sinkpad, 0, 1, &buf) == GST_FLOW_ERROR);
   fail_unless (gst_pad_get_last_flow_return (sinkpad) == GST_FLOW_ERROR);
-  fail_unless (gst_pad_get_last_flow_return (srcpad) == GST_FLOW_ERROR);
 
   /* pull not-nego */
   next_return = GST_FLOW_NOT_NEGOTIATED;
@@ -2830,14 +2776,11 @@ GST_START_TEST (test_last_flow_return_pull)
           &buf) == GST_FLOW_NOT_NEGOTIATED);
   fail_unless (gst_pad_get_last_flow_return (sinkpad) ==
       GST_FLOW_NOT_NEGOTIATED);
-  fail_unless (gst_pad_get_last_flow_return (srcpad) ==
-      GST_FLOW_NOT_NEGOTIATED);
 
   /* pull ok again */
   next_return = GST_FLOW_OK;
   fail_unless (gst_pad_pull_range (sinkpad, 0, 1, &buf) == GST_FLOW_OK);
   fail_unless (gst_pad_get_last_flow_return (sinkpad) == GST_FLOW_OK);
-  fail_unless (gst_pad_get_last_flow_return (srcpad) == GST_FLOW_OK);
   gst_buffer_unref (buf);
   buf = NULL;
 
@@ -2845,15 +2788,12 @@ GST_START_TEST (test_last_flow_return_pull)
   gst_pad_unlink (srcpad, sinkpad);
   fail_unless (gst_pad_pull_range (sinkpad, 0, 1, &buf) == GST_FLOW_NOT_LINKED);
   fail_unless (gst_pad_get_last_flow_return (sinkpad) == GST_FLOW_NOT_LINKED);
-  /* Return value for the remote pad didn't change */
-  fail_unless (gst_pad_get_last_flow_return (srcpad) == GST_FLOW_OK);
 
   /* eos */
   gst_pad_link (srcpad, sinkpad);
   next_return = GST_FLOW_EOS;
   fail_unless (gst_pad_pull_range (sinkpad, 0, 1, &buf) == GST_FLOW_EOS);
   fail_unless (gst_pad_get_last_flow_return (sinkpad) == GST_FLOW_EOS);
-  fail_unless (gst_pad_get_last_flow_return (srcpad) == GST_FLOW_EOS);
 
   gst_object_unref (srcpad);
   gst_object_unref (sinkpad);
@@ -3412,7 +3352,6 @@ gst_pad_suite (void)
   tcase_add_test (tc_chain, test_pad_probe_pull_idle);
   tcase_add_test (tc_chain, test_pad_probe_pull_buffer);
   tcase_add_test (tc_chain, test_pad_probe_remove);
-  tcase_add_test (tc_chain, test_pad_disjoint_blocks_probe_remove);
   tcase_add_test (tc_chain, test_pad_probe_block_add_remove);
   tcase_add_test (tc_chain, test_pad_probe_block_and_drop_buffer);
   tcase_add_test (tc_chain, test_pad_probe_flush_events);

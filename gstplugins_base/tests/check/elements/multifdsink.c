@@ -20,6 +20,9 @@
 
 #include <unistd.h>
 #include <sys/ioctl.h>
+#ifdef HAVE_FIONREAD_IN_SYS_FILIO
+#include <sys/filio.h>
+#endif
 
 #include <gst/check/gstcheck.h>
 
@@ -538,7 +541,7 @@ GST_START_TEST (test_burst_client_bytes)
   fail_unless_read ("client 1", pfd1[0], 16, "deadbee00000009");
 
   /* second client only bursts 50 bytes = 4 buffers (we get 4 buffers since
-   * the max allows it) */
+   * the max alows it) */
   GST_DEBUG ("Reading from client 2");
   fail_unless_read ("client 2", pfd2[0], 16, "deadbee00000006");
   fail_unless_read ("client 2", pfd2[0], 16, "deadbee00000007");

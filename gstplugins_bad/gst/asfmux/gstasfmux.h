@@ -135,7 +135,7 @@ struct _GstAsfMux
   /* same as properties, but those are stored here to be
    * used without modification while muxing a single file */
   guint32 packet_size;
-  guint64 preroll;              /* milliseconds */
+  guint64 preroll;              /* milisecs */
   gboolean merge_stream_tags;
 
   GstClockTime first_ts;
@@ -152,7 +152,7 @@ struct _GstAsfMuxClass
 };
 
 GType gst_asf_mux_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (asfmux);
+gboolean gst_asf_mux_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 #endif /* __GST_ASF_MUX_H__ */

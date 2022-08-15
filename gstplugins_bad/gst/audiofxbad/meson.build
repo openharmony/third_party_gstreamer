@@ -12,4 +12,3 @@ gstaudiofxbad = library('gstaudiofxbad',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstaudiofxbad, install_dir : plugins_pkgconfig_install_dir)
-plugins += [gstaudiofxbad]

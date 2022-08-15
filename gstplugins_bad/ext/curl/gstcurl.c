@@ -20,30 +20,65 @@
 #include <config.h>
 #endif
 
-#include "gstcurlelements.h"
+#include <gst/gst-i18n-plugin.h>
 
+#ifndef OHOS_EXT_FUNC
+/* ohos.ext.func.0024 support https:
+ * Don't include not used head files.
+ */
+#include "gstcurlbasesink.h"
+#include "gstcurltlssink.h"
+#include "gstcurlhttpsink.h"
+#include "gstcurlfilesink.h"
+#include "gstcurlftpsink.h"
+#include "gstcurlsmtpsink.h"
+#ifdef HAVE_SSH2
+#include "gstcurlsftpsink.h"
+#endif
+#endif
+#include "gstcurlhttpsrc.h"
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+#ifdef ENABLE_NLS
+  GST_DEBUG ("binding text domain %s to locale dir %s", GETTEXT_PACKAGE,
+      LOCALEDIR);
+  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
+  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
+#endif /* ENABLE_NLS */
 
 #ifndef OHOS_EXT_FUNC
   /* ohos.ext.func.0024 support https:
    * disable not used element.
    */
-  ret |= GST_ELEMENT_REGISTER (curlhttpsink, plugin);
-  ret |= GST_ELEMENT_REGISTER (curlfilesink, plugin);
-  ret |= GST_ELEMENT_REGISTER (curlftpsink, plugin);
-  ret |= GST_ELEMENT_REGISTER (curlsmtpsink, plugin);
+  if (!gst_element_register (plugin, "curlhttpsink", GST_RANK_NONE,
+          GST_TYPE_CURL_HTTP_SINK))
+    return FALSE;
+
+  if (!gst_element_register (plugin, "curlfilesink", GST_RANK_NONE,
+          GST_TYPE_CURL_FILE_SINK))
+    return FALSE;
+
+  if (!gst_element_register (plugin, "curlftpsink", GST_RANK_NONE,
+          GST_TYPE_CURL_FTP_SINK))
+    return FALSE;
+
+  if (!gst_element_register (plugin, "curlsmtpsink", GST_RANK_NONE,
+          GST_TYPE_CURL_SMTP_SINK))
+    return FALSE;
 
 #ifdef HAVE_SSH2
-  ret |= GST_ELEMENT_REGISTER (curlsftpsink, plugin);
+  if (!gst_element_register (plugin, "curlsftpsink", GST_RANK_NONE,
+          GST_TYPE_CURL_SFTP_SINK))
+    return FALSE;
 #endif
 #endif
-  ret |= GST_ELEMENT_REGISTER (curlhttpsrc, plugin);
+  if (!gst_element_register (plugin, "curlhttpsrc", GST_RANK_SECONDARY,
+          GST_TYPE_CURLHTTPSRC))
+    return FALSE;
 
-  return ret;
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

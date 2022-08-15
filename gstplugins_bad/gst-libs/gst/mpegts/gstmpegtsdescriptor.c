@@ -51,8 +51,26 @@ static void _##name##_free (type * source) \
  * These are the base descriptor types and methods.
  *
  * For more details, refer to the ITU H.222.0 or ISO/IEC 13818-1 specifications
- * and other specifications mentioned in the documentation.
+ * and other specifications mentionned in the documentation.
  */
+
+/* FIXME : Move this to proper file once we have a C file for ATSC/ISDB descriptors */
+/**
+ * SECTION:gst-atsc-descriptor
+ * @title: ATSC variants of MPEG-TS descriptors
+ * @short_description: Descriptors for the various ATSC specifications
+ * @include: gst/mpegts/mpegts.h
+ *
+ */
+
+/**
+ * SECTION:gst-isdb-descriptor
+ * @title: ISDB variants of MPEG-TS descriptors
+ * @short_description: Descriptors for the various ISDB specifications
+ * @include: gst/mpegts/mpegts.h
+ *
+ */
+
 
 /*
  * TODO
@@ -700,7 +718,7 @@ _copy_descriptor (GstMpegtsDescriptor * desc)
   GstMpegtsDescriptor *copy;
 
   copy = g_slice_dup (GstMpegtsDescriptor, desc);
-  copy->data = g_memdup2 (desc->data, desc->length + 2);
+  copy->data = g_memdup (desc->data, desc->length + 2);
 
   return copy;
 }
@@ -788,7 +806,7 @@ gst_mpegts_parse_descriptors (guint8 * buffer, gsize buf_len)
     desc->tag = *data++;
     desc->length = *data++;
     /* Copy the data now that we known the size */
-    desc->data = g_memdup2 (desc->data, desc->length + 2);
+    desc->data = g_memdup (desc->data, desc->length + 2);
     GST_LOG ("descriptor 0x%02x length:%d", desc->tag, desc->length);
     GST_MEMDUMP ("descriptor", desc->data + 2, desc->length);
     /* extended descriptors */
@@ -817,7 +835,7 @@ gst_mpegts_parse_descriptors (guint8 * buffer, gsize buf_len)
  * Note: To look for descriptors that can be present more than once in an
  * array of descriptors, iterate the #GArray manually.
  *
- * Returns: (transfer none): the first descriptor matching @tag, else %NULL.
+ * Returns: (transfer none): the first descriptor matchin @tag, else %NULL.
  */
 const GstMpegtsDescriptor *
 gst_mpegts_find_descriptor (GPtrArray * descriptors, guint8 tag)
@@ -830,38 +848,6 @@ gst_mpegts_find_descriptor (GPtrArray * descriptors, guint8 tag)
   for (i = 0; i < nb_desc; i++) {
     GstMpegtsDescriptor *desc = g_ptr_array_index (descriptors, i);
     if (desc->tag == tag)
-      return (const GstMpegtsDescriptor *) desc;
-  }
-  return NULL;
-}
-
-/**
- * gst_mpegts_find_descriptor_with_extension:
- * @descriptors: (element-type GstMpegtsDescriptor) (transfer none): an array
- * of #GstMpegtsDescriptor
- * @tag: the tag to look for
- *
- * Finds the first descriptor of type @tag with @tag_extension in the array.
- *
- * Note: To look for descriptors that can be present more than once in an
- * array of descriptors, iterate the #GArray manually.
- *
- * Returns: (transfer none): the first descriptor matchin @tag with @tag_extension, else %NULL.
- *
- * Since: 1.20
- */
-const GstMpegtsDescriptor *
-gst_mpegts_find_descriptor_with_extension (GPtrArray * descriptors, guint8 tag,
-    guint8 tag_extension)
-{
-  guint i, nb_desc;
-
-  g_return_val_if_fail (descriptors != NULL, NULL);
-
-  nb_desc = descriptors->len;
-  for (i = 0; i < nb_desc; i++) {
-    GstMpegtsDescriptor *desc = g_ptr_array_index (descriptors, i);
-    if ((desc->tag == tag) && (desc->tag_extension == tag_extension))
       return (const GstMpegtsDescriptor *) desc;
   }
   return NULL;
@@ -895,47 +881,6 @@ gst_mpegts_descriptor_from_registration (const gchar * format_identifier,
     memcpy (descriptor->data + 6, additional_info, additional_info_length);
 
   return descriptor;
-}
-
-/**
- * gst_mpegts_descriptor_parse_registration:
- * @descriptor: a %GST_MTS_DESC_REGISTRATION #GstMpegtsDescriptor
- * @registration_id: (out): The registration ID (in host endiannes)
- * @additional_info: (out) (allow-none) (array length=additional_info_length): The additional information
- * @additional_info_length: (out) (allow-none): The size of @additional_info in bytes.
- *
- * Extracts the Registration information from @descriptor.
- *
- * Returns: %TRUE if parsing succeeded, else %FALSE.
- *
- * Since: 1.20
- */
-
-gboolean
-gst_mpegts_descriptor_parse_registration (GstMpegtsDescriptor * descriptor,
-    guint32 * registration_id,
-    guint8 ** additional_info, gsize * additional_info_length)
-{
-  guint8 *data;
-
-  g_return_val_if_fail (descriptor != NULL && registration_id != NULL, FALSE);
-
-  /* The smallest registration is 4 bytes */
-  __common_desc_checks (descriptor, GST_MTS_DESC_REGISTRATION, 4, FALSE);
-
-  data = (guint8 *) descriptor->data + 2;
-  *registration_id = GST_READ_UINT32_BE (data);
-  data += 4;
-  if (additional_info && additional_info_length) {
-    *additional_info_length = descriptor->length - 4;
-    if (descriptor->length > 4) {
-      *additional_info = data;
-    } else {
-      *additional_info = NULL;
-    }
-  }
-
-  return TRUE;
 }
 
 /* GST_MTS_DESC_CA (0x09) */
@@ -1230,8 +1175,6 @@ gst_mpegts_descriptor_from_custom (guint8 tag, const guint8 * data,
  * Creates a #GstMpegtsDescriptor with custom @tag, @tag_extension and @data
  *
  * Returns: #GstMpegtsDescriptor
- *
- * Since: 1.20
  */
 GstMpegtsDescriptor *
 gst_mpegts_descriptor_from_custom_with_extension (guint8 tag,

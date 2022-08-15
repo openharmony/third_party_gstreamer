@@ -1,12 +1,13 @@
-/*
- * Copyright 2006 BBC and Fluendo S.A.
+/* 
+ * Copyright 2006 BBC and Fluendo S.A. 
  *
- * This library is licensed under 3 different licenses and you
+ * This library is licensed under 4 different licenses and you
  * can choose to use it under the terms of any one of them. The
- * three licenses are the MPL 1.1, the LGPL, and the MIT license.
+ * four licenses are the MPL 1.1, the LGPL, the GPL and the MIT
+ * license.
  *
  * MPL:
- *
+ * 
  * The contents of this file are subject to the Mozilla Public License
  * Version 1.1 (the "License"); you may not use this file except in
  * compliance with the License. You may obtain a copy of the License at
@@ -34,22 +35,38 @@
  * Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
  * Boston, MA 02110-1301, USA.
  *
+ * GPL:
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
+ *
  * MIT:
  *
  * Unless otherwise indicated, Source Code is licensed under MIT license.
  * See further explanation attached in License Statement (distributed in the file
  * LICENSE).
- *
+ * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
  * the Software without restriction, including without limitation the rights to
  * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
  * of the Software, and to permit persons to whom the Software is furnished to do
  * so, subject to the following conditions:
- *
+ * 
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- *
+ * 
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -58,7 +75,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  *
- * SPDX-License-Identifier: MPL-1.1 OR MIT OR LGPL-2.0-or-later
  */
 
 #ifdef HAVE_CONFIG_H
@@ -73,7 +89,7 @@
 #include "tsmuxcommon.h"
 #include "tsmuxstream.h"
 
-#define GST_CAT_DEFAULT gst_base_ts_mux_debug
+#define GST_CAT_DEFAULT mpegtsmux_debug
 
 static guint8 tsmux_stream_pes_header_length (TsMuxStream * stream);
 static void tsmux_stream_write_pes_header (TsMuxStream * stream, guint8 * data);
@@ -106,7 +122,7 @@ struct TsMuxStreamBuffer
  * Returns: a new #TsMuxStream.
  */
 TsMuxStream *
-tsmux_stream_new (guint16 pid, guint stream_type)
+tsmux_stream_new (guint16 pid, TsMuxStreamType stream_type)
 {
   TsMuxStream *stream = g_slice_new0 (TsMuxStream);
 
@@ -117,7 +133,6 @@ tsmux_stream_new (guint16 pid, guint stream_type)
   stream->pes_payload_size = 0;
   stream->cur_pes_payload_size = 0;
   stream->pes_bytes_written = 0;
-  stream->pmt_index = -1;
 
   switch (stream_type) {
     case TSMUX_ST_VIDEO_MPEG1:
@@ -205,21 +220,15 @@ tsmux_stream_new (guint16 pid, guint stream_type)
       stream->pi.flags |= TSMUX_PACKET_FLAG_PES_FULL_HEADER;
       break;
     default:
-      /* Might be a custom stream type implemented by a subclass */
+      g_critical ("Stream type 0x%0x not yet implemented", stream_type);
       break;
   }
-
-  stream->first_ts = GST_CLOCK_STIME_NONE;
 
   stream->last_pts = GST_CLOCK_STIME_NONE;
   stream->last_dts = GST_CLOCK_STIME_NONE;
 
   stream->pcr_ref = 0;
-  stream->next_pcr = -1;
-
-  stream->get_es_descrs =
-      (TsMuxStreamGetESDescriptorsFunc) tsmux_stream_default_get_es_descrs;
-  stream->get_es_descrs_data = NULL;
+  stream->last_pcr = -1;
 
   return stream;
 }
@@ -284,25 +293,6 @@ tsmux_stream_set_buffer_release_func (TsMuxStream * stream,
   stream->buffer_release = func;
 }
 
-/**
- * tsmux_stream_set_get_es_descriptors_func:
- * @stream: a #TsMuxStream
- * @func: a user callback function
- * @user_data: user data passed to @func
- *
- * Set the callback function and user data to be called when @stream has
- * to create Elementary Stream Descriptors.
- */
-void
-tsmux_stream_set_get_es_descriptors_func (TsMuxStream * stream,
-    TsMuxStreamGetESDescriptorsFunc func, void *user_data)
-{
-  g_return_if_fail (stream != NULL);
-
-  stream->get_es_descrs = func;
-  stream->get_es_descrs_data = user_data;
-}
-
 /* Advance the current packet stream position by len bytes.
  * Mustn't consume more than available in the current packet */
 static void
@@ -317,9 +307,10 @@ tsmux_stream_consume (TsMuxStream * stream, guint len)
   if (stream->cur_buffer_consumed == 0 && stream->cur_buffer->size != 0)
     return;
 
-  if (GST_CLOCK_STIME_IS_VALID (stream->cur_buffer->pts))
+  if (GST_CLOCK_STIME_IS_VALID (stream->cur_buffer->pts)) {
     stream->last_pts = stream->cur_buffer->pts;
-  if (GST_CLOCK_STIME_IS_VALID (stream->cur_buffer->dts))
+    stream->last_dts = stream->cur_buffer->dts;
+  } else if (GST_CLOCK_STIME_IS_VALID (stream->cur_buffer->dts))
     stream->last_dts = stream->cur_buffer->dts;
 
   if (stream->cur_buffer_consumed == stream->cur_buffer->size) {
@@ -334,7 +325,7 @@ tsmux_stream_consume (TsMuxStream * stream, guint len)
     g_slice_free (TsMuxStreamBuffer, stream->cur_buffer);
     stream->cur_buffer = NULL;
     /* FIXME: As a hack, for unbounded streams, start a new PES packet for each
-     * incoming packet we receive. This assumes that incoming data is
+     * incoming packet we receive. This assumes that incoming data is 
      * packetised sensibly - ie, every video frame */
     if (stream->cur_pes_payload_size == 0) {
       stream->state = TSMUX_STREAM_STATE_HEADER;
@@ -561,7 +552,7 @@ tsmux_stream_pes_header_length (TsMuxStream * stream)
   packet_len = 6;
 
   if (stream->pi.flags & TSMUX_PACKET_FLAG_PES_FULL_HEADER) {
-    /* For a PES 'full header' we have at least 3 more bytes,
+    /* For a PES 'full header' we have at least 3 more bytes, 
      * and then more based on flags */
     packet_len += 3;
     if (stream->pi.flags & TSMUX_PACKET_FLAG_PES_WRITE_PTS_DTS) {
@@ -570,7 +561,7 @@ tsmux_stream_pes_header_length (TsMuxStream * stream)
       packet_len += 5;
     }
     if (stream->pi.flags & TSMUX_PACKET_FLAG_PES_EXT_STREAMID) {
-      /* Need basic extension flags (1 byte), plus 2 more bytes for the
+      /* Need basic extension flags (1 byte), plus 2 more bytes for the 
        * length + extended stream id */
       packet_len += 3;
     }
@@ -662,7 +653,7 @@ tsmux_stream_write_pes_header (TsMuxStream * stream, guint8 * data)
       flags |= 0x01;            /* Enable PES_extension_flag */
     *data++ = flags;
 
-    /* Header length is the total pes length,
+    /* Header length is the total pes length, 
      * minus the 9 bytes of start codes, flags + hdr_len */
     g_return_if_fail (hdr_len >= 9);
     *data++ = (hdr_len - 9);
@@ -703,7 +694,7 @@ tsmux_stream_write_pes_header (TsMuxStream * stream, guint8 * data)
  *
  * Submit @len bytes of @data into @stream. @pts and @dts can be set to the
  * timestamp (against a 90Hz clock) of the first access unit in @data. A
- * timestamp of GST_CLOCK_STIME_NONE for @pts or @dts means unknown.
+ * timestamp of GST_CLOCK_STIME_NNOE for @pts or @dts means unknown.
  *
  * @user_data will be passed to the release function as set with
  * tsmux_stream_set_buffer_release_func() when @data can be freed.
@@ -725,17 +716,15 @@ tsmux_stream_add_data (TsMuxStream * stream, guint8 * data, guint len,
   packet->pts = pts;
   packet->dts = dts;
 
-  if (stream->bytes_avail == 0) {
+  if (stream->bytes_avail == 0)
     stream->last_pts = pts;
-    stream->last_dts = dts;
-  }
 
   stream->bytes_avail += len;
   stream->buffers = g_list_append (stream->buffers, packet);
 }
 
 /**
- * tsmux_stream_default_get_es_descrs:
+ * tsmux_stream_get_es_descrs:
  * @stream: a #TsMuxStream
  * @buf: a buffer to hold the ES descriptor
  * @len: the length used in @buf
@@ -746,7 +735,7 @@ tsmux_stream_add_data (TsMuxStream * stream, guint8 * data, guint len,
  * @buf and @len must be at least #TSMUX_MIN_ES_DESC_LEN.
  */
 void
-tsmux_stream_default_get_es_descrs (TsMuxStream * stream,
+tsmux_stream_get_es_descrs (TsMuxStream * stream,
     GstMpegtsPMTStream * pmt_stream)
 {
   GstMpegtsDescriptor *descriptor;
@@ -1009,7 +998,7 @@ tsmux_stream_default_get_es_descrs (TsMuxStream * stream,
       g_ptr_array_add (pmt_stream->descriptors, descriptor);
       break;
     case TSMUX_ST_PS_DVB_SUBPICTURE:
-      /* fallthrough ...
+      /* falltrough ...
        * that should never happen anyway as
        * dvb subtitles are private data */
     case TSMUX_ST_PRIVATE_DATA:
@@ -1045,26 +1034,6 @@ tsmux_stream_default_get_es_descrs (TsMuxStream * stream,
     default:
       break;
   }
-}
-
-/**
- * tsmux_stream_get_es_descrs:
- * @stream: a #TsMuxStream
- * @buf: a buffer to hold the ES descriptor
- * @len: the length used in @buf
- *
- * Write an Elementary Stream Descriptor for @stream into @buf. the number of
- * bytes consumed in @buf will be updated in @len.
- *
- * @buf and @len must be at least #TSMUX_MIN_ES_DESC_LEN.
- */
-void
-tsmux_stream_get_es_descrs (TsMuxStream * stream,
-    GstMpegtsPMTStream * pmt_stream)
-{
-  g_return_if_fail (stream->get_es_descrs != NULL);
-
-  stream->get_es_descrs (stream, pmt_stream, stream->get_es_descrs_data);
 }
 
 /**
@@ -1118,27 +1087,10 @@ tsmux_stream_is_pcr (TsMuxStream * stream)
  *
  * Returns: the PTS of the last buffer in @stream.
  */
-gint64
+guint64
 tsmux_stream_get_pts (TsMuxStream * stream)
 {
   g_return_val_if_fail (stream != NULL, GST_CLOCK_STIME_NONE);
 
   return stream->last_pts;
-}
-
-/**
- * tsmux_stream_get_dts:
- * @stream: a #TsMuxStream
- *
- * Return the DTS of the last buffer that has had bytes written and
- * which _had_ a DTS in @stream.
- *
- * Returns: the DTS of the last buffer in @stream.
- */
-gint64
-tsmux_stream_get_dts (TsMuxStream * stream)
-{
-  g_return_val_if_fail (stream != NULL, GST_CLOCK_STIME_NONE);
-
-  return stream->last_dts;
 }

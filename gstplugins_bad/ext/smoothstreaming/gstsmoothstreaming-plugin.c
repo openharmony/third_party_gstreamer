@@ -31,7 +31,11 @@
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (mssdemux, plugin);
+  if (!gst_element_register (plugin, "mssdemux",
+          GST_RANK_PRIMARY, GST_TYPE_MSS_DEMUX))
+    return FALSE;
+
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

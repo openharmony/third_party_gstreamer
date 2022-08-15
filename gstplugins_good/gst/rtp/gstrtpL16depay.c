@@ -19,18 +19,18 @@
 
 /**
  * SECTION:element-rtpL16depay
- * @title: rtpL16depay
  * @see_also: rtpL16pay
  *
  * Extract raw audio from RTP packets according to RFC 3551.
  * For detailed information see: http://www.rfc-editor.org/rfc/rfc3551.txt
  *
- * ## Example pipeline
+ * <refsect2>
+ * <title>Example pipeline</title>
  * |[
  * gst-launch-1.0 udpsrc caps='application/x-rtp, media=(string)audio, clock-rate=(int)44100, encoding-name=(string)L16, encoding-params=(string)1, channels=(int)1, payload=(int)96' ! rtpL16depay ! pulsesink
  * ]| This example pipeline will depayload an RTP raw audio stream. Refer to
  * the rtpL16pay example to create the RTP stream.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -42,7 +42,6 @@
 
 #include <gst/audio/audio.h>
 
-#include "gstrtpelements.h"
 #include "gstrtpL16depay.h"
 #include "gstrtpchannels.h"
 #include "gstrtputils.h"
@@ -82,8 +81,6 @@ static GstStaticPadTemplate gst_rtp_L16_depay_sink_template =
 
 #define gst_rtp_L16_depay_parent_class parent_class
 G_DEFINE_TYPE (GstRtpL16Depay, gst_rtp_L16_depay, GST_TYPE_RTP_BASE_DEPAYLOAD);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpL16depay, "rtpL16depay",
-    GST_RANK_SECONDARY, GST_TYPE_RTP_L16_DEPAY, rtp_element_init (plugin));
 
 static gboolean gst_rtp_L16_depay_setcaps (GstRTPBaseDepayload * depayload,
     GstCaps * caps);
@@ -212,7 +209,6 @@ gst_rtp_L16_depay_setcaps (GstRTPBaseDepayload * depayload, GstCaps * caps)
             GST_STR_NULL (channel_order), channels));
     /* create default NONE layout */
     gst_rtp_channels_create_default (channels, info->position);
-    info->flags |= GST_AUDIO_FLAG_UNPOSITIONED;
   }
 
   srccaps = gst_audio_info_to_caps (info);
@@ -283,14 +279,19 @@ wrong_payload_size:
   {
     GST_ELEMENT_WARNING (rtpL16depay, STREAM, DECODE,
         ("Wrong Payload Size."), (NULL));
-    gst_buffer_unref (outbuf);
     return NULL;
   }
 reorder_failed:
   {
     GST_ELEMENT_ERROR (rtpL16depay, STREAM, DECODE,
         ("Channel reordering failed."), (NULL));
-    gst_buffer_unref (outbuf);
     return NULL;
   }
+}
+
+gboolean
+gst_rtp_L16_depay_plugin_init (GstPlugin * plugin)
+{
+  return gst_element_register (plugin, "rtpL16depay",
+      GST_RANK_SECONDARY, GST_TYPE_RTP_L16_DEPAY);
 }

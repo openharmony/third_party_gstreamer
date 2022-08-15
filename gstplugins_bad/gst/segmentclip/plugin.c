@@ -27,12 +27,13 @@
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  if (!gst_element_register (plugin, "audiosegmentclip", GST_RANK_NONE,
+          GST_TYPE_AUDIO_SEGMENT_CLIP) ||
+      !gst_element_register (plugin, "videosegmentclip", GST_RANK_NONE,
+          GST_TYPE_VIDEO_SEGMENT_CLIP))
+    return FALSE;
 
-  ret |= GST_ELEMENT_REGISTER (audiosegmentclip, plugin);
-  ret |= GST_ELEMENT_REGISTER (videosegmentclip, plugin);
-
-  return ret;
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

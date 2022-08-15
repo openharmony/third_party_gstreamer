@@ -6,4 +6,3 @@ gstcutter = library('gstcutter', 'gstcutter.c',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstcutter, install_dir : plugins_pkgconfig_install_dir)
-plugins += [gstcutter]

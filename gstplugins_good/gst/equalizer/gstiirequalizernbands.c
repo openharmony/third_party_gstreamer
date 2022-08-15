@@ -20,30 +20,31 @@
 
 /**
  * SECTION:element-equalizer-nbands
- * @title: equalizer-nbands
  *
  * The n-band equalizer element is a fully parametric equalizer. It allows to
  * select between 1 and 64 bands and has properties on each band to change
  * the center frequency, band width and gain.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 filesrc location=song.ogg ! oggdemux ! vorbisdec ! audioconvert ! equalizer-nbands num-bands=15 band5::gain=6.0 ! alsasink
  * ]| This make the equalizer use 15 bands and raises the volume of the 5th band by 6 db.
- *
- * ## Example code
+ * </refsect2>
+ * <refsect2>
+ * <title>Example code</title>
  * |[
- * #include <gst/gst.h>
- *
+ * #include &lt;gst/gst.h&gt;
+ * 
  * ...
  * typedef struct {
  *   gfloat freq;
  *   gfloat width;
  *   gfloat gain;
  * } GstEqualizerBandState;
- *
+ * 
  * ...
- *
+ * 
  *   GstElement *equalizer;
  *   GObject *band;
  *   gint i;
@@ -54,25 +55,25 @@
  *     {6000.0, 1000.0,   6.0},
  *     {3000.0,  120.0,   2.0}
  *   };
- *
+ * 
  * ...
- *
+ * 
  *   equalizer = gst_element_factory_make ("equalizer-nbands", "equalizer");
  *   g_object_set (G_OBJECT (equalizer), "num-bands", 5, NULL);
- *
+ * 
  * ...
- *
- *   for (i = 0; i < 5; i++) {
+ * 
+ *   for (i = 0; i &lt; 5; i++) {
  *     band = gst_child_proxy_get_child_by_index (GST_CHILD_PROXY (equalizer), i);
  *     g_object_set (G_OBJECT (band), "freq", state[i].freq,
  *         "bandwidth", state[i].width,
  * 	"gain", state[i].gain);
  *     g_object_unref (G_OBJECT (band));
  *   }
- *
+ * 
  * ...
  * ]|
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -99,9 +100,7 @@ GST_DEBUG_CATEGORY_EXTERN (equalizer_debug);
 #define gst_iir_equalizer_nbands_parent_class parent_class
 G_DEFINE_TYPE (GstIirEqualizerNBands, gst_iir_equalizer_nbands,
     GST_TYPE_IIR_EQUALIZER);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (equalizer_nbands, "equalizer-nbands",
-    GST_RANK_NONE, GST_TYPE_IIR_EQUALIZER_NBANDS,
-    equalizer_element_init (plugin));
+
 /* equalizer implementation */
 
 static void

@@ -31,13 +31,10 @@
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
-
-  ret |= GST_ELEMENT_REGISTER (spanplc, plugin);
-  ret |= GST_ELEMENT_REGISTER (dtmfdetect, plugin);
-  ret |= GST_ELEMENT_REGISTER (tonegeneratesrc, plugin);
-
-  return ret;
+  return gst_element_register (plugin, "spanplc",
+      GST_RANK_PRIMARY, GST_TYPE_SPAN_PLC) &&
+      gst_dtmf_detect_plugin_init (plugin) &&
+      gst_tone_generate_src_plugin_init (plugin);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

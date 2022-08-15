@@ -57,12 +57,9 @@ is at least the version specified
 .B  \-u, \-\-uri\-handlers
 Print supported URI schemes, with the elements that implement them
 .TP 8
-.B  \-\-no\-colors
+.B  \-u, \-\-no\-colors
 Disable colors in output. You can also achieve the same by setting
 \'GST_INSPECT_NO_COLORS\' environment variable to any value.
-.TP 8
-.B  \-C, \-\-color
-Color output, even when not connected to a tty.
 .TP 8
 .B  \-\-print\-plugin\-auto\-install\-info
 Print a machine-parsable list of features the specified plugin provides.
@@ -80,17 +77,6 @@ Enable printout of errors while loading \fIGStreamer\fP plugins
 .TP 8
 .B  \-\-gst\-plugin\-path=PATH
 Add directories separated with ':' to the plugin search path
-.
-.SH "ENVIRONMENT VARIABLES"
-.l
-\fIgst\-inspect\-1.0\fP reads the following environment variables, in addition
-to the generic \fIGStreamer\fP environment variables also described in
-.BR gst\-launch\-1.0 (1):
-.TP 8
-.B GST_LESS
-Override the options passed to \fIless\fR (by default "RXF").
-.br
-See \fBless\fR(1) for more information.
 .
 .SH "SEE ALSO"
 .BR gst\-launch\-1.0 (1),

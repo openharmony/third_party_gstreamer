@@ -21,11 +21,12 @@
  *
  * AV1 Decoder.
  *
- * ## Example launch line
- *
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 -v filesrc location=videotestsrc.webm ! matroskademux ! av1dec ! videoconvert ! videoscale ! autovideosink
  * ]|
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -94,8 +95,6 @@ static gboolean gst_av1_dec_get_valid_format (GstAV1Dec * dec,
 
 #define gst_av1_dec_parent_class parent_class
 G_DEFINE_TYPE (GstAV1Dec, gst_av1_dec, GST_TYPE_VIDEO_DECODER);
-GST_ELEMENT_REGISTER_DEFINE (av1dec, "av1dec", GST_RANK_PRIMARY,
-    GST_TYPE_AV1_DEC);
 
 static void
 gst_av1_dec_class_init (GstAV1DecClass * klass)

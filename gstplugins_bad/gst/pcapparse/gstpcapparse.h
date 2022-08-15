@@ -85,7 +85,6 @@ struct _GstPcapParse
   GstPcapParseLinktype linktype;
 
   gboolean newsegment_sent;
-  gboolean first_packet;
 };
 
 struct _GstPcapParseClass
@@ -94,7 +93,6 @@ struct _GstPcapParseClass
 };
 
 GType gst_pcap_parse_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (pcapparse);
 
 G_END_DECLS
 

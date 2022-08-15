@@ -53,7 +53,7 @@ struct _GstViewfinderBinClass
 };
 
 GType gst_viewfinder_bin_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (viewfinderbin);
+gboolean gst_viewfinder_bin_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 

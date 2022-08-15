@@ -31,7 +31,6 @@
 
 #include "gstrtpbasedepayload.h"
 #include "gstrtpmeta.h"
-#include "gstrtphdrext.h"
 
 GST_DEBUG_CATEGORY_STATIC (rtpbasedepayload_debug);
 #define GST_CAT_DEFAULT (rtpbasedepayload_debug)
@@ -43,7 +42,6 @@ struct _GstRTPBaseDepayloadPrivate
   gdouble play_speed;
   gdouble play_scale;
   guint clock_base;
-  gboolean onvif_mode;
 
   gboolean discont;
   GstClockTime pts;
@@ -54,8 +52,6 @@ struct _GstRTPBaseDepayloadPrivate
   guint32 last_seqnum;
   guint32 last_rtptime;
   guint32 next_seqnum;
-  gint max_reorder;
-  gboolean auto_hdr_ext;
 
   gboolean negotiated;
 
@@ -65,36 +61,22 @@ struct _GstRTPBaseDepayloadPrivate
 
   gboolean source_info;
   GstBuffer *input_buffer;
-
-  GstFlowReturn process_flow_ret;
-
-  /* array of GstRTPHeaderExtension's * */
-  GPtrArray *header_exts;
 };
 
 /* Filter signals and args */
 enum
 {
-  SIGNAL_0,
-  SIGNAL_REQUEST_EXTENSION,
-  SIGNAL_ADD_EXTENSION,
-  SIGNAL_CLEAR_EXTENSIONS,
+  /* FILL ME */
   LAST_SIGNAL
 };
 
-static guint gst_rtp_base_depayload_signals[LAST_SIGNAL] = { 0 };
-
 #define DEFAULT_SOURCE_INFO FALSE
-#define DEFAULT_MAX_REORDER 100
-#define DEFAULT_AUTO_HEADER_EXTENSION TRUE
 
 enum
 {
   PROP_0,
   PROP_STATS,
   PROP_SOURCE_INFO,
-  PROP_MAX_REORDER,
-  PROP_AUTO_HEADER_EXTENSION,
   PROP_LAST
 };
 
@@ -128,11 +110,6 @@ static void gst_rtp_base_depayload_init (GstRTPBaseDepayload * rtpbasepayload,
     GstRTPBaseDepayloadClass * klass);
 static GstEvent *create_segment_event (GstRTPBaseDepayload * filter,
     guint rtptime, GstClockTime position);
-
-static void gst_rtp_base_depayload_add_extension (GstRTPBaseDepayload *
-    rtpbasepayload, GstRTPHeaderExtension * ext);
-static void gst_rtp_base_depayload_clear_extensions (GstRTPBaseDepayload *
-    rtpbasepayload);
 
 GType
 gst_rtp_base_depayload_get_type (void)
@@ -169,45 +146,6 @@ static inline GstRTPBaseDepayloadPrivate *
 gst_rtp_base_depayload_get_instance_private (GstRTPBaseDepayload * self)
 {
   return (G_STRUCT_MEMBER_P (self, private_offset));
-}
-
-static GstRTPHeaderExtension *
-gst_rtp_base_depayload_request_extension_default (GstRTPBaseDepayload *
-    depayload, guint ext_id, const gchar * uri)
-{
-  GstRTPHeaderExtension *ext = NULL;
-
-  if (!depayload->priv->auto_hdr_ext)
-    return NULL;
-
-  ext = gst_rtp_header_extension_create_from_uri (uri);
-  if (ext) {
-    GST_DEBUG_OBJECT (depayload,
-        "Automatically enabled extension %s for uri \'%s\'",
-        GST_ELEMENT_NAME (ext), uri);
-
-    gst_rtp_header_extension_set_id (ext, ext_id);
-  } else {
-    GST_DEBUG_OBJECT (depayload,
-        "Didn't find any extension implementing uri \'%s\'", uri);
-  }
-
-  return ext;
-}
-
-static gboolean
-extension_accumulator (GSignalInvocationHint * ihint,
-    GValue * return_accu, const GValue * handler_return, gpointer data)
-{
-  gpointer ext;
-
-  /* Call default handler if user callback didn't create the extension */
-  ext = g_value_get_object (handler_return);
-  if (!ext)
-    return TRUE;
-
-  g_value_set_object (return_accu, ext);
-  return FALSE;
 }
 
 static void
@@ -264,88 +202,6 @@ gst_rtp_base_depayload_class_init (GstRTPBaseDepayloadClass * klass)
           "Add RTP source information as buffer meta",
           DEFAULT_SOURCE_INFO, G_PARAM_READWRITE));
 
-  /**
-   * GstRTPBaseDepayload:max-reorder:
-   *
-   * Max seqnum reorder before the sender is assumed to have restarted.
-   *
-   * When max-reorder is set to 0 all reordered/duplicate packets are
-   * considered coming from a restarted sender.
-   *
-   * Since: 1.18
-   **/
-  g_object_class_install_property (gobject_class, PROP_MAX_REORDER,
-      g_param_spec_int ("max-reorder", "Max Reorder",
-          "Max seqnum reorder before assuming sender has restarted",
-          0, G_MAXINT, DEFAULT_MAX_REORDER, G_PARAM_READWRITE));
-
-  /**
-   * GstRTPBaseDepayload:auto-header-extension:
-   *
-   * If enabled, the depayloader will automatically try to enable all the
-   * RTP header extensions provided in the sink caps, saving the application
-   * the need to handle these extensions manually using the
-   * GstRTPBaseDepayload::request-extension: signal.
-   *
-   * Since: 1.20
-   */
-  g_object_class_install_property (G_OBJECT_CLASS (klass),
-      PROP_AUTO_HEADER_EXTENSION, g_param_spec_boolean ("auto-header-extension",
-          "Automatic RTP header extension",
-          "Whether RTP header extensions should be automatically enabled, if an implementation is available",
-          DEFAULT_AUTO_HEADER_EXTENSION,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  /**
-   * GstRTPBaseDepayload::request-extension:
-   * @object: the #GstRTPBaseDepayload
-   * @ext_id: the extension id being requested
-   * @ext_uri: (nullable): the extension URI being requested
-   *
-   * The returned @ext must be configured with the correct @ext_id and with the
-   * necessary attributes as required by the extension implementation.
-   *
-   * Returns: (transfer full): the #GstRTPHeaderExtension for @ext_id, or %NULL
-   *
-   * Since: 1.20
-   */
-  gst_rtp_base_depayload_signals[SIGNAL_REQUEST_EXTENSION] =
-      g_signal_new_class_handler ("request-extension",
-      G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
-      G_CALLBACK (gst_rtp_base_depayload_request_extension_default),
-      extension_accumulator, NULL, NULL,
-      GST_TYPE_RTP_HEADER_EXTENSION, 2, G_TYPE_UINT, G_TYPE_STRING);
-
-  /**
-   * GstRTPBaseDepayload::add-extension:
-   * @object: the #GstRTPBaseDepayload
-   * @ext: (transfer full): the #GstRTPHeaderExtension
-   *
-   * Add @ext as an extension for reading part of an RTP header extension from
-   * incoming RTP packets.
-   *
-   * Since: 1.20
-   */
-  gst_rtp_base_depayload_signals[SIGNAL_ADD_EXTENSION] =
-      g_signal_new_class_handler ("add-extension", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
-      G_CALLBACK (gst_rtp_base_depayload_add_extension), NULL, NULL, NULL,
-      G_TYPE_NONE, 1, GST_TYPE_RTP_HEADER_EXTENSION);
-
-  /**
-   * GstRTPBaseDepayload::clear-extensions:
-   * @object: the #GstRTPBaseDepayload
-   *
-   * Clear all RTP header extensions used by this depayloader.
-   *
-   * Since: 1.20
-   */
-  gst_rtp_base_depayload_signals[SIGNAL_CLEAR_EXTENSIONS] =
-      g_signal_new_class_handler ("clear-extensions", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
-      G_CALLBACK (gst_rtp_base_depayload_clear_extensions), NULL, NULL, NULL,
-      G_TYPE_NONE, 0);
-
   gstelement_class->change_state = gst_rtp_base_depayload_change_state;
 
   klass->packet_lost = gst_rtp_base_depayload_packet_lost;
@@ -391,47 +247,18 @@ gst_rtp_base_depayload_init (GstRTPBaseDepayload * filter,
   priv->play_speed = 1.0;
   priv->play_scale = 1.0;
   priv->clock_base = -1;
-  priv->onvif_mode = FALSE;
   priv->dts = -1;
   priv->pts = -1;
   priv->duration = -1;
   priv->source_info = DEFAULT_SOURCE_INFO;
-  priv->max_reorder = DEFAULT_MAX_REORDER;
-  priv->auto_hdr_ext = DEFAULT_AUTO_HEADER_EXTENSION;
 
   gst_segment_init (&filter->segment, GST_FORMAT_UNDEFINED);
-
-  priv->header_exts =
-      g_ptr_array_new_with_free_func ((GDestroyNotify) gst_object_unref);
 }
 
 static void
 gst_rtp_base_depayload_finalize (GObject * object)
 {
-  GstRTPBaseDepayload *rtpbasedepayload = GST_RTP_BASE_DEPAYLOAD (object);
-
-  g_ptr_array_unref (rtpbasedepayload->priv->header_exts);
-  rtpbasedepayload->priv->header_exts = NULL;
-
   G_OBJECT_CLASS (parent_class)->finalize (object);
-}
-
-static void
-add_and_ref_item (GstRTPHeaderExtension * ext, GPtrArray * ret)
-{
-  g_ptr_array_add (ret, gst_object_ref (ext));
-}
-
-static void
-remove_item_from (GstRTPHeaderExtension * ext, GPtrArray * ret)
-{
-  g_ptr_array_remove_fast (ret, ext);
-}
-
-static void
-add_item_to (GstRTPHeaderExtension * ext, GPtrArray * ret)
-{
-  g_ptr_array_add (ret, ext);
 }
 
 static gboolean
@@ -439,7 +266,7 @@ gst_rtp_base_depayload_setcaps (GstRTPBaseDepayload * filter, GstCaps * caps)
 {
   GstRTPBaseDepayloadClass *bclass;
   GstRTPBaseDepayloadPrivate *priv;
-  gboolean res = TRUE;
+  gboolean res;
   GstStructure *caps_struct;
   const GValue *value;
 
@@ -460,16 +287,6 @@ gst_rtp_base_depayload_setcaps (GstRTPBaseDepayload * filter, GstCaps * caps)
   }
 
   caps_struct = gst_caps_get_structure (caps, 0);
-
-  value = gst_structure_get_value (caps_struct, "onvif-mode");
-  if (value && G_VALUE_HOLDS_BOOLEAN (value))
-    priv->onvif_mode = g_value_get_boolean (value);
-  else
-    priv->onvif_mode = FALSE;
-  GST_DEBUG_OBJECT (filter, "Onvif mode: %d", priv->onvif_mode);
-
-  if (priv->onvif_mode)
-    filter->need_newsegment = FALSE;
 
   /* get other values for newsegment */
   value = gst_structure_get_value (caps_struct, "npt-start");
@@ -505,140 +322,6 @@ gst_rtp_base_depayload_setcaps (GstRTPBaseDepayload * filter, GstCaps * caps)
   else
     priv->clock_base = -1;
 
-  {
-    /* ensure we have header extension implementations for the list in the
-     * caps */
-    guint i, j, n_fields = gst_structure_n_fields (caps_struct);
-    GPtrArray *header_exts = g_ptr_array_new_with_free_func (gst_object_unref);
-    GPtrArray *to_add = g_ptr_array_new ();
-    GPtrArray *to_remove = g_ptr_array_new ();
-
-    GST_OBJECT_LOCK (filter);
-    g_ptr_array_foreach (filter->priv->header_exts,
-        (GFunc) add_and_ref_item, header_exts);
-    GST_OBJECT_UNLOCK (filter);
-
-    for (i = 0; i < n_fields; i++) {
-      const gchar *field_name = gst_structure_nth_field_name (caps_struct, i);
-      if (g_str_has_prefix (field_name, "extmap-")) {
-        const GValue *val;
-        const gchar *uri = NULL;
-        gchar *nptr;
-        guint ext_id;
-        GstRTPHeaderExtension *ext = NULL;
-
-        errno = 0;
-        ext_id = g_ascii_strtoull (&field_name[strlen ("extmap-")], &nptr, 10);
-        if (errno != 0 || (ext_id == 0 && field_name == nptr)) {
-          GST_WARNING_OBJECT (filter, "could not parse id from %s", field_name);
-          res = FALSE;
-          goto ext_out;
-        }
-
-        val = gst_structure_get_value (caps_struct, field_name);
-        if (G_VALUE_HOLDS_STRING (val)) {
-          uri = g_value_get_string (val);
-        } else if (GST_VALUE_HOLDS_ARRAY (val)) {
-          /* the uri is the second value in the array */
-          const GValue *str = gst_value_array_get_value (val, 1);
-          if (G_VALUE_HOLDS_STRING (str)) {
-            uri = g_value_get_string (str);
-          }
-        }
-
-        if (!uri) {
-          GST_WARNING_OBJECT (filter, "could not get extmap uri for "
-              "field %s", field_name);
-          res = FALSE;
-          goto ext_out;
-        }
-
-        /* try to find if this extension mapping already exists */
-        for (j = 0; j < header_exts->len; j++) {
-          ext = g_ptr_array_index (header_exts, j);
-          if (gst_rtp_header_extension_get_id (ext) == ext_id) {
-            if (g_strcmp0 (uri, gst_rtp_header_extension_get_uri (ext)) == 0) {
-              /* still matching, we're good, set attributes from caps in case
-               * the caps have changed */
-              if (!gst_rtp_header_extension_set_attributes_from_caps (ext,
-                      caps)) {
-                GST_WARNING_OBJECT (filter,
-                    "Failed to configure rtp header " "extension %"
-                    GST_PTR_FORMAT " attributes from caps %" GST_PTR_FORMAT,
-                    ext, caps);
-                res = FALSE;
-                goto ext_out;
-              }
-              break;
-            } else {
-              GST_DEBUG_OBJECT (filter, "extension id %u"
-                  "was replaced with a different extension uri "
-                  "original:\'%s' vs \'%s\'", ext_id,
-                  gst_rtp_header_extension_get_uri (ext), uri);
-              g_ptr_array_add (to_remove, ext);
-              ext = NULL;
-              break;
-            }
-          } else {
-            ext = NULL;
-          }
-        }
-
-        /* if no extension, attempt to request one */
-        if (!ext) {
-          GST_DEBUG_OBJECT (filter, "requesting extension for id %u"
-              " and uri %s", ext_id, uri);
-          g_signal_emit (filter,
-              gst_rtp_base_depayload_signals[SIGNAL_REQUEST_EXTENSION], 0,
-              ext_id, uri, &ext);
-          GST_DEBUG_OBJECT (filter, "request returned extension %p \'%s\' "
-              "for id %u and uri %s", ext,
-              ext ? GST_OBJECT_NAME (ext) : "", ext_id, uri);
-
-          /* We require the caller to set the appropriate extension if it's required */
-          if (ext && gst_rtp_header_extension_get_id (ext) != ext_id) {
-            g_warning ("\'request-extension\' signal provided an rtp header "
-                "extension for uri \'%s\' that does not match the requested "
-                "extension id %u", uri, ext_id);
-            gst_clear_object (&ext);
-          }
-
-          if (ext && !gst_rtp_header_extension_set_attributes_from_caps (ext,
-                  caps)) {
-            GST_WARNING_OBJECT (filter,
-                "Failed to configure rtp header " "extension %"
-                GST_PTR_FORMAT " attributes from caps %" GST_PTR_FORMAT,
-                ext, caps);
-            res = FALSE;
-            g_clear_object (&ext);
-            goto ext_out;
-          }
-
-          if (ext)
-            g_ptr_array_add (to_add, ext);
-        }
-      }
-    }
-
-    /* Note: we intentionally don't remove extensions that are not listed
-     * in caps */
-
-    GST_OBJECT_LOCK (filter);
-    g_ptr_array_foreach (to_remove, (GFunc) remove_item_from,
-        filter->priv->header_exts);
-    g_ptr_array_foreach (to_add, (GFunc) add_item_to,
-        filter->priv->header_exts);
-    GST_OBJECT_UNLOCK (filter);
-
-  ext_out:
-    g_ptr_array_unref (to_add);
-    g_ptr_array_unref (to_remove);
-    g_ptr_array_unref (header_exts);
-
-    if (!res)
-      return res;
-  }
-
   if (bclass->set_caps) {
     res = bclass->set_caps (filter, caps);
     if (!res) {
@@ -672,6 +355,7 @@ gst_rtp_base_depayload_handle_buffer (GstRTPBaseDepayload * filter,
       GstRTPBuffer * rtp_buffer);
   GstBuffer *(*process_func) (GstRTPBaseDepayload * base, GstBuffer * in);
   GstRTPBaseDepayloadPrivate *priv;
+  GstFlowReturn ret = GST_FLOW_OK;
   GstBuffer *out_buf;
   guint32 ssrc;
   guint16 seqnum;
@@ -681,7 +365,6 @@ gst_rtp_base_depayload_handle_buffer (GstRTPBaseDepayload * filter,
   GstRTPBuffer rtp = { NULL };
 
   priv = filter->priv;
-  priv->process_flow_ret = GST_FLOW_OK;
 
   process_func = bclass->process;
   process_rtp_packet_func = bclass->process_rtp_packet;
@@ -734,19 +417,15 @@ gst_rtp_base_depayload_handle_buffer (GstRTPBaseDepayload * filter,
           GST_LOG_OBJECT (filter, "%d missing packets", gap);
           discont = TRUE;
         } else {
-          /* seqnum < next_seqnum, we have seen this packet before, have a
-           * reordered packet or the sender could be restarted. If the packet
-           * is not too old, we throw it away as a duplicate. Otherwise we
-           * mark discont and continue assuming the sender has restarted. See
-           * also RFC 4737. */
-          if (gap <= priv->max_reorder) {
-            GST_WARNING_OBJECT (filter, "got old packet %u, expected %u, "
-                "gap %d <= max_reorder (%d), dropping!",
-                seqnum, priv->next_seqnum, gap, priv->max_reorder);
+          /* seqnum < next_seqnum, we have seen this packet before or the sender
+           * could be restarted. If the packet is not too old, we throw it away as
+           * a duplicate, otherwise we mark discont and continue. 100 misordered
+           * packets is a good threshold. See also RFC 4737. */
+          if (gap < 100)
             goto dropping;
-          }
-          GST_WARNING_OBJECT (filter, "got old packet %u, expected %u, "
-              "marking discont", seqnum, priv->next_seqnum);
+
+          GST_LOG_OBJECT (filter,
+              "%d > 100, packet too old, sender likely restarted", gap);
           discont = TRUE;
         }
       }
@@ -797,16 +476,13 @@ gst_rtp_base_depayload_handle_buffer (GstRTPBaseDepayload * filter,
 
   /* let's send it out to processing */
   if (out_buf) {
-    if (priv->process_flow_ret == GST_FLOW_OK)
-      priv->process_flow_ret = gst_rtp_base_depayload_push (filter, out_buf);
-    else
-      gst_buffer_unref (out_buf);
+    ret = gst_rtp_base_depayload_push (filter, out_buf);
   }
 
   gst_buffer_unref (in);
   priv->input_buffer = NULL;
 
-  return priv->process_flow_ret;
+  return ret;
 
   /* ERRORS */
 not_negotiated:
@@ -834,6 +510,7 @@ invalid_buffer:
 dropping:
   {
     gst_rtp_buffer_unmap (&rtp);
+    GST_WARNING_OBJECT (filter, "%d <= 100, dropping old packet", gap);
     gst_buffer_unref (in);
     return GST_FLOW_OK;
   }
@@ -921,7 +598,7 @@ gst_rtp_base_depayload_handle_event (GstRTPBaseDepayload * filter,
       gst_segment_init (&filter->segment, GST_FORMAT_UNDEFINED);
       GST_OBJECT_UNLOCK (filter);
 
-      filter->need_newsegment = !filter->priv->onvif_mode;
+      filter->need_newsegment = TRUE;
       filter->priv->next_seqnum = -1;
       gst_event_replace (&filter->priv->segment_event, NULL);
       break;
@@ -950,12 +627,9 @@ gst_rtp_base_depayload_handle_event (GstRTPBaseDepayload * filter,
       filter->segment = segment;
       GST_OBJECT_UNLOCK (filter);
 
-      /* In ONVIF mode, upstream is expected to send us the correct segment */
-      if (!filter->priv->onvif_mode) {
-        /* don't pass the event downstream, we generate our own segment including
-         * the NTP time and other things we receive in caps */
-        forward = FALSE;
-      }
+      /* don't pass the event downstream, we generate our own segment including
+       * the NTP time and other things we receive in caps */
+      forward = FALSE;
       break;
     }
     case GST_EVENT_CUSTOM_DOWNSTREAM:
@@ -1076,35 +750,17 @@ create_segment_event (GstRTPBaseDepayload * filter, guint rtptime,
   return event;
 }
 
-static gboolean
-foreach_metadata_drop (GstBuffer * buffer, GstMeta ** meta, gpointer user_data)
-{
-  GType drop_api_type = (GType) user_data;
-  const GstMetaInfo *info = (*meta)->info;
-
-  if (info->api == drop_api_type)
-    *meta = NULL;
-
-  return TRUE;
-}
-
 static void
 add_rtp_source_meta (GstBuffer * outbuf, GstBuffer * rtpbuf)
 {
   GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
   GstRTPSourceMeta *meta;
   guint32 ssrc;
-  GType source_meta_api = gst_rtp_source_meta_api_get_type ();
 
   if (!gst_rtp_buffer_map (rtpbuf, GST_MAP_READ, &rtp))
     return;
 
   ssrc = gst_rtp_buffer_get_ssrc (&rtp);
-
-  /* remove any pre-existing source-meta */
-  gst_buffer_foreach_meta (outbuf, foreach_metadata_drop,
-      (gpointer) source_meta_api);
-
   meta = gst_buffer_add_rtp_source_meta (outbuf, &ssrc, NULL, 0);
   if (meta != NULL) {
     gint i;
@@ -1118,170 +774,30 @@ add_rtp_source_meta (GstBuffer * outbuf, GstBuffer * rtpbuf)
   gst_rtp_buffer_unmap (&rtp);
 }
 
-static void
-gst_rtp_base_depayload_add_extension (GstRTPBaseDepayload * rtpbasepayload,
-    GstRTPHeaderExtension * ext)
-{
-  g_return_if_fail (GST_IS_RTP_HEADER_EXTENSION (ext));
-  g_return_if_fail (gst_rtp_header_extension_get_id (ext) > 0);
-
-  /* XXX: check for duplicate ids? */
-  GST_OBJECT_LOCK (rtpbasepayload);
-  g_ptr_array_add (rtpbasepayload->priv->header_exts, gst_object_ref (ext));
-  GST_OBJECT_UNLOCK (rtpbasepayload);
-}
-
-static void
-gst_rtp_base_depayload_clear_extensions (GstRTPBaseDepayload * rtpbasepayload)
-{
-  GST_OBJECT_LOCK (rtpbasepayload);
-  g_ptr_array_set_size (rtpbasepayload->priv->header_exts, 0);
-  GST_OBJECT_UNLOCK (rtpbasepayload);
-}
-
 static gboolean
-read_rtp_header_extensions (GstRTPBaseDepayload * depayload,
-    GstBuffer * input, GstBuffer * output)
-{
-  GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
-  guint16 bit_pattern;
-  guint8 *pdata;
-  guint wordlen;
-  gboolean needs_src_caps_update = FALSE;
-
-  if (!input) {
-    GST_DEBUG_OBJECT (depayload, "no input buffer");
-    return needs_src_caps_update;
-  }
-
-  if (!gst_rtp_buffer_map (input, GST_MAP_READ, &rtp)) {
-    GST_WARNING_OBJECT (depayload, "Failed to map buffer");
-    return needs_src_caps_update;
-  }
-
-  if (gst_rtp_buffer_get_extension_data (&rtp, &bit_pattern, (gpointer) & pdata,
-          &wordlen)) {
-    GstRTPHeaderExtensionFlags ext_flags = 0;
-    gsize bytelen = wordlen * 4;
-    guint hdr_unit_bytes;
-    gsize offset = 0;
-
-    if (bit_pattern == 0xBEDE) {
-      /* one byte extensions */
-      hdr_unit_bytes = 1;
-      ext_flags |= GST_RTP_HEADER_EXTENSION_ONE_BYTE;
-    } else if (bit_pattern >> 4 == 0x100) {
-      /* two byte extensions */
-      hdr_unit_bytes = 2;
-      ext_flags |= GST_RTP_HEADER_EXTENSION_TWO_BYTE;
-    } else {
-      GST_DEBUG_OBJECT (depayload, "unknown extension bit pattern 0x%02x%02x",
-          bit_pattern >> 8, bit_pattern & 0xff);
-      goto out;
-    }
-
-    while (TRUE) {
-      guint8 read_id, read_len;
-      GstRTPHeaderExtension *ext = NULL;
-      guint i;
-
-      if (offset + hdr_unit_bytes >= bytelen)
-        /* not enough remaning data */
-        break;
-
-      if (ext_flags & GST_RTP_HEADER_EXTENSION_ONE_BYTE) {
-        read_id = GST_READ_UINT8 (pdata + offset) >> 4;
-        read_len = (GST_READ_UINT8 (pdata + offset) & 0x0F) + 1;
-        offset += 1;
-
-        if (read_id == 0)
-          /* padding */
-          continue;
-
-        if (read_id == 15)
-          /* special id for possible future expansion */
-          break;
-      } else {
-        read_id = GST_READ_UINT8 (pdata + offset);
-        offset += 1;
-
-        if (read_id == 0)
-          /* padding */
-          continue;
-
-        read_len = GST_READ_UINT8 (pdata + offset);
-        offset += 1;
-      }
-      GST_TRACE_OBJECT (depayload, "found rtp header extension with id %u and "
-          "length %u", read_id, read_len);
-
-      /* Ignore extension headers where the size does not fit */
-      if (offset + read_len > bytelen) {
-        GST_WARNING_OBJECT (depayload, "Extension length extends past the "
-            "size of the extension data");
-        break;
-      }
-
-      GST_OBJECT_LOCK (depayload);
-      for (i = 0; i < depayload->priv->header_exts->len; i++) {
-        ext = g_ptr_array_index (depayload->priv->header_exts, i);
-        if (read_id == gst_rtp_header_extension_get_id (ext)) {
-          gst_object_ref (ext);
-          break;
-        }
-        ext = NULL;
-      }
-
-      if (ext) {
-        if (!gst_rtp_header_extension_read (ext, ext_flags, &pdata[offset],
-                read_len, output)) {
-          GST_WARNING_OBJECT (depayload, "RTP header extension (%s) could "
-              "not read payloaded data", GST_OBJECT_NAME (ext));
-          gst_object_unref (ext);
-          goto out;
-        }
-
-        if (gst_rtp_header_extension_wants_update_non_rtp_src_caps (ext)) {
-          needs_src_caps_update = TRUE;
-        }
-
-        gst_object_unref (ext);
-      }
-      GST_OBJECT_UNLOCK (depayload);
-
-      offset += read_len;
-    }
-  }
-
-out:
-  gst_rtp_buffer_unmap (&rtp);
-
-  return needs_src_caps_update;
-}
-
-static gboolean
-gst_rtp_base_depayload_set_headers (GstRTPBaseDepayload * depayload,
-    GstBuffer * buffer)
+set_headers (GstBuffer ** buffer, guint idx, GstRTPBaseDepayload * depayload)
 {
   GstRTPBaseDepayloadPrivate *priv = depayload->priv;
   GstClockTime pts, dts, duration;
 
-  pts = GST_BUFFER_PTS (buffer);
-  dts = GST_BUFFER_DTS (buffer);
-  duration = GST_BUFFER_DURATION (buffer);
+  *buffer = gst_buffer_make_writable (*buffer);
 
-  /* apply last incoming timestamp and duration to outgoing buffer if
+  pts = GST_BUFFER_PTS (*buffer);
+  dts = GST_BUFFER_DTS (*buffer);
+  duration = GST_BUFFER_DURATION (*buffer);
+
+  /* apply last incomming timestamp and duration to outgoing buffer if
    * not otherwise set. */
   if (!GST_CLOCK_TIME_IS_VALID (pts))
-    GST_BUFFER_PTS (buffer) = priv->pts;
+    GST_BUFFER_PTS (*buffer) = priv->pts;
   if (!GST_CLOCK_TIME_IS_VALID (dts))
-    GST_BUFFER_DTS (buffer) = priv->dts;
+    GST_BUFFER_DTS (*buffer) = priv->dts;
   if (!GST_CLOCK_TIME_IS_VALID (duration))
-    GST_BUFFER_DURATION (buffer) = priv->duration;
+    GST_BUFFER_DURATION (*buffer) = priv->duration;
 
   if (G_UNLIKELY (depayload->priv->discont)) {
     GST_LOG_OBJECT (depayload, "Marking DISCONT on output buffer");
-    GST_BUFFER_FLAG_SET (buffer, GST_BUFFER_FLAG_DISCONT);
+    GST_BUFFER_FLAG_SET (*buffer, GST_BUFFER_FLAG_DISCONT);
     depayload->priv->discont = FALSE;
   }
 
@@ -1290,20 +806,24 @@ gst_rtp_base_depayload_set_headers (GstRTPBaseDepayload * depayload,
   priv->dts = GST_CLOCK_TIME_NONE;
   priv->duration = GST_CLOCK_TIME_NONE;
 
-  if (priv->input_buffer) {
-    if (priv->source_info)
-      add_rtp_source_meta (buffer, priv->input_buffer);
+  if (priv->source_info && priv->input_buffer)
+    add_rtp_source_meta (*buffer, priv->input_buffer);
 
-    return read_rtp_header_extensions (depayload, priv->input_buffer, buffer);
-  }
-
-  return FALSE;
+  return TRUE;
 }
 
 static GstFlowReturn
-gst_rtp_base_depayload_finish_push (GstRTPBaseDepayload * filter,
+gst_rtp_base_depayload_prepare_push (GstRTPBaseDepayload * filter,
     gboolean is_list, gpointer obj)
 {
+  if (is_list) {
+    GstBufferList **blist = obj;
+    gst_buffer_list_foreach (*blist, (GstBufferListFunc) set_headers, filter);
+  } else {
+    GstBuffer **buf = obj;
+    set_headers (buf, 0, filter);
+  }
+
   /* if this is the first buffer send a NEWSEGMENT */
   if (G_UNLIKELY (filter->priv->segment_event)) {
     gst_pad_push_event (filter->srcpad, filter->priv->segment_event);
@@ -1311,119 +831,7 @@ gst_rtp_base_depayload_finish_push (GstRTPBaseDepayload * filter,
     GST_DEBUG_OBJECT (filter, "Pushed newsegment event on this first buffer");
   }
 
-  if (is_list) {
-    GstBufferList *blist = obj;
-    return gst_pad_push_list (filter->srcpad, blist);
-  } else {
-    GstBuffer *buf = obj;
-    return gst_pad_push (filter->srcpad, buf);
-  }
-}
-
-static gboolean
-gst_rtp_base_depayload_set_src_caps_from_hdrext (GstRTPBaseDepayload * filter)
-{
-  gboolean update_ok = TRUE;
-  GstCaps *src_caps = gst_pad_get_current_caps (filter->srcpad);
-
-  if (src_caps) {
-    GstCaps *new_caps;
-    gint i;
-
-    new_caps = gst_caps_copy (src_caps);
-    for (i = 0; i < filter->priv->header_exts->len; i++) {
-      GstRTPHeaderExtension *ext;
-
-      ext = g_ptr_array_index (filter->priv->header_exts, i);
-      update_ok =
-          gst_rtp_header_extension_update_non_rtp_src_caps (ext, new_caps);
-
-      if (!update_ok) {
-        GST_ELEMENT_ERROR (filter, STREAM, DECODE,
-            ("RTP header extension (%s) could not update src caps",
-                GST_OBJECT_NAME (ext)), (NULL));
-        break;
-      }
-    }
-
-    if (G_UNLIKELY (update_ok && !gst_caps_is_equal (src_caps, new_caps))) {
-      gst_pad_set_caps (filter->srcpad, new_caps);
-    }
-
-    gst_caps_unref (src_caps);
-    gst_caps_unref (new_caps);
-  }
-
-  return update_ok;
-}
-
-static GstFlowReturn
-gst_rtp_base_depayload_do_push (GstRTPBaseDepayload * filter, gboolean is_list,
-    gpointer obj)
-{
-  GstFlowReturn res;
-
-  if (is_list) {
-    GstBufferList *blist = obj;
-    guint i;
-    guint first_not_pushed_idx = 0;
-
-    for (i = 0; i < gst_buffer_list_length (blist); ++i) {
-      GstBuffer *buf = gst_buffer_list_get_writable (blist, i);
-
-      if (G_UNLIKELY (gst_rtp_base_depayload_set_headers (filter, buf))) {
-        /* src caps have changed; push the buffers preceding the current one,
-         * then apply the new caps on the src pad */
-        guint j;
-
-        for (j = first_not_pushed_idx; j < i; ++j) {
-          res = gst_rtp_base_depayload_finish_push (filter, FALSE,
-              gst_buffer_ref (gst_buffer_list_get (blist, j)));
-          if (G_UNLIKELY (res != GST_FLOW_OK)) {
-            goto error_list;
-          }
-        }
-        first_not_pushed_idx = i;
-
-        if (!gst_rtp_base_depayload_set_src_caps_from_hdrext (filter)) {
-          res = GST_FLOW_ERROR;
-          goto error_list;
-        }
-      }
-    }
-
-    if (G_LIKELY (first_not_pushed_idx == 0)) {
-      res = gst_rtp_base_depayload_finish_push (filter, TRUE, blist);
-      blist = NULL;
-    } else {
-      for (i = first_not_pushed_idx; i < gst_buffer_list_length (blist); ++i) {
-        res = gst_rtp_base_depayload_finish_push (filter, FALSE,
-            gst_buffer_ref (gst_buffer_list_get (blist, i)));
-        if (G_UNLIKELY (res != GST_FLOW_OK)) {
-          break;
-        }
-      }
-    }
-
-  error_list:
-    gst_clear_buffer_list (&blist);
-  } else {
-    GstBuffer *buf = obj;
-    if (G_UNLIKELY (gst_rtp_base_depayload_set_headers (filter, buf))) {
-      if (!gst_rtp_base_depayload_set_src_caps_from_hdrext (filter)) {
-        res = GST_FLOW_ERROR;
-        goto error_buffer;
-      }
-    }
-
-    res = gst_rtp_base_depayload_finish_push (filter, FALSE, buf);
-    buf = NULL;
-
-  error_buffer:
-    gst_clear_buffer (&buf);
-  }
-
-  return res;
+  return GST_FLOW_OK;
 }
 
 /**
@@ -1434,7 +842,7 @@ gst_rtp_base_depayload_do_push (GstRTPBaseDepayload * filter, gboolean is_list,
  * Push @out_buf to the peer of @filter. This function takes ownership of
  * @out_buf.
  *
- * This function will by default apply the last incoming timestamp on
+ * This function will by default apply the last incomming timestamp on
  * the outgoing buffer when it didn't have a timestamp already.
  *
  * Returns: a #GstFlowReturn.
@@ -1444,10 +852,12 @@ gst_rtp_base_depayload_push (GstRTPBaseDepayload * filter, GstBuffer * out_buf)
 {
   GstFlowReturn res;
 
-  res = gst_rtp_base_depayload_do_push (filter, FALSE, out_buf);
+  res = gst_rtp_base_depayload_prepare_push (filter, FALSE, &out_buf);
 
-  if (res != GST_FLOW_OK)
-    filter->priv->process_flow_ret = res;
+  if (G_LIKELY (res == GST_FLOW_OK))
+    res = gst_pad_push (filter->srcpad, out_buf);
+  else
+    gst_buffer_unref (out_buf);
 
   return res;
 }
@@ -1468,10 +878,12 @@ gst_rtp_base_depayload_push_list (GstRTPBaseDepayload * filter,
 {
   GstFlowReturn res;
 
-  res = gst_rtp_base_depayload_do_push (filter, TRUE, out_list);
+  res = gst_rtp_base_depayload_prepare_push (filter, TRUE, &out_list);
 
-  if (res != GST_FLOW_OK)
-    filter->priv->process_flow_ret = res;
+  if (G_LIKELY (res == GST_FLOW_OK))
+    res = gst_pad_push_list (filter->srcpad, out_list);
+  else
+    gst_buffer_list_unref (out_list);
 
   return res;
 }
@@ -1514,7 +926,6 @@ gst_rtp_base_depayload_packet_lost (GstRTPBaseDepayload * filter,
           &might_have_been_fec) || !might_have_been_fec) {
     /* send GAP event */
     sevent = gst_event_new_gap (timestamp, duration);
-    gst_event_set_gap_flags (sevent, GST_GAP_FLAG_MISSING_DATA);
     res = gst_pad_push_event (filter->srcpad, sevent);
   }
 
@@ -1542,7 +953,6 @@ gst_rtp_base_depayload_change_state (GstElement * element,
       priv->play_speed = 1.0;
       priv->play_scale = 1.0;
       priv->clock_base = -1;
-      priv->onvif_mode = FALSE;
       priv->next_seqnum = -1;
       priv->negotiated = FALSE;
       priv->discont = FALSE;
@@ -1609,21 +1019,13 @@ gst_rtp_base_depayload_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
   GstRTPBaseDepayload *depayload;
-  GstRTPBaseDepayloadPrivate *priv;
 
   depayload = GST_RTP_BASE_DEPAYLOAD (object);
-  priv = depayload->priv;
 
   switch (prop_id) {
     case PROP_SOURCE_INFO:
       gst_rtp_base_depayload_set_source_info_enabled (depayload,
           g_value_get_boolean (value));
-      break;
-    case PROP_MAX_REORDER:
-      priv->max_reorder = g_value_get_int (value);
-      break;
-    case PROP_AUTO_HEADER_EXTENSION:
-      priv->auto_hdr_ext = g_value_get_boolean (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1636,10 +1038,8 @@ gst_rtp_base_depayload_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
 {
   GstRTPBaseDepayload *depayload;
-  GstRTPBaseDepayloadPrivate *priv;
 
   depayload = GST_RTP_BASE_DEPAYLOAD (object);
-  priv = depayload->priv;
 
   switch (prop_id) {
     case PROP_STATS:
@@ -1649,12 +1049,6 @@ gst_rtp_base_depayload_get_property (GObject * object, guint prop_id,
     case PROP_SOURCE_INFO:
       g_value_set_boolean (value,
           gst_rtp_base_depayload_is_source_info_enabled (depayload));
-      break;
-    case PROP_MAX_REORDER:
-      g_value_set_int (value, priv->max_reorder);
-      break;
-    case PROP_AUTO_HEADER_EXTENSION:
-      g_value_set_boolean (value, priv->auto_hdr_ext);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);

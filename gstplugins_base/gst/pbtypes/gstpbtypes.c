@@ -23,16 +23,15 @@
 #include "config.h"
 #endif
 
+#include <gst/gst.h>
 #include <gst/video/video.h>
-#include "gstpbtypes.h"
-
-GST_DYNAMIC_TYPE_REGISTER_DEFINE (video_multiview_flagset,
-    GST_TYPE_VIDEO_MULTIVIEW_FLAGSET);
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_DYNAMIC_TYPE_REGISTER (video_multiview_flagset, plugin);
+  if (!gst_dynamic_type_register (plugin, GST_TYPE_VIDEO_MULTIVIEW_FLAGSET))
+    return FALSE;
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

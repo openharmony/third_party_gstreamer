@@ -59,8 +59,6 @@ struct _GstGSMEncClass
 
 GType gst_gsmenc_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (gsmenc);
-
 G_END_DECLS
 
 #endif /* __GST_GSMENC_H__ */

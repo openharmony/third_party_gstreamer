@@ -37,7 +37,6 @@
 #include <math.h>
 #include <string.h>
 
-#include "gstmxfelements.h"
 #include "mxfmux.h"
 
 #ifdef HAVE_SYS_UTSNAME_H
@@ -121,8 +120,6 @@ enum
 
 #define gst_mxf_mux_parent_class parent_class
 G_DEFINE_TYPE (GstMXFMux, gst_mxf_mux, GST_TYPE_AGGREGATOR);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (mxfmux, "mxfmux", GST_RANK_PRIMARY,
-    GST_TYPE_MXF_MUX, mxf_element_init (plugin));
 
 static void gst_mxf_mux_finalize (GObject * object);
 
@@ -173,7 +170,6 @@ gst_mxf_mux_class_init (GstMXFMuxClass * klass)
   gstaggregator_class->sink_event = GST_DEBUG_FUNCPTR (gst_mxf_mux_sink_event);
   gstaggregator_class->stop = GST_DEBUG_FUNCPTR (gst_mxf_mux_stop);
   gstaggregator_class->aggregate = GST_DEBUG_FUNCPTR (gst_mxf_mux_aggregate);
-  gstaggregator_class->negotiate = NULL;
 
   gst_element_class_add_static_pad_template_with_gtype (gstelement_class,
       &src_templ, GST_TYPE_MXF_MUX_PAD);
@@ -189,8 +185,6 @@ gst_mxf_mux_class_init (GstMXFMuxClass * klass)
       "Codec/Muxer",
       "Muxes video/audio streams into a MXF stream",
       "Sebastian Dröge <sebastian.droege@collabora.co.uk>");
-
-  gst_type_mark_as_plugin_api (GST_TYPE_MXF_MUX_PAD, 0);
 }
 
 static void

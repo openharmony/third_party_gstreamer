@@ -21,11 +21,9 @@
 
 /**
  * SECTION:element-audiofirfilter
- * @title: audiofirfilter
  *
- * audiofirfilter implements a generic audio
- * [FIR filter](http://en.wikipedia.org/wiki/Finite_impulse_response). Before
- * usage the "kernel" property has to be set to the filter kernel that should be
+ * audiofirfilter implements a generic audio <ulink url="http://en.wikipedia.org/wiki/Finite_impulse_response">FIR filter</ulink>. Before usage the
+ * "kernel" property has to be set to the filter kernel that should be
  * used and the "latency" property has to be set to the latency (in samples)
  * that is introduced by the filter kernel. Setting a latency of n samples
  * will lead to the first n samples being dropped from the output and
@@ -39,11 +37,12 @@
  * "rate-changed" signal can be used. This should be done for most
  * FIR filters as they're depending on the sampling rate.
  *
- * ## Example application
- * <programlisting language="C">
+ * <refsect2>
+ * <title>Example application</title>
+ * <informalexample><programlisting language="C">
  * <xi:include xmlns:xi="http://www.w3.org/2003/XInclude" parse="text" href="../../../../tests/examples/audiofx/firfilter-example.c" />
- * ]|
- *
+ * </programlisting></informalexample>
+ * </refsect2>
  */
 
 /* FIXME 0.11: suppress warnings for deprecated API such as GValueArray
@@ -84,8 +83,6 @@ static guint gst_audio_fir_filter_signals[LAST_SIGNAL] = { 0, };
 #define gst_audio_fir_filter_parent_class parent_class
 G_DEFINE_TYPE (GstAudioFIRFilter, gst_audio_fir_filter,
     GST_TYPE_AUDIO_FX_BASE_FIR_FILTER);
-GST_ELEMENT_REGISTER_DEFINE (audiofirfilter, "audiofirfilter",
-    GST_RANK_NONE, GST_TYPE_AUDIO_FIR_FILTER);
 
 static void gst_audio_fir_filter_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);

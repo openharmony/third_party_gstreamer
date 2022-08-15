@@ -57,7 +57,10 @@ enum
 
 
 /* According to Android's NDK doc the following are the supported rates */
-#define RATES "8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000"
+#define RATES "8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100"
+/* 48000 Hz is also claimed to be supported but the AudioFlinger downsampling
+ * doesn't seems to work properly so we relay GStreamer audioresample element
+ * to cope with this samplerate. */
 
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
@@ -74,8 +77,6 @@ static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
 #define parent_class gst_opensles_sink_parent_class
 G_DEFINE_TYPE_WITH_CODE (GstOpenSLESSink, gst_opensles_sink,
     GST_TYPE_AUDIO_BASE_SINK, _do_init);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (openslessink, "openslessink",
-    GST_RANK_PRIMARY, GST_TYPE_OPENSLES_SINK, opensles_element_init (plugin));
 
 static GstAudioRingBuffer *
 gst_opensles_sink_create_ringbuffer (GstAudioBaseSink * base)
@@ -291,4 +292,8 @@ gst_opensles_sink_init (GstOpenSLESSink * sink)
   _opensles_query_capabilities (sink);
 
   gst_audio_base_sink_set_provide_clock (GST_AUDIO_BASE_SINK (sink), TRUE);
+  /* Override some default values to fit on the AudioFlinger behaviour of
+   * processing 20ms buffers as minimum buffer size. */
+  GST_AUDIO_BASE_SINK (sink)->buffer_time = 200000;
+  GST_AUDIO_BASE_SINK (sink)->latency_time = 20000;
 }

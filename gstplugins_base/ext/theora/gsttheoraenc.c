@@ -26,9 +26,9 @@
  * @see_also: theoradec, oggmux
  *
  * This element encodes raw video into a Theora stream.
- * [Theora](http://www.theora.org/) is a royalty-free
- * video codec maintained by the [Xiph.org Foundation](http://www.xiph.org/),
- * based on the VP3 codec.
+ * <ulink url="http://www.theora.org/">Theora</ulink> is a royalty-free
+ * video codec maintained by the <ulink url="http://www.xiph.org/">Xiph.org
+ * Foundation</ulink>, based on the VP3 codec.
  *
  * The theora codec internally only supports encoding of images that are a
  * multiple of 16 pixels in both X and Y direction. It is however perfectly
@@ -37,8 +37,8 @@
  * set up a correct cropping region if the dimensions are not multiples of 16
  * pixels.
  *
- * To control the quality of the encoding, the #GstTheoraEnc:bitrate and
- * #GstTheoraEnc:quality properties can be used. These two properties are
+ * To control the quality of the encoding, the #GstTheoraEnc::bitrate and
+ * #GstTheoraEnc::quality properties can be used. These two properties are
  * mutualy exclusive. Setting the bitrate property will produce a constant
  * bitrate (CBR) stream while setting the quality property will produce a
  * variable bitrate (VBR) stream.
@@ -176,8 +176,6 @@ GST_STATIC_PAD_TEMPLATE ("src",
 
 #define gst_theora_enc_parent_class parent_class
 G_DEFINE_TYPE (GstTheoraEnc, gst_theora_enc, GST_TYPE_VIDEO_ENCODER);
-GST_ELEMENT_REGISTER_DEFINE (theoraenc, "theoraenc",
-    GST_RANK_PRIMARY, GST_TYPE_THEORA_ENC);
 
 static gboolean theora_enc_start (GstVideoEncoder * enc);
 static gboolean theora_enc_stop (GstVideoEncoder * enc);
@@ -303,8 +301,6 @@ gst_theora_enc_class_init (GstTheoraEncClass * klass)
           (GParamFlags) G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   GST_DEBUG_CATEGORY_INIT (theoraenc_debug, "theoraenc", 0, "Theora encoder");
-
-  gst_type_mark_as_plugin_api (GST_TYPE_MULTIPASS_MODE, 0);
 }
 
 static void
@@ -708,7 +704,7 @@ theora_enc_init_buffer (th_ycbcr_buffer buf, GstVideoFrame * frame)
   GstVideoInfo vinfo;
   guint i;
 
-  /* According to Theora developer Timothy Terriberry, the Theora
+  /* According to Theora developer Timothy Terriberry, the Theora 
    * encoder will not use memory outside of pic_width/height, even when
    * the frame size is bigger. The values outside this region will be encoded
    * to default values.
@@ -883,7 +879,7 @@ theora_enc_handle_frame (GstVideoEncoder * benc, GstVideoCodecFrame * frame)
   enc = GST_THEORA_ENC (benc);
 
   /* we keep track of two timelines.
-   * - The timestamps from the incoming buffers, which we copy to the outgoing
+   * - The timestamps from the incomming buffers, which we copy to the outgoing
    *   encoded buffers as-is. We need to do this as we simply forward the
    *   newsegment events.
    * - The running_time of the buffers, which we use to construct the granulepos

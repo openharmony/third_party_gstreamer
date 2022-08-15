@@ -175,7 +175,7 @@ void
 gst_ebml_read_clear (GstEbmlRead * ebml)
 {
   if (ebml->readers)
-    g_array_unref (ebml->readers);
+    g_array_free (ebml->readers, TRUE);
   ebml->readers = NULL;
   if (ebml->buf) {
     gst_buffer_unmap (ebml->buf, &ebml->map);
@@ -365,19 +365,6 @@ gst_ebml_read_bytes (GstEbmlRead * ebml, guint32 * id, const guint8 ** data,
   /* we just at least peeked the id */
   if (!gst_byte_reader_skip (gst_ebml_read_br (ebml), prefix))
     return GST_FLOW_ERROR;      /* FIXME: do proper error handling */
-
-  /* This shouldn't happen here with the elements read through this function */
-  if (length == GST_EBML_SIZE_UNKNOWN || length == G_MAXUINT64) {
-    GST_ERROR_OBJECT (ebml->el, "element 0x%x has undefined length!", *id);
-    return GST_FLOW_ERROR;
-  }
-
-  /* Sanity check since we're downcasting a 64-bit len to possibly 32-bit here */
-  if (length >= G_MAXUINT) {
-    GST_ERROR_OBJECT (ebml->el, "element 0x%x too large, "
-        "size %" G_GUINT64_FORMAT, *id, length);
-    return GST_FLOW_ERROR;
-  }
 
   *data = NULL;
   if (G_LIKELY (length > 0)) {
@@ -641,7 +628,7 @@ gst_ebml_read_utf8 (GstEbmlRead * ebml, guint32 * id, gchar ** str)
 
 /*
  * Read the next element as a date.
- * Returns the nanoseconds since the unix epoch.
+ * Returns the seconds since the unix epoch.
  */
 
 GstFlowReturn
@@ -654,7 +641,7 @@ gst_ebml_read_date (GstEbmlRead * ebml, guint32 * id, gint64 * date)
   if (ret != GST_FLOW_OK)
     return ret;
 
-  *date = ebml_date + GST_EBML_DATE_OFFSET;
+  *date = (ebml_date / GST_SECOND) + GST_EBML_DATE_OFFSET;
 
   return ret;
 }
@@ -676,7 +663,7 @@ gst_ebml_read_binary (GstEbmlRead * ebml,
     return ret;
 
   *length = size;
-  *binary = g_memdup2 (data, size);
+  *binary = g_memdup (data, size);
 
   return GST_FLOW_OK;
 }

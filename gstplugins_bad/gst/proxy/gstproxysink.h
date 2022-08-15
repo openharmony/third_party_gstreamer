@@ -55,7 +55,6 @@ struct _GstProxySinkClass {
 };
 
 GType gst_proxy_sink_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (proxysink);
 
 G_END_DECLS
 

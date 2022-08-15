@@ -43,7 +43,7 @@ typedef struct _GstEGLImage GstEGLImage;
  * @data: user data passed to gst_egl_image_new_wrapped()
  *
  * Function to be called when the GstEGLImage is destroyed. It should free
- * the associated `EGLImage` if necessary
+ * the associated #EGLImage if necessary
  */
 typedef void (*GstEGLImageDestroyNotify) (GstEGLImage * image,
     gpointer data);
@@ -85,20 +85,14 @@ GstEGLImage *           gst_egl_image_from_texture              (GstGLContext * 
 GST_GL_API
 GstEGLImage *           gst_egl_image_from_dmabuf               (GstGLContext * context,
                                                                  gint dmabuf,
-                                                                 const GstVideoInfo * in_info,
+                                                                 GstVideoInfo * in_info,
                                                                  gint plane,
                                                                  gsize offset);
 GST_GL_API
 GstEGLImage *           gst_egl_image_from_dmabuf_direct        (GstGLContext * context,
                                                                  gint *fd,
-                                                                 const gsize *offset,
-                                                                 const GstVideoInfo * in_info);
-GST_GL_API
-GstEGLImage *           gst_egl_image_from_dmabuf_direct_target (GstGLContext * context,
-                                                                 gint *fd,
-                                                                 const gsize *offset,
-                                                                 const GstVideoInfo * in_info,
-                                                                 GstGLTextureTarget target);
+                                                                 gsize *offset,
+                                                                 GstVideoInfo * in_info);
 
 GST_GL_API
 gboolean                gst_egl_image_export_dmabuf             (GstEGLImage *image, int *fd, gint *stride, gsize *offset);

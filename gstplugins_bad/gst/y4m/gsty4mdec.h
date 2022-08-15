@@ -62,7 +62,6 @@ struct _GstY4mDecClass
 };
 
 GType gst_y4m_dec_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (y4mdec);
 
 G_END_DECLS
 
