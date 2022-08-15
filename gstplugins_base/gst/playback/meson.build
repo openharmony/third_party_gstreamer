@@ -5,8 +5,7 @@ playback_sources = [
   'gsturidecodebin3.c',
   'gsturisourcebin.c',
   'gstparsebin.c',
-  'gstplaybackplugin.c',
-  'gstplaybackelement.c',
+  'gstplayback.c',
   'gstplaybackutils.c',
   'gstplaybin2.c',
   'gstplaybin3.c',
@@ -28,4 +27,3 @@ gstplayback = library('gstplayback',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstplayback, install_dir : plugins_pkgconfig_install_dir)
-plugins += [gstplayback]

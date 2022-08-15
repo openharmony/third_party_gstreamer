@@ -1,4 +1,4 @@
-/*
+/* 
  * GStreamer
  * Copyright (C) 2013 Matthew Waters <ystreet00@gmail.com>
  *
@@ -56,7 +56,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_gl_utils_debug);
 static GstDebugCategory *
 _init_gl_utils_debug_category (void)
 {
-  static gsize _init = 0;
+  static volatile gsize _init = 0;
 
   if (g_once_init_enter (&_init)) {
     GST_DEBUG_CATEGORY_INIT (gst_gl_utils_debug, "glutils", 0,
@@ -87,7 +87,7 @@ static void
 _init_context_debug (void)
 {
 #ifndef GST_DISABLE_GST_DEBUG
-  static gsize _init = 0;
+  static volatile gsize _init = 0;
 
   if (g_once_init_enter (&_init)) {
     GST_DEBUG_CATEGORY_GET (GST_CAT_CONTEXT, "GST_CONTEXT");
@@ -245,7 +245,7 @@ gst_gl_element_propagate_display_context (GstElement * element,
 
 /**
  * gst_gl_ensure_element_data:
- * @element: (type Gst.Element): the #GstElement running the query
+ * @element: the #GstElement running the query
  * @display_ptr: (inout): the resulting #GstGLDisplay
  * @other_context_ptr: (inout): the resulting #GstGLContext
  *
@@ -291,7 +291,7 @@ gst_gl_ensure_element_data (gpointer element, GstGLDisplay ** display_ptr,
   if (gst_gl_display_found (element, *display_ptr))
     goto get_gl_context;
 
-  /* If no neighbor, or application not interested, use system default */
+  /* If no neighboor, or application not interested, use system default */
   display = gst_gl_display_new ();
 
   *display_ptr = display;
@@ -312,8 +312,8 @@ done:
  * gst_gl_handle_set_context:
  * @element: a #GstElement
  * @context: a #GstContext
- * @display: (out) (transfer full): location of a #GstGLDisplay
- * @other_context: (out) (transfer full): location of a #GstGLContext
+ * @display: (inout) (transfer full): location of a #GstGLDisplay
+ * @other_context: (inout) (transfer full): location of a #GstGLContext
  *
  * Helper function for implementing #GstElementClass.set_context() in
  * OpenGL capable elements.
@@ -610,14 +610,11 @@ gst_gl_query_local_gl_context (GstElement * element, GstPadDirection direction,
  * Retrieve the size in bytes of a video plane of data with a certain alignment
  */
 gsize
-gst_gl_get_plane_data_size (const GstVideoInfo * info,
-    const GstVideoAlignment * align, guint plane)
+gst_gl_get_plane_data_size (GstVideoInfo * info, GstVideoAlignment * align,
+    guint plane)
 {
-  gint comp[GST_VIDEO_MAX_COMPONENTS];
   gint padded_height;
   gsize plane_size;
-
-  gst_video_format_info_component (info->finfo, plane, comp);
 
   padded_height = info->height;
 
@@ -625,7 +622,7 @@ gst_gl_get_plane_data_size (const GstVideoInfo * info,
     padded_height += align->padding_top + align->padding_bottom;
 
   padded_height =
-      GST_VIDEO_FORMAT_INFO_SCALE_HEIGHT (info->finfo, comp[0], padded_height);
+      GST_VIDEO_FORMAT_INFO_SCALE_HEIGHT (info->finfo, plane, padded_height);
 
   plane_size = GST_VIDEO_INFO_PLANE_STRIDE (info, plane) * padded_height;
 
@@ -642,8 +639,8 @@ gst_gl_get_plane_data_size (const GstVideoInfo * info,
  *          and where the data from the previous plane ends.
  */
 gsize
-gst_gl_get_plane_start (const GstVideoInfo * info,
-    const GstVideoAlignment * valign, guint plane)
+gst_gl_get_plane_start (GstVideoInfo * info, GstVideoAlignment * valign,
+    guint plane)
 {
   gsize plane_start;
   gint i;
@@ -664,8 +661,7 @@ gst_gl_get_plane_start (const GstVideoInfo * info,
  *
  * See gst_gl_value_set_texture_target_from_mask() for what entails a mask
  *
- * Returns: the mask of #GstGLTextureTarget's in @value or
- *     %GST_GL_TEXTURE_TARGET_NONE on failure
+ * Returns: the mask of #GstGLTextureTarget's in @value
  */
 GstGLTextureTarget
 gst_gl_value_get_texture_target_mask (const GValue * targets)
@@ -810,28 +806,17 @@ static const gfloat to_ndc_matrix[] = {
   -1.0, -1.0, -1.0, 1.0,
 };
 
-/**
- * gst_gl_multiply_matrix4:
- * @a: (array fixed-size=16): a 2-dimensional 4x4 array of #gfloat
- * @b: (array fixed-size=16): another 2-dimensional 4x4 array of #gfloat
- * @result: (out caller-allocates) (array fixed-size=16): the result of the multiplication
- *
- * Multiplies two 4x4 matrices, @a and @b, and stores the result, a
- * 2-dimensional array of #gfloat, in @result.
- *
- * Since: 1.20
+/* multiplies two 4x4 matrices, @a X @b, and stores the result in @result
+ * https://en.wikipedia.org/wiki/Matrix_multiplication
  */
-/* https://en.wikipedia.org/wiki/Matrix_multiplication */
-void
+static void
 gst_gl_multiply_matrix4 (const gfloat * a, const gfloat * b, gfloat * result)
 {
   int i, j, k;
   gfloat tmp[16] = { 0.0f };
 
-  g_return_if_fail (a != NULL);
-  g_return_if_fail (b != NULL);
-  g_return_if_fail (result != NULL);
-
+  if (!a || !b || !result)
+    return;
   for (i = 0; i < 4; i++) {     /* column */
     for (j = 0; j < 4; j++) {   /* row */
       for (k = 0; k < 4; k++) {
@@ -844,27 +829,23 @@ gst_gl_multiply_matrix4 (const gfloat * a, const gfloat * b, gfloat * result)
     result[i] = tmp[i];
 }
 
-/**
+/*
  * gst_gl_get_affine_transformation_meta_as_ndc:
  * @meta: (nullable): a #GstVideoAffineTransformationMeta
- * @matrix: (array fixed-size=16) (out caller-allocates): result of the 4x4 matrix
+ * @matrix: (out): result of the 4x4 matrix
  *
  * Retrieves the stored 4x4 affine transformation matrix stored in @meta in
  * NDC coordinates. if @meta is NULL, an identity matrix is returned.
  *
- * NDC is a left-handed coordinate system
+ * NDC is a left-handed coordinate sytem
  * - x - [-1, 1] - +ve X moves right
  * - y - [-1, 1] - +ve Y moves up
  * - z - [-1, 1] - +ve Z moves into
- *
- * Since: 1.20
  */
 void
 gst_gl_get_affine_transformation_meta_as_ndc (GstVideoAffineTransformationMeta *
     meta, gfloat * matrix)
 {
-  g_return_if_fail (matrix != NULL);
-
   if (!meta) {
     int i;
 
@@ -880,23 +861,12 @@ gst_gl_get_affine_transformation_meta_as_ndc (GstVideoAffineTransformationMeta *
   }
 }
 
-/**
- * gst_gl_set_affine_transformation_meta_from_ndc:
- * @meta: a #GstVideoAffineTransformationMeta
- * @matrix: (array fixed-size=16): a 4x4 matrix
- *
- * Set the 4x4 affine transformation matrix stored in @meta from the
- * NDC coordinates in @matrix.
- *
- * Since: 1.20
- */
 void gst_gl_set_affine_transformation_meta_from_ndc
     (GstVideoAffineTransformationMeta * meta, const gfloat * matrix)
 {
   float tmp[16];
 
   g_return_if_fail (meta != NULL);
-  g_return_if_fail (matrix != NULL);
 
   /* change of basis multiplications */
   gst_gl_multiply_matrix4 (to_ndc_matrix, matrix, tmp);

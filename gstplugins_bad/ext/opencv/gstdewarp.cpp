@@ -47,11 +47,12 @@
  *
  * Dewarp fisheye images
  *
- * ## Example launch line
- *
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 videotestsrc ! videoconvert ! circle radius=0.1 height=80  ! dewarp outer-radius=0.35 inner-radius=0.1 ! videoconvert ! xvimagesink
  * ]|
+ * </refsect2>
  */
 
 
@@ -90,9 +91,9 @@ dewarp_display_mode_get_type (void)
   static GType dewarp_display_mode_type = 0;
   static const GEnumValue dewarp_display_mode[] = {
     {GST_DEWARP_DISPLAY_PANORAMA, "Single panorama image", "single-panorama"},
-    {GST_DEWARP_DISPLAY_DOUBLE_PANORAMA, "Dewarped image is split in two "
+    {GST_DEWARP_DISPLAY_DOUBLE_PANORAMA, "Dewarped image is splitted in two "
           "images displayed one below the other", "double-panorama"},
-    {GST_DEWARP_DISPLAY_QUAD_VIEW, "Dewarped image is split in four images "
+    {GST_DEWARP_DISPLAY_QUAD_VIEW, "Dewarped image is splitted in four images "
           "dysplayed as a quad view",
         "quad-view"},
     {0, NULL, NULL},
@@ -129,11 +130,7 @@ dewarp_interpolation_mode_get_type (void)
   return dewarp_interpolation_mode_type;
 }
 
-G_DEFINE_TYPE_WITH_CODE (GstDewarp, gst_dewarp, GST_TYPE_OPENCV_VIDEO_FILTER,
-    GST_DEBUG_CATEGORY_INIT (gst_dewarp_debug, "dewarp", 0,
-        "Dewarp fisheye images");
-    );
-GST_ELEMENT_REGISTER_DEFINE (dewarp, "dewarp", GST_RANK_NONE, GST_TYPE_DEWARP);
+G_DEFINE_TYPE (GstDewarp, gst_dewarp, GST_TYPE_OPENCV_VIDEO_FILTER);
 
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
@@ -260,8 +257,6 @@ gst_dewarp_class_init (GstDewarpClass * klass)
   gst_element_class_add_static_pad_template (element_class, &src_factory);
   gst_element_class_add_static_pad_template (element_class, &sink_factory);
 
-  gst_type_mark_as_plugin_api (GST_TYPE_DEWARP_DISPLAY_MODE, (GstPluginAPIFlags) 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_DEWARP_INTERPOLATION_MODE, (GstPluginAPIFlags) 0);
 }
 
 static void
@@ -307,7 +302,7 @@ gst_dewarp_set_property (GObject * object, guint prop_id,
         filter->x_center = v;
         filter->need_map_update = TRUE;
         need_reconfigure = TRUE;
-        GST_LOG_OBJECT (filter, "x center set to %f", filter->x_center);
+        GST_LOG_OBJECT (filter, "x center setted to %f", filter->x_center);
       }
       break;
     case PROP_Y_CENTER:
@@ -316,7 +311,7 @@ gst_dewarp_set_property (GObject * object, guint prop_id,
         filter->y_center = v;
         filter->need_map_update = TRUE;
         need_reconfigure = TRUE;
-        GST_LOG_OBJECT (filter, "y center set to %f", filter->y_center);
+        GST_LOG_OBJECT (filter, "y center setted to %f", filter->y_center);
       }
       break;
     case PROP_INNER_RADIUS:
@@ -325,7 +320,7 @@ gst_dewarp_set_property (GObject * object, guint prop_id,
         filter->inner_radius = v;
         filter->need_map_update = TRUE;
         need_reconfigure = TRUE;
-        GST_LOG_OBJECT (filter, "inner radius set to %f",
+        GST_LOG_OBJECT (filter, "inner radius setted to %f",
             filter->inner_radius);
       }
       break;
@@ -335,7 +330,7 @@ gst_dewarp_set_property (GObject * object, guint prop_id,
         filter->outer_radius = v;
         filter->need_map_update = TRUE;
         need_reconfigure = TRUE;
-        GST_LOG_OBJECT (filter, "outer radius set to %f",
+        GST_LOG_OBJECT (filter, "outer radius setted to %f",
             filter->outer_radius);
       }
       break;
@@ -345,7 +340,7 @@ gst_dewarp_set_property (GObject * object, guint prop_id,
         filter->remap_correction_x = v;
         filter->need_map_update = TRUE;
         need_reconfigure = TRUE;
-        GST_LOG_OBJECT (filter, "x remap correction set to %f",
+        GST_LOG_OBJECT (filter, "x remap correction setted to %f",
             filter->remap_correction_x);
       }
       break;
@@ -355,13 +350,13 @@ gst_dewarp_set_property (GObject * object, guint prop_id,
         filter->remap_correction_y = v;
         filter->need_map_update = TRUE;
         need_reconfigure = TRUE;
-        GST_LOG_OBJECT (filter, "y remap correction set to %f",
+        GST_LOG_OBJECT (filter, "y remap correction setted to %f",
             filter->remap_correction_y);
       }
       break;
     case PROP_INTERPOLATION_MODE:
       filter->interpolation_mode = g_value_get_enum (value);
-      GST_LOG_OBJECT (filter, "interpolation mode set to %" G_GINT32_FORMAT,
+      GST_LOG_OBJECT (filter, "interpolation mode setted to %" G_GINT32_FORMAT,
           filter->interpolation_mode);
       break;
     case PROP_DISPLAY_MODE:
@@ -369,7 +364,7 @@ gst_dewarp_set_property (GObject * object, guint prop_id,
       if (disp_mode != filter->display_mode) {
         filter->display_mode = disp_mode;
         need_reconfigure = TRUE;
-        GST_LOG_OBJECT (filter, "display mode set to %" G_GINT32_FORMAT,
+        GST_LOG_OBJECT (filter, "display mode setted to %" G_GINT32_FORMAT,
             filter->display_mode);
       }
       break;
@@ -516,7 +511,7 @@ gst_dewarp_calculate_dimensions (GstDewarp * filter, GstPadDirection direction,
       }
 
       /* if outer_radius and inner radius are very close then width and height
-         could be 0, we assume passthrough in this case
+         could be 0, we assume passtrough in this case
        */
       if (G_UNLIKELY (*out_width == 0) || G_UNLIKELY (*out_height == 0)) {
         GST_WARNING_OBJECT (filter,
@@ -717,4 +712,14 @@ gst_dewarp_transform_frame (GstOpencvVideoFilter * btrans, GstBuffer * buffer,
   GST_OBJECT_UNLOCK (filter);
 
   return ret;
+}
+
+gboolean
+gst_dewarp_plugin_init (GstPlugin * plugin)
+{
+  GST_DEBUG_CATEGORY_INIT (gst_dewarp_debug, "dewarp",
+      0, "Dewarp fisheye images");
+
+  return gst_element_register (plugin, "dewarp", GST_RANK_NONE,
+      GST_TYPE_DEWARP);
 }

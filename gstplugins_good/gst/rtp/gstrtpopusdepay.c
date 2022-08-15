@@ -27,7 +27,6 @@
 #include <stdlib.h>
 #include <gst/rtp/gstrtpbuffer.h>
 #include <gst/audio/audio.h>
-#include "gstrtpelements.h"
 #include "gstrtpopusdepay.h"
 #include "gstrtputils.h"
 
@@ -42,14 +41,14 @@ GST_STATIC_PAD_TEMPLATE ("sink",
         "media = (string) \"audio\", "
         "payload = (int) " GST_RTP_PAYLOAD_DYNAMIC_STRING ","
         "clock-rate = (int) 48000, "
-        "encoding-name = (string) { \"OPUS\", \"X-GST-OPUS-DRAFT-SPITTKA-00\", \"multiopus\" }")
+        "encoding-name = (string) { \"OPUS\", \"X-GST-OPUS-DRAFT-SPITTKA-00\" }")
     );
 
 static GstStaticPadTemplate gst_rtp_opus_depay_src_template =
 GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("audio/x-opus, channel-mapping-family = (int) [ 0, 1 ]")
+    GST_STATIC_CAPS ("audio/x-opus, channel-mapping-family = (int) 0")
     );
 
 static GstBuffer *gst_rtp_opus_depay_process (GstRTPBaseDepayload * depayload,
@@ -59,8 +58,6 @@ static gboolean gst_rtp_opus_depay_setcaps (GstRTPBaseDepayload * depayload,
 
 G_DEFINE_TYPE (GstRTPOpusDepay, gst_rtp_opus_depay,
     GST_TYPE_RTP_BASE_DEPAYLOAD);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpopusdepay, "rtpopusdepay",
-    GST_RANK_PRIMARY, GST_TYPE_RTP_OPUS_DEPAY, rtp_element_init (plugin));
 
 static void
 gst_rtp_opus_depay_class_init (GstRTPOpusDepayClass * klass)
@@ -99,118 +96,21 @@ gst_rtp_opus_depay_setcaps (GstRTPBaseDepayload * depayload, GstCaps * caps)
   GstCaps *srccaps;
   GstStructure *s;
   gboolean ret;
-  const gchar *sprop_maxcapturerate;
+  const gchar *sprop_stereo, *sprop_maxcapturerate;
 
-  srccaps = gst_caps_new_empty_simple ("audio/x-opus");
+  srccaps =
+      gst_caps_new_simple ("audio/x-opus", "channel-mapping-family", G_TYPE_INT,
+      0, NULL);
 
   s = gst_caps_get_structure (caps, 0);
-
-  if (g_str_equal (gst_structure_get_string (s, "encoding-name"), "multiopus")) {
-    gint channels;
-    gint stream_count;
-    gint coupled_count;
-    const gchar *encoding_params;
-    const gchar *num_streams;
-    const gchar *coupled_streams;
-    const gchar *channel_mapping;
-    gchar *endptr;
-
-    if (!gst_structure_has_field_typed (s, "encoding-params", G_TYPE_STRING) ||
-        !gst_structure_has_field_typed (s, "num_streams", G_TYPE_STRING) ||
-        !gst_structure_has_field_typed (s, "coupled_streams", G_TYPE_STRING) ||
-        !gst_structure_has_field_typed (s, "channel_mapping", G_TYPE_STRING)) {
-      GST_WARNING_OBJECT (depayload, "Encoding name 'multiopus' requires "
-          "encoding-params, num_streams, coupled_streams and channel_mapping "
-          "as string fields in caps.");
-      goto reject_caps;
-    }
-
-    gst_caps_set_simple (srccaps, "channel-mapping-family", G_TYPE_INT, 1,
-        NULL);
-
-    encoding_params = gst_structure_get_string (s, "encoding-params");
-    channels = g_ascii_strtoull (encoding_params, &endptr, 10);
-    if (*endptr != '\0' || channels > 255) {
-      GST_WARNING_OBJECT (depayload, "Invalid encoding-params value '%s'",
-          encoding_params);
-      goto reject_caps;
-    }
-    gst_caps_set_simple (srccaps, "channels", G_TYPE_INT, channels, NULL);
-
-    num_streams = gst_structure_get_string (s, "num_streams");
-    stream_count = g_ascii_strtoull (num_streams, &endptr, 10);
-    if (*endptr != '\0' || stream_count > channels) {
-      GST_WARNING_OBJECT (depayload, "Invalid num_streams value '%s'",
-          num_streams);
-      goto reject_caps;
-    }
-    gst_caps_set_simple (srccaps, "stream-count", G_TYPE_INT, stream_count,
-        NULL);
-
-    coupled_streams = gst_structure_get_string (s, "coupled_streams");
-    coupled_count = g_ascii_strtoull (coupled_streams, &endptr, 10);
-    if (*endptr != '\0' || coupled_count > stream_count) {
-      GST_WARNING_OBJECT (depayload, "Invalid coupled_streams value '%s'",
-          coupled_streams);
-      goto reject_caps;
-    }
-    gst_caps_set_simple (srccaps, "coupled-count", G_TYPE_INT, coupled_count,
-        NULL);
-
-    channel_mapping = gst_structure_get_string (s, "channel_mapping");
-    {
-      gchar **split;
-      gchar **ptr;
-      GValue mapping = G_VALUE_INIT;
-      GValue v = G_VALUE_INIT;
-
-      split = g_strsplit (channel_mapping, ",", -1);
-
-      g_value_init (&mapping, GST_TYPE_ARRAY);
-      g_value_init (&v, G_TYPE_INT);
-
-      for (ptr = split; *ptr; ++ptr) {
-        gint channel = g_ascii_strtoull (*ptr, &endptr, 10);
-        if (*endptr != '\0' || channel > channels) {
-          GST_WARNING_OBJECT (depayload, "Invalid channel_mapping value '%s'",
-              channel_mapping);
-          g_value_unset (&mapping);
-          break;
-        }
-        g_value_set_int (&v, channel);
-        gst_value_array_append_value (&mapping, &v);
-      }
-
-      g_value_unset (&v);
-      g_strfreev (split);
-
-      if (G_IS_VALUE (&mapping)) {
-        gst_caps_set_value (srccaps, "channel-mapping", &mapping);
-        g_value_unset (&mapping);
-      } else {
-        goto reject_caps;
-      }
-    }
-  } else {
-    const gchar *sprop_stereo;
-
-    gst_caps_set_simple (srccaps, "channel-mapping-family", G_TYPE_INT, 0,
-        NULL);
-
-    if ((sprop_stereo = gst_structure_get_string (s, "sprop-stereo"))) {
-      if (strcmp (sprop_stereo, "0") == 0)
-        gst_caps_set_simple (srccaps, "channels", G_TYPE_INT, 1, NULL);
-      else if (strcmp (sprop_stereo, "1") == 0)
-        gst_caps_set_simple (srccaps, "channels", G_TYPE_INT, 2, NULL);
-      else
-        GST_WARNING_OBJECT (depayload, "Unknown sprop-stereo value '%s'",
-            sprop_stereo);
-    } else {
-      /* Although sprop-stereo defaults to mono as per RFC 7587, this just means
-         that the signal is likely mono and can be safely downmixed, it may
-         still be stereo at times. */
+  if ((sprop_stereo = gst_structure_get_string (s, "sprop-stereo"))) {
+    if (strcmp (sprop_stereo, "0") == 0)
+      gst_caps_set_simple (srccaps, "channels", G_TYPE_INT, 1, NULL);
+    else if (strcmp (sprop_stereo, "1") == 0)
       gst_caps_set_simple (srccaps, "channels", G_TYPE_INT, 2, NULL);
-    }
+    else
+      GST_WARNING_OBJECT (depayload, "Unknown sprop-stereo value '%s'",
+          sprop_stereo);
   }
 
   if ((sprop_maxcapturerate =
@@ -237,11 +137,6 @@ gst_rtp_opus_depay_setcaps (GstRTPBaseDepayload * depayload, GstCaps * caps)
   depayload->clock_rate = 48000;
 
   return ret;
-
-reject_caps:
-  gst_caps_unref (srccaps);
-
-  return FALSE;
 }
 
 static GstBuffer *
@@ -255,4 +150,11 @@ gst_rtp_opus_depay_process (GstRTPBaseDepayload * depayload,
   gst_rtp_drop_non_audio_meta (depayload, outbuf);
 
   return outbuf;
+}
+
+gboolean
+gst_rtp_opus_depay_plugin_init (GstPlugin * plugin)
+{
+  return gst_element_register (plugin, "rtpopusdepay",
+      GST_RANK_PRIMARY, GST_TYPE_RTP_OPUS_DEPAY);
 }

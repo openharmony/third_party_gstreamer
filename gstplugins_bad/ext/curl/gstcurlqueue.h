@@ -51,7 +51,7 @@
 struct _GstCurlHttpSrcQueueElement
 {
   GstCurlHttpSrc *p;
-  gint running;
+  volatile gint running;
   GstCurlHttpSrcQueueElement *next;
 };
 

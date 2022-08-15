@@ -33,9 +33,15 @@
  * More concretely on the "libopenni2-dev" and "libopenni2" packages - that can
  * be downloaded in http://goo.gl/2H6SZ6.
  *
- * ## Examples
- *
- * Some recorded .oni files are available at <http://people.cs.pitt.edu/~chang/1635/proj11/kinectRecord>
+ * <refsect2>
+ * <title>Examples</title>
+ * <para>
+ * Some recorded .oni files are available at:
+ * <programlisting>
+ *  http://people.cs.pitt.edu/~chang/1635/proj11/kinectRecord
+ * </programlisting>
+ * </para>
+ * </refsect2>
  */
 
 
@@ -48,7 +54,10 @@
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (openni2src, plugin);
+  if (!gst_openni2src_plugin_init (plugin))
+    return FALSE;
+
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

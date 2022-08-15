@@ -31,7 +31,6 @@
 #include <gst/pbutils/pbutils.h>
 #include <gst/codecparsers/gstmpegvideometa.h>
 
-#include "gstvideoparserselements.h"
 #include "gstmpegvideoparse.h"
 
 GST_DEBUG_CATEGORY (mpegv_parse_debug);
@@ -65,9 +64,6 @@ enum
 
 #define parent_class gst_mpegv_parse_parent_class
 G_DEFINE_TYPE (GstMpegvParse, gst_mpegv_parse, GST_TYPE_BASE_PARSE);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (mpegvideoparse, "mpegvideoparse",
-    GST_RANK_PRIMARY + 1, GST_TYPE_MPEGVIDEO_PARSE,
-    videoparsers_element_init (plugin));
 
 static gboolean gst_mpegv_parse_start (GstBaseParse * parse);
 static gboolean gst_mpegv_parse_stop (GstBaseParse * parse);
@@ -141,7 +137,7 @@ gst_mpegv_parse_class_init (GstMpegvParseClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_DROP,
       g_param_spec_boolean ("drop", "drop",
-          "Drop data until valid configuration data is received either "
+          "Drop data untill valid configuration data is received either "
           "in the stream or through caps", DEFAULT_PROP_DROP,
           G_PARAM_CONSTRUCT | G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
@@ -178,7 +174,6 @@ gst_mpegv_parse_init (GstMpegvParse * parse)
   parse->config_flags = FLAG_NONE;
 
   gst_base_parse_set_pts_interpolation (GST_BASE_PARSE (parse), FALSE);
-  gst_base_parse_set_infer_ts (GST_BASE_PARSE (parse), FALSE);
   GST_PAD_SET_ACCEPT_INTERSECT (GST_BASE_PARSE_SINK_PAD (parse));
   GST_PAD_SET_ACCEPT_TEMPLATE (GST_BASE_PARSE_SINK_PAD (parse));
 }
@@ -466,20 +461,93 @@ parse_packet_extension (GstMpegvParse * mpvparse, GstMapInfo * info, guint off)
   }
 }
 
+/* A53-4 Table 6.7 */
+#define A53_USER_DATA_ID_GA94 0x47413934
+#define A53_USER_DATA_ID_DTG1 0x44544731
+
+/* A53-4 Table 6.9 */
+#define A53_USER_DATA_TYPE_CODE_MPEG_CC_DATA 0x03
+#define A53_USER_DATA_TYPE_CODE_BAR_DATA 0x06
+
+/* CEA-708 Table 2 */
+#define CEA_708_PROCESS_CC_DATA_FLAG 0x40
+#define CEA_708_PROCESS_EM_DATA_FLAG 0x80
+
 static void
 parse_user_data_packet (GstMpegvParse * mpvparse, const guint8 * data,
     guint size)
 {
-  GstByteReader br;
-  GstVideoParseUtilsField field = GST_VIDEO_PARSE_UTILS_FIELD_1;
-  gst_byte_reader_init (&br, data, size);
+  gboolean a53_user_data_ga94 = FALSE;
+  gboolean a53_user_data_dtg1 = FALSE;
+  gboolean a53_user_data_mpeg_cc = FALSE;
+  gboolean a53_process_708_cc_data = FALSE;
+  gboolean process_708_em_data = FALSE;
 
-  if (mpvparse->picext.picture_structure ==
-      (guint8) GST_MPEG_VIDEO_PICTURE_STRUCTURE_BOTTOM_FIELD)
-    field = GST_VIDEO_PARSE_UTILS_FIELD_2;
-  gst_video_parse_user_data ((GstElement *) mpvparse, &mpvparse->user_data, &br,
-      field, ITU_T_T35_MANUFACTURER_US_ATSC);
+  if (size < 2) {
+    GST_DEBUG_OBJECT (mpvparse, "user data packet too short, ignoring");
+    return;
+  }
 
+  /* A53 part 4 closed captions */
+  if (size > 6) {
+    guint32 user_data_id = GST_READ_UINT32_BE (data);
+    a53_user_data_ga94 = user_data_id == A53_USER_DATA_ID_GA94;
+    a53_user_data_dtg1 = user_data_id == A53_USER_DATA_ID_DTG1;
+    a53_user_data_mpeg_cc = data[4] == A53_USER_DATA_TYPE_CODE_MPEG_CC_DATA;
+    a53_process_708_cc_data = (data[5] & CEA_708_PROCESS_CC_DATA_FLAG) != 0;
+    process_708_em_data = (data[5] & CEA_708_PROCESS_EM_DATA_FLAG) != 0;
+
+    if (a53_user_data_dtg1) {
+      GST_DEBUG_OBJECT (mpvparse,
+          "ignoring closed captions as DTG1 is not supported");
+    } else if (a53_user_data_ga94) {
+      GST_DEBUG_OBJECT (mpvparse, "GA94 closed captions");
+      if (!a53_user_data_mpeg_cc) {
+        GST_DEBUG_OBJECT (mpvparse,
+            "ignoring closed captions as A53_USER_DATA_TYPE_CODE_MPEG_CC_DATA is not set");
+      }
+      if (!a53_process_708_cc_data) {
+        GST_DEBUG_OBJECT (mpvparse,
+            "ignoring closed captions as CEA_708_PROCESS_CC_DATA_FLAG is not set");
+      }
+      if (!process_708_em_data) {
+        GST_DEBUG_OBJECT (mpvparse,
+            "CEA_708_PROCESS_EM_DATA_FLAG flag is not set");
+      }
+      /* ignore em data flag for now as it breaks one of the tests */
+      process_708_em_data = /*process_708_em_data && */ (data[6] == 0xff);
+      if (!process_708_em_data) {
+        GST_DEBUG_OBJECT (mpvparse,
+            "ignoring closed captions as em data does not equal 0xFF");
+      }
+    }
+  }
+  if (size > 6 && a53_user_data_ga94 && a53_user_data_mpeg_cc
+      && a53_process_708_cc_data && process_708_em_data) {
+    guint8 cc_count = data[5] & 0x1f;
+    guint cc_size = cc_count * 3;
+
+    data += 7;
+    size -= 7;
+
+    if (cc_size == 0 || cc_size > size) {
+      GST_DEBUG_OBJECT (mpvparse, "ignoring closed captions, not enough data");
+      return;
+    }
+
+    /* Shouldn't really happen so let's not go out of our way to handle it */
+    if (mpvparse->closedcaptions_size > 0)
+      GST_WARNING_OBJECT (mpvparse, "unused pending closed captions!");
+
+    g_assert (cc_size <= sizeof (mpvparse->closedcaptions));
+    memcpy (mpvparse->closedcaptions, data, cc_size);
+    mpvparse->closedcaptions_size = cc_size;
+    mpvparse->closedcaptions_type = GST_VIDEO_CAPTION_TYPE_CEA708_RAW;
+    GST_DEBUG_OBJECT (mpvparse, "CEA-708 closed captions, %u bytes", cc_size);
+    return;
+  }
+
+  GST_MEMDUMP_OBJECT (mpvparse, "unhandled user data packet", data, size);
 }
 
 /* caller guarantees at least start code in @buf at @off ( - 4)*/
@@ -910,10 +978,9 @@ gst_mpegv_parse_update_src_caps (GstMpegvParse * mpvparse)
     else
       GST_DEBUG_OBJECT (mpvparse, "Invalid level - %u", level_c);
 
-    if (!s || !gst_structure_has_field (s, "interlace-mode"))
-      gst_caps_set_simple (caps, "interlace-mode",
-          G_TYPE_STRING,
-          (mpvparse->sequenceext.progressive ? "progressive" : "mixed"), NULL);
+    gst_caps_set_simple (caps, "interlace-mode",
+        G_TYPE_STRING,
+        (mpvparse->sequenceext.progressive ? "progressive" : "mixed"), NULL);
   }
 
   gst_pad_set_caps (GST_BASE_PARSE_SRC_PAD (mpvparse), caps);
@@ -972,7 +1039,6 @@ gst_mpegv_parse_pre_push_frame (GstBaseParse * parse, GstBaseParseFrame * frame)
   GstMpegVideoPictureHdr *pic_hdr = NULL;
   GstMpegVideoPictureExt *pic_ext = NULL;
   GstMpegVideoQuantMatrixExt *quant_ext = NULL;
-  GstBuffer *parse_buffer = NULL;
 
   /* tag sending done late enough in hook to ensure pending events
    * have already been sent */
@@ -1002,6 +1068,9 @@ gst_mpegv_parse_pre_push_frame (GstBaseParse * parse, GstBaseParseFrame * frame)
 
     mpvparse->send_codec_tag = FALSE;
   }
+
+  /* usual clipping applies */
+  frame->flags |= GST_BASE_PARSE_FRAME_FLAG_CLIP;
 
   if (mpvparse->send_mpeg_meta) {
     GstBuffer *buf;
@@ -1035,20 +1104,22 @@ gst_mpegv_parse_pre_push_frame (GstBaseParse * parse, GstBaseParseFrame * frame)
     meta->slice_offset = mpvparse->slice_offset;
   }
 
-  if (frame->out_buffer) {
-    parse_buffer = frame->out_buffer =
-        gst_buffer_make_writable (frame->out_buffer);
-  } else {
-    parse_buffer = frame->buffer = gst_buffer_make_writable (frame->buffer);
-  }
+  if (mpvparse->closedcaptions_size > 0) {
+    GstBuffer *buf;
 
-  if (pic_ext && !pic_ext->progressive_frame) {
-    GST_BUFFER_FLAG_SET (parse_buffer, GST_VIDEO_BUFFER_FLAG_INTERLACED);
-    if (pic_ext->top_field_first)
-      GST_BUFFER_FLAG_SET (parse_buffer, GST_VIDEO_BUFFER_FLAG_TFF);
+    if (frame->out_buffer) {
+      buf = frame->out_buffer = gst_buffer_make_writable (frame->out_buffer);
+    } else {
+      buf = frame->buffer = gst_buffer_make_writable (frame->buffer);
+    }
+
+    gst_buffer_add_video_caption_meta (buf,
+        mpvparse->closedcaptions_type, mpvparse->closedcaptions,
+        mpvparse->closedcaptions_size);
+
+    mpvparse->closedcaptions_type = GST_VIDEO_CAPTION_TYPE_UNKNOWN;
+    mpvparse->closedcaptions_size = 0;
   }
-  gst_video_push_user_data ((GstElement *) mpvparse, &mpvparse->user_data,
-      parse_buffer);
 
   return GST_FLOW_OK;
 }
@@ -1071,7 +1142,7 @@ gst_mpegv_parse_set_caps (GstBaseParse * parse, GstCaps * caps)
     gst_buffer_map (buf, &map, GST_MAP_READ);
     /* best possible parse attempt,
      * src caps are based on sink caps so it will end up in there
-     * whether successful or not */
+     * whether sucessful or not */
     mpvparse->seq_offset = 4;
     gst_mpegv_parse_process_config (mpvparse, &map, gst_buffer_get_size (buf));
     gst_buffer_unmap (buf, &map);

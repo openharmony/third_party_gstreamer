@@ -75,37 +75,10 @@ struct _GstVideoAggregatorPad
  * GstVideoAggregatorPadClass:
  * @update_conversion_info: Called when either the input or output formats
  *                          have changed.
- * @prepare_frame: Prepare the frame from the pad buffer and sets it to prepared_frame.
- *      Implementations should always return TRUE.  Returning FALSE will cease
- *      iteration over subsequent pads.
+ * @prepare_frame: Prepare the frame from the pad buffer and sets it to prepared_frame
  * @clean_frame:   clean the frame previously prepared in prepare_frame
  *
  * Since: 1.16
- */
-/**
- * GstVideoAggregatorPadClass::prepare_frame_start:
- * @pad: the #GstVideoAggregatorPad
- * @videoaggregator: the parent #GstVideoAggregator
- * @buffer: the input #GstBuffer to prepare
- * @prepared_frame: the #GstVideoFrame to prepare into
- *
- * Begin preparing the frame from the pad buffer and sets it to prepared_frame.
- *
- * If overriden, `prepare_frame_finish` must also be overriden.
- *
- * Since: 1.20
- */
-/**
- * GstVideoAggregatorPadClass::prepare_frame_finish:
- * @pad: the #GstVideoAggregatorPad
- * @videoaggregator: the parent #GstVideoAggregator
- * @prepared_frame: the #GstVideoFrame to prepare into
- *
- * Finish preparing @prepared_frame.
- *
- * If overriden, `prepare_frame_start` must also be overriden.
- *
- * Since: 1.20
  */
 struct _GstVideoAggregatorPadClass
 {
@@ -121,16 +94,7 @@ struct _GstVideoAggregatorPadClass
                                                 GstVideoAggregator    * videoaggregator,
                                                 GstVideoFrame         * prepared_frame);
 
-  void               (*prepare_frame_start)    (GstVideoAggregatorPad * pad,
-                                                GstVideoAggregator    * videoaggregator,
-                                                GstBuffer             * buffer,
-                                                GstVideoFrame         * prepared_frame);
-
-  void               (*prepare_frame_finish)   (GstVideoAggregatorPad * pad,
-                                                GstVideoAggregator    * videoaggregator,
-                                                GstVideoFrame         * prepared_frame);
-
-  gpointer          _gst_reserved[GST_PADDING_LARGE-2];
+  gpointer          _gst_reserved[GST_PADDING_LARGE];
 };
 
 GST_VIDEO_API
@@ -202,45 +166,6 @@ GType gst_video_aggregator_convert_pad_get_type           (void);
 
 GST_VIDEO_API
 void gst_video_aggregator_convert_pad_update_conversion_info (GstVideoAggregatorConvertPad * pad);
-
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(GstVideoAggregatorConvertPad, gst_object_unref)
-
-/****************************************
- * GstVideoAggregatorParallelConvertPad *
- ****************************************/
-
-#define GST_TYPE_VIDEO_AGGREGATOR_PARALLEL_CONVERT_PAD           (gst_video_aggregator_parallel_convert_pad_get_type())
-GST_VIDEO_API
-G_DECLARE_DERIVABLE_TYPE (GstVideoAggregatorParallelConvertPad, gst_video_aggregator_parallel_convert_pad, GST, VIDEO_AGGREGATOR_PARALLEL_CONVERT_PAD, GstVideoAggregatorConvertPad)
-
-#define GST_VIDEO_AGGREGATOR_PARALLEL_CONVERT_PAD(obj)            (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_VIDEO_AGGREGATOR_PARALLEL_CONVERT_PAD, GstVideoAggregatorParallelConvertPad))
-#define GST_VIDEO_AGGREGATOR_PARALLEL_CONVERT_PAD_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_VIDEO_AGGREGATOR_PARALLEL_CONVERT_PAD, GstVideoAggregatorConvertPadClass))
-#define GST_VIDEO_AGGREGATOR_PARALLEL_CONVERT_PAD_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj),GST_TYPE_VIDEO_AGGREGATOR_PARALLEL_CONVERT_PAD, GstVideoAggregatorConvertPadClass))
-#define GST_IS_VIDEO_AGGREGATOR_PARALLEL_CONVERT_PAD(obj)         (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_VIDEO_AGGREGATOR_PARALLEL_CONVERT_PAD))
-#define GST_IS_VIDEO_AGGREGATOR_PARALLEL_CONVERT_PAD_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_VIDEO_AGGREGATOR_PARALLEL_CONVERT_PAD))
-
-/**
- * GstVideoAggregatorParallelConvertPad:
- *
- * An implementation of GstPad that can be used with #GstVideoAggregator.
- *
- * See #GstVideoAggregator for more details.
- *
- * Since: 1.20
- */
-
-/**
- * GstVideoAggregatorParallelConvertPadClass:
- *
- * Since: 1.20
- */
-struct _GstVideoAggregatorParallelConvertPadClass
-{
-  GstVideoAggregatorConvertPadClass   parent_class;
-
-  /*< private >*/
-  gpointer      _gst_reserved[GST_PADDING];
-};
 
 /**********************
  * GstVideoAggregator *
@@ -321,12 +246,6 @@ struct _GstVideoAggregatorClass
 
 GST_VIDEO_API
 GType gst_video_aggregator_get_type       (void);
-
-GST_VIDEO_API
-GstTaskPool * gst_video_aggregator_get_execution_task_pool (GstVideoAggregator * vagg);
-
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(GstVideoAggregator, gst_object_unref)
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(GstVideoAggregatorPad, gst_object_unref)
 
 G_END_DECLS
 #endif /* __GST_VIDEO_AGGREGATOR_H__ */

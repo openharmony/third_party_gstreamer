@@ -26,11 +26,11 @@
  * If the .#GstZBar:attach-frame property is %TRUE, the posted barcode message
  * includes a sample of the frame where the barcode was detected (Since 1.6).
  *
- * The element generate messages named`barcode`. The structure contains these fields:
+ * The element generate messages named`barcode`. The structure containes these fields:
  *
  * * #GstClockTime `timestamp`: the timestamp of the buffer that triggered the message.
  * * gchar * `type`: the symbol type.
- * * gchar * `symbol`: the detected bar code data.
+ * * gchar * `symbol`: the deteted bar code data.
  * * gint `quality`: an unscaled, relative quantity: larger values are better than smaller
  *   values.
  * * GstSample `frame`: the frame in which the barcode message was detected, if
@@ -110,9 +110,7 @@ static GstFlowReturn gst_zbar_transform_frame_ip (GstVideoFilter * vfilter,
     GstVideoFrame * frame);
 
 #define gst_zbar_parent_class parent_class
-G_DEFINE_TYPE_WITH_CODE (GstZBar, gst_zbar, GST_TYPE_VIDEO_FILTER,
-    GST_DEBUG_CATEGORY_INIT (zbar_debug, "zbar", 0, "zbar"););
-GST_ELEMENT_REGISTER_DEFINE (zbar, "zbar", GST_RANK_NONE, GST_TYPE_ZBAR);
+G_DEFINE_TYPE (GstZBar, gst_zbar, GST_TYPE_VIDEO_FILTER);
 
 static void
 gst_zbar_class_init (GstZBarClass * g_class)
@@ -168,6 +166,7 @@ gst_zbar_class_init (GstZBarClass * g_class)
 
   trans_class->start = GST_DEBUG_FUNCPTR (gst_zbar_start);
   trans_class->stop = GST_DEBUG_FUNCPTR (gst_zbar_stop);
+  trans_class->transform_ip_on_passthrough = FALSE;
 
   vfilter_class->transform_frame_ip =
       GST_DEBUG_FUNCPTR (gst_zbar_transform_frame_ip);
@@ -363,7 +362,9 @@ gst_zbar_stop (GstBaseTransform * base)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (zbar, plugin);
+  GST_DEBUG_CATEGORY_INIT (zbar_debug, "zbar", 0, "zbar");
+
+  return gst_element_register (plugin, "zbar", GST_RANK_NONE, GST_TYPE_ZBAR);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

@@ -113,8 +113,6 @@ struct _GstTheoraEncClass
 
 GType gst_theora_enc_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (theoraenc);
-
 G_END_DECLS
 
 #endif /* __GST_THEORAENC_H__ */

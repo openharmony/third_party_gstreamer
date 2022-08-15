@@ -110,8 +110,6 @@ static GstFlowReturn gst_sdp_demux_sink_chain (GstPad * pad, GstObject * parent,
 
 #define gst_sdp_demux_parent_class parent_class
 G_DEFINE_TYPE (GstSDPDemux, gst_sdp_demux, GST_TYPE_BIN);
-GST_ELEMENT_REGISTER_DEFINE (sdpdemux, "sdpdemux", GST_RANK_NONE,
-    GST_TYPE_SDP_DEMUX);
 
 static void
 gst_sdp_demux_class_init (GstSDPDemuxClass * klass)
@@ -313,33 +311,17 @@ gst_sdp_demux_stream_free (GstSDPDemux * demux, GstSDPStream * stream)
 
   for (i = 0; i < 2; i++) {
     GstElement *udpsrc = stream->udpsrc[i];
-    GstPad *channelpad = stream->channelpad[i];
 
     if (udpsrc) {
       gst_element_set_state (udpsrc, GST_STATE_NULL);
       gst_bin_remove (GST_BIN_CAST (demux), udpsrc);
       stream->udpsrc[i] = NULL;
     }
-
-    if (channelpad) {
-      if (demux->session) {
-        gst_element_release_request_pad (demux->session, channelpad);
-      }
-      gst_object_unref (channelpad);
-      stream->channelpad[i] = NULL;
-    }
   }
   if (stream->udpsink) {
     gst_element_set_state (stream->udpsink, GST_STATE_NULL);
     gst_bin_remove (GST_BIN_CAST (demux), stream->udpsink);
     stream->udpsink = NULL;
-  }
-  if (stream->rtcppad) {
-    if (demux->session) {
-      gst_element_release_request_pad (demux->session, stream->rtcppad);
-    }
-    gst_object_unref (stream->rtcppad);
-    stream->rtcppad = NULL;
   }
   if (stream->srcpad) {
     gst_pad_set_active (stream->srcpad, FALSE);
@@ -418,8 +400,6 @@ gst_sdp_demux_create_stream (GstSDPDemux * demux, GstSDPMessage * sdp, gint idx)
     s = gst_caps_get_structure (stream->caps, 0);
     gst_structure_set_name (s, "application/x-rtp");
 
-    gst_sdp_media_attributes_to_caps (media, stream->caps);
-
     if (stream->pt >= 96) {
       /* If we have a dynamic payload type, see if we have a stream with the
        * same payload number. If there is one, they are part of the same
@@ -430,16 +410,9 @@ gst_sdp_demux_create_stream (GstSDPDemux * demux, GstSDPMessage * sdp, gint idx)
       }
     }
   }
-
-  if (gst_sdp_media_connections_len (media) > 0) {
-    if (!(conn = gst_sdp_media_get_connection (media, 0))) {
-      /* We should not reach this based on the check above */
+  if (!(conn = gst_sdp_media_get_connection (media, 0))) {
+    if (!(conn = gst_sdp_message_get_connection (sdp)))
       goto no_connection;
-    }
-  } else {
-    if (!(conn = gst_sdp_message_get_connection (sdp))) {
-      goto no_connection;
-    }
   }
 
   if (!conn->address)
@@ -516,7 +489,7 @@ new_session_pad (GstElement * session, GstPad * pad, GstSDPDemux * demux)
 {
   gchar *name, *pad_name;
   GstPadTemplate *template;
-  guint id, ssrc, pt;
+  gint id, ssrc, pt;
   GList *lstream;
   GstSDPStream *stream;
   gboolean all_added;
@@ -529,14 +502,12 @@ new_session_pad (GstElement * session, GstPad * pad, GstSDPDemux * demux)
   if (sscanf (name, "recv_rtp_src_%u_%u_%u", &id, &ssrc, &pt) != 3)
     goto unknown_stream;
 
-  GST_DEBUG_OBJECT (demux, "stream: %u, SSRC %u, PT %u", id, ssrc, pt);
+  GST_DEBUG_OBJECT (demux, "stream: %u, SSRC %d, PT %d", id, ssrc, pt);
 
   stream =
-      find_stream (demux, GUINT_TO_POINTER (id), (gpointer) find_stream_by_id);
+      find_stream (demux, GINT_TO_POINTER (id), (gpointer) find_stream_by_id);
   if (stream == NULL)
     goto unknown_stream;
-
-  stream->ssrc = ssrc;
 
   /* no need for a timeout anymore now */
   g_object_set (G_OBJECT (stream->udpsrc[0]), "timeout", (guint64) 0, NULL);
@@ -640,7 +611,7 @@ unknown_stream:
 }
 
 static void
-gst_sdp_demux_do_stream_eos (GstSDPDemux * demux, guint session, guint32 ssrc)
+gst_sdp_demux_do_stream_eos (GstSDPDemux * demux, guint session)
 {
   GstSDPStream *stream;
 
@@ -655,9 +626,6 @@ gst_sdp_demux_do_stream_eos (GstSDPDemux * demux, guint session, guint32 ssrc)
 
   if (stream->eos)
     goto was_eos;
-
-  if (stream->ssrc != ssrc)
-    goto wrong_ssrc;
 
   stream->eos = TRUE;
   gst_sdp_demux_stream_push_event (demux, stream, gst_event_new_eos ());
@@ -674,11 +642,6 @@ was_eos:
     GST_DEBUG_OBJECT (demux, "stream for session %u was already EOS", session);
     return;
   }
-wrong_ssrc:
-  {
-    GST_DEBUG_OBJECT (demux, "unkown SSRC %08x for session %u", ssrc, session);
-    return;
-  }
 }
 
 static void
@@ -688,7 +651,7 @@ on_bye_ssrc (GstElement * manager, guint session, guint32 ssrc,
   GST_DEBUG_OBJECT (demux, "SSRC %08x in session %u received BYE", ssrc,
       session);
 
-  gst_sdp_demux_do_stream_eos (demux, session, ssrc);
+  gst_sdp_demux_do_stream_eos (demux, session);
 }
 
 static void
@@ -697,7 +660,7 @@ on_timeout (GstElement * manager, guint session, guint32 ssrc,
 {
   GST_DEBUG_OBJECT (demux, "SSRC %08x in session %u timed out", ssrc, session);
 
-  gst_sdp_demux_do_stream_eos (demux, session, ssrc);
+  gst_sdp_demux_do_stream_eos (demux, session);
 }
 
 /* try to get and configure a manager */
@@ -802,8 +765,7 @@ gst_sdp_demux_stream_configure_udp (GstSDPDemux * demux, GstSDPStream * stream)
     pad = gst_element_get_static_pad (stream->udpsrc[0], "src");
 
     name = g_strdup_printf ("recv_rtp_sink_%u", stream->id);
-    stream->channelpad[0] =
-        gst_element_request_pad_simple (demux->session, name);
+    stream->channelpad[0] = gst_element_get_request_pad (demux->session, name);
     g_free (name);
 
     GST_DEBUG_OBJECT (demux, "connecting RTP source 0 to manager");
@@ -833,8 +795,7 @@ gst_sdp_demux_stream_configure_udp (GstSDPDemux * demux, GstSDPStream * stream)
     GST_DEBUG_OBJECT (demux, "connecting RTCP source to manager");
 
     name = g_strdup_printf ("recv_rtcp_sink_%u", stream->id);
-    stream->channelpad[1] =
-        gst_element_request_pad_simple (demux->session, name);
+    stream->channelpad[1] = gst_element_get_request_pad (demux->session, name);
     g_free (name);
 
     pad = gst_element_get_static_pad (stream->udpsrc[1], "src");
@@ -858,7 +819,7 @@ static gboolean
 gst_sdp_demux_stream_configure_udp_sink (GstSDPDemux * demux,
     GstSDPStream * stream)
 {
-  GstPad *sinkpad;
+  GstPad *pad, *sinkpad;
   gint port;
   GSocket *socket;
   gchar *destination, *uri, *name;
@@ -910,18 +871,20 @@ gst_sdp_demux_stream_configure_udp_sink (GstSDPDemux * demux,
 
   /* get session RTCP pad */
   name = g_strdup_printf ("send_rtcp_src_%u", stream->id);
-  stream->rtcppad = gst_element_request_pad_simple (demux->session, name);
+  pad = gst_element_get_request_pad (demux->session, name);
   g_free (name);
 
   /* and link */
-  if (stream->rtcppad) {
+  if (pad) {
     sinkpad = gst_element_get_static_pad (stream->udpsink, "sink");
-    gst_pad_link (stream->rtcppad, sinkpad);
+    gst_pad_link (pad, sinkpad);
+    gst_object_unref (pad);
     gst_object_unref (sinkpad);
   } else {
     /* not very fatal, we just won't be able to send RTCP */
     GST_WARNING_OBJECT (demux, "could not get session RTCP pad");
   }
+
 
   return TRUE;
 

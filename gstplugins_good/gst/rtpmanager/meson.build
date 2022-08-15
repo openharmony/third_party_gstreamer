@@ -3,8 +3,6 @@ rtpmanager_sources = [
   'gstrtpbin.c',
   'gstrtpdtmfmux.c',
   'gstrtpjitterbuffer.c',
-  'gstrtphdrext-twcc.c',
-  'gstrtphdrext-clientaudiolevel.c',
   'gstrtpmux.c',
   'gstrtpptdemux.c',
   'gstrtprtxqueue.c',
@@ -15,21 +13,16 @@ rtpmanager_sources = [
   'rtpsession.c',
   'rtpsource.c',
   'rtpstats.c',
-  'rtptimerqueue.c',
-  'rtptwcc.c',
   'gstrtpsession.c',
   'gstrtpfunnel.c',
-  'gstrtpst2022-1-fecdec.c',
-  'gstrtpst2022-1-fecenc.c'
 ]
 
 gstrtpmanager = library('gstrtpmanager',
   rtpmanager_sources,
   c_args : gst_plugins_good_args,
   include_directories : [configinc, libsinc],
-  dependencies : [gstbase_dep, gstnet_dep, gstrtp_dep, gstaudio_dep, gio_dep],
+  dependencies : [gstbase_dep, gstnet_dep, gstrtp_dep, gio_dep],
   install : true,
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstrtpmanager, install_dir : plugins_pkgconfig_install_dir)
-plugins += [gstrtpmanager]

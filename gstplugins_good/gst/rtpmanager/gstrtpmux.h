@@ -51,7 +51,8 @@ typedef struct
 } GstRTPMuxPadPrivate;
 
 
-/* GstRTPMux:
+/**
+ * GstRTPMux:
  *
  * The opaque #GstRTPMux structure.
  */
@@ -88,9 +89,9 @@ struct _GstRTPMuxClass
   gboolean (*src_event) (GstRTPMux *rtp_mux, GstEvent *event);
 };
 
-GType gst_rtp_mux_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (rtpmux);
+GType gst_rtp_mux_get_type (void);
+gboolean gst_rtp_mux_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 #endif /* __GST_RTP_MUX_H__ */

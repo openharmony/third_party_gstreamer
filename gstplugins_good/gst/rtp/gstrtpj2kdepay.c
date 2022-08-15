@@ -20,7 +20,6 @@
 
  /**
  * SECTION:element-rtpj2kdepay
- * @title: rtpj2kdepay
  *
  * Depayload an RTP-payloaded JPEG 2000 image into RTP packets according to RFC 5371
  * and RFC 5372.
@@ -37,7 +36,6 @@
 #include <gst/video/video.h>
 
 #include <string.h>
-#include "gstrtpelements.h"
 #include "gstrtpj2kcommon.h"
 #include "gstrtpj2kdepay.h"
 #include "gstrtputils.h"
@@ -75,8 +73,6 @@ enum
 
 #define gst_rtp_j2k_depay_parent_class parent_class
 G_DEFINE_TYPE (GstRtpJ2KDepay, gst_rtp_j2k_depay, GST_TYPE_RTP_BASE_DEPAYLOAD);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpj2kdepay, "rtpj2kdepay",
-    GST_RANK_SECONDARY, GST_TYPE_RTP_J2K_DEPAY, rtp_element_init (plugin));
 
 static void gst_rtp_j2k_depay_finalize (GObject * object);
 
@@ -661,4 +657,11 @@ gst_rtp_j2k_depay_change_state (GstElement * element, GstStateChange transition)
       break;
   }
   return ret;
+}
+
+gboolean
+gst_rtp_j2k_depay_plugin_init (GstPlugin * plugin)
+{
+  return gst_element_register (plugin, "rtpj2kdepay",
+      GST_RANK_SECONDARY, GST_TYPE_RTP_J2K_DEPAY);
 }

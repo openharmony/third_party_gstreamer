@@ -46,6 +46,7 @@ typedef struct _GstGLUploadElementPrivate GstGLUploadElementPrivate;
  */
 struct _GstGLUploadElement
 {
+  /* <private> */
   GstGLBaseFilter     parent;
 
   GstGLUpload *upload;

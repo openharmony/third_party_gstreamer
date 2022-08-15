@@ -35,7 +35,5 @@ GType
 gst_bz2enc_get_type (void)
     G_GNUC_CONST;
 
-GST_ELEMENT_REGISTER_DECLARE (bz2enc);
-
 G_END_DECLS
 #endif /* __GST_BZ2ENC_H__ */

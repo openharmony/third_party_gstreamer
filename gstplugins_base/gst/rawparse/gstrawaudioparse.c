@@ -29,6 +29,11 @@
  * (= 408 bytes) and keep the remaining 3 bytes. These will then be prepended to
  * the next input data.
  *
+ * The element implements the properties and sink caps configuration as specified
+ * in the #GstRawBaseParse documentation. The properties configuration can be
+ * modified by using the sample-rate, num-channels, channel-positions, format,
+ * and pcm-format properties.
+ *
  * Currently, this parser supports raw data in a-law, mu-law, or linear PCM format.
  *
  * To facilitate operation with the unalignedaudioparse element, rawaudioparse
@@ -77,7 +82,6 @@
 #define GLIB_DISABLE_DEPRECATION_WARNINGS
 
 #include <string.h>
-#include "gstrawparseelements.h"
 #include "gstrawaudioparse.h"
 #include "unalignedaudio.h"
 
@@ -123,8 +127,6 @@ GST_STATIC_PAD_TEMPLATE ("src",
 
 #define gst_raw_audio_parse_parent_class parent_class
 G_DEFINE_TYPE (GstRawAudioParse, gst_raw_audio_parse, GST_TYPE_RAW_BASE_PARSE);
-GST_ELEMENT_REGISTER_DEFINE (rawaudioparse, "rawaudioparse",
-    GST_RANK_NONE, GST_TYPE_RAW_AUDIO_PARSE);
 
 static void gst_raw_audio_parse_set_property (GObject * object, guint prop_id,
     GValue const *value, GParamSpec * pspec);
@@ -228,7 +230,7 @@ gst_raw_audio_parse_class_init (GstRawAudioParseClass * klass)
       g_param_spec_enum ("format",
           "Format",
           "Format of the raw audio stream",
-          GST_TYPE_RAW_AUDIO_PARSE_FORMAT,
+          gst_raw_audio_parse_format_get_type (),
           GST_RAW_AUDIO_PARSE_FORMAT_PCM,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)
       );
@@ -283,8 +285,6 @@ gst_raw_audio_parse_class_init (GstRawAudioParseClass * klass)
       "Codec/Parser/Audio",
       "Converts unformatted data streams into timestamped raw audio frames",
       "Carlos Rafael Giani <dv@pseudoterminal.org>");
-
-  gst_type_mark_as_plugin_api (GST_TYPE_RAW_AUDIO_PARSE_FORMAT, 0);
 }
 
 static void

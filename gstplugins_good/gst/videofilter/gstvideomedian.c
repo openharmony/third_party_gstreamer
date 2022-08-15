@@ -76,8 +76,6 @@ gst_video_median_size_get_type (void)
 
 #define gst_video_median_parent_class parent_class
 G_DEFINE_TYPE (GstVideoMedian, gst_video_median, GST_TYPE_VIDEO_FILTER);
-GST_ELEMENT_REGISTER_DEFINE (videomedian, "videomedian",
-    GST_RANK_NONE, GST_TYPE_VIDEO_MEDIAN);
 
 static GstFlowReturn gst_video_median_transform_frame (GstVideoFilter * filter,
     GstVideoFrame * in_frame, GstVideoFrame * out_frame);
@@ -121,8 +119,6 @@ gst_video_median_class_init (GstVideoMedianClass * klass)
 
   vfilter_class->transform_frame =
       GST_DEBUG_FUNCPTR (gst_video_median_transform_frame);
-
-  gst_type_mark_as_plugin_api (GST_TYPE_VIDEO_MEDIAN_SIZE, 0);
 }
 
 void

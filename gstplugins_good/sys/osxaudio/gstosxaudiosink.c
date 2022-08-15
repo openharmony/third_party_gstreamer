@@ -49,15 +49,15 @@
 
 /**
  * SECTION:element-osxaudiosink
- * @title: osxaudiosink
  *
  * This element renders raw audio samples using the CoreAudio api.
  *
- * ## Example pipelines
+ * <refsect2>
+ * <title>Example pipelines</title>
  * |[
  * gst-launch-1.0 filesrc location=sine.ogg ! oggdemux ! vorbisdec ! audioconvert ! audioresample ! osxaudiosink
  * ]| Play an Ogg/Vorbis file.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -191,9 +191,9 @@ gst_osx_audio_sink_class_init (GstOsxAudioSinkClass * klass)
 
   gst_element_class_add_static_pad_template (gstelement_class, &sink_factory);
 
-  gst_element_class_set_static_metadata (gstelement_class, "Audio Sink (macOS)",
+  gst_element_class_set_static_metadata (gstelement_class, "Audio Sink (OSX)",
       "Sink/Audio",
-      "Output to a sound card on macOS",
+      "Output to a sound card in OS X",
       "Zaheer Abbas Merali <zaheerabbas at merali dot org>");
 }
 

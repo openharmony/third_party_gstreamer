@@ -20,22 +20,34 @@
  */
 /**
  * SECTION:element-cutter
- * @title: cutter
  *
  * Analyses the audio signal for periods of silence. The start and end of
  * silence is signalled by bus messages named
- * `cutter`.
- *
+ * <classname>&quot;cutter&quot;</classname>.
  * The message's structure contains two fields:
+ * <itemizedlist>
+ * <listitem>
+ *   <para>
+ *   #GstClockTime
+ *   <classname>&quot;timestamp&quot;</classname>:
+ *   the timestamp of the buffer that triggered the message.
+ *   </para>
+ * </listitem>
+ * <listitem>
+ *   <para>
+ *   gboolean
+ *   <classname>&quot;above&quot;</classname>:
+ *   %TRUE for begin of silence and %FALSE for end of silence.
+ *   </para>
+ * </listitem>
+ * </itemizedlist>
  *
- * * #GstClockTime `timestamp`: the timestamp of the buffer that triggered the message.
- * * gboolean `above`: %TRUE for begin of silence and %FALSE for end of silence.
- *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 -m filesrc location=foo.ogg ! decodebin ! audioconvert ! cutter ! autoaudiosink
  * ]| Show cut messages.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -84,7 +96,6 @@ enum
 
 #define gst_cutter_parent_class parent_class
 G_DEFINE_TYPE (GstCutter, gst_cutter, GST_TYPE_ELEMENT);
-GST_ELEMENT_REGISTER_DEFINE (cutter, "cutter", GST_RANK_NONE, GST_TYPE_CUTTER);
 
 static GstStateChangeReturn
 gst_cutter_change_state (GstElement * element, GstStateChange transition);
@@ -488,7 +499,10 @@ gst_cutter_get_property (GObject * object, guint prop_id,
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (cutter, plugin);
+  if (!gst_element_register (plugin, "cutter", GST_RANK_NONE, GST_TYPE_CUTTER))
+    return FALSE;
+
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

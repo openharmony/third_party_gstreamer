@@ -52,34 +52,6 @@ GType gst_gl_display_get_type (void);
  * @GST_GL_DISPLAY_TYPE_GBM: Mesa3D GBM display
  * @GST_GL_DISPLAY_TYPE_ANY: any display type
  */
-/**
- * GST_GL_DISPLAY_TYPE_EGL_DEVICE:
- *
- * EGLDevice display.
- *
- * Since: 1.18
- */
-/**
- * GST_GL_DISPLAY_TYPE_EAGL:
- *
- * EAGL display.
- *
- * Since: 1.20
- */
-/**
- * GST_GL_DISPLAY_TYPE_WINRT:
- *
- * WinRT display.
- *
- * Since: 1.20
- */
-/**
- * GST_GL_DISPLAY_TYPE_ANDROID:
- *
- * Android display.
- *
- * Since: 1.20
- */
 typedef enum
 {
   GST_GL_DISPLAY_TYPE_NONE = 0,
@@ -91,10 +63,6 @@ typedef enum
   GST_GL_DISPLAY_TYPE_EGL = (1 << 5),
   GST_GL_DISPLAY_TYPE_VIV_FB = (1 << 6),
   GST_GL_DISPLAY_TYPE_GBM = (1 << 7),
-  GST_GL_DISPLAY_TYPE_EGL_DEVICE = (1 << 8),
-  GST_GL_DISPLAY_TYPE_EAGL = (1 << 9),
-  GST_GL_DISPLAY_TYPE_WINRT = (1 << 10),
-  GST_GL_DISPLAY_TYPE_ANDROID = (1 << 11),
 
   GST_GL_DISPLAY_TYPE_ANY = G_MAXUINT32
 } GstGLDisplayType;
@@ -107,13 +75,13 @@ typedef enum
  */
 struct _GstGLDisplay
 {
-  /*< private >*/
+  /* <private> */
   GstObject             object;
 
   GstGLDisplayType      type;
 
-  /*< protected >*/
-  GList                    *windows;        /* internal lock, use *_window functions instead */
+  /* <protected> */
+  GList                    *windows;        /* OBJECT lock */
   GMainContext             *main_context;
   GMainLoop                *main_loop;
   GSource                  *event_source;
@@ -125,17 +93,15 @@ struct _GstGLDisplayClass
 {
   GstObjectClass object_class;
 
-  guintptr          (*get_handle)           (GstGLDisplay * display);
-  GstGLWindow *     (*create_window)        (GstGLDisplay * display);
+  guintptr          (*get_handle)      (GstGLDisplay * display);
+  GstGLWindow *     (*create_window)    (GstGLDisplay * display);
 
-  /*< private >*/
+  /* <private> */
   gpointer _padding[GST_PADDING];
 };
 
 GST_GL_API
 GstGLDisplay *gst_gl_display_new (void);
-GST_GL_API
-GstGLDisplay *gst_gl_display_new_with_type (GstGLDisplayType type);
 
 #define gst_gl_display_lock(display)        GST_OBJECT_LOCK (display)
 #define gst_gl_display_unlock(display)      GST_OBJECT_UNLOCK (display)
@@ -170,20 +136,15 @@ GST_GL_API
 GstGLContext * gst_gl_display_get_gl_context_for_thread (GstGLDisplay * display,
     GThread * thread);
 GST_GL_API
-gboolean        gst_gl_display_add_context      (GstGLDisplay * display,
-                                                 GstGLContext * context);
-GST_GL_API
-void            gst_gl_display_remove_context   (GstGLDisplay * display,
-                                                 GstGLContext * context);
+gboolean gst_gl_display_add_context (GstGLDisplay * display,
+    GstGLContext * context);
 
 GST_GL_API
 GstGLWindow *   gst_gl_display_create_window    (GstGLDisplay * display);
 GST_GL_API
 gboolean        gst_gl_display_remove_window    (GstGLDisplay * display, GstGLWindow * window);
-GST_GL_API G_DEPRECATED_FOR(gst_gl_display_retrieve_window)
-GstGLWindow *   gst_gl_display_find_window      (GstGLDisplay * display, gpointer data, GCompareFunc compare_func);
 GST_GL_API
-GstGLWindow *   gst_gl_display_retrieve_window  (GstGLDisplay * display, gpointer data, GCompareFunc compare_func);
+GstGLWindow *   gst_gl_display_find_window      (GstGLDisplay * display, gpointer data, GCompareFunc compare_func);
 
 G_END_DECLS
 

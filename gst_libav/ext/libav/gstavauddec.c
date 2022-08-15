@@ -57,8 +57,7 @@ static GstFlowReturn gst_ffmpegauddec_handle_frame (GstAudioDecoder * decoder,
 static gboolean gst_ffmpegauddec_negotiate (GstFFMpegAudDec * ffmpegdec,
     AVCodecContext * context, AVFrame * frame, gboolean force);
 
-static GstFlowReturn gst_ffmpegauddec_drain (GstFFMpegAudDec * ffmpegdec,
-    gboolean force);
+static void gst_ffmpegauddec_drain (GstFFMpegAudDec * ffmpegdec);
 
 #define GST_FFDEC_PARAMS_QDATA g_quark_from_static_string("avdec-params")
 
@@ -168,7 +167,12 @@ gst_ffmpegauddec_finalize (GObject * object)
   GstFFMpegAudDec *ffmpegdec = (GstFFMpegAudDec *) object;
 
   av_frame_free (&ffmpegdec->frame);
-  avcodec_free_context (&ffmpegdec->context);
+
+  if (ffmpegdec->context != NULL) {
+    gst_ffmpeg_avcodec_close (ffmpegdec->context);
+    av_free (ffmpegdec->context);
+    ffmpegdec->context = NULL;
+  }
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -188,12 +192,14 @@ gst_ffmpegauddec_close (GstFFMpegAudDec * ffmpegdec, gboolean reset)
   gst_ffmpeg_avcodec_close (ffmpegdec->context);
   ffmpegdec->opened = FALSE;
 
-  av_freep (&ffmpegdec->context->extradata);
+  if (ffmpegdec->context->extradata) {
+    av_free (ffmpegdec->context->extradata);
+    ffmpegdec->context->extradata = NULL;
+  }
 
   if (reset) {
-    avcodec_free_context (&ffmpegdec->context);
-    ffmpegdec->context = avcodec_alloc_context3 (oclass->in_plugin);
-    if (ffmpegdec->context == NULL) {
+    if (avcodec_get_context_defaults3 (ffmpegdec->context,
+            oclass->in_plugin) < 0) {
       GST_DEBUG_OBJECT (ffmpegdec, "Failed to set context defaults");
       return FALSE;
     }
@@ -212,9 +218,8 @@ gst_ffmpegauddec_start (GstAudioDecoder * decoder)
   oclass = (GstFFMpegAudDecClass *) (G_OBJECT_GET_CLASS (ffmpegdec));
 
   GST_OBJECT_LOCK (ffmpegdec);
-  avcodec_free_context (&ffmpegdec->context);
-  ffmpegdec->context = avcodec_alloc_context3 (oclass->in_plugin);
-  if (ffmpegdec->context == NULL) {
+  gst_ffmpeg_avcodec_close (ffmpegdec->context);
+  if (avcodec_get_context_defaults3 (ffmpegdec->context, oclass->in_plugin) < 0) {
     GST_DEBUG_OBJECT (ffmpegdec, "Failed to set context defaults");
     GST_OBJECT_UNLOCK (ffmpegdec);
     return FALSE;
@@ -314,7 +319,7 @@ gst_ffmpegauddec_set_format (GstAudioDecoder * decoder, GstCaps * caps)
   /* close old session */
   if (ffmpegdec->opened) {
     GST_OBJECT_UNLOCK (ffmpegdec);
-    gst_ffmpegauddec_drain (ffmpegdec, FALSE);
+    gst_ffmpegauddec_drain (ffmpegdec);
     GST_OBJECT_LOCK (ffmpegdec);
     if (!gst_ffmpegauddec_close (ffmpegdec, TRUE)) {
       GST_OBJECT_UNLOCK (ffmpegdec);
@@ -487,7 +492,7 @@ gst_ffmpegauddec_audio_frame (GstFFMpegAudDec * ffmpegdec,
     channels = ffmpegdec->info.channels;
     nsamples = ffmpegdec->frame->nb_samples;
     byte_per_sample = ffmpegdec->info.finfo->width / 8;
-    planar = av_sample_fmt_is_planar (ffmpegdec->frame->format);
+    planar = av_sample_fmt_is_planar (ffmpegdec->context->sample_fmt);
 
     g_return_val_if_fail (ffmpegdec->info.layout == (planar ?
             GST_AUDIO_LAYOUT_NON_INTERLEAVED : GST_AUDIO_LAYOUT_INTERLEAVED),
@@ -589,45 +594,38 @@ no_codec:
   }
 }
 
-static GstFlowReturn
-gst_ffmpegauddec_drain (GstFFMpegAudDec * ffmpegdec, gboolean force)
+static void
+gst_ffmpegauddec_drain (GstFFMpegAudDec * ffmpegdec)
 {
-  GstFlowReturn ret = GST_FLOW_OK;
+  GstFFMpegAudDecClass *oclass;
   gboolean got_any_frames = FALSE;
-  gboolean got_frame;
 
-  if (avcodec_send_packet (ffmpegdec->context, NULL))
-    goto send_packet_failed;
+  oclass = (GstFFMpegAudDecClass *) (G_OBJECT_GET_CLASS (ffmpegdec));
 
-  do {
-    got_frame = gst_ffmpegauddec_frame (ffmpegdec, &ret);
-    if (got_frame)
-      got_any_frames = TRUE;
-  } while (got_frame);
-  avcodec_flush_buffers (ffmpegdec->context);
+  if (oclass->in_plugin->capabilities & AV_CODEC_CAP_DELAY) {
+    gboolean got_frame;
 
-  /* FFMpeg will return AVERROR_EOF if it's internal was fully drained
-   * then we are translating it to GST_FLOW_EOS. However, because this behavior
-   * is fully internal stuff of this implementation and gstaudiodecoder
-   * baseclass doesn't convert this GST_FLOW_EOS to GST_FLOW_OK,
-   * convert this flow returned here */
-  if (ret == GST_FLOW_EOS)
-    ret = GST_FLOW_OK;
+    GST_LOG_OBJECT (ffmpegdec,
+        "codec has delay capabilities, calling until libav has drained everything");
 
-  if (got_any_frames || force) {
-    GstFlowReturn new_ret =
-        gst_audio_decoder_finish_frame (GST_AUDIO_DECODER (ffmpegdec), NULL, 1);
+    if (avcodec_send_packet (ffmpegdec->context, NULL))
+      goto send_packet_failed;
 
-    if (ret == GST_FLOW_OK)
-      ret = new_ret;
+    do {
+      GstFlowReturn ret;
+
+      got_frame = gst_ffmpegauddec_frame (ffmpegdec, &ret);
+      if (got_frame)
+        got_any_frames = TRUE;
+    } while (got_frame);
+    avcodec_flush_buffers (ffmpegdec->context);
   }
 
-done:
-  return ret;
+  if (got_any_frames)
+    gst_audio_decoder_finish_frame (GST_AUDIO_DECODER (ffmpegdec), NULL, 1);
 
 send_packet_failed:
   GST_WARNING_OBJECT (ffmpegdec, "send packet failed, could not drain decoder");
-  goto done;
 }
 
 static void
@@ -660,7 +658,8 @@ gst_ffmpegauddec_handle_frame (GstAudioDecoder * decoder, GstBuffer * inbuf)
     goto not_negotiated;
 
   if (inbuf == NULL) {
-    return gst_ffmpegauddec_drain (ffmpegdec, FALSE);
+    gst_ffmpegauddec_drain (ffmpegdec);
+    return GST_FLOW_OK;
   }
 
   inbuf = gst_buffer_ref (inbuf);
@@ -708,10 +707,24 @@ gst_ffmpegauddec_handle_frame (GstAudioDecoder * decoder, GstBuffer * inbuf)
 
   gst_avpacket_init (&packet, data, size);
 
+/* ohos.opt.memleak.0002 */
+#ifdef OHOS_OPT_MEMLEAK
+  if (!packet.size) {
+    gst_buffer_unmap (inbuf, &map);
+    gst_buffer_unref (inbuf);
+    goto done;
+  }
+#else
   if (!packet.size)
-    goto unmap;
+    goto done;
+#endif
 
   if (avcodec_send_packet (ffmpegdec->context, &packet) < 0) {
+/* ohos.opt.memleak.0002 */
+#ifdef OHOS_OPT_MEMLEAK
+    gst_buffer_unmap (inbuf, &map);
+    gst_buffer_unref (inbuf);
+#endif
     goto send_packet_failed;
   }
 
@@ -730,24 +743,13 @@ gst_ffmpegauddec_handle_frame (GstAudioDecoder * decoder, GstBuffer * inbuf)
     }
   } while (got_frame);
 
-  if (is_header || got_any_frames) {
-    /* Even if previous return wasn't GST_FLOW_OK, we need to call
-     * _finish_frame() since baseclass is expecting that _finish_frame()
-     * is followed by _finish_subframe()
-     */
-    GstFlowReturn new_ret =
-        gst_audio_decoder_finish_frame (GST_AUDIO_DECODER (ffmpegdec), NULL, 1);
-
-    /* Only override the flow return value if previously did have a GST_FLOW_OK.
-     * Failure to do this would result in skipping downstream issues caught in
-     * earlier steps. */
-    if (ret == GST_FLOW_OK)
-      ret = new_ret;
-  }
-
-unmap:
   gst_buffer_unmap (inbuf, &map);
   gst_buffer_unref (inbuf);
+
+  if (is_header || got_any_frames) {
+    ret =
+        gst_audio_decoder_finish_frame (GST_AUDIO_DECODER (ffmpegdec), NULL, 1);
+  }
 
 done:
   return ret;
@@ -766,12 +768,7 @@ not_negotiated:
 send_packet_failed:
   {
     GST_WARNING_OBJECT (ffmpegdec, "decoding error");
-    /* Even if ffmpeg was not able to decode current audio frame,
-     * we should call gst_audio_decoder_finish_frame() so that baseclass
-     * can clear its internal status and can respect timestamp of later
-     * incoming buffers */
-    ret = gst_ffmpegauddec_drain (ffmpegdec, TRUE);
-    goto unmap;
+    goto done;
   }
 }
 
@@ -830,7 +827,7 @@ gst_ffmpegauddec_register (GstPlugin * plugin)
     /* MP2 : Use MP3 for decoding */
     /* Theora: Use libtheora based theoradec */
 #ifdef OHOS_OPT_COMPAT
-    /* ohos.opt.compat.0031 enable to use avdec_vorbis */
+    /* enable to use avdec_vorbis */
     if (!strcmp (in_plugin->name, "wavpack") ||
 #else
     if (!strcmp (in_plugin->name, "vorbis") ||

@@ -47,6 +47,8 @@ struct _GstRtpPcmuPayClass
 
 GType gst_rtp_pcmu_pay_get_type (void);
 
+gboolean gst_rtp_pcmu_pay_plugin_init (GstPlugin * plugin);
+
 G_END_DECLS
 
 #endif /* __GST_RTP_PCMU_PAY_H__ */

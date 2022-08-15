@@ -32,7 +32,7 @@
 #include <gst/video/video.h>
 #include <gst/gl/gstglcontext.h>
 #include "coremediabuffer.h"
-#include "videotexturecache-gl.h"
+#include "videotexturecache.h"
 
 #define DEFAULT_DEVICE_INDEX  -1
 #define DEFAULT_POSITION      GST_AVF_VIDEO_SOURCE_POSITION_DEFAULT
@@ -410,7 +410,7 @@ static AVCaptureVideoOrientation GstAVFVideoSourceOrientation2AVCaptureVideoOrie
 
   } @catch (NSException *exception) {
     if (![[exception name] isEqualToString:NSUndefinedKeyException]) {
-      GST_WARNING ("An unexpected error occurred: %s",
+      GST_WARNING ("An unexpected error occured: %s",
                    [[exception reason] UTF8String]);
     }
     GST_WARNING ("Capturing cursor is only supported in OS X >= 10.8");
@@ -427,12 +427,9 @@ static AVCaptureVideoOrientation GstAVFVideoSourceOrientation2AVCaptureVideoOrie
 
   GST_DEBUG_OBJECT (element, "Opening device");
 
-  // Since Mojave, permissions are now supposed to be explicitly granted 
+  // Since Mojave, permissions are now supposed to be explicitly granted
   // before performing anything on a device
   if (@available(macOS 10.14, *)) {
-    if (captureScreen)
-      goto checked;
-
     // Check if permission has already been granted (or denied)
     AVAuthorizationStatus authStatus = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
     switch (authStatus) {
@@ -452,24 +449,13 @@ static AVCaptureVideoOrientation GstAVFVideoSourceOrientation2AVCaptureVideoOrie
         GST_DEBUG_OBJECT (element, "Device video access permission has already been granted");
         break;
       case AVAuthorizationStatusNotDetermined:
-        ;
         // Explicit user permission is required for media capture,
         // but the user has not yet granted or denied such permission.
-        dispatch_semaphore_t sema = dispatch_semaphore_create(0);
         dispatch_sync (mainQueue, ^{
           [AVCaptureDevice requestAccessForMediaType:AVMediaTypeVideo completionHandler:^(BOOL granted) {
             GST_DEBUG_OBJECT (element, "Device video access permission %s", granted ? "granted" : "not granted");
-            dispatch_semaphore_signal(sema);
           }];
         });
-        // Block on dialog being answered
-        if (![NSThread isMainThread]) {
-            dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
-        } else {
-            while (dispatch_semaphore_wait(sema, DISPATCH_TIME_NOW)) {
-                [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0]];
-            }
-        }
         // Check if permission has been granted
         AVAuthorizationStatus videoAuthorizationStatus = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
         if (videoAuthorizationStatus != AVAuthorizationStatusAuthorized) {
@@ -480,7 +466,6 @@ static AVCaptureVideoOrientation GstAVFVideoSourceOrientation2AVCaptureVideoOrie
     }
   }
 
-checked:
   dispatch_sync (mainQueue, ^{
     BOOL ret;
 
@@ -664,16 +649,12 @@ checked:
               [device setValue:frame_duration_value forKey:@"activeVideoMaxFrameDuration"];
             } @catch (NSException *exception) {
               if (![[exception name] isEqualToString:NSUndefinedKeyException]) {
-                GST_WARNING ("An unexcepted error occurred: %s",
+                GST_WARNING ("An unexcepted error occured: %s",
                               [exception.reason UTF8String]);
               }
             }
             break;
           }
-        }
-
-        if (found_framerate) {
-          break;
         }
       }
     }
@@ -792,7 +773,7 @@ checked:
     result = gst_caps_merge (result, [self getDeviceCaps]);
   } @catch (NSException *exception) {
     if (![[exception name] isEqualToString:NSUndefinedKeyException]) {
-      GST_WARNING ("An unexcepted error occurred: %s", [exception.reason UTF8String]);
+      GST_WARNING ("An unexcepted error occured: %s", [exception.reason UTF8String]);
       return result;
     }
 
@@ -839,7 +820,7 @@ checked:
       } @catch (NSException *exception) {
 
         if (![[exception name] isEqualToString:NSUndefinedKeyException]) {
-          GST_WARNING ("An unexcepted error occurred: %s", [exception.reason UTF8String]);
+          GST_WARNING ("An unexcepted error occured: %s", [exception.reason UTF8String]);
           *successPtr = NO;
           return;
         }
@@ -918,7 +899,7 @@ checked:
   bufQueue = nil;
 
   if (textureCache)
-    g_object_unref (textureCache);
+    gst_video_texture_cache_free (textureCache);
   textureCache = NULL;
 
   if (ctxh)
@@ -1107,19 +1088,14 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
   gst_query_parse_allocation (query, &alloc_caps, NULL);
   features = gst_caps_get_features (alloc_caps, 0);
   if (gst_caps_features_contains (features, GST_CAPS_FEATURE_MEMORY_GL_MEMORY)) {
-    GstVideoTextureCacheGL *cache_gl;
-
-    cache_gl = textureCache ? GST_VIDEO_TEXTURE_CACHE_GL (textureCache) : NULL;
-
     gst_gl_context_helper_ensure_context (ctxh);
     GST_INFO_OBJECT (element, "pushing textures, context %p old context %p",
-        ctxh->context, cache_gl ? cache_gl->ctx : NULL);
-    if (cache_gl && cache_gl->ctx != ctxh->context) {
-      g_object_unref (textureCache);
+        ctxh->context, textureCache ? textureCache->ctx : NULL);
+    if (textureCache && textureCache->ctx != ctxh->context) {
+      gst_video_texture_cache_free (textureCache);
       textureCache = NULL;
     }
-    if (!textureCache)
-      textureCache = gst_video_texture_cache_gl_new (ctxh->context);
+    textureCache = gst_video_texture_cache_new (ctxh->context);
     gst_video_texture_cache_set_format (textureCache, format, alloc_caps);
   }
 
@@ -1357,10 +1333,6 @@ gst_avf_video_src_class_init (GstAVFVideoSrcClass * klass)
 
   GST_DEBUG_CATEGORY_INIT (gst_avf_video_src_debug, "avfvideosrc",
       0, "iOS AVFoundation video source");
-
-  gst_type_mark_as_plugin_api (GST_TYPE_AVF_VIDEO_SOURCE_POSITION, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_AVF_VIDEO_SOURCE_ORIENTATION, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_AVF_VIDEO_SOURCE_DEVICE_TYPE, 0);
 }
 
 static void

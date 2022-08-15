@@ -46,7 +46,7 @@ struct _GstMsdkMemoryID {
 #ifndef _WIN32
   VASurfaceID *surface;
   VAImage image;
-  VADRMPRIMESurfaceDescriptor desc;
+  VABufferInfo info;
 #else
   /* TODO: This is just to avoid compile errors on Windows.
    * Implement handling Windows-specific video-memory.

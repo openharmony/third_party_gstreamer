@@ -20,18 +20,26 @@
 #include <config.h>
 #endif
 
-#include "gstspeexelements.h"
+#include "gstspeexdec.h"
+#include "gstspeexenc.h"
 
+#include <gst/tag/tag.h>
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
 
-  ret |= GST_ELEMENT_REGISTER (speexenc, plugin);
-  ret |= GST_ELEMENT_REGISTER (speexdec, plugin);
+  if (!gst_element_register (plugin, "speexenc", GST_RANK_PRIMARY,
+          GST_TYPE_SPEEX_ENC))
+    return FALSE;
 
-  return ret;
+  if (!gst_element_register (plugin, "speexdec", GST_RANK_PRIMARY,
+          GST_TYPE_SPEEX_DEC))
+    return FALSE;
+
+  gst_tag_register_musicbrainz_tags ();
+
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

@@ -28,9 +28,19 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_AUDIO_RESAMPLE (gst_audio_resample_get_type())
-G_DECLARE_FINAL_TYPE (GstAudioResample, gst_audio_resample, GST, AUDIO_RESAMPLE,
-    GstBaseTransform)
+#define GST_TYPE_AUDIO_RESAMPLE \
+  (gst_audio_resample_get_type())
+#define GST_AUDIO_RESAMPLE(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_AUDIO_RESAMPLE,GstAudioResample))
+#define GST_AUDIO_RESAMPLE_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_AUDIO_RESAMPLE,GstAudioResampleClass))
+#define GST_IS_AUDIO_RESAMPLE(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_AUDIO_RESAMPLE))
+#define GST_IS_AUDIO_RESAMPLE_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_AUDIO_RESAMPLE))
+
+typedef struct _GstAudioResample GstAudioResample;
+typedef struct _GstAudioResampleClass GstAudioResampleClass;
 
 /**
  * GstAudioResample:
@@ -64,7 +74,12 @@ struct _GstAudioResample {
   GstAudioInfo out;
   GstAudioConverter *converter;
 };
-GST_ELEMENT_REGISTER_DECLARE (audioresample);
+
+struct _GstAudioResampleClass {
+  GstBaseTransformClass parent_class;
+};
+
+GType gst_audio_resample_get_type(void);
 
 G_END_DECLS
 

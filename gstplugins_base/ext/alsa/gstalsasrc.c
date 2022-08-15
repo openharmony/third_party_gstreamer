@@ -45,8 +45,8 @@
 #include <getopt.h>
 #include <alsa/asoundlib.h>
 
-#include "gstalsaelements.h"
 #include "gstalsasrc.h"
+#include "gstalsadeviceprobe.h"
 
 #include <gst/gst-i18n-plugin.h>
 
@@ -54,10 +54,9 @@
 #define ESTRPIPE EPIPE
 #endif
 
-#define DEFAULT_PROP_DEVICE		  "default"
-#define DEFAULT_PROP_DEVICE_NAME	  ""
-#define DEFAULT_PROP_CARD_NAME	          ""
-#define DEFAULT_PROP_USE_DRIVER_TIMESTAMP TRUE
+#define DEFAULT_PROP_DEVICE		"default"
+#define DEFAULT_PROP_DEVICE_NAME	""
+#define DEFAULT_PROP_CARD_NAME	        ""
 
 enum
 {
@@ -65,14 +64,11 @@ enum
   PROP_DEVICE,
   PROP_DEVICE_NAME,
   PROP_CARD_NAME,
-  PROP_USE_DRIVER_TIMESTAMP,
   PROP_LAST
 };
 
 #define gst_alsasrc_parent_class parent_class
 G_DEFINE_TYPE (GstAlsaSrc, gst_alsasrc, GST_TYPE_AUDIO_SRC);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (alsasrc, "alsasrc", GST_RANK_PRIMARY,
-    GST_TYPE_ALSA_SRC, alsa_element_init (plugin));
 
 static void gst_alsasrc_finalize (GObject * object);
 static void gst_alsasrc_set_property (GObject * object,
@@ -174,14 +170,7 @@ gst_alsasrc_class_init (GstAlsaSrcClass * klass)
   g_object_class_install_property (gobject_class, PROP_CARD_NAME,
       g_param_spec_string ("card-name", "Card name",
           "Human-readable name of the sound card",
-          DEFAULT_PROP_CARD_NAME, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS
-          | GST_PARAM_DOC_SHOW_DEFAULT));
-
-  g_object_class_install_property (gobject_class, PROP_USE_DRIVER_TIMESTAMP,
-      g_param_spec_boolean ("use-driver-timestamps", "Use driver timestamps",
-          "Use driver timestamps or the pipeline clock timestamps",
-          DEFAULT_PROP_USE_DRIVER_TIMESTAMP,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          DEFAULT_PROP_CARD_NAME, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 }
 
 static void
@@ -199,11 +188,6 @@ gst_alsasrc_set_property (GObject * object, guint prop_id,
       if (src->device == NULL) {
         src->device = g_strdup (DEFAULT_PROP_DEVICE);
       }
-      break;
-    case PROP_USE_DRIVER_TIMESTAMP:
-      GST_OBJECT_LOCK (src);
-      src->use_driver_timestamps = g_value_get_boolean (value);
-      GST_OBJECT_UNLOCK (src);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -232,11 +216,6 @@ gst_alsasrc_get_property (GObject * object, guint prop_id,
       g_value_take_string (value,
           gst_alsa_find_card_name (GST_OBJECT_CAST (src),
               src->device, SND_PCM_STREAM_CAPTURE));
-      break;
-    case PROP_USE_DRIVER_TIMESTAMP:
-      GST_OBJECT_LOCK (src);
-      g_value_set_boolean (value, src->use_driver_timestamps);
-      GST_OBJECT_UNLOCK (src);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -268,16 +247,12 @@ gst_alsasrc_change_state (GstElement * element, GstStateChange transition)
 
       clk = gst_element_get_clock (element);
       if (clk != NULL) {
-        if (G_OBJECT_TYPE (clk) == GST_TYPE_SYSTEM_CLOCK) {
+        if (GST_IS_SYSTEM_CLOCK (clk)) {
           gint clocktype;
           g_object_get (clk, "clock-type", &clocktype, NULL);
-          if (clocktype == GST_CLOCK_TYPE_MONOTONIC &&
-              alsa->use_driver_timestamps) {
+          if (clocktype == GST_CLOCK_TYPE_MONOTONIC) {
             GST_INFO ("Using driver timestamps !");
             alsa->driver_timestamps = TRUE;
-          } else {
-            GST_INFO ("Not using driver timestamps !");
-            alsa->driver_timestamps = FALSE;
           }
         }
 
@@ -298,7 +273,6 @@ gst_alsasrc_init (GstAlsaSrc * alsasrc)
   alsasrc->device = g_strdup (DEFAULT_PROP_DEVICE);
   alsasrc->cached_caps = NULL;
   alsasrc->driver_timestamps = FALSE;
-  alsasrc->use_driver_timestamps = DEFAULT_PROP_USE_DRIVER_TIMESTAMP;
 
   g_mutex_init (&alsasrc->alsa_lock);
 }
@@ -367,11 +341,10 @@ static int
 set_hwparams (GstAlsaSrc * alsa)
 {
   guint rrate;
-  gint err = 0;
-  snd_pcm_hw_params_t *params, *params_copy;
+  gint err;
+  snd_pcm_hw_params_t *params;
 
   snd_pcm_hw_params_malloc (&params);
-  snd_pcm_hw_params_malloc (&params_copy);
 
   /* choose all parameters */
   CHECK (snd_pcm_hw_params_any (alsa->handle, params), no_config);
@@ -414,88 +387,54 @@ set_hwparams (GstAlsaSrc * alsa)
     GST_DEBUG_OBJECT (alsa, "periods min %u, max %u", min, max);
   }
 #endif
-  /* Keep a copy of initial params struct that can be used later */
-  snd_pcm_hw_params_copy (params_copy, params);
-  /* Following pulseaudio's approach in
-   * https://gitlab.freedesktop.org/pulseaudio/pulseaudio/-/commit/557c4295107dc7374c850b0bd5331dd35e8fdd0f
-   * we'll try various configuration to set the buffer time and period time as some
-   * driver can be picky on the order of the calls.
-   */
-  if (alsa->period_time != -1 && alsa->buffer_time != -1) {
-    if ((snd_pcm_hw_params_set_period_time_near (alsa->handle, params,
-                &alsa->period_time, NULL) >= 0)
-        && (snd_pcm_hw_params_set_buffer_time_near (alsa->handle, params,
-                &alsa->buffer_time, NULL) >= 0)) {
-      GST_DEBUG_OBJECT (alsa, "period time %u buffer time %u set correctly",
-          alsa->period_time, alsa->buffer_time);
-      goto success;
-    }
-    /* Try the new order with previous params struct as current one might
-       have partial settings from the order that was tried unsuccessfully */
-    snd_pcm_hw_params_copy (params, params_copy);
-    if ((snd_pcm_hw_params_set_buffer_time_near (alsa->handle, params,
-                &alsa->buffer_time, NULL) >= 0)
-        && (snd_pcm_hw_params_set_period_time_near (alsa->handle, params,
-                &alsa->period_time, NULL) >= 0)) {
-      GST_DEBUG_OBJECT (alsa, "buffer time %u period time %u set correctly",
-          alsa->buffer_time, alsa->period_time);
-      goto success;
-    }
+
+  if (alsa->buffer_time != -1) {
+    /* set the buffer time */
+    CHECK (snd_pcm_hw_params_set_buffer_time_near (alsa->handle, params,
+            &alsa->buffer_time, NULL), buffer_time);
+    GST_DEBUG_OBJECT (alsa, "buffer time %u", alsa->buffer_time);
   }
   if (alsa->period_time != -1) {
-    snd_pcm_hw_params_copy (params, params_copy);
-    /* set the period time only */
-    if ((snd_pcm_hw_params_set_period_time_near (alsa->handle, params,
-                &alsa->period_time, NULL) >= 0)) {
-      GST_DEBUG_OBJECT (alsa, "period time %u set correctly",
-          alsa->period_time);
-      goto success;
-    }
+    /* set the period time */
+    CHECK (snd_pcm_hw_params_set_period_time_near (alsa->handle, params,
+            &alsa->period_time, NULL), period_time);
+    GST_DEBUG_OBJECT (alsa, "period time %u", alsa->period_time);
   }
-  if (alsa->buffer_time != -1) {
-    snd_pcm_hw_params_copy (params, params_copy);
-    /* set the buffer time only */
-    if ((snd_pcm_hw_params_set_buffer_time_near (alsa->handle, params,
-                &alsa->buffer_time, NULL) >= 0)) {
-      GST_DEBUG_OBJECT (alsa, "buffer time %u set correctly",
-          alsa->buffer_time);
-      goto success;
-    }
-  }
-  /* Set nothing if all above failed */
-  snd_pcm_hw_params_copy (params, params_copy);
-  GST_DEBUG_OBJECT (alsa, "Not setting period time and buffer time");
 
-success:
   /* write the parameters to device */
   CHECK (snd_pcm_hw_params (alsa->handle, params), set_hw_params);
+
   CHECK (snd_pcm_hw_params_get_buffer_size (params, &alsa->buffer_size),
       buffer_size);
-  GST_DEBUG_OBJECT (alsa, "buffer size : %lu", alsa->buffer_size);
-  CHECK (snd_pcm_hw_params_get_period_size (params, &alsa->period_size,
-          NULL), period_size);
-  GST_DEBUG_OBJECT (alsa, "period size : %lu", alsa->period_size);
 
-  goto exit;
+  CHECK (snd_pcm_hw_params_get_period_size (params, &alsa->period_size, NULL),
+      period_size);
+
+  snd_pcm_hw_params_free (params);
+  return 0;
+
   /* ERRORS */
 no_config:
   {
     GST_ELEMENT_ERROR (alsa, RESOURCE, SETTINGS, (NULL),
         ("Broken configuration for recording: no configurations available: %s",
             snd_strerror (err)));
-    goto exit;
+    snd_pcm_hw_params_free (params);
+    return err;
   }
 wrong_access:
   {
     GST_ELEMENT_ERROR (alsa, RESOURCE, SETTINGS, (NULL),
         ("Access type not available for recording: %s", snd_strerror (err)));
-    goto exit;
+    snd_pcm_hw_params_free (params);
+    return err;
   }
 no_sample_format:
   {
     GST_ELEMENT_ERROR (alsa, RESOURCE, SETTINGS, (NULL),
         ("Sample format not available for recording: %s", snd_strerror (err)));
-    goto exit;
+    snd_pcm_hw_params_free (params);
+    return err;
   }
 no_channels:
   {
@@ -513,43 +452,59 @@ no_channels:
     GST_ELEMENT_ERROR (alsa, RESOURCE, SETTINGS, ("%s", msg),
         ("%s", snd_strerror (err)));
     g_free (msg);
-    goto exit;
+    snd_pcm_hw_params_free (params);
+    return err;
   }
 no_rate:
   {
     GST_ELEMENT_ERROR (alsa, RESOURCE, SETTINGS, (NULL),
         ("Rate %iHz not available for recording: %s",
             alsa->rate, snd_strerror (err)));
-    goto exit;
+    snd_pcm_hw_params_free (params);
+    return err;
   }
 rate_match:
   {
     GST_ELEMENT_ERROR (alsa, RESOURCE, SETTINGS, (NULL),
         ("Rate doesn't match (requested %iHz, get %iHz)", alsa->rate, err));
-    err = -EINVAL;
-    goto exit;
+    snd_pcm_hw_params_free (params);
+    return -EINVAL;
+  }
+buffer_time:
+  {
+    GST_ELEMENT_ERROR (alsa, RESOURCE, SETTINGS, (NULL),
+        ("Unable to set buffer time %i for recording: %s",
+            alsa->buffer_time, snd_strerror (err)));
+    snd_pcm_hw_params_free (params);
+    return err;
   }
 buffer_size:
   {
     GST_ELEMENT_ERROR (alsa, RESOURCE, SETTINGS, (NULL),
         ("Unable to get buffer size for recording: %s", snd_strerror (err)));
-    goto exit;
+    snd_pcm_hw_params_free (params);
+    return err;
+  }
+period_time:
+  {
+    GST_ELEMENT_ERROR (alsa, RESOURCE, SETTINGS, (NULL),
+        ("Unable to set period time %i for recording: %s", alsa->period_time,
+            snd_strerror (err)));
+    snd_pcm_hw_params_free (params);
+    return err;
   }
 period_size:
   {
     GST_ELEMENT_ERROR (alsa, RESOURCE, SETTINGS, (NULL),
         ("Unable to get period size for recording: %s", snd_strerror (err)));
-    goto exit;
+    snd_pcm_hw_params_free (params);
+    return err;
   }
 set_hw_params:
   {
     GST_ELEMENT_ERROR (alsa, RESOURCE, SETTINGS, (NULL),
         ("Unable to set hw params for recording: %s", snd_strerror (err)));
-  }
-exit:
-  {
     snd_pcm_hw_params_free (params);
-    snd_pcm_hw_params_free (params_copy);
     return err;
   }
 }
@@ -955,7 +910,7 @@ gst_alsasrc_get_timestamp (GstAlsaSrc * asrc)
     return GST_CLOCK_TIME_NONE;
   }
 
-  /* in case an xrun condition has occurred we need to handle this */
+  /* in case an xrun condition has occured we need to handle this */
   if (snd_pcm_status_get_state (status) != SND_PCM_STATE_RUNNING) {
     if (xrun_recovery (asrc, asrc->handle, err) < 0) {
       GST_WARNING_OBJECT (asrc, "Could not recover from xrun condition !");

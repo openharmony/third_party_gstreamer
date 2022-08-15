@@ -52,7 +52,6 @@ struct _GstInterSubSinkClass
 };
 
 GType gst_inter_sub_sink_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (intersubsink);
 
 G_END_DECLS
 

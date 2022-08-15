@@ -82,7 +82,6 @@ struct _GstVPXDec
   gboolean have_video_meta;
   GstBufferPool *pool;
   gsize buf_size;
-  gboolean safe_remap;
 };
 
 struct _GstVPXDecClass
@@ -103,16 +102,9 @@ struct _GstVPXDecClass
   void (*handle_resolution_change) (GstVPXDec *dec, vpx_image_t *img, GstVideoFormat fmt);
   /*virtual function to check valid format*/
   gboolean (*get_frame_format)(GstVPXDec *dec, vpx_image_t *img, GstVideoFormat* fmt);
-  /* virtual function to check whether the decoder can handle data
-   * before receiving a sync_point, either at the start of after a
-   * decoding error
-   */
-  gboolean (*get_needs_sync_point)(GstVPXDec *dec);
 };
 
 GType gst_vpx_dec_get_type (void);
-
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (GstVPXDec, gst_object_unref)
 
 G_END_DECLS
 

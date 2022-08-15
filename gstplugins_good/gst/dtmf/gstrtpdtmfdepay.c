@@ -21,27 +21,63 @@
  */
 /**
  * SECTION:element-rtpdtmfdepay
- * @title: rtpdtmfdepay
  * @see_also: rtpdtmfsrc, rtpdtmfmux
  *
  * This element takes RTP DTMF packets and produces sound. It also emits a
  * message on the #GstBus.
  *
- * The message is called "dtmf-event" and has the following fields:
- *
- * * `type` (G_TYPE_INT, 0-1): Which of the two methods
- *   specified in RFC 2833 to use. The value should be 0 for tones and 1 for
- *   named events. Tones are specified by their frequencies and events are specified
- *   by their number. This element currently only recognizes events.
- *   Do not confuse with "method" which specified the output.
- *
- * * `number` (G_TYPE_INT, 0-16): The event number.
- *
- * * `volume` (G_TYPE_INT, 0-36): This field describes the power level of the tone, expressed in dBm0
- *   after dropping the sign. Power levels range from 0 to -63 dBm0. The range of
- *   valid DTMF is from 0 to -36 dBm0.
- *
- * * `method` (G_TYPE_INT, 1): This field will always been 1 (ie RTP event) from this element.
+ * The message is called "dtmf-event" and has the following fields
+ * <informaltable>
+ * <tgroup cols='4'>
+ * <colspec colname='Name' />
+ * <colspec colname='Type' />
+ * <colspec colname='Possible values' />
+ * <colspec colname='Purpose' />
+ * <thead>
+ * <row>
+ * <entry>Name</entry>
+ * <entry>GType</entry>
+ * <entry>Possible values</entry>
+ * <entry>Purpose</entry>
+ * </row>
+ * </thead>
+ * <tbody>
+ * <row>
+ * <entry>type</entry>
+ * <entry>G_TYPE_INT</entry>
+ * <entry>0-1</entry>
+ * <entry>Which of the two methods
+ * specified in RFC 2833 to use. The value should be 0 for tones and 1 for
+ * named events. Tones are specified by their frequencies and events are specied
+ * by their number. This element currently only recognizes events.
+ * Do not confuse with "method" which specified the output.
+ * </entry>
+ * </row>
+ * <row>
+ * <entry>number</entry>
+ * <entry>G_TYPE_INT</entry>
+ * <entry>0-16</entry>
+ * <entry>The event number.</entry>
+ * </row>
+ * <row>
+ * <entry>volume</entry>
+ * <entry>G_TYPE_INT</entry>
+ * <entry>0-36</entry>
+ * <entry>This field describes the power level of the tone, expressed in dBm0
+ * after dropping the sign. Power levels range from 0 to -63 dBm0. The range of
+ * valid DTMF is from 0 to -36 dBm0.
+ * </entry>
+ * </row>
+ * <row>
+ * <entry>method</entry>
+ * <entry>G_TYPE_INT</entry>
+ * <entry>1</entry>
+ * <entry>This field will always been 1 (ie RTP event) from this element.
+ * </entry>
+ * </row>
+ * </tbody>
+ * </tgroup>
+ * </informaltable>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -54,7 +90,6 @@
 #include <math.h>
 
 #include <gst/audio/audio.h>
-#include <gst/base/gstbitreader.h>
 #include <gst/rtp/gstrtpbuffer.h>
 
 #define DEFAULT_PACKET_INTERVAL  50     /* ms */
@@ -156,8 +191,6 @@ GST_STATIC_PAD_TEMPLATE ("sink",
 
 G_DEFINE_TYPE (GstRtpDTMFDepay, gst_rtp_dtmf_depay,
     GST_TYPE_RTP_BASE_DEPAYLOAD);
-GST_ELEMENT_REGISTER_DEFINE (rtpdtmfdepay, "rtpdtmfdepay", GST_RANK_MARGINAL,
-    GST_TYPE_RTP_DTMF_DEPAY);
 
 static void gst_rtp_dtmf_depay_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -358,7 +391,7 @@ gst_rtp_dtmf_depay_process (GstRTPBaseDepayload * depayload, GstBuffer * buf)
 
   GstRtpDTMFDepay *rtpdtmfdepay = NULL;
   GstBuffer *outbuf = NULL;
-  guint payload_len;
+  gint payload_len;
   guint8 *payload = NULL;
   guint32 timestamp;
   GstRTPDTMFPayload dtmf_payload;
@@ -366,7 +399,6 @@ gst_rtp_dtmf_depay_process (GstRTPBaseDepayload * depayload, GstBuffer * buf)
   GstStructure *structure = NULL;
   GstMessage *dtmf_message = NULL;
   GstRTPBuffer rtpbuffer = GST_RTP_BUFFER_INIT;
-  GstBitReader bitreader;
 
   rtpdtmfdepay = GST_RTP_DTMF_DEPAY (depayload);
 
@@ -375,14 +407,10 @@ gst_rtp_dtmf_depay_process (GstRTPBaseDepayload * depayload, GstBuffer * buf)
   payload_len = gst_rtp_buffer_get_payload_len (&rtpbuffer);
   payload = gst_rtp_buffer_get_payload (&rtpbuffer);
 
-  if (payload_len != 4)
+  if (payload_len != sizeof (GstRTPDTMFPayload))
     goto bad_packet;
 
-  gst_bit_reader_init (&bitreader, payload, payload_len);
-  gst_bit_reader_get_bits_uint8 (&bitreader, &dtmf_payload.event, 8);
-  gst_bit_reader_skip (&bitreader, 2);
-  gst_bit_reader_get_bits_uint8 (&bitreader, &dtmf_payload.volume, 6);
-  gst_bit_reader_get_bits_uint16 (&bitreader, &dtmf_payload.duration, 16);
+  memcpy (&dtmf_payload, payload, sizeof (GstRTPDTMFPayload));
 
   if (dtmf_payload.event > MAX_EVENT)
     goto bad_packet;
@@ -390,6 +418,8 @@ gst_rtp_dtmf_depay_process (GstRTPBaseDepayload * depayload, GstBuffer * buf)
   marker = gst_rtp_buffer_get_marker (&rtpbuffer);
 
   timestamp = gst_rtp_buffer_get_timestamp (&rtpbuffer);
+
+  dtmf_payload.duration = g_ntohs (dtmf_payload.duration);
 
   /* clip to whole units of unit_time */
   if (rtpdtmfdepay->unit_time) {
@@ -494,4 +524,11 @@ bad_packet:
     gst_rtp_buffer_unmap (&rtpbuffer);
 
   return NULL;
+}
+
+gboolean
+gst_rtp_dtmf_depay_plugin_init (GstPlugin * plugin)
+{
+  return gst_element_register (plugin, "rtpdtmfdepay",
+      GST_RANK_MARGINAL, GST_TYPE_RTP_DTMF_DEPAY);
 }

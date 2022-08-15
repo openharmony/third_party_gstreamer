@@ -31,12 +31,10 @@
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  gst_webp_dec_register (plugin);
+  gst_webp_enc_register (plugin);
 
-  ret |= GST_ELEMENT_REGISTER (webpdec, plugin);
-  ret |= GST_ELEMENT_REGISTER (webpenc, plugin);
-
-  return ret;
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

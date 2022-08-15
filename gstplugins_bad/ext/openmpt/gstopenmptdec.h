@@ -74,7 +74,6 @@ struct _GstOpenMptDecClass
 
 GType gst_openmpt_dec_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (openmptdec);
 
 G_END_DECLS
 

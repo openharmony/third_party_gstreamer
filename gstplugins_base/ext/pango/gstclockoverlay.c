@@ -25,9 +25,8 @@
  *
  * This element overlays the current clock time on top of a video
  * stream. You can position the text and configure the font details
- * using its properties.
- *
- * By default, the time is displayed in the top left corner of the picture, with some
+ * using the properties of the #GstBaseTextOverlay class. By default, the
+ * time is displayed in the top left corner of the picture, with some
  * padding to the left and to the top.
  *
  * ## Example launch lines
@@ -49,11 +48,10 @@
 #include "config.h"
 #endif
 
+#include "gstclockoverlay.h"
 #include <gst/video/video.h>
 #include <time.h>
 
-#include "gstclockoverlay.h"
-#include "gstpangoelements.h"
 
 #define DEFAULT_PROP_TIMEFORMAT 	"%H:%M:%S"
 
@@ -66,8 +64,6 @@ enum
 
 #define gst_clock_overlay_parent_class parent_class
 G_DEFINE_TYPE (GstClockOverlay, gst_clock_overlay, GST_TYPE_BASE_TEXT_OVERLAY);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (clockoverlay, "clockoverlay",
-    GST_RANK_NONE, GST_TYPE_CLOCK_OVERLAY, pango_element_init (plugin));
 
 static void gst_clock_overlay_finalize (GObject * object);
 static void gst_clock_overlay_set_property (GObject * object, guint prop_id,
@@ -78,22 +74,19 @@ static void gst_clock_overlay_get_property (GObject * object, guint prop_id,
 static gchar *
 gst_clock_overlay_render_time (GstClockOverlay * overlay)
 {
-#ifdef HAVE_LOCALTIME_R
-  struct tm dummy;
-#endif
   struct tm *t;
   time_t now;
-#ifdef G_OS_WIN32
-  gunichar2 buf[256];
-#else
   gchar buf[256];
+
+#ifdef HAVE_LOCALTIME_R
+  struct tm dummy;
 #endif
 
   now = time (NULL);
 
 #ifdef HAVE_LOCALTIME_R
   /* Need to call tzset explicitly when calling localtime_r for changes
-   * to the timezone between calls to be visible.  */
+     to the timezone between calls to be visible.  */
   tzset ();
   t = localtime_r (&now, &dummy);
 #else
@@ -104,17 +97,9 @@ gst_clock_overlay_render_time (GstClockOverlay * overlay)
   if (t == NULL)
     return g_strdup ("--:--:--");
 
-#ifdef G_OS_WIN32
-  if (wcsftime (buf, sizeof (buf), (wchar_t *) overlay->wformat, t) == 0)
-    return g_strdup ("");
-
-  return g_utf16_to_utf8 (buf, -1, NULL, NULL, NULL);
-#else
   if (strftime (buf, sizeof (buf), overlay->format, t) == 0)
     return g_strdup ("");
-
   return g_strdup (buf);
-#endif
 }
 
 /* Called with lock held */
@@ -127,10 +112,7 @@ gst_clock_overlay_get_text (GstBaseTextOverlay * overlay,
 
   txt = g_strdup (overlay->default_text);
 
-  GST_OBJECT_LOCK (overlay);
   time_str = gst_clock_overlay_render_time (clock_overlay);
-  GST_OBJECT_UNLOCK (overlay);
-
   if (txt != NULL && *txt != '\0') {
     ret = g_strdup_printf ("%s %s", txt, time_str);
   } else {
@@ -188,8 +170,6 @@ gst_clock_overlay_finalize (GObject * object)
   g_free (overlay->text);
   overlay->format = NULL;
 
-  g_free (overlay->wformat);
-
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -207,11 +187,6 @@ gst_clock_overlay_init (GstClockOverlay * overlay)
   textoverlay->halign = GST_BASE_TEXT_OVERLAY_HALIGN_LEFT;
 
   overlay->format = g_strdup (DEFAULT_PROP_TIMEFORMAT);
-
-#ifdef G_OS_WIN32
-  overlay->wformat =
-      g_utf8_to_utf16 (DEFAULT_PROP_TIMEFORMAT, -1, NULL, NULL, NULL);
-#endif
 
   context = textoverlay->pango_context;
 
@@ -240,13 +215,6 @@ gst_clock_overlay_set_property (GObject * object, guint prop_id,
     case PROP_TIMEFORMAT:
       g_free (overlay->format);
       overlay->format = g_value_dup_string (value);
-      if (!overlay->format)
-        overlay->format = g_strdup (DEFAULT_PROP_TIMEFORMAT);
-#ifdef G_OS_WIN32
-      g_free (overlay->wformat);
-      overlay->wformat =
-          g_utf8_to_utf16 (overlay->format, -1, NULL, NULL, NULL);
-#endif
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);

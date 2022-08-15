@@ -1,5 +1,5 @@
 /* -LICENSE-START-
-** Copyright (c) 2019 Blackmagic Design
+** Copyright (c) 2016 Blackmagic Design
 **
 ** Permission is hereby granted, free of charge, to any person or organization
 ** obtaining a copy of the software and accompanying documentation covered by
@@ -35,10 +35,6 @@
     #else
         #define BMD_CONST static const
     #endif
-#endif
-
-#ifndef BMD_PUBLIC
-	#define BMD_PUBLIC
 #endif
 
 // Type Declarations
@@ -192,7 +188,7 @@ class IBMDStreamingH264NALParser;
 
 /* Interface IBMDStreamingDeviceNotificationCallback - Device notification callbacks. */
 
-class BMD_PUBLIC IBMDStreamingDeviceNotificationCallback : public IUnknown
+class IBMDStreamingDeviceNotificationCallback : public IUnknown
 {
 public:
     virtual HRESULT StreamingDeviceArrived (/* in */ IDeckLink* device) = 0;
@@ -205,7 +201,7 @@ protected:
 
 /* Interface IBMDStreamingH264InputCallback - H264 input callbacks. */
 
-class BMD_PUBLIC IBMDStreamingH264InputCallback : public IUnknown
+class IBMDStreamingH264InputCallback : public IUnknown
 {
 public:
     virtual HRESULT H264NALPacketArrived (/* in */ IBMDStreamingH264NALPacket* nalPacket) = 0;
@@ -221,7 +217,7 @@ protected:
 
 /* Interface IBMDStreamingDiscovery - Installs device notifications */
 
-class BMD_PUBLIC IBMDStreamingDiscovery : public IUnknown
+class IBMDStreamingDiscovery : public IUnknown
 {
 public:
     virtual HRESULT InstallDeviceNotifications (/* in */ IBMDStreamingDeviceNotificationCallback* theCallback) = 0;
@@ -233,7 +229,7 @@ protected:
 
 /* Interface IBMDStreamingVideoEncodingMode - Represents an encoded video mode. */
 
-class BMD_PUBLIC IBMDStreamingVideoEncodingMode : public IUnknown
+class IBMDStreamingVideoEncodingMode : public IUnknown
 {
 public:
     virtual HRESULT GetName (/* out */ CFStringRef *name) = 0;
@@ -256,7 +252,7 @@ protected:
 
 /* Interface IBMDStreamingMutableVideoEncodingMode - Represents a mutable encoded video mode. */
 
-class BMD_PUBLIC IBMDStreamingMutableVideoEncodingMode : public IBMDStreamingVideoEncodingMode
+class IBMDStreamingMutableVideoEncodingMode : public IBMDStreamingVideoEncodingMode
 {
 public:
     virtual HRESULT SetSourceRect (/* in */ uint32_t posX, /* in */ uint32_t posY, /* in */ uint32_t width, /* in */ uint32_t height) = 0;
@@ -272,7 +268,7 @@ protected:
 
 /* Interface IBMDStreamingVideoEncodingModePresetIterator - Enumerates encoding mode presets */
 
-class BMD_PUBLIC IBMDStreamingVideoEncodingModePresetIterator : public IUnknown
+class IBMDStreamingVideoEncodingModePresetIterator : public IUnknown
 {
 public:
     virtual HRESULT Next (/* out */ IBMDStreamingVideoEncodingMode** videoEncodingMode) = 0;
@@ -283,7 +279,7 @@ protected:
 
 /* Interface IBMDStreamingDeviceInput - Created by QueryInterface from IDeckLink */
 
-class BMD_PUBLIC IBMDStreamingDeviceInput : public IUnknown
+class IBMDStreamingDeviceInput : public IUnknown
 {
 public:
 
@@ -313,7 +309,7 @@ protected:
 
 /* Interface IBMDStreamingH264NALPacket - Represent an H.264 NAL packet */
 
-class BMD_PUBLIC IBMDStreamingH264NALPacket : public IUnknown
+class IBMDStreamingH264NALPacket : public IUnknown
 {
 public:
     virtual long GetPayloadSize (void) = 0;
@@ -328,7 +324,7 @@ protected:
 
 /* Interface IBMDStreamingAudioPacket - Represents a chunk of audio data */
 
-class BMD_PUBLIC IBMDStreamingAudioPacket : public IUnknown
+class IBMDStreamingAudioPacket : public IUnknown
 {
 public:
     virtual BMDStreamingAudioCodec GetCodec (void) = 0;
@@ -343,7 +339,7 @@ protected:
 
 /* Interface IBMDStreamingMPEG2TSPacket - Represent an MPEG2 Transport Stream packet */
 
-class BMD_PUBLIC IBMDStreamingMPEG2TSPacket : public IUnknown
+class IBMDStreamingMPEG2TSPacket : public IUnknown
 {
 public:
     virtual long GetPayloadSize (void) = 0;
@@ -355,7 +351,7 @@ protected:
 
 /* Interface IBMDStreamingH264NALParser - For basic NAL parsing */
 
-class BMD_PUBLIC IBMDStreamingH264NALParser : public IUnknown
+class IBMDStreamingH264NALParser : public IUnknown
 {
 public:
     virtual HRESULT IsNALSequenceParameterSet (/* in */ IBMDStreamingH264NALPacket* nal) = 0;
@@ -370,8 +366,8 @@ protected:
 
 extern "C" {
 
-    IBMDStreamingDiscovery* BMD_PUBLIC CreateBMDStreamingDiscoveryInstance (void);
-    IBMDStreamingH264NALParser* BMD_PUBLIC CreateBMDStreamingH264NALParser (void);
+    IBMDStreamingDiscovery* CreateBMDStreamingDiscoveryInstance (void);
+    IBMDStreamingH264NALParser* CreateBMDStreamingH264NALParser (void);
 
 }
 

@@ -32,8 +32,19 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_VOLUME (gst_volume_get_type())
-G_DECLARE_FINAL_TYPE (GstVolume, gst_volume, GST, VOLUME, GstAudioFilter)
+#define GST_TYPE_VOLUME \
+  (gst_volume_get_type())
+#define GST_VOLUME(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_VOLUME,GstVolume))
+#define GST_VOLUME_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_VOLUME,GstVolumeClass))
+#define GST_IS_VOLUME(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_VOLUME))
+#define GST_IS_VOLUME_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_VOLUME))
+
+typedef struct _GstVolume GstVolume;
+typedef struct _GstVolumeClass GstVolumeClass;
 
 /**
  * GstVolume:
@@ -66,7 +77,11 @@ struct _GstVolume {
   guint volumes_count;
 };
 
-GST_ELEMENT_REGISTER_DECLARE (volume);
+struct _GstVolumeClass {
+  GstAudioFilterClass parent_class;
+};
+
+GType gst_volume_get_type (void);
 
 G_END_DECLS
 

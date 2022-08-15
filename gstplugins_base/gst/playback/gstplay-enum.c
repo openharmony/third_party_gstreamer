@@ -32,7 +32,7 @@ gst_autoplug_select_result_get_type (void)
     {C_ENUM (GST_AUTOPLUG_SELECT_SKIP), "GST_AUTOPLUG_SELECT_SKIP", "skip"},
     {0, NULL, NULL}
   };
-  static GType id = 0;
+  static volatile GType id = 0;
 
   if (g_once_init_enter ((gsize *) & id)) {
     GType _id;
@@ -69,9 +69,6 @@ gst_play_flags_get_type (void)
         "soft-colorbalance"},
     {C_FLAGS (GST_PLAY_FLAG_FORCE_FILTERS),
         "Force audio/video filter(s) to be applied", "force-filters"},
-    {C_FLAGS (GST_PLAY_FLAG_FORCE_SW_DECODERS),
-          "Force only software-based decoders (no effect for playbin3)",
-        "force-sw-decoders"},
 #ifdef OHOS_OPT_COMPAT
     // ohos.opt.compat.0021
     // when open GST_PLAY_FLAG_NATIVE_VIDEO will not change decoder caps
@@ -80,7 +77,7 @@ gst_play_flags_get_type (void)
 #endif
     {0, NULL, NULL}
   };
-  static GType id = 0;
+  static volatile GType id = 0;
 
   if (g_once_init_enter ((gsize *) & id)) {
     GType _id;

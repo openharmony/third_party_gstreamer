@@ -25,7 +25,6 @@
 
 #include <gst/gst.h>
 
-#include "gstglelements.h"
 #include "gstglmixerbin.h"
 
 #define GST_CAT_DEFAULT gst_gl_mixer_bin_debug
@@ -42,7 +41,6 @@ typedef enum
   GST_GL_MIXER_BIN_START_TIME_SELECTION_SET
 } GstGLMixerBinStartTimeSelection;
 
-#define GST_TYPE_GL_MIXER_BIN_START_TIME_SELECTION (gst_gl_mixer_bin_start_time_selection_get_type())
 static GType
 gst_gl_mixer_bin_start_time_selection_get_type (void)
 {
@@ -123,7 +121,6 @@ enum
   PROP_LATENCY,
   PROP_START_TIME_SELECTION,
   PROP_START_TIME,
-  PROP_CONTEXT,
 };
 
 enum
@@ -140,8 +137,6 @@ G_DEFINE_TYPE_WITH_CODE (GstGLMixerBin, gst_gl_mixer_bin, GST_TYPE_BIN,
     G_ADD_PRIVATE (GstGLMixerBin)
     G_IMPLEMENT_INTERFACE (GST_TYPE_CHILD_PROXY,
         gst_gl_mixer_bin_child_proxy_init));
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (glmixerbin, "glmixerbin",
-    GST_RANK_NONE, GST_TYPE_GL_MIXER_BIN, gl_element_init (plugin));
 
 static guint gst_gl_mixer_bin_signals[LAST_SIGNAL] = { 0 };
 
@@ -199,7 +194,7 @@ gst_gl_mixer_bin_class_init (GstGLMixerBinClass * klass)
   g_object_class_install_property (gobject_class, PROP_START_TIME_SELECTION,
       g_param_spec_enum ("start-time-selection", "Start Time Selection",
           "Decides which start time is output",
-          GST_TYPE_GL_MIXER_BIN_START_TIME_SELECTION,
+          gst_gl_mixer_bin_start_time_selection_get_type (),
           DEFAULT_START_TIME_SELECTION,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
@@ -208,12 +203,6 @@ gst_gl_mixer_bin_class_init (GstGLMixerBinClass * klass)
           "Start time to use if start-time-selection=set", 0,
           G_MAXUINT64,
           DEFAULT_START_TIME, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  g_object_class_install_property (gobject_class, PROP_CONTEXT,
-      g_param_spec_object ("context",
-          "OpenGL context",
-          "Get OpenGL context",
-          GST_TYPE_GL_CONTEXT, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   /**
    * GstMixerBin::create-element:
@@ -225,7 +214,8 @@ gst_gl_mixer_bin_class_init (GstGLMixerBinClass * klass)
    */
   gst_gl_mixer_bin_signals[SIGNAL_CREATE_ELEMENT] =
       g_signal_new ("create-element", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, GST_TYPE_ELEMENT, 0);
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL, g_cclosure_marshal_generic,
+      GST_TYPE_ELEMENT, 0);
 
   gst_element_class_add_static_pad_template (element_class, &src_factory);
 
@@ -238,8 +228,6 @@ gst_gl_mixer_bin_class_init (GstGLMixerBinClass * klass)
   gst_element_class_set_metadata (element_class, "OpenGL video_mixer empty bin",
       "Bin/Filter/Effect/Video/Mixer", "OpenGL video_mixer empty bin",
       "Matthew Waters <matthew@centricular.com>");
-
-  gst_type_mark_as_plugin_api (GST_TYPE_GL_MIXER_BIN_START_TIME_SELECTION, 0);
 }
 
 static void
@@ -315,10 +303,6 @@ _create_input_chain (GstGLMixerBin * self, struct input_chain *chain,
   res &= gst_bin_add (GST_BIN (self), chain->in_convert);
   res &= gst_bin_add (GST_BIN (self), chain->in_overlay);
   res &= gst_bin_add (GST_BIN (self), chain->upload);
-  if (!res) {
-    g_warn_if_reached ();
-    return FALSE;
-  }
 
   pad = gst_element_get_static_pad (chain->in_overlay, "src");
   if (gst_pad_link (pad, mixer_pad) != GST_PAD_LINK_OK) {
@@ -326,15 +310,11 @@ _create_input_chain (GstGLMixerBin * self, struct input_chain *chain,
     return FALSE;
   }
   gst_object_unref (pad);
-  if (!gst_element_link_pads (chain->in_convert, "src", chain->in_overlay,
-          "sink")) {
-    g_warn_if_reached ();
-    return FALSE;
-  }
-  if (!gst_element_link_pads (chain->upload, "src", chain->in_convert, "sink")) {
-    g_warn_if_reached ();
-    return FALSE;
-  }
+  res &=
+      gst_element_link_pads (chain->in_convert, "src", chain->in_overlay,
+      "sink");
+  res &=
+      gst_element_link_pads (chain->upload, "src", chain->in_convert, "sink");
 
   pad = gst_element_get_static_pad (chain->upload, "sink");
   if (!pad) {

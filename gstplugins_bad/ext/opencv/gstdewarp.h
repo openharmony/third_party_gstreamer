@@ -106,7 +106,7 @@ struct _GstDewarpClass
 
 GType gst_dewarp_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (dewarp);
+gboolean gst_dewarp_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 #endif /* __GST_DEWARP_H__ */

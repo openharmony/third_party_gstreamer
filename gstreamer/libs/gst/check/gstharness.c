@@ -172,9 +172,9 @@ struct _GstHarnessPrivate
   GstPad *sink_forward_pad;
   GstTestClock *testclock;
 
-  gint recv_buffers;
-  gint recv_events;
-  gint recv_upstream_events;
+  volatile gint recv_buffers;
+  volatile gint recv_events;
+  volatile gint recv_upstream_events;
 
   GAsyncQueue *buffer_queue;
   GAsyncQueue *src_event_queue;
@@ -182,8 +182,6 @@ struct _GstHarnessPrivate
 
   GstClockTime latency_min;
   GstClockTime latency_max;
-  gboolean is_live;
-
   gboolean has_clock_wait;
   gboolean drop_buffers;
   GstClockTime last_push_ts;
@@ -201,10 +199,6 @@ struct _GstHarnessPrivate
   GMutex blocking_push_mutex;
   GMutex priv_mutex;
 
-  GCond buf_or_eos_cond;
-  GMutex buf_or_eos_mutex;
-  gboolean eos_received;
-
   GPtrArray *stress;
 };
 
@@ -218,15 +212,10 @@ gst_harness_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
   g_mutex_lock (&priv->blocking_push_mutex);
   g_atomic_int_inc (&priv->recv_buffers);
 
-  if (priv->drop_buffers) {
+  if (priv->drop_buffers)
     gst_buffer_unref (buffer);
-  } else {
-    g_mutex_lock (&priv->buf_or_eos_mutex);
+  else
     g_async_queue_push (priv->buffer_queue, buffer);
-    g_cond_signal (&priv->buf_or_eos_cond);
-    g_mutex_unlock (&priv->buf_or_eos_mutex);
-  }
-
 
   if (priv->blocking_push_mode) {
     g_cond_wait (&priv->blocking_push_cond, &priv->blocking_push_mutex);
@@ -279,12 +268,6 @@ gst_harness_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
     gst_object_unref (fwdpad);
     HARNESS_LOCK (h);
   } else {
-    if (GST_EVENT_TYPE (event) == GST_EVENT_EOS) {
-      g_mutex_lock (&priv->buf_or_eos_mutex);
-      priv->eos_received = TRUE;
-      g_cond_signal (&priv->buf_or_eos_cond);
-      g_mutex_unlock (&priv->buf_or_eos_mutex);
-    }
     g_async_queue_push (priv->sink_event_queue, event);
   }
   HARNESS_UNLOCK (h);
@@ -361,8 +344,7 @@ gst_harness_negotiate (GstHarness * h)
     gst_harness_decide_allocation (h, caps);
     gst_caps_unref (caps);
   } else {
-    GST_FIXME_OBJECT (h->srcpad,
-        "Cannot negotiate allocation because caps is not set");
+    GST_FIXME_OBJECT (h, "Cannot negotiate allocation because caps is not set");
   }
 }
 
@@ -378,8 +360,7 @@ gst_harness_sink_query (GstPad * pad, GstObject * parent, GstQuery * query)
 
   switch (GST_QUERY_TYPE (query)) {
     case GST_QUERY_LATENCY:
-      gst_query_set_latency (query, priv->is_live, priv->latency_min,
-          priv->latency_max);
+      gst_query_set_latency (query, TRUE, priv->latency_min, priv->latency_max);
       break;
     case GST_QUERY_CAPS:
     {
@@ -439,19 +420,6 @@ gst_harness_sink_query (GstPad * pad, GstObject * parent, GstQuery * query)
       HARNESS_UNLOCK (h);
       break;
     }
-    case GST_QUERY_CONTEXT:
-      HARNESS_LOCK (h);
-      if (priv->forwarding && priv->sink_forward_pad != NULL) {
-        GstPad *peer = gst_pad_get_peer (priv->sink_forward_pad);
-        g_assert (peer != NULL);
-        HARNESS_UNLOCK (h);
-        res = gst_pad_query (peer, query);
-        gst_object_unref (peer);
-      } else {
-        HARNESS_UNLOCK (h);
-        res = gst_pad_query_default (pad, parent, query);
-      }
-      break;
     default:
       res = gst_pad_query_default (pad, parent, query);
   }
@@ -469,8 +437,7 @@ gst_harness_src_query (GstPad * pad, GstObject * parent, GstQuery * query)
 
   switch (GST_QUERY_TYPE (query)) {
     case GST_QUERY_LATENCY:
-      gst_query_set_latency (query, priv->is_live, priv->latency_min,
-          priv->latency_max);
+      gst_query_set_latency (query, TRUE, priv->latency_min, priv->latency_max);
       break;
     case GST_QUERY_CAPS:
     {
@@ -540,7 +507,7 @@ gst_harness_link_element_srcpad (GstHarness * h,
       element_srcpad_name);
   GstPadLinkReturn link;
   if (srcpad == NULL)
-    srcpad = gst_element_request_pad_simple (h->element, element_srcpad_name);
+    srcpad = gst_element_get_request_pad (h->element, element_srcpad_name);
   g_assert (srcpad);
   link = gst_pad_link (srcpad, h->sinkpad);
   g_assert_cmpint (link, ==, GST_PAD_LINK_OK);
@@ -559,7 +526,7 @@ gst_harness_link_element_sinkpad (GstHarness * h,
       element_sinkpad_name);
   GstPadLinkReturn link;
   if (sinkpad == NULL)
-    sinkpad = gst_element_request_pad_simple (h->element, element_sinkpad_name);
+    sinkpad = gst_element_get_request_pad (h->element, element_sinkpad_name);
   g_assert (sinkpad);
   link = gst_pad_link (h->srcpad, sinkpad);
   g_assert_cmpint (link, ==, GST_PAD_LINK_OK);
@@ -573,8 +540,12 @@ static void
 gst_harness_setup_src_pad (GstHarness * h,
     GstStaticPadTemplate * src_tmpl, const gchar * element_sinkpad_name)
 {
+  GstHarnessPrivate *priv = h->priv;
   g_assert (src_tmpl);
   g_assert (h->srcpad == NULL);
+
+  priv->src_event_queue =
+      g_async_queue_new_full ((GDestroyNotify) gst_event_unref);
 
   /* sending pad */
   h->srcpad = gst_pad_new_from_static_template (src_tmpl, "src");
@@ -594,8 +565,14 @@ static void
 gst_harness_setup_sink_pad (GstHarness * h,
     GstStaticPadTemplate * sink_tmpl, const gchar * element_srcpad_name)
 {
+  GstHarnessPrivate *priv = h->priv;
   g_assert (sink_tmpl);
   g_assert (h->sinkpad == NULL);
+
+  priv->buffer_queue = g_async_queue_new_full (
+      (GDestroyNotify) gst_buffer_unref);
+  priv->sink_event_queue = g_async_queue_new_full (
+      (GDestroyNotify) gst_event_unref);
 
   /* receiving pad */
   h->sinkpad = gst_pad_new_from_static_template (sink_tmpl, "sink");
@@ -684,20 +661,12 @@ gst_harness_new_empty (void)
   h->priv = g_new0 (GstHarnessPrivate, 1);
   priv = h->priv;
 
-  GST_DEBUG ("about to create new harness %p", h);
+  GST_DEBUG_OBJECT (h, "about to create new harness %p", h);
   priv->last_push_ts = GST_CLOCK_TIME_NONE;
   priv->latency_min = 0;
   priv->latency_max = GST_CLOCK_TIME_NONE;
-  priv->is_live = TRUE;
   priv->drop_buffers = FALSE;
   priv->testclock = GST_TEST_CLOCK_CAST (gst_test_clock_new ());
-
-  priv->buffer_queue = g_async_queue_new_full (
-      (GDestroyNotify) gst_buffer_unref);
-  priv->src_event_queue = g_async_queue_new_full (
-      (GDestroyNotify) gst_event_unref);
-  priv->sink_event_queue = g_async_queue_new_full (
-      (GDestroyNotify) gst_event_unref);
 
   priv->propose_allocator = NULL;
   gst_allocation_params_init (&priv->propose_allocation_params);
@@ -705,10 +674,6 @@ gst_harness_new_empty (void)
   g_mutex_init (&priv->blocking_push_mutex);
   g_cond_init (&priv->blocking_push_cond);
   g_mutex_init (&priv->priv_mutex);
-
-  g_mutex_init (&priv->buf_or_eos_mutex);
-  g_cond_init (&priv->buf_or_eos_cond);
-  priv->eos_received = FALSE;
 
   priv->stress = g_ptr_array_new_with_free_func (
       (GDestroyNotify) gst_harness_stress_free);
@@ -795,7 +760,7 @@ gst_harness_add_element_full (GstHarness * h, GstElement * element,
 
   gst_harness_element_ref (h);
 
-  GST_DEBUG ("added element to harness %p "
+  GST_DEBUG_OBJECT (h, "added element to harness %p "
       "with element_srcpad_name (%p, %s, %s) and element_sinkpad_name (%p, %s, %s)",
       h, h->srcpad, GST_DEBUG_PAD_NAME (h->srcpad),
       h->sinkpad, GST_DEBUG_PAD_NAME (h->sinkpad));
@@ -1069,17 +1034,20 @@ gst_harness_teardown (GstHarness * h)
     g_mutex_unlock (&priv->blocking_push_mutex);
   }
 
-  if (h->src_harness)
+  if (h->src_harness) {
     gst_harness_teardown (h->src_harness);
-  h->src_harness = NULL;
+  }
 
-  HARNESS_LOCK (h);
   gst_object_replace ((GstObject **) & priv->sink_forward_pad, NULL);
-  HARNESS_UNLOCK (h);
-
-  if (h->sink_harness)
+  if (h->sink_harness) {
     gst_harness_teardown (h->sink_harness);
-  h->sink_harness = NULL;
+  }
+
+  if (priv->src_caps)
+    gst_caps_unref (priv->src_caps);
+
+  if (priv->sink_caps)
+    gst_caps_unref (priv->sink_caps);
 
   if (h->srcpad) {
     if (gst_pad_is_request_pad (GST_PAD_PEER (h->srcpad)))
@@ -1087,17 +1055,10 @@ gst_harness_teardown (GstHarness * h)
     g_free (priv->element_sinkpad_name);
 
     gst_pad_set_active (h->srcpad, FALSE);
-
-    /* Make sure our funcs are not called after harness is teared down since
-     * they try to access this harness through pad data */
-    GST_PAD_STREAM_LOCK (h->srcpad);
-    gst_pad_set_event_function (h->srcpad, NULL);
-    gst_pad_set_query_function (h->srcpad, NULL);
-    GST_PAD_STREAM_UNLOCK (h->srcpad);
-
     gst_object_unref (h->srcpad);
+
+    g_async_queue_unref (priv->src_event_queue);
   }
-  h->srcpad = NULL;
 
   if (h->sinkpad) {
     if (gst_pad_is_request_pad (GST_PAD_PEER (h->sinkpad)))
@@ -1105,26 +1066,11 @@ gst_harness_teardown (GstHarness * h)
     g_free (priv->element_srcpad_name);
 
     gst_pad_set_active (h->sinkpad, FALSE);
-
-    /* Make sure our funcs are not called after harness is teared down since
-     * they try to access this harness through pad data */
-    GST_PAD_STREAM_LOCK (h->sinkpad);
-    gst_pad_set_chain_function (h->sinkpad, NULL);
-    gst_pad_set_event_function (h->sinkpad, NULL);
-    gst_pad_set_query_function (h->sinkpad, NULL);
-    GST_PAD_STREAM_UNLOCK (h->sinkpad);
-
     gst_object_unref (h->sinkpad);
+
+    g_async_queue_unref (priv->buffer_queue);
+    g_async_queue_unref (priv->sink_event_queue);
   }
-  h->sinkpad = NULL;
-
-  if (priv->src_caps)
-    gst_caps_unref (priv->src_caps);
-  priv->src_caps = NULL;
-
-  if (priv->sink_caps)
-    gst_caps_unref (priv->sink_caps);
-  priv->sink_caps = NULL;
 
   gst_object_replace ((GstObject **) & priv->propose_allocator, NULL);
   gst_object_replace ((GstObject **) & priv->allocator, NULL);
@@ -1132,10 +1078,9 @@ gst_harness_teardown (GstHarness * h)
 
   if (priv->propose_allocation_metas)
     g_array_unref (priv->propose_allocation_metas);
-  priv->propose_allocation_metas = NULL;
 
   /* if we hold the last ref, set to NULL */
-  if (h->element != NULL && gst_harness_element_unref (h) == 0) {
+  if (gst_harness_element_unref (h) == 0) {
     gboolean state_change;
     GstState state, pending;
     state_change = gst_element_set_state (h->element, GST_STATE_NULL);
@@ -1149,29 +1094,13 @@ gst_harness_teardown (GstHarness * h)
   g_mutex_clear (&priv->blocking_push_mutex);
   g_mutex_clear (&priv->priv_mutex);
 
-  g_mutex_clear (&priv->buf_or_eos_mutex);
-  g_cond_clear (&priv->buf_or_eos_cond);
-  priv->eos_received = FALSE;
-
-  g_async_queue_unref (priv->buffer_queue);
-  priv->buffer_queue = NULL;
-  g_async_queue_unref (priv->src_event_queue);
-  priv->src_event_queue = NULL;
-  g_async_queue_unref (priv->sink_event_queue);
-  priv->sink_event_queue = NULL;
-
   g_ptr_array_unref (priv->stress);
-  priv->stress = NULL;
 
-  if (h->element) {
-    gst_object_unref (h->element);
-    h->element = NULL;
-  }
+  gst_object_unref (h->element);
 
   gst_object_replace ((GstObject **) & priv->testclock, NULL);
 
   g_free (h->priv);
-  h->priv = NULL;
   g_free (h);
 }
 
@@ -1588,14 +1517,13 @@ gst_harness_set_forwarding (GstHarness * h, gboolean forwarding)
     gst_harness_set_forwarding (h->sink_harness, forwarding);
 }
 
-/*
-* Call with HARNESS_LOCK
-*/
 static void
 gst_harness_set_forward_pad (GstHarness * h, GstPad * fwdpad)
 {
+  HARNESS_LOCK (h);
   gst_object_replace ((GstObject **) & h->priv->sink_forward_pad,
       (GstObject *) fwdpad);
+  HARNESS_UNLOCK (h);
 }
 
 /**
@@ -1626,7 +1554,8 @@ gst_harness_create_buffer (GstHarness * h, gsize size)
     flow = gst_buffer_pool_acquire_buffer (priv->pool, &ret, NULL);
     g_assert_cmpint (flow, ==, GST_FLOW_OK);
     if (gst_buffer_get_size (ret) != size) {
-      GST_DEBUG ("use fallback, pool is configured with a different size (%"
+      GST_DEBUG_OBJECT (h,
+          "use fallback, pool is configured with a different size (%"
           G_GSIZE_FORMAT " != %" G_GSIZE_FORMAT ")",
           size, gst_buffer_get_size (ret));
       gst_buffer_unref (ret);
@@ -1694,40 +1623,6 @@ gst_harness_pull (GstHarness * h)
   }
 
   return buf;
-}
-
-/**
- * gst_harness_pull_until_eos:
- * @h: a #GstHarness
- * @buf: (out) (transfer full): A #GstBuffer, or %NULL if EOS or timeout occures
- *   first.
- *
- * Pulls a #GstBuffer from the #GAsyncQueue on the #GstHarness sinkpad. The pull
- * will block until an EOS event is received, or timeout in 60 seconds.
- * MT safe.
- *
- * Returns: %TRUE on success, %FALSE on timeout.
- *
- * Since: 1.18
- */
-gboolean
-gst_harness_pull_until_eos (GstHarness * h, GstBuffer ** buf)
-{
-  GstHarnessPrivate *priv = h->priv;
-  gboolean success = TRUE;
-  gint64 end_time = g_get_monotonic_time () + 60 * G_TIME_SPAN_SECOND;
-
-  g_mutex_lock (&priv->buf_or_eos_mutex);
-  while (success) {
-    *buf = g_async_queue_try_pop (priv->buffer_queue);
-    if (*buf || priv->eos_received)
-      break;
-    success = g_cond_wait_until (&priv->buf_or_eos_cond,
-        &priv->buf_or_eos_mutex, end_time);
-  }
-  g_mutex_unlock (&priv->buf_or_eos_mutex);
-
-  return success;
 }
 
 /**
@@ -2226,26 +2121,8 @@ gst_harness_query_latency (GstHarness * h)
 void
 gst_harness_set_upstream_latency (GstHarness * h, GstClockTime latency)
 {
-  g_return_if_fail (GST_CLOCK_TIME_IS_VALID (latency));
-
-  h->priv->latency_min = latency;
-}
-
-/**
- * gst_harness_set_live:
- * @h: a #GstHarness
- * @is_live: %TRUE for live, %FALSE for non-live
- *
- * Sets the liveness reported by #GstHarness when receiving a latency-query.
- * The default is %TRUE.
- *
- * Since: 1.20
- */
-void
-gst_harness_set_live (GstHarness * h, gboolean is_live)
-{
   GstHarnessPrivate *priv = h->priv;
-  priv->is_live = is_live;
+  priv->latency_min = latency;
 }
 
 /**
@@ -2358,11 +2235,7 @@ gst_harness_add_src_harness (GstHarness * h,
   if (h->src_harness)
     gst_harness_teardown (h->src_harness);
   h->src_harness = src_harness;
-
-  HARNESS_LOCK (h->src_harness);
   gst_harness_set_forward_pad (h->src_harness, h->srcpad);
-  HARNESS_UNLOCK (h->src_harness);
-
   h->src_harness->priv->has_clock_wait = has_clock_wait;
   gst_harness_set_forwarding (h->src_harness, h->priv->forwarding);
 }
@@ -2523,8 +2396,8 @@ gst_harness_src_push_event (GstHarness * h)
 static gboolean
 forward_sticky_events (GstPad * pad, GstEvent ** ev, gpointer user_data)
 {
-  GstPad *fwdpad = user_data;
-  return gst_pad_push_event (fwdpad, gst_event_ref (*ev));
+  GstHarness *h = user_data;
+  return gst_pad_push_event (h->priv->sink_forward_pad, gst_event_ref (*ev));
 }
 
 /**
@@ -2548,35 +2421,17 @@ forward_sticky_events (GstPad * pad, GstEvent ** ev, gpointer user_data)
 void
 gst_harness_add_sink_harness (GstHarness * h, GstHarness * sink_harness)
 {
-  GstHarnessPrivate *priv;
-  GstPad *fwdpad;
-
-  HARNESS_LOCK (h);
-  priv = h->priv;
+  GstHarnessPrivate *priv = h->priv;
 
   if (h->sink_harness) {
     gst_harness_set_forward_pad (h, NULL);
     gst_harness_teardown (h->sink_harness);
   }
   h->sink_harness = sink_harness;
-
-  fwdpad = h->sink_harness->srcpad;
-  if (fwdpad)
-    gst_object_ref (fwdpad);
-
-  if (priv->forwarding && h->sinkpad && fwdpad) {
-    HARNESS_UNLOCK (h);
-    gst_pad_sticky_events_foreach (h->sinkpad, forward_sticky_events, fwdpad);
-    HARNESS_LOCK (h);
-  }
-
-  gst_harness_set_forward_pad (h, fwdpad);
-  if (fwdpad)
-    gst_object_unref (fwdpad);
-
+  gst_harness_set_forward_pad (h, h->sink_harness->srcpad);
+  if (priv->forwarding && h->sinkpad)
+    gst_pad_sticky_events_foreach (h->sinkpad, forward_sticky_events, h);
   gst_harness_set_forwarding (h->sink_harness, priv->forwarding);
-
-  HARNESS_UNLOCK (h);
 }
 
 /**

@@ -16,18 +16,47 @@
  * Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
  * Boston, MA 02110-1301, USA.
  */
+/**
+ * SECTION:element-appsrc
+ * @title: appsrc
+ *
+ * The appsrc element can be used by applications to insert data into a
+ * GStreamer pipeline. Unlike most GStreamer elements, Appsrc provides
+ * external API functions.
+ *
+ * For the documentation of the API, please see the
+ * <link linkend="gst-plugins-base-libs-appsrc">libgstapp</link> section in the
+ * GStreamer Plugins Base Libraries documentation.
+ */
+/**
+ * SECTION:element-appsink
+ * @title: appsink
+ *
+ * Appsink is a sink plugin that supports many different methods for making
+ * the application get a handle on the GStreamer data in a pipeline. Unlike
+ * most GStreamer elements, Appsink provides external API functions.
+ *
+ * For the documentation of the API, please see the
+ * <link linkend="gst-plugins-base-libs-appsink">libgstapp</link> section in
+ * the GStreamer Plugins Base Libraries documentation.
+ */
 
-#include "gstappelements.h"
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include <gst/gst.h>
+
+#include <gst/app/gstappsrc.h>
+#include <gst/app/gstappsink.h>
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  gst_element_register (plugin, "appsrc", GST_RANK_NONE, GST_TYPE_APP_SRC);
+  gst_element_register (plugin, "appsink", GST_RANK_NONE, GST_TYPE_APP_SINK);
 
-  ret |= GST_ELEMENT_REGISTER (appsrc, plugin);
-  ret |= GST_ELEMENT_REGISTER (appsink, plugin);
-
-  return ret;
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

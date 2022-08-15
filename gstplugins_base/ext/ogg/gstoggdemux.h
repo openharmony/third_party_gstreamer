@@ -97,7 +97,7 @@ struct _GstOggPad
   gint64 first_granule;         /* the granulepos of first page == first sample in next page */
   GstClockTime first_time;      /* the timestamp of the second page or granuletime of first page */
 
-  GstClockTime position;        /* position when last push occurred; used to detect when we
+  GstClockTime position;        /* position when last push occured; used to detect when we
                                  * need to send a newsegment update event for sparse streams */
 
   GList *continued;
@@ -203,7 +203,7 @@ struct _GstOggDemux
   ogg_sync_state sync;
   long chunk_size;
 
-  /* Seek events set up by the streaming thread */
+  /* Seek events set up by the streaming thread in push mode */
   GstEvent *seek_event;
   GThread *seek_event_thread;
   GMutex seek_event_mutex;
@@ -218,6 +218,8 @@ struct _GstOggDemuxClass
 {
   GstElementClass parent_class;
 };
+
+gboolean gst_ogg_demux_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 

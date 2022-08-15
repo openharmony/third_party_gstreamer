@@ -27,11 +27,11 @@
  * @title: GstEGLImage
  * @see_also: #GstGLMemoryEGL, #GstGLContext
  *
- * #GstEGLImage represents and holds an `EGLImage` handle.
+ * #GstEGLImage represents and holds an #EGLImage handle.
  *
  * A #GstEGLImage can be created from a dmabuf with gst_egl_image_from_dmabuf(),
  * or gst_egl_image_from_dmabuf_direct(), or #GstGLMemoryEGL provides a
- * #GstAllocator to allocate `EGLImage`'s bound to and OpenGL texture.
+ * #GstAllocator to allocate #EGLImage's bound to and OpenGL texture.
  */
 
 #ifdef HAVE_CONFIG_H
@@ -39,7 +39,6 @@
 #endif
 
 #include "gsteglimage.h"
-#include "gsteglimage_private.h"
 
 #include <string.h>
 
@@ -69,26 +68,6 @@
 #ifndef DRM_FORMAT_NV24
 #define DRM_FORMAT_NV24 fourcc_code('N', 'V', '2', '4')
 #endif
-#endif
-
-#ifndef DRM_FORMAT_BGRA1010102
-#define DRM_FORMAT_BGRA1010102  fourcc_code('B', 'A', '3', '0')
-#endif
-
-#ifndef DRM_FORMAT_RGBA1010102
-#define DRM_FORMAT_RGBA1010102  fourcc_code('R', 'A', '3', '0')
-#endif
-
-#ifndef DRM_FORMAT_R16
-#define DRM_FORMAT_R16          fourcc_code('R', '1', '6', ' ')
-#endif
-
-#ifndef DRM_FORMAT_GR1616
-#define DRM_FORMAT_GR1616       fourcc_code('G', 'R', '3', '2')
-#endif
-
-#ifndef DRM_FORMAT_RG1616
-#define DRM_FORMAT_RG1616       fourcc_code('R', 'G', '3', '2')
 #endif
 
 #ifndef EGL_LINUX_DMA_BUF_EXT
@@ -191,6 +170,10 @@
 #define EGL_YUV_NARROW_RANGE_EXT 0x3283
 #endif
 
+#if !GST_GL_HAVE_EGLUINT64KHR
+typedef khronos_uint64_t EGLuint64KHR;
+#endif
+
 GST_DEFINE_MINI_OBJECT_TYPE (GstEGLImage, gst_egl_image);
 
 #ifndef GST_DISABLE_GST_DEBUG
@@ -217,7 +200,7 @@ gst_egl_image_ensure_debug_category (void)
  * gst_egl_image_get_image:
  * @image: a #GstEGLImage
  *
- * Returns: the `EGLImage` of @image
+ * Returns: the #EGLImageKHR of @image
  */
 gpointer
 gst_egl_image_get_image (GstEGLImage * image)
@@ -260,7 +243,7 @@ _gst_egl_image_copy (GstMiniObject * obj)
  * @image: the image to wrap
  * @format: the #GstGLFormat
  * @user_data: user data
- * @user_data_destroy: (destroy user_data) (scope async): called when @user_data is no longer needed
+ * @user_data_destroy: (destroy user_data): called when @user_data is no longer needed
  *
  * Returns: a new #GstEGLImage wrapping @image
  */
@@ -419,7 +402,7 @@ _destroy_egl_image (GstEGLImage * image, gpointer user_data)
  * gst_egl_image_from_texture:
  * @context: a #GstGLContext (must be an EGL context)
  * @gl_mem: a #GstGLMemory
- * @attribs: additional attributes to add to the `eglCreateImage`() call.
+ * @attribs: additional attributes to add to the eglCreateImage() call.
  *
  * Returns: (transfer full): a #GstEGLImage wrapping @gl_mem or %NULL on failure
  */
@@ -456,7 +439,7 @@ gst_egl_image_from_texture (GstGLContext * context, GstGLMemory * gl_mem,
  * target.
  */
 static int
-_drm_rgba_fourcc_from_info (const GstVideoInfo * info, int plane,
+_drm_rgba_fourcc_from_info (GstVideoInfo * info, int plane,
     GstGLFormat * out_format)
 {
   GstVideoFormat format = GST_VIDEO_INFO_FORMAT (info);
@@ -493,7 +476,6 @@ _drm_rgba_fourcc_from_info (const GstVideoInfo * info, int plane,
     case GST_VIDEO_FORMAT_ABGR:
     case GST_VIDEO_FORMAT_xBGR:
     case GST_VIDEO_FORMAT_AYUV:
-    case GST_VIDEO_FORMAT_VUYA:
       *out_format = GST_GL_RGBA;
       return rgba_fourcc;
 
@@ -521,30 +503,6 @@ _drm_rgba_fourcc_from_info (const GstVideoInfo * info, int plane,
       *out_format = GST_GL_RED;
       return DRM_FORMAT_R8;
 
-    case GST_VIDEO_FORMAT_BGR10A2_LE:
-      *out_format = GST_GL_RGB10_A2;
-      return DRM_FORMAT_BGRA1010102;
-
-    case GST_VIDEO_FORMAT_RGB10A2_LE:
-      *out_format = GST_GL_RGB10_A2;
-      return DRM_FORMAT_RGBA1010102;
-
-    case GST_VIDEO_FORMAT_P010_10LE:
-    case GST_VIDEO_FORMAT_P012_LE:
-    case GST_VIDEO_FORMAT_P016_LE:
-      *out_format = plane == 0 ? GST_GL_R16 : GST_GL_RG16;
-      return plane == 0 ? DRM_FORMAT_R16 : DRM_FORMAT_GR1616;
-
-    case GST_VIDEO_FORMAT_P010_10BE:
-    case GST_VIDEO_FORMAT_P012_BE:
-    case GST_VIDEO_FORMAT_P016_BE:
-      *out_format = plane == 0 ? GST_GL_R16 : GST_GL_RG16;
-      return plane == 0 ? DRM_FORMAT_R16 : DRM_FORMAT_RG1616;
-
-    case GST_VIDEO_FORMAT_AV12:
-      *out_format = plane == 1 ? GST_GL_RED : GST_GL_RG;
-      return plane == 1 ? rg_fourcc : DRM_FORMAT_R8;
-
     default:
       GST_ERROR ("Unsupported format for DMABuf.");
       return -1;
@@ -571,9 +529,8 @@ _drm_rgba_fourcc_from_info (const GstVideoInfo * info, int plane,
  */
 GstEGLImage *
 gst_egl_image_from_dmabuf (GstGLContext * context,
-    gint dmabuf, const GstVideoInfo * in_info, gint plane, gsize offset)
+    gint dmabuf, GstVideoInfo * in_info, gint plane, gsize offset)
 {
-  gint comp[GST_VIDEO_MAX_COMPONENTS];
   GstGLFormat format = 0;
   guintptr attribs[13];
   EGLImageKHR img;
@@ -581,17 +538,16 @@ gst_egl_image_from_dmabuf (GstGLContext * context,
   gint fourcc;
   gint i;
 
-  gst_video_format_info_component (in_info->finfo, plane, comp);
   fourcc = _drm_rgba_fourcc_from_info (in_info, plane, &format);
   GST_DEBUG ("fourcc %.4s (%d) plane %d (%dx%d)",
       (char *) &fourcc, fourcc, plane,
-      GST_VIDEO_INFO_COMP_WIDTH (in_info, comp[0]),
-      GST_VIDEO_INFO_COMP_HEIGHT (in_info, comp[0]));
+      GST_VIDEO_INFO_COMP_WIDTH (in_info, plane),
+      GST_VIDEO_INFO_COMP_HEIGHT (in_info, plane));
 
   attribs[atti++] = EGL_WIDTH;
-  attribs[atti++] = GST_VIDEO_INFO_COMP_WIDTH (in_info, comp[0]);
+  attribs[atti++] = GST_VIDEO_INFO_COMP_WIDTH (in_info, plane);
   attribs[atti++] = EGL_HEIGHT;
-  attribs[atti++] = GST_VIDEO_INFO_COMP_HEIGHT (in_info, comp[0]);
+  attribs[atti++] = GST_VIDEO_INFO_COMP_HEIGHT (in_info, plane);
   attribs[atti++] = EGL_LINUX_DRM_FOURCC_EXT;
   attribs[atti++] = fourcc;
   attribs[atti++] = EGL_DMA_BUF_PLANE0_FD_EXT;
@@ -623,7 +579,7 @@ gst_egl_image_from_dmabuf (GstGLContext * context,
  * YUV->RGB conversion matrices etc.)
  */
 static int
-_drm_direct_fourcc_from_info (const GstVideoInfo * info)
+_drm_direct_fourcc_from_info (GstVideoInfo * info)
 {
   GstVideoFormat format = GST_VIDEO_INFO_FORMAT (info);
 
@@ -643,7 +599,6 @@ _drm_direct_fourcc_from_info (const GstVideoInfo * info)
       return DRM_FORMAT_VYUY;
 
     case GST_VIDEO_FORMAT_AYUV:
-    case GST_VIDEO_FORMAT_VUYA:
       return DRM_FORMAT_AYUV;
 
     case GST_VIDEO_FORMAT_NV12:
@@ -718,20 +673,8 @@ _drm_direct_fourcc_from_info (const GstVideoInfo * info)
   }
 }
 
-/**
- * gst_egl_image_check_dmabuf_direct:
- * @context: a #GstGLContext (must be an EGL context)
- * @in_info: a #GstVideoInfo
- * @target: a #GstGLTextureTarget
- *
- * Checks whether the video format specified by the given #GstVideoInfo is a
- * supported texture format for the given target.
- *
- * Returns: %TRUE if the format is supported.
- */
-gboolean
-gst_egl_image_check_dmabuf_direct (GstGLContext * context,
-    const GstVideoInfo * in_info, GstGLTextureTarget target)
+static gboolean
+_gst_egl_image_check_dmabuf_direct (GstGLContext * context, int fourcc)
 {
   EGLDisplay egl_display = EGL_DEFAULT_DISPLAY;
   GstGLDisplayEGL *display_egl;
@@ -741,7 +684,6 @@ gst_egl_image_check_dmabuf_direct (GstGLContext * context,
   EGLBoolean *external_only;
   int num_modifiers;
   gboolean ret;
-  int fourcc;
   int i;
 
   EGLBoolean (*gst_eglQueryDmaBufFormatsEXT) (EGLDisplay dpy,
@@ -749,10 +691,6 @@ gst_egl_image_check_dmabuf_direct (GstGLContext * context,
   EGLBoolean (*gst_eglQueryDmaBufModifiersEXT) (EGLDisplay dpy,
       int format, int max_modifiers, EGLuint64KHR * modifiers,
       EGLBoolean * external_only, int *num_modifiers);
-
-  fourcc = _drm_direct_fourcc_from_info (in_info);
-  if (fourcc == -1)
-    return FALSE;
 
   gst_eglQueryDmaBufFormatsEXT =
       gst_gl_context_get_proc_address (context, "eglQueryDmaBufFormatsEXT");
@@ -822,7 +760,7 @@ gst_egl_image_check_dmabuf_direct (GstGLContext * context,
         GST_DEBUG ("driver only supports external import of fourcc %"
             GST_FOURCC_FORMAT, GST_FOURCC_ARGS (fourcc));
       }
-      ret = !external_only[i] || (target == GST_GL_TEXTURE_TARGET_EXTERNAL_OES);
+      ret = !external_only[i];
       g_free (modifiers);
       g_free (external_only);
       return ret;
@@ -836,12 +774,11 @@ gst_egl_image_check_dmabuf_direct (GstGLContext * context,
 }
 
 /**
- * gst_egl_image_from_dmabuf_direct_target:
+ * gst_egl_image_from_dmabuf_direct:
  * @context: a #GstGLContext (must be an EGL context)
  * @fd: Array of DMABuf file descriptors
  * @offset: Array of offsets, relative to the DMABuf
  * @in_info: the #GstVideoInfo
- * @target: GL texture target this GstEGLImage is intended for
  *
  * Creates an EGL image that imports the dmabuf FD. The dmabuf data
  * is passed directly as the format described in in_info. This is
@@ -854,13 +791,10 @@ gst_egl_image_check_dmabuf_direct (GstGLContext * context,
  * a single plane.
  *
  * Returns: a #GstEGLImage wrapping @dmabuf or %NULL on failure
- *
- * Since: 1.18
  */
 GstEGLImage *
-gst_egl_image_from_dmabuf_direct_target (GstGLContext * context,
-    gint * fd, const gsize * offset, const GstVideoInfo * in_info,
-    GstGLTextureTarget target)
+gst_egl_image_from_dmabuf_direct (GstGLContext * context,
+    gint * fd, gsize * offset, GstVideoInfo * in_info)
 {
 
   EGLImageKHR img;
@@ -878,12 +812,15 @@ gst_egl_image_from_dmabuf_direct_target (GstGLContext * context,
   guintptr attribs[41];         /* 6 + 10 * 3 + 4 + 1 */
   gint atti = 0;
 
-  if (!gst_egl_image_check_dmabuf_direct (context, in_info, target))
+  fourcc = _drm_direct_fourcc_from_info (in_info);
+  if (fourcc == -1)
     return NULL;
 
-  fourcc = _drm_direct_fourcc_from_info (in_info);
+  if (!_gst_egl_image_check_dmabuf_direct (context, fourcc))
+    return NULL;
+
   with_modifiers = gst_gl_context_check_feature (context,
-      "EGL_EXT_image_dma_buf_import_modifiers");
+      "EGL_EXT_image_dma_buf_import_with_modifiers");
 
   /* EGL DMABuf importation supports a maximum of 3 planes */
   if (G_UNLIKELY (n_planes > 3))
@@ -1003,33 +940,6 @@ gst_egl_image_from_dmabuf_direct_target (GstGLContext * context,
       (GstEGLImageDestroyNotify) _destroy_egl_image);
 }
 
-/**
- * gst_egl_image_from_dmabuf_direct:
- * @context: a #GstGLContext (must be an EGL context)
- * @fd: Array of DMABuf file descriptors
- * @offset: Array of offsets, relative to the DMABuf
- * @in_info: the #GstVideoInfo
- *
- * Creates an EGL image that imports the dmabuf FD. The dmabuf data
- * is passed directly as the format described in in_info. This is
- * useful if the hardware is capable of performing color space conversions
- * internally. The appropriate DRM format is picked, and the EGL image
- * is created with this DRM format.
- *
- * Another notable difference to gst_egl_image_from_dmabuf()
- * is that this function creates one EGL image for all planes, not one for
- * a single plane.
- *
- * Returns: a #GstEGLImage wrapping @dmabuf or %NULL on failure
- */
-GstEGLImage *
-gst_egl_image_from_dmabuf_direct (GstGLContext * context,
-    gint * fd, const gsize * offset, const GstVideoInfo * in_info)
-{
-  return gst_egl_image_from_dmabuf_direct_target (context, fd, offset, in_info,
-      GST_GL_TEXTURE_TARGET_2D);
-}
-
 gboolean
 gst_egl_image_export_dmabuf (GstEGLImage * image, int *fd, gint * stride,
     gsize * offset)
@@ -1045,8 +955,6 @@ gst_egl_image_export_dmabuf (GstEGLImage * image, int *fd, gint * stride,
   int egl_fd = 0;
   EGLint egl_stride = 0;
   EGLint egl_offset = 0;
-  int fourcc;
-  EGLuint64KHR modifier;
 
   gst_eglExportDMABUFImageQueryMESA =
       gst_gl_context_get_proc_address (image->context,
@@ -1072,25 +980,16 @@ gst_egl_image_export_dmabuf (GstEGLImage * image, int *fd, gint * stride,
   gst_object_unref (display_egl);
 
   if (!gst_eglExportDMABUFImageQueryMESA (egl_display, image->image,
-          &fourcc, &num_planes, &modifier))
+          NULL, &num_planes, NULL))
     return FALSE;
 
   /* Don't allow multi-plane dmabufs */
   if (num_planes > 1)
     return FALSE;
 
-  /* FIXME We don't support modifiers */
-  if (modifier != DRM_FORMAT_MOD_LINEAR)
-    return FALSE;
-
   if (!gst_eglExportDMABUFImageMESA (egl_display, image->image, &egl_fd,
           &egl_stride, &egl_offset))
     return FALSE;
-
-  GST_DEBUG_OBJECT (image->context, "Export DMABuf with fourcc %"
-      GST_FOURCC_FORMAT ", modififers %" G_GUINT64_FORMAT
-      ", stride %i and offset %i", GST_FOURCC_ARGS (fourcc), modifier,
-      egl_stride, egl_offset);
 
   *fd = egl_fd;
   *stride = egl_stride;

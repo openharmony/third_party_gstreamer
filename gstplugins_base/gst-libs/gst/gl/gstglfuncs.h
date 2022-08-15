@@ -55,9 +55,6 @@
 /* OpenGL for desktop systems */
 #if GST_GL_HAVE_OPENGL
 # ifdef __APPLE__
-#  if !defined(MAC_OS_X_VERSION_MAX_ALLOWED) || MAC_OS_X_VERSION_MAX_ALLOWED >= 1014
-#   define GL_SILENCE_DEPRECATION
-#  endif
 #  include <OpenGL/OpenGL.h>
 #  include <OpenGL/gl.h>
 #  if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
@@ -99,7 +96,7 @@ G_BEGIN_DECLS
 struct _GstGLFuncs
 {
 #include <gst/gl/glprototypes/all_functions.h>
-  gpointer padding[GST_PADDING_LARGE*6-2];
+  gpointer padding[GST_PADDING_LARGE*6];
 };
 
 #undef GST_GL_EXT_BEGIN

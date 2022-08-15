@@ -332,52 +332,6 @@ gst_check_deinit (void)
   gst_check_clear_log_filter ();
 }
 
-static const gchar *log_domains[] = {
-  "GLib-GObject",
-  "GLib-GIO",
-  "GLib",
-  "GStreamer-AdaptiveDemux",
-  "GStreamer-Allocators",
-  "GStreamer-App",
-  "GStreamer-Audio",
-  "GStreamer-AudioBad",
-  "GStreamer-Base",
-  "GStreamer-BaseCameraBinSrc",
-  "GStreamer-Check",
-  "GStreamer-CodecParsers",
-  "GStreamer-Codecs",
-  "GStreamer-Controller",
-  "GStreamer-D3D11",
-  "GStreamer",
-  "GStreamer-FFT",
-  "GStreamer-GL",
-  "GStreamer-InsertBin",
-  "GStreamer-ISOFF",
-  "GStreamer-MpegTS",
-  "GStreamer-Net",
-  "GStreamer-OpenCV",
-  "GStreamer-PBUtils",
-  "GStreamer-Photography",
-  "GStreamer-Play",
-  "GStreamer-Player",
-  "GStreamer-RIFF",
-  "GStreamer-RTP",
-  "GStreamer-RTSP",
-  "GStreamer-RTSP-Server",
-  "GStreamer-SCTP",
-  "GStreamer-SDP",
-  "GStreamer-Tag",
-  "GStreamer-Transcoder",
-  "GStreamer-UriDownloader",
-  "GStreamer-VA",
-  "GStreamer-Video",
-  "GStreamer-Vulkan",
-  "GStreamer-Vulkan",
-  "GStreamer-Wayland",
-  "GStreamer-WebRTC",
-  "GStreamer-WinRT",
-};
-
 /* gst_check_init:
  * @argc: (inout) (allow-none): pointer to application's argc
  * @argv: (inout) (array length=argc) (allow-none): pointer to application's argv
@@ -398,7 +352,6 @@ gst_check_init (int *argc, char **argv[])
         "List tests present in the testsuite", NULL},
     {NULL}
   };
-  guint i;
 
   ctx = g_option_context_new ("gst-check");
   g_option_context_add_main_entries (ctx, options, NULL);
@@ -426,13 +379,14 @@ gst_check_init (int *argc, char **argv[])
       NULL);
   g_log_set_handler (NULL, G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING,
       gst_check_log_critical_func, NULL);
-
-  for (i = 0; i < G_N_ELEMENTS (log_domains); ++i) {
-    g_log_set_handler (log_domains[i],
-        G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING,
-        gst_check_log_critical_func, NULL);
-  }
-
+  g_log_set_handler ("GStreamer", G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING,
+      gst_check_log_critical_func, NULL);
+  g_log_set_handler ("GLib-GObject", G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING,
+      gst_check_log_critical_func, NULL);
+  g_log_set_handler ("GLib-GIO", G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING,
+      gst_check_log_critical_func, NULL);
+  g_log_set_handler ("GLib", G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING,
+      gst_check_log_critical_func, NULL);
   g_test_log_set_fatal_handler (gst_check_log_fatal_func, NULL);
 
   print_plugins ();
@@ -480,12 +434,6 @@ gst_check_message_error (GstMessage * message, GstMessageType type,
 }
 
 /* helper functions */
-/**
- * gst_check_chain_func:
- *
- * A fake chain function that appends the buffer to the internal list of
- * buffers.
- */
 GstFlowReturn
 gst_check_chain_func (GstPad * pad, GstObject * parent, GstBuffer * buffer)
 {
@@ -642,12 +590,14 @@ gst_check_setup_src_pad_by_name_from_template (GstElement * element,
 
   sinkpad = gst_element_get_static_pad (element, name);
   if (sinkpad == NULL)
-    sinkpad = gst_element_request_pad_simple (element, name);
+    sinkpad = gst_element_get_request_pad (element, name);
   fail_if (sinkpad == NULL, "Could not get sink pad from %s",
       GST_ELEMENT_NAME (element));
+  ASSERT_OBJECT_REFCOUNT (sinkpad, "sinkpad", 2);
   fail_unless (gst_pad_link (srcpad, sinkpad) == GST_PAD_LINK_OK,
       "Could not link source and %s sink pads", GST_ELEMENT_NAME (element));
   gst_object_unref (sinkpad);   /* because we got it higher up */
+  ASSERT_OBJECT_REFCOUNT (sinkpad, "sinkpad", 1);
 
   return srcpad;
 }
@@ -672,9 +622,14 @@ gst_check_teardown_pad_by_name (GstElement * element, const gchar * name)
       gst_pad_unlink (pad_element, pad_peer);
   }
 
+  /* pad refs held by both creator and this function (through _get) */
+  ASSERT_OBJECT_REFCOUNT (pad_element, "element pad_element", 2);
   gst_object_unref (pad_element);
+  /* one more ref is held by element itself */
 
   if (pad_peer) {
+    /* pad refs held by both creator and this function (through _get_peer) */
+    ASSERT_OBJECT_REFCOUNT (pad_peer, "check pad_peer", 2);
     gst_object_unref (pad_peer);
     gst_object_unref (pad_peer);
   }
@@ -767,7 +722,7 @@ gst_check_setup_sink_pad_by_name_from_template (GstElement * element,
 
   srcpad = gst_element_get_static_pad (element, name);
   if (srcpad == NULL)
-    srcpad = gst_element_request_pad_simple (element, name);
+    srcpad = gst_element_get_request_pad (element, name);
   fail_if (srcpad == NULL, "Could not get source pad from %s",
       GST_ELEMENT_NAME (element));
   gst_pad_set_chain_function (sinkpad, gst_check_chain_func);
@@ -776,8 +731,9 @@ gst_check_setup_sink_pad_by_name_from_template (GstElement * element,
   fail_unless (gst_pad_link (srcpad, sinkpad) == GST_PAD_LINK_OK,
       "Could not link %s source and sink pads", GST_ELEMENT_NAME (element));
   gst_object_unref (srcpad);    /* because we got it higher up */
+  ASSERT_OBJECT_REFCOUNT (srcpad, "srcpad", 1);
 
-  GST_DEBUG_OBJECT (element, "set up srcpad");
+  GST_DEBUG_OBJECT (element, "set up srcpad, refcount is 1");
   return sinkpad;
 }
 
@@ -839,10 +795,6 @@ gst_check_buffer_data (GstBuffer * buffer, gconstpointer data, gsize size)
   fail_unless (gst_buffer_map (buffer, &info, GST_MAP_READ));
   GST_MEMDUMP ("Converted data", info.data, info.size);
   GST_MEMDUMP ("Expected data", data, size);
-  if (info.size != size) {
-    fail ("buffer sizes not equal: expected %" G_GSIZE_FORMAT " got %"
-        G_GSIZE_FORMAT, size, info.size);
-  }
   if (memcmp (info.data, data, size) != 0) {
     g_print ("\nConverted data:\n");
     gst_util_dump_mem (info.data, info.size);
@@ -1049,15 +1001,6 @@ gst_check_element_push_buffer (const gchar * element_name,
       GST_FLOW_OK);
 }
 
-/**
- * gst_check_abi_list:
- * @list: A list of GstCheckABIStruct to be verified
- * @have_abi_sizes: Whether there is a reference ABI size already specified,
- * if it is %FALSE and the `GST_ABI` environment variable is set, usable code
- * for @list will be printed.
- *
- * Verifies that reference values and current values are equals in @list.
- */
 void
 gst_check_abi_list (GstCheckABIStruct list[], gboolean have_abi_sizes)
 {
@@ -1136,7 +1079,6 @@ gst_check_run_suite (Suite * suite, const gchar * name, const gchar * fname)
   g_timer_destroy (timer);
   g_free (xmlfilename);
   srunner_free (sr);
-  g_thread_pool_stop_unused_threads ();
   return nf;
 }
 
@@ -1260,7 +1202,7 @@ weak_notify (DestroyedObjectStruct * destroyed, GObject ** object)
  *
  * Unrefs @object_to_unref and checks that is has properly been
  * destroyed, also checks that the other objects passed in
- * parameter have been destroyed as a concequence of
+ * parametter have been destroyed as a concequence of
  * unrefing @object_to_unref. Last variable argument should be NULL.
  *
  * Since: 1.6

@@ -64,6 +64,7 @@
 #include <gst/gst.h>
 #include <math.h>
 
+#include "gstplugin.h"
 #include "gstdilate.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_dilate_debug);
@@ -77,9 +78,6 @@ GST_DEBUG_CATEGORY_STATIC (gst_dilate_debug);
 
 #define gst_dilate_parent_class parent_class
 G_DEFINE_TYPE (GstDilate, gst_dilate, GST_TYPE_VIDEO_FILTER);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (dilate, "dilate", GST_RANK_NONE,
-    GST_TYPE_DILATE, GST_DEBUG_CATEGORY_INIT (gst_dilate_debug, "dilate", 0,
-        "Template dilate"));
 
 /* Filter signals and args. */
 enum
@@ -161,7 +159,7 @@ gst_dilate_class_init (GstDilateClass * klass)
 
 /* Initialize the element,
  * instantiate pads and add them to element,
- * set pad callback functions, and
+ * set pad calback functions, and
  * initialize instance structure.
  */
 static void
@@ -250,6 +248,18 @@ gst_dilate_transform_frame (GstVideoFilter * vfilter,
   transform (src, dest, video_size, width, height, erode);
 
   return GST_FLOW_OK;
+}
+
+/* Entry point to initialize the plug-in.
+ * Register the element factories and other features. */
+gboolean
+gst_dilate_plugin_init (GstPlugin * dilate)
+{
+  /* debug category for fltering log messages */
+  GST_DEBUG_CATEGORY_INIT (gst_dilate_debug, "dilate", 0, "Template dilate");
+
+  return gst_element_register (dilate, "dilate", GST_RANK_NONE,
+      GST_TYPE_DILATE);
 }
 
 /*** Now the image processing work.... ***/

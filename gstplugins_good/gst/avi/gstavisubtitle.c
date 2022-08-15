@@ -20,17 +20,19 @@
 
 /**
  * SECTION:element-avisubtitle
- * @title: avisubtitle
  *
+ * <refsect2>
+ * <para>
  * Parses the subtitle stream from an avi file.
- *
- * ## Example launch line
- *
- * |[
+ * </para>
+ * <title>Example launch line</title>
+ * <para>
+ * <programlisting>
  * gst-launch-1.0 filesrc location=subtitle.avi ! avidemux name=demux ! queue ! avisubtitle ! subparse ! textoverlay name=overlay ! videoconvert ! autovideosink demux. ! queue ! decodebin ! overlay.
- * ]|
+ * </programlisting>
  * This plays an avi file with a video and subtitle stream.
- *
+ * </para>
+ * </refsect2>
  */
 
 /* example of a subtitle chunk in an avi file
@@ -53,7 +55,6 @@
 
 #include <string.h>
 
-#include "gstavielements.h"
 #include "gstavisubtitle.h"
 
 GST_DEBUG_CATEGORY_STATIC (avisubtitle_debug);
@@ -81,8 +82,6 @@ static gboolean gst_avi_subtitle_send_event (GstElement * element,
 
 #define gst_avi_subtitle_parent_class parent_class
 G_DEFINE_TYPE (GstAviSubtitle, gst_avi_subtitle, GST_TYPE_ELEMENT);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (avisubtitle, "avisubtitle",
-    GST_RANK_PRIMARY, GST_TYPE_AVI_SUBTITLE, avi_element_init (plugin));
 
 #define IS_BOM_UTF8(data)     ((GST_READ_UINT32_BE(data) >> 8) == 0xEFBBBF)
 #define IS_BOM_UTF16_BE(data) (GST_READ_UINT16_BE(data) == 0xFEFF)

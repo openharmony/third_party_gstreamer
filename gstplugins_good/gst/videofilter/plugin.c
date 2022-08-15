@@ -31,14 +31,13 @@
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
-
-  ret |= GST_ELEMENT_REGISTER (gamma, plugin);
-  ret |= GST_ELEMENT_REGISTER (videobalance, plugin);
-  ret |= GST_ELEMENT_REGISTER (videoflip, plugin);
-  ret |= GST_ELEMENT_REGISTER (videomedian, plugin);
-
-  return ret;
+  return (gst_element_register (plugin, "gamma", GST_RANK_NONE, GST_TYPE_GAMMA)
+      && gst_element_register (plugin, "videobalance", GST_RANK_NONE,
+          GST_TYPE_VIDEO_BALANCE)
+      && gst_element_register (plugin, "videoflip", GST_RANK_NONE,
+          GST_TYPE_VIDEO_FLIP)
+      && gst_element_register (plugin, "videomedian", GST_RANK_NONE,
+          GST_TYPE_VIDEO_MEDIAN));
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

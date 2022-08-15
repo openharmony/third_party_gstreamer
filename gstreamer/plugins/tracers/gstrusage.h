@@ -62,7 +62,8 @@ typedef struct
 struct _GstRUsageTracer {
   GstTracer 	 parent;
 
-  /*< private >*/
+  /*< private >*/        
+  GHashTable *threads;
   GstTraceValues *tvs_proc;
 
   /* for ts calibration */

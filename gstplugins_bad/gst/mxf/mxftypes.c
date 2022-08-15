@@ -555,7 +555,7 @@ mxf_timestamp_to_string (const MXFTimestamp * t, gchar str[32])
 void
 mxf_timestamp_set_now (MXFTimestamp * timestamp)
 {
-  gint64 now;
+  GTimeVal tv;
   time_t t;
   struct tm *tm;
 
@@ -563,8 +563,8 @@ mxf_timestamp_set_now (MXFTimestamp * timestamp)
   struct tm tm_;
 #endif
 
-  now = g_get_real_time ();
-  t = now / G_USEC_PER_SEC;
+  g_get_current_time (&tv);
+  t = (time_t) tv.tv_sec;
 
 #ifdef HAVE_GMTIME_R
   tm = gmtime_r (&t, &tm_);
@@ -578,7 +578,7 @@ mxf_timestamp_set_now (MXFTimestamp * timestamp)
   timestamp->hour = tm->tm_hour;
   timestamp->minute = tm->tm_min;
   timestamp->second = tm->tm_sec;
-  timestamp->msecond = now / 1000;
+  timestamp->msecond = tv.tv_usec / 1000;
 }
 
 void
@@ -1184,19 +1184,19 @@ mxf_index_table_segment_parse (const MXFUL * ul,
           segment->delta_entries[i].pos_table_index = GST_READ_UINT8 (tag_data);
           tag_data += 1;
           tag_size -= 1;
-          GST_DEBUG ("     pos table index = %d",
+          GST_DEBUG ("    pos table index = %d",
               segment->delta_entries[i].pos_table_index);
 
           segment->delta_entries[i].slice = GST_READ_UINT8 (tag_data);
           tag_data += 1;
           tag_size -= 1;
-          GST_DEBUG ("     slice = %u", segment->delta_entries[i].slice);
+          GST_DEBUG ("    slice = %u", segment->delta_entries[i].slice);
 
           segment->delta_entries[i].element_delta =
               GST_READ_UINT32_BE (tag_data);
           tag_data += 4;
           tag_size -= 4;
-          GST_DEBUG ("     element delta = %u",
+          GST_DEBUG ("    element delta = %u",
               segment->delta_entries[i].element_delta);
         }
         break;
@@ -1236,26 +1236,22 @@ mxf_index_table_segment_parse (const MXFUL * ul,
           entry->temporal_offset = GST_READ_UINT8 (tag_data);
           tag_data += 1;
           tag_size -= 1;
-          GST_DEBUG ("     temporal offset = %d", entry->temporal_offset);
+          GST_DEBUG ("    temporal offset = %d", entry->temporal_offset);
 
           entry->key_frame_offset = GST_READ_UINT8 (tag_data);
           tag_data += 1;
           tag_size -= 1;
-          GST_DEBUG ("     keyframe offset = %d", entry->key_frame_offset);
+          GST_DEBUG ("    keyframe offset = %d", entry->key_frame_offset);
 
           entry->flags = GST_READ_UINT8 (tag_data);
           tag_data += 1;
           tag_size -= 1;
-          GST_DEBUG ("     flags = 0x%02x (%s%s%s%s)", entry->flags,
-              entry->flags & 0x80 ? "Random-Access " : "",
-              entry->flags & 0x40 ? "Sequence-Header " : "",
-              entry->flags & 0x20 ? "Forward-Prediction " : "",
-              entry->flags & 0x10 ? "Backward-Prediction " : "");
+          GST_DEBUG ("    flags = 0x%02x", entry->flags);
 
           entry->stream_offset = GST_READ_UINT64_BE (tag_data);
           tag_data += 8;
           tag_size -= 8;
-          GST_DEBUG ("     stream offset = %" G_GUINT64_FORMAT,
+          GST_DEBUG ("    stream offset = %" G_GUINT64_FORMAT,
               entry->stream_offset);
 
           entry->slice_offset = g_new0 (guint32, segment->slice_count);
@@ -1263,7 +1259,7 @@ mxf_index_table_segment_parse (const MXFUL * ul,
             entry->slice_offset[j] = GST_READ_UINT32_BE (tag_data);
             tag_data += 4;
             tag_size -= 4;
-            GST_DEBUG ("     slice %u offset = %u", j, entry->slice_offset[j]);
+            GST_DEBUG ("    slice %u offset = %u", j, entry->slice_offset[j]);
           }
 
           entry->pos_table = g_new0 (MXFFraction, segment->pos_table_count);
@@ -1272,7 +1268,7 @@ mxf_index_table_segment_parse (const MXFUL * ul,
               goto error;
             tag_data += 8;
             tag_size -= 8;
-            GST_DEBUG ("     pos table %u = %d/%d", j, entry->pos_table[j].n,
+            GST_DEBUG ("    pos table %u = %d/%d", j, entry->pos_table[j].n,
                 entry->pos_table[j].d);
           }
         }
@@ -1285,21 +1281,6 @@ mxf_index_table_segment_parse (const MXFUL * ul,
         break;
     }
   }
-
-  /* If edit unit byte count is 0 there *must* be entries */
-  if (segment->edit_unit_byte_count == 0 && segment->n_index_entries == 0) {
-    GST_WARNING
-        ("Invalid IndexTableSegment, No entries and no specified edit unit byte count");
-    goto error;
-  }
-
-  /* Compute initial essence offset */
-  if (segment->edit_unit_byte_count)
-    segment->segment_start_offset =
-        segment->index_start_position * segment->edit_unit_byte_count;
-  else
-    segment->segment_start_offset = segment->index_entries[0].stream_offset;
-
   return TRUE;
 
 error:
@@ -1706,7 +1687,7 @@ mxf_local_tag_add_to_hash_table (const MXFPrimerPack * primer,
     local_tag = g_slice_new0 (MXFLocalTag);
     memcpy (&local_tag->ul, ul, sizeof (MXFUL));
     local_tag->size = tag_size;
-    local_tag->data = tag_size == 0 ? NULL : g_memdup2 (tag_data, tag_size);
+    local_tag->data = tag_size == 0 ? NULL : g_memdup (tag_data, tag_size);
     local_tag->g_slice = FALSE;
 
     g_hash_table_insert (*hash_table, &local_tag->ul, local_tag);

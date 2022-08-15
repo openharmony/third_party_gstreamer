@@ -17,7 +17,7 @@
  * Boston, MA 02110-1335, USA.
  */
 /**
- * SECTION:element-intersubsink
+ * SECTION:element-gstintersubsink
  * @title: gstintersubsink
  *
  * The intersubsink element is a subtitle sink element.  It is used
@@ -80,8 +80,6 @@ GST_STATIC_PAD_TEMPLATE ("sink",
 /* class initialization */
 #define parent_class gst_inter_sub_sink_parent_class
 G_DEFINE_TYPE (GstInterSubSink, gst_inter_sub_sink, GST_TYPE_BASE_SINK);
-GST_ELEMENT_REGISTER_DEFINE (intersubsink, "intersubsink", GST_RANK_NONE,
-    GST_TYPE_INTER_SUB_SINK);
 
 static void
 gst_inter_sub_sink_class_init (GstInterSubSinkClass * klass)

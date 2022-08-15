@@ -21,28 +21,43 @@
 #include "config.h"
 #endif
 
-#include "gstaudioparserselements.h"
+#include "gstaacparse.h"
+#include "gstamrparse.h"
+#include "gstac3parse.h"
+#include "gstdcaparse.h"
+#include "gstflacparse.h"
+#include "gstmpegaudioparse.h"
+#include "gstsbcparse.h"
+#include "gstwavpackparse.h"
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
-
-#ifndef OHOS_EXT_FUNC
-  /* ohos.ext.func.0032 remove the unused features */
-  ret |= GST_ELEMENT_REGISTER (aacparse, plugin);
-  ret |= GST_ELEMENT_REGISTER (amrparse, plugin);
-  ret |= GST_ELEMENT_REGISTER (ac3parse, plugin);
-  ret |= GST_ELEMENT_REGISTER (dcaparse, plugin);
-  ret |= GST_ELEMENT_REGISTER (flacparse, plugin);
-  ret |= GST_ELEMENT_REGISTER (mpegaudioparse, plugin);
-  ret |= GST_ELEMENT_REGISTER (sbcparse, plugin);
-  ret |= GST_ELEMENT_REGISTER (wavpackparse, plugin);
-#else
-  ret |= GST_ELEMENT_REGISTER (aacparse, plugin);
-  ret |= GST_ELEMENT_REGISTER (flacparse, plugin);
-  ret |= GST_ELEMENT_REGISTER (mpegaudioparse, plugin);
-#endif
+  gboolean ret;
+/* ohos.opt.compat.0002: the demux of gstplayer does not accurately parse audio resources in the aac format.
+ * As a result, the duration value cannot be obtained in the preparation phase.
+ * Use the demux and typefind of ffmpeg to process audio resources in aac format.
+ */
+/* ohos.ext.func.0026:
+ * The avmuxer need aacparse, so aacparse needs to be registered, and to avoid conflicts with existing code,
+ * aacparse's priority has been reduced to GST_RANK_NONE
+ */
+  ret = gst_element_register (plugin, "aacparse",
+      GST_RANK_NONE, GST_TYPE_AAC_PARSE);
+  ret &= gst_element_register (plugin, "amrparse",
+      GST_RANK_PRIMARY + 1, GST_TYPE_AMR_PARSE);
+  ret &= gst_element_register (plugin, "ac3parse",
+      GST_RANK_PRIMARY + 1, GST_TYPE_AC3_PARSE);
+  ret &= gst_element_register (plugin, "dcaparse",
+      GST_RANK_PRIMARY + 1, GST_TYPE_DCA_PARSE);
+  ret &= gst_element_register (plugin, "flacparse",
+      GST_RANK_PRIMARY + 1, GST_TYPE_FLAC_PARSE);
+  ret &= gst_element_register (plugin, "mpegaudioparse",
+      GST_RANK_PRIMARY + 2, GST_TYPE_MPEG_AUDIO_PARSE);
+  ret &= gst_element_register (plugin, "sbcparse",
+      GST_RANK_PRIMARY + 1, GST_TYPE_SBC_PARSE);
+  ret &= gst_element_register (plugin, "wavpackparse",
+      GST_RANK_PRIMARY + 1, GST_TYPE_WAVPACK_PARSE);
 
   return ret;
 }

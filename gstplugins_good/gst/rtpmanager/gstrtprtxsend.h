@@ -29,17 +29,14 @@
 #include <gst/base/gstdataqueue.h>
 
 G_BEGIN_DECLS
-
-typedef struct _GstRtpRtxSend GstRtpRtxSend;
-typedef struct _GstRtpRtxSendClass GstRtpRtxSendClass;
-
 #define GST_TYPE_RTP_RTX_SEND (gst_rtp_rtx_send_get_type())
 #define GST_RTP_RTX_SEND(obj) (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_RTP_RTX_SEND, GstRtpRtxSend))
 #define GST_RTP_RTX_SEND_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_RTP_RTX_SEND, GstRtpRtxSendClass))
 #define GST_RTP_RTX_SEND_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS ((obj), GST_TYPE_RTP_RTX_SEND, GstRtpRtxSendClass))
 #define GST_IS_RTP_RTX_SEND(obj) (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_RTP_RTX_SEND))
 #define GST_IS_RTP_RTX_SEND_CLASS(obj) (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_RTP_RTX_SEND))
-#define GST_RTP_RTX_SEND_CAST(obj) ((GstRtpRtxSend *)(obj))
+typedef struct _GstRtpRtxSend GstRtpRtxSend;
+typedef struct _GstRtpRtxSendClass GstRtpRtxSendClass;
 
 struct _GstRtpRtxSend
 {
@@ -65,11 +62,6 @@ struct _GstRtpRtxSend
   /* orig pt (string) -> rtx pt (uint) */
   GstStructure *rtx_pt_map_structure;
 
-  /* orig pt (uint) -> clock rate (uint) */
-  GHashTable *clock_rate_map;
-  /* orig pt (string) -> clock rate (uint) */
-  GstStructure *clock_rate_map_structure;
-
   /* buffering control properties */
   guint max_size_time;
   guint max_size_packets;
@@ -84,9 +76,9 @@ struct _GstRtpRtxSendClass
   GstElementClass parent_class;
 };
 
-GType gst_rtp_rtx_send_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (rtprtxsend);
+GType gst_rtp_rtx_send_get_type (void);
+gboolean gst_rtp_rtx_send_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 #endif /* __GST_RTP_RTX_SEND_H__ */

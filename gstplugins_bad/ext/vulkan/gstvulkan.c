@@ -31,34 +31,35 @@
 
 #include "vksink.h"
 #include "vkupload.h"
-#include "vkimageidentity.h"
-#include "vkcolorconvert.h"
-#include "vkdownload.h"
-#include "vkviewconvert.h"
-#include "vkdeviceprovider.h"
-#include "gstvulkanelements.h"
 
+#if GST_VULKAN_HAVE_WINDOW_X11
+#include <X11/Xlib.h>
+#endif
+
+#define GST_CAT_DEFAULT gst_gl_gstgl_debug
+GST_DEBUG_CATEGORY_STATIC (GST_CAT_DEFAULT);
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  GST_DEBUG_CATEGORY_INIT (gst_gl_gstgl_debug, "gstvulkan", 0, "gstvulkan");
 
-  ret |= GST_DEVICE_PROVIDER_REGISTER (vulkandeviceprovider, plugin);
+#if GST_VULKAN_HAVE_WINDOW_X11
+  if (g_getenv ("GST_VULKAN_XINITTHREADS"))
+    XInitThreads ();
+#endif
 
-  ret |= GST_ELEMENT_REGISTER (vulkansink, plugin);
+  if (!gst_element_register (plugin, "vulkansink",
+          GST_RANK_NONE, GST_TYPE_VULKAN_SINK)) {
+    return FALSE;
+  }
 
-  ret |= GST_ELEMENT_REGISTER (vulkanupload, plugin);
+  if (!gst_element_register (plugin, "vulkanupload",
+          GST_RANK_NONE, GST_TYPE_VULKAN_UPLOAD)) {
+    return FALSE;
+  }
 
-  ret |= GST_ELEMENT_REGISTER (vulkandownload, plugin);
-
-  ret |= GST_ELEMENT_REGISTER (vulkancolorconvert, plugin);
-
-  ret |= GST_ELEMENT_REGISTER (vulkanimageidentity, plugin);
-
-  ret |= GST_ELEMENT_REGISTER (vulkanviewconvert, plugin);
-
-  return ret;
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

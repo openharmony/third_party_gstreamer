@@ -50,7 +50,6 @@ struct _GstFdkAacEnc {
   guint outbuf_size, samples_per_frame;
   gboolean need_reorder;
   const GstAudioChannelPosition *aac_positions;
-  gboolean is_drained;
 };
 
 struct _GstFdkAacEncClass {
@@ -58,8 +57,6 @@ struct _GstFdkAacEncClass {
 };
 
 GType gst_fdkaacenc_get_type (void);
-
-GST_ELEMENT_REGISTER_DECLARE (fdkaacenc);
 
 G_END_DECLS
 

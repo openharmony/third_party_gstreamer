@@ -392,9 +392,6 @@ static void gst_gl_mixer_get_property (GObject * object, guint prop_id,
 static gboolean gst_gl_mixer_decide_allocation (GstAggregator * agg,
     GstQuery * query);
 
-static gboolean gst_gl_mixer_gl_start (GstGLBaseMixer * mix);
-static void gst_gl_mixer_gl_stop (GstGLBaseMixer * mix);
-
 static void gst_gl_mixer_finalize (GObject * object);
 
 static void
@@ -405,7 +402,6 @@ gst_gl_mixer_class_init (GstGLMixerClass * klass)
   GstVideoAggregatorClass *videoaggregator_class =
       (GstVideoAggregatorClass *) klass;
   GstAggregatorClass *agg_class = (GstAggregatorClass *) klass;
-  GstGLBaseMixerClass *base_class = (GstGLBaseMixerClass *) klass;
 
   GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "glmixer", 0, "OpenGL mixer");
 
@@ -430,16 +426,11 @@ gst_gl_mixer_class_init (GstGLMixerClass * klass)
   videoaggregator_class->aggregate_frames = gst_gl_mixer_aggregate_frames;
   videoaggregator_class->find_best_format = _find_best_format;
 
-  base_class->gl_start = gst_gl_mixer_gl_start;
-  base_class->gl_stop = gst_gl_mixer_gl_stop;
 
   /* Register the pad class */
   g_type_class_ref (GST_TYPE_GL_MIXER_PAD);
 
   klass->set_caps = NULL;
-
-  gst_type_mark_as_plugin_api (GST_TYPE_GL_MIXER_PAD, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_GL_MIXER, 0);
 }
 
 static void
@@ -537,28 +528,6 @@ _mixer_create_fbo (GstGLContext * context, GstGLMixer * mix)
 }
 
 static gboolean
-gst_gl_mixer_gl_start (GstGLBaseMixer * base_mix)
-{
-  return GST_GL_BASE_MIXER_CLASS (parent_class)->gl_start (base_mix);
-}
-
-static void
-gst_gl_mixer_gl_stop (GstGLBaseMixer * base_mix)
-{
-  GstGLMixer *mix = GST_GL_MIXER (base_mix);
-  GstGLMixerClass *mixer_class = GST_GL_MIXER_GET_CLASS (mix);
-
-  if (mixer_class->reset)
-    mixer_class->reset (mix);
-
-  g_mutex_lock (&mix->priv->gl_resource_lock);
-  gst_clear_object (&mix->fbo);
-  g_mutex_unlock (&mix->priv->gl_resource_lock);
-
-  GST_GL_BASE_MIXER_CLASS (parent_class)->gl_stop (base_mix);
-}
-
-static gboolean
 gst_gl_mixer_decide_allocation (GstAggregator * agg, GstQuery * query)
 {
   GstGLBaseMixer *base_mix = GST_GL_BASE_MIXER (agg);
@@ -575,11 +544,7 @@ gst_gl_mixer_decide_allocation (GstAggregator * agg, GstQuery * query)
           query))
     return FALSE;
 
-  context = gst_gl_base_mixer_get_gl_context (base_mix);
-  if (!context) {
-    GST_WARNING_OBJECT (agg, "No OpenGL context");
-    return FALSE;
-  }
+  context = base_mix->context;
 
   g_mutex_lock (&mix->priv->gl_resource_lock);
   mix->priv->gl_resource_ready = FALSE;
@@ -594,14 +559,14 @@ gst_gl_mixer_decide_allocation (GstAggregator * agg, GstQuery * query)
     goto context_error;
   }
 
+  gst_query_parse_allocation (query, &caps, NULL);
+
   if (mixer_class->set_caps)
-    mixer_class->set_caps (mix, mix->out_caps);
+    mixer_class->set_caps (mix, caps);
 
   mix->priv->gl_resource_ready = TRUE;
   g_cond_signal (&mix->priv->gl_resource_cond);
   g_mutex_unlock (&mix->priv->gl_resource_lock);
-
-  gst_query_parse_allocation (query, &caps, NULL);
 
   if (gst_query_get_n_allocation_pools (query) > 0) {
     gst_query_parse_nth_allocation_pool (query, 0, &pool, &size, &min, &max);
@@ -633,8 +598,6 @@ gst_gl_mixer_decide_allocation (GstAggregator * agg, GstQuery * query)
 
   gst_object_unref (pool);
 
-  gst_clear_object (&context);
-
   return TRUE;
 
 context_error:
@@ -652,6 +615,7 @@ gst_gl_mixer_process_textures (GstGLMixer * mix, GstBuffer * outbuf)
   GstVideoFrame out_frame;
   GstVideoAggregator *vagg = GST_VIDEO_AGGREGATOR (mix);
   GstGLMixerClass *mix_class = GST_GL_MIXER_GET_CLASS (mix);
+  GstGLMixerPrivate *priv = mix->priv;
 
   GST_TRACE ("Processing buffers");
 
@@ -662,12 +626,12 @@ gst_gl_mixer_process_textures (GstGLMixer * mix, GstBuffer * outbuf)
 
   out_tex = (GstGLMemory *) out_frame.map[0].memory;
 
-  g_mutex_lock (&mix->priv->gl_resource_lock);
-  if (!mix->priv->gl_resource_ready)
-    g_cond_wait (&mix->priv->gl_resource_cond, &mix->priv->gl_resource_lock);
+  g_mutex_lock (&priv->gl_resource_lock);
+  if (!priv->gl_resource_ready)
+    g_cond_wait (&priv->gl_resource_cond, &priv->gl_resource_lock);
 
-  if (!mix->priv->gl_resource_ready) {
-    g_mutex_unlock (&mix->priv->gl_resource_lock);
+  if (!priv->gl_resource_ready) {
+    g_mutex_unlock (&priv->gl_resource_lock);
     GST_ERROR_OBJECT (mix,
         "fbo used to render can't be created, do not run process_textures");
     res = FALSE;
@@ -676,7 +640,7 @@ gst_gl_mixer_process_textures (GstGLMixer * mix, GstBuffer * outbuf)
 
   mix_class->process_textures (mix, out_tex);
 
-  g_mutex_unlock (&mix->priv->gl_resource_lock);
+  g_mutex_unlock (&priv->gl_resource_lock);
 
 out:
   gst_video_frame_unmap (&out_frame);
@@ -695,17 +659,11 @@ gst_gl_mixer_process_buffers (GstGLMixer * mix, GstBuffer * outbuf)
 static GstFlowReturn
 gst_gl_mixer_aggregate_frames (GstVideoAggregator * vagg, GstBuffer * outbuf)
 {
-  GstGLBaseMixer *base_mix = GST_GL_BASE_MIXER (vagg);
   gboolean res = FALSE;
   GstGLMixer *mix = GST_GL_MIXER (vagg);
   GstGLMixerClass *mix_class = GST_GL_MIXER_GET_CLASS (vagg);
-  GstGLContext *context = gst_gl_base_mixer_get_gl_context (base_mix);
+  GstGLContext *context = GST_GL_BASE_MIXER (mix)->context;
   GstGLSyncMeta *sync_meta;
-
-  if (!context) {
-    GST_DEBUG_OBJECT (vagg, "No OpenGL context, try again later");
-    return GST_AGGREGATOR_FLOW_NEED_DATA;
-  }
 
   if (mix_class->process_buffers)
     res = gst_gl_mixer_process_buffers (mix, outbuf);
@@ -715,8 +673,6 @@ gst_gl_mixer_aggregate_frames (GstVideoAggregator * vagg, GstBuffer * outbuf)
   sync_meta = gst_buffer_get_gl_sync_meta (outbuf);
   if (sync_meta)
     gst_gl_sync_meta_set_sync_point (sync_meta, context);
-
-  gst_clear_object (&context);
 
   return res ? GST_FLOW_OK : GST_FLOW_ERROR;
 }
@@ -753,6 +709,15 @@ static gboolean
 gst_gl_mixer_stop (GstAggregator * agg)
 {
   GstGLMixer *mix = GST_GL_MIXER (agg);
+  GstGLMixerClass *mixer_class = GST_GL_MIXER_GET_CLASS (mix);
+
+  if (mixer_class->reset)
+    mixer_class->reset (mix);
+
+  if (mix->fbo) {
+    gst_object_unref (mix->fbo);
+    mix->fbo = NULL;
+  }
 
   gst_gl_mixer_reset (mix);
 

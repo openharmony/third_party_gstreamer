@@ -119,25 +119,13 @@ static const VLCTable mpeg2_mbaddr_vlc_table[] = {
   {GST_MPEG_VIDEO_MACROBLOCK_ESCAPE, 0x08, 11}
 };
 
-#ifndef GST_DISABLE_GST_DEBUG
-#define GST_CAT_DEFAULT gst_mpegvideo_debug_category_get()
-static GstDebugCategory *
-gst_mpegvideo_debug_category_get (void)
-{
-  static gsize cat_gonce = 0;
+GST_DEBUG_CATEGORY_STATIC (mpegvideo_parser_debug);
+#define GST_CAT_DEFAULT mpegvideo_parser_debug
 
-  if (g_once_init_enter (&cat_gonce)) {
-    GstDebugCategory *cat = NULL;
+#define INITIALIZE_DEBUG_CATEGORY \
+  GST_DEBUG_CATEGORY_INIT (mpegvideo_parser_debug, "codecparsers_mpegvideo", \
+      0, "Mpegvideo parser library");
 
-    GST_DEBUG_CATEGORY_INIT (cat, "codecparsers_mpegvideo", 0,
-        "mpegvideo parser library");
-
-    g_once_init_leave (&cat_gonce, (gsize) cat);
-  }
-
-  return (GstDebugCategory *) cat_gonce;
-}
-#endif /* GST_DISABLE_GST_DEBUG */
 
 /* Set the Pixel Aspect Ratio in our hdr from a ASR code in the data */
 static void
@@ -245,6 +233,8 @@ gst_mpeg_video_parse (GstMpegVideoPacket * packet,
   gint off;
   GstByteReader br;
 
+  INITIALIZE_DEBUG_CATEGORY;
+
   if (size <= offset) {
     GST_DEBUG ("Can't parse from offset %d, buffer is to small", offset);
     return FALSE;
@@ -309,6 +299,8 @@ gst_mpeg_video_packet_parse_sequence_header (const GstMpegVideoPacket * packet,
 
   if (packet->size < 8)
     return FALSE;
+
+  INITIALIZE_DEBUG_CATEGORY;
 
   gst_bit_reader_init (&br, &packet->data[packet->offset], packet->size);
 

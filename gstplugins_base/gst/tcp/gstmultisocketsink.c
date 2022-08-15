@@ -26,8 +26,8 @@
  * @title: multisocketsink
  * @see_also: tcpserversink
  *
- * This plugin writes incoming data to a set of sockets. The
- * sockets can be added to multisocketsink by emitting the #GstMultiSocketSink::add signal.
+ * This plugin writes incoming data to a set of file descriptors. The
+ * file descriptors can be added to multisocketsink by emitting the #GstMultiSocketSink::add signal.
  * For each descriptor added, the #GstMultiSocketSink::client-added signal will be called.
  *
  * A client can also be added with the #GstMultiSocketSink::add-full signal
@@ -38,22 +38,22 @@
  * each descriptor removed, the #GstMultiSocketSink::client-removed signal will be called. The
  * #GstMultiSocketSink::client-removed signal can also be fired when multisocketsink decides that a
  * client is not active anymore or, depending on the value of the
- * #GstMultiHandleSink:recover-policy property, if the client is reading too slowly.
- * In all cases, multisocketsink will never close a socket itself.
- * The user of multisocketsink is responsible for closing all sockets.
- * This can for example be done in response to the #GstMultiSocketSink::client-socket-removed signal.
- * Note that multisocketsink still has a reference to the socket when the
+ * #GstMultiSocketSink:recover-policy property, if the client is reading too slowly.
+ * In all cases, multisocketsink will never close a file descriptor itself.
+ * The user of multisocketsink is responsible for closing all file descriptors.
+ * This can for example be done in response to the #GstMultiSocketSink::client-fd-removed signal.
+ * Note that multisocketsink still has a reference to the file descriptor when the
  * #GstMultiSocketSink::client-removed signal is emitted, so that "get-stats" can be performed on
- * the descriptor; it is therefore not safe to close the socket in
+ * the descriptor; it is therefore not safe to close the file descriptor in
  * the #GstMultiSocketSink::client-removed signal handler, and you should use the
- * #GstMultiSocketSink::client-socket-removed signal to safely close the socket.
+ * #GstMultiSocketSink::client-fd-removed signal to safely close the fd.
  *
  * Multisocketsink internally keeps a queue of the incoming buffers and uses a
  * separate thread to send the buffers to the clients. This ensures that no
  * client write can block the pipeline and that clients can read with different
  * speeds.
  *
- * When adding a client to multisocketsink, the #GstMultiHandleSink:sync-method property will define
+ * When adding a client to multisocketsink, the #GstMultiSocketSink:sync-method property will define
  * which buffer in the queued buffers will be sent first to the client. Clients
  * can be sent the most recent buffer (which might not be decodable by the
  * client if it is not a keyframe), the next keyframe received in
@@ -62,7 +62,7 @@
  * Multisocketsink will always keep at least one keyframe in its internal buffers
  * when the sync-mode is set to latest-keyframe.
  *
- * There are additional values for the #GstMultiHandleSink:sync-method
+ * There are additional values for the #GstMultiSocketSink:sync-method
  * property to allow finer control over burst-on-connect behaviour. By selecting
  * the 'burst' method a minimum burst size can be chosen, 'burst-keyframe'
  * additionally requires that the burst begin with a keyframe, and
@@ -71,7 +71,7 @@
  *
  * Multisocketsink can be instructed to keep at least a minimum amount of data
  * expressed in time or byte units in its internal queues with the
- * #GstMultiHandleSink:time-min and #GstMultiHandleSink:bytes-min properties respectively.
+ * #GstMultiSocketSink:time-min and #GstMultiSocketSink:bytes-min properties respectively.
  * These properties are useful if the application adds clients with the
  * #GstMultiSocketSink::add-full signal to make sure that a burst connect can
  * actually be honored.
@@ -81,12 +81,12 @@
  * fast, no data will be send to the client until multisocketsink receives more
  * data. If the client, however, reads too slowly, data for that client will be
  * queued up in multisocketsink. Two properties control the amount of data
- * (buffers) that is queued in multisocketsink: #GstMultiHandleSink:buffers-max and
- * #GstMultiHandleSink:buffers-soft-max. A client that falls behind by
- * #GstMultiHandleSink:buffers-max is removed from multisocketsink forcibly.
+ * (buffers) that is queued in multisocketsink: #GstMultiSocketSink:buffers-max and
+ * #GstMultiSocketSink:buffers-soft-max. A client that falls behind by
+ * #GstMultiSocketSink:buffers-max is removed from multisocketsink forcibly.
  *
- * A client with a lag of at least #GstMultiHandleSink:buffers-soft-max enters the recovery
- * procedure which is controlled with the #GstMultiHandleSink:recover-policy property.
+ * A client with a lag of at least #GstMultiSocketSink:buffers-soft-max enters the recovery
+ * procedure which is controlled with the #GstMultiSocketSink:recover-policy property.
  * A recover policy of NONE will do nothing, RESYNC_LATEST will send the most recently
  * received buffer as the next buffer for the client, RESYNC_SOFT_LIMIT
  * positions the client to the soft limit in the buffer queue and
@@ -109,7 +109,6 @@
 #include <string.h>
 
 #include "gstmultisocketsink.h"
-#include "gsttcpelements.h"
 
 #ifndef G_OS_WIN32
 #include <netinet/in.h>
@@ -207,8 +206,6 @@ static void gst_multi_socket_sink_get_property (GObject * object, guint prop_id,
 #define gst_multi_socket_sink_parent_class parent_class
 G_DEFINE_TYPE (GstMultiSocketSink, gst_multi_socket_sink,
     GST_TYPE_MULTI_HANDLE_SINK);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (multisocketsink, "multisocketsink",
-    GST_RANK_NONE, GST_TYPE_MULTI_SOCKET_SINK, tcp_element_init (plugin));
 
 static guint gst_multi_socket_sink_signals[LAST_SIGNAL] = { 0 };
 
@@ -275,7 +272,7 @@ gst_multi_socket_sink_class_init (GstMultiSocketSinkClass * klass)
       g_signal_new ("add", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
       G_STRUCT_OFFSET (GstMultiSocketSinkClass, add), NULL, NULL,
-      NULL, G_TYPE_NONE, 1, G_TYPE_SOCKET);
+      g_cclosure_marshal_generic, G_TYPE_NONE, 1, G_TYPE_SOCKET);
   /**
    * GstMultiSocketSink::add-full:
    * @gstmultisocketsink: the multisocketsink element to emit this signal on
@@ -295,8 +292,9 @@ gst_multi_socket_sink_class_init (GstMultiSocketSinkClass * klass)
       g_signal_new ("add-full", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
       G_STRUCT_OFFSET (GstMultiSocketSinkClass, add_full), NULL, NULL,
-      NULL, G_TYPE_NONE, 6, G_TYPE_SOCKET, GST_TYPE_SYNC_METHOD,
-      GST_TYPE_FORMAT, G_TYPE_UINT64, GST_TYPE_FORMAT, G_TYPE_UINT64);
+      g_cclosure_marshal_generic, G_TYPE_NONE, 6,
+      G_TYPE_SOCKET, GST_TYPE_SYNC_METHOD, GST_TYPE_FORMAT, G_TYPE_UINT64,
+      GST_TYPE_FORMAT, G_TYPE_UINT64);
   /**
    * GstMultiSocketSink::remove:
    * @gstmultisocketsink: the multisocketsink element to emit this signal on
@@ -307,8 +305,8 @@ gst_multi_socket_sink_class_init (GstMultiSocketSinkClass * klass)
   gst_multi_socket_sink_signals[SIGNAL_REMOVE] =
       g_signal_new ("remove", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
-      G_STRUCT_OFFSET (GstMultiSocketSinkClass, remove), NULL, NULL, NULL,
-      G_TYPE_NONE, 1, G_TYPE_SOCKET);
+      G_STRUCT_OFFSET (GstMultiSocketSinkClass, remove), NULL, NULL,
+      g_cclosure_marshal_generic, G_TYPE_NONE, 1, G_TYPE_SOCKET);
   /**
    * GstMultiSocketSink::remove-flush:
    * @gstmultisocketsink: the multisocketsink element to emit this signal on
@@ -320,8 +318,8 @@ gst_multi_socket_sink_class_init (GstMultiSocketSinkClass * klass)
   gst_multi_socket_sink_signals[SIGNAL_REMOVE_FLUSH] =
       g_signal_new ("remove-flush", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
-      G_STRUCT_OFFSET (GstMultiSocketSinkClass, remove_flush), NULL, NULL, NULL,
-      G_TYPE_NONE, 1, G_TYPE_SOCKET);
+      G_STRUCT_OFFSET (GstMultiSocketSinkClass, remove_flush), NULL, NULL,
+      g_cclosure_marshal_generic, G_TYPE_NONE, 1, G_TYPE_SOCKET);
 
   /**
    * GstMultiSocketSink::get-stats:
@@ -340,8 +338,8 @@ gst_multi_socket_sink_class_init (GstMultiSocketSinkClass * klass)
   gst_multi_socket_sink_signals[SIGNAL_GET_STATS] =
       g_signal_new ("get-stats", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
-      G_STRUCT_OFFSET (GstMultiSocketSinkClass, get_stats), NULL, NULL, NULL,
-      GST_TYPE_STRUCTURE, 1, G_TYPE_SOCKET);
+      G_STRUCT_OFFSET (GstMultiSocketSinkClass, get_stats), NULL, NULL,
+      g_cclosure_marshal_generic, GST_TYPE_STRUCTURE, 1, G_TYPE_SOCKET);
 
   /**
    * GstMultiSocketSink::client-added:
@@ -354,7 +352,8 @@ gst_multi_socket_sink_class_init (GstMultiSocketSinkClass * klass)
    */
   gst_multi_socket_sink_signals[SIGNAL_CLIENT_ADDED] =
       g_signal_new ("client-added", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_OBJECT);
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL, g_cclosure_marshal_generic,
+      G_TYPE_NONE, 1, G_TYPE_OBJECT);
   /**
    * GstMultiSocketSink::client-removed:
    * @gstmultisocketsink: the multisocketsink element that emitted this signal
@@ -367,12 +366,12 @@ gst_multi_socket_sink_class_init (GstMultiSocketSinkClass * klass)
    *
    * @gstmultisocketsink still holds a handle to @socket so it is possible to call
    * the get-stats signal from this callback. For the same reason it is
-   * not safe to `close()` and reuse @socket in this callback.
+   * not safe to close() and reuse @socket in this callback.
    */
   gst_multi_socket_sink_signals[SIGNAL_CLIENT_REMOVED] =
       g_signal_new ("client-removed", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 2, G_TYPE_SOCKET,
-      GST_TYPE_CLIENT_STATUS);
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL, g_cclosure_marshal_generic,
+      G_TYPE_NONE, 2, G_TYPE_SOCKET, GST_TYPE_CLIENT_STATUS);
   /**
    * GstMultiSocketSink::client-socket-removed:
    * @gstmultisocketsink: the multisocketsink element that emitted this signal
@@ -384,11 +383,12 @@ gst_multi_socket_sink_class_init (GstMultiSocketSinkClass * klass)
    *
    * In this callback, @gstmultisocketsink has removed all the information
    * associated with @socket and it is therefore not possible to call get-stats
-   * with @socket. It is however safe to `close()` and reuse @fd in the callback.
+   * with @socket. It is however safe to close() and reuse @fd in the callback.
    */
   gst_multi_socket_sink_signals[SIGNAL_CLIENT_SOCKET_REMOVED] =
       g_signal_new ("client-socket-removed", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_SOCKET);
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL, g_cclosure_marshal_generic,
+      G_TYPE_NONE, 1, G_TYPE_SOCKET);
 
   gst_element_class_set_static_metadata (gstelement_class,
       "Multi socket sink", "Sink/Network",
@@ -599,7 +599,7 @@ gst_multi_socket_sink_handle_hash_key (GstMultiSinkHandle handle)
 
 /* handle a read on a client socket,
  * which either indicates a close or should be ignored
- * returns FALSE if some error occurred or the client closed. */
+ * returns FALSE if some error occured or the client closed. */
 static gboolean
 gst_multi_socket_sink_handle_client_read (GstMultiSocketSink * sink,
     GstSocketClient * client)
@@ -817,7 +817,7 @@ gst_multi_socket_sink_write (GstMultiSocketSink * sink,
  * When the sending returns a partial buffer we stop sending more data as
  * the next send operation could block.
  *
- * This functions returns FALSE if some error occurred.
+ * This functions returns FALSE if some error occured.
  */
 static gboolean
 gst_multi_socket_sink_handle_client_write (GstMultiSocketSink * sink,
@@ -825,7 +825,8 @@ gst_multi_socket_sink_handle_client_write (GstMultiSocketSink * sink,
 {
   gboolean more;
   gboolean flushing;
-  GstClockTime now, now_monotonic;
+  GstClockTime now;
+  GTimeVal nowtv;
   GError *err = NULL;
   GstMultiHandleSink *mhsink = GST_MULTI_HANDLE_SINK (sink);
   GstMultiHandleClient *mhclient = (GstMultiHandleClient *) client;
@@ -833,8 +834,8 @@ gst_multi_socket_sink_handle_client_write (GstMultiSocketSink * sink,
       GST_MULTI_HANDLE_SINK_GET_CLASS (mhsink);
 
 
-  now = g_get_real_time () * GST_USECOND;
-  now_monotonic = g_get_monotonic_time () * GST_USECOND;
+  g_get_current_time (&nowtv);
+  now = GST_TIMEVAL_TO_TIME (nowtv);
 
   flushing = mhclient->status == GST_CLIENT_STATUS_FLUSHING;
 
@@ -952,7 +953,6 @@ gst_multi_socket_sink_handle_client_write (GstMultiSocketSink * sink,
         /* update stats */
         mhclient->bytes_sent += wrote;
         mhclient->last_activity_time = now;
-        mhclient->last_activity_time_monotonic = now_monotonic;
         mhsink->bytes_served += wrote;
       }
     }
@@ -1114,10 +1114,12 @@ static gboolean
 gst_multi_socket_sink_timeout (GstMultiSocketSink * sink)
 {
   GstClockTime now;
+  GTimeVal nowtv;
   GList *clients;
   GstMultiHandleSink *mhsink = GST_MULTI_HANDLE_SINK (sink);
 
-  now = g_get_monotonic_time () * GST_USECOND;
+  g_get_current_time (&nowtv);
+  now = GST_TIMEVAL_TO_TIME (nowtv);
 
   CLIENTS_LOCK (mhsink);
   for (clients = mhsink->clients; clients; clients = clients->next) {
@@ -1127,7 +1129,7 @@ gst_multi_socket_sink_timeout (GstMultiSocketSink * sink)
     client = clients->data;
     mhclient = (GstMultiHandleClient *) client;
     if (mhsink->timeout > 0
-        && now - mhclient->last_activity_time_monotonic > mhsink->timeout) {
+        && now - mhclient->last_activity_time > mhsink->timeout) {
       mhclient->status = GST_CLIENT_STATUS_SLOW;
       gst_multi_handle_sink_remove_client_link (mhsink, clients);
     }

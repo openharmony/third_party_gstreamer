@@ -22,38 +22,37 @@
 
 /**
  * SECTION:element-rgvolume
- * @title: rgvolume
  * @see_also: #GstRgLimiter, #GstRgAnalysis
  *
  * This element applies volume changes to streams as lined out in the proposed
- * [ReplayGain standard](https://wiki.hydrogenaud.io/index.php?title=ReplayGain).
- * It interprets the ReplayGain meta data tags and carries out the adjustment
- * (by using a volume element internally).
- *
- * The relevant tags are:
- * * #GST_TAG_TRACK_GAIN
- * * #GST_TAG_TRACK_PEAK
- * * #GST_TAG_ALBUM_GAIN
- * * #GST_TAG_ALBUM_PEAK
- * * #GST_TAG_REFERENCE_LEVEL
- *
+ * <ulink url="http://replaygain.org">ReplayGain standard</ulink>.  It
+ * interprets the ReplayGain meta data tags and carries out the adjustment (by
+ * using a volume element internally).  The relevant tags are:
+ * <itemizedlist>
+ * <listitem>#GST_TAG_TRACK_GAIN</listitem>
+ * <listitem>#GST_TAG_TRACK_PEAK</listitem>
+ * <listitem>#GST_TAG_ALBUM_GAIN</listitem>
+ * <listitem>#GST_TAG_ALBUM_PEAK</listitem>
+ * <listitem>#GST_TAG_REFERENCE_LEVEL</listitem>
+ * </itemizedlist>
  * The information carried by these tags must have been calculated beforehand by
  * performing the ReplayGain analysis.  This is implemented by the <link
  * linkend="GstRgAnalysis">rganalysis</link> element.
- *
+ * 
  * The signal compression/limiting recommendations outlined in the proposed
  * standard are not implemented by this element.  This has to be handled by
  * separate elements because applications might want to have additional filters
  * between the volume adjustment and the limiting stage.  A basic limiter is
  * included with this plugin: The <link linkend="GstRgLimiter">rglimiter</link>
  * element applies -6 dB hard limiting as mentioned in the ReplayGain standard.
- *
- * ## Example launch line
+ * 
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 filesrc location=filename.ext ! decodebin ! audioconvert \
  *     ! rgvolume ! audioconvert ! audioresample ! alsasink
  * ]| Playback of a file
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -118,8 +117,6 @@ static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
 
 #define gst_rg_volume_parent_class parent_class
 G_DEFINE_TYPE (GstRgVolume, gst_rg_volume, GST_TYPE_BIN);
-GST_ELEMENT_REGISTER_DEFINE (rgvolume, "rgvolume", GST_RANK_NONE,
-    GST_TYPE_RG_VOLUME);
 
 static void gst_rg_volume_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -200,7 +197,9 @@ gst_rg_volume_class_init (GstRgVolumeClass * klass)
    * range.
    *
    * Note that the default value is 0 dB because the ReplayGain reference value
-   * was adjusted by +6 dB (from 83 to 89 dB). The original proposal stated
+   * was adjusted by +6 dB (from 83 to 89 dB).  At the time of this writing, the
+   * <ulink url="http://replaygain.org">webpage</ulink> is still outdated and
+   * does not reflect this change however.  Where the original proposal states
    * that a proper default pre-amp value is +6 dB, this translates to the used 0
    * dB.
    */
@@ -252,11 +251,11 @@ gst_rg_volume_class_init (GstRgVolumeClass * klass)
    * presence of ReplayGain tags in the stream, this is set according to one of
    * these simple formulas:
    *
-   *
-   * * #GstRgVolume:pre-amp + album gain of the stream
-   * * #GstRgVolume:pre-amp + track gain of the stream
-   * * #GstRgVolume:pre-amp + #GstRgVolume:fallback-gain
-   *
+   * <itemizedlist>
+   * <listitem>#GstRgVolume:pre-amp + album gain of the stream</listitem>
+   * <listitem>#GstRgVolume:pre-amp + track gain of the stream</listitem>
+   * <listitem>#GstRgVolume:pre-amp + #GstRgVolume:fallback-gain</listitem>
+   * </itemizedlist>
    */
   g_object_class_install_property (gobject_class, PROP_TARGET_GAIN,
       g_param_spec_double ("target-gain", "Target-gain",

@@ -1,5 +1,5 @@
 /* GStreamer RTP payloader unit tests
- * Copyright (C) 2008 Nokia Corporation and its subsidiary(-ies)
+ * Copyright (C) 2008 Nokia Corporation and its subsidary(-ies)
  *               contact: <stefan.kost@nokia.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -17,15 +17,10 @@
  * Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
  * Boston, MA 02110-1301, USA.
  */
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <gst/check/gstcheck.h>
 #include <gst/check/gstharness.h>
 #include <gst/audio/audio.h>
 #include <gst/base/base.h>
-#include <gst/rtp/gstrtpbuffer.h>
 #include <stdlib.h>
 
 #define RELEASE_ELEMENT(x) if(x) {gst_object_unref(x); x = NULL;}
@@ -68,7 +63,7 @@ rtp_pipeline_chain_list (GstPad * pad, GstObject * parent, GstBufferList * list)
   len = gst_buffer_list_length (list);
   GST_LOG ("list length %u", len);
 
-  /* Loop through all buffers */
+  /* Loop through all groups */
   for (i = 0; i < len; i++) {
     GstBuffer *paybuf;
     GstMemory *mem;
@@ -149,7 +144,7 @@ rtp_bus_callback (GstBus * bus, GstMessage * message, gpointer data)
 
 /*
  * Creates a RTP pipeline for one test.
- * @param frame_data Pointer to the frame data which is used to pass through pay/depayloaders.
+ * @param frame_data Pointer to the frame data which is used to pass thru pay/depayloaders.
  * @param frame_data_size Frame data size in bytes.
  * @param frame_count Frame count.
  * @param filtercaps Caps filters.
@@ -185,12 +180,8 @@ rtp_pipeline_create (const guint8 * frame_data, int frame_data_size,
   p->pipeline = gst_pipeline_new (pipeline_name);
   g_free (pipeline_name);
   p->appsrc = gst_element_factory_make ("appsrc", NULL);
-  p->rtppay =
-      gst_parse_bin_from_description_full (pay, TRUE, NULL,
-      GST_PARSE_FLAG_NO_SINGLE_ELEMENT_BINS, NULL);
-  p->rtpdepay =
-      gst_parse_bin_from_description_full (depay, TRUE, NULL,
-      GST_PARSE_FLAG_NO_SINGLE_ELEMENT_BINS, NULL);
+  p->rtppay = gst_element_factory_make (pay, NULL);
+  p->rtpdepay = gst_element_factory_make (depay, NULL);
   p->fakesink = gst_element_factory_make ("fakesink", NULL);
 
   /* One or more elements are not created successfully or failed to create p? */
@@ -389,7 +380,7 @@ rtp_pipeline_enable_lists (rtp_pipeline * p)
 
 /*
  * Creates the RTP pipeline and runs the test using the pipeline.
- * @param frame_data Pointer to the frame data which is used to pass through pay/depayloaders.
+ * @param frame_data Pointer to the frame data which is used to pass thru pay/depayloaders.
  * @param frame_data_size Frame data size in bytes.
  * @param frame_count Frame count.
  * @param filtercaps Caps filters.
@@ -705,7 +696,7 @@ rtp_h264depay_run (const gchar * stream_format)
   gst_harness_play (h);
 
   size = sizeof (h264_16x16_black_bs);
-  buf = gst_buffer_new_memdup (h264_16x16_black_bs, size);
+  buf = gst_buffer_new_wrapped (g_memdup (h264_16x16_black_bs, size), size);
   fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
   fail_unless (gst_harness_push_event (h, gst_event_new_eos ()));
 
@@ -866,7 +857,7 @@ static int rtp_h264_list_lt_mtu_frame_count = 2;
 
 /* NAL = 4 bytes */
 /* also 2 bytes FU-A header each time */
-static int rtp_h264_list_lt_mtu_bytes_sent = (16 - 4);
+static int rtp_h264_list_lt_mtu_bytes_sent = 2 * (16 - 4);
 
 static int rtp_h264_list_lt_mtu_mtu_size = 1024;
 
@@ -876,7 +867,7 @@ GST_START_TEST (rtp_h264_list_lt_mtu)
   rtp_pipeline_test (rtp_h264_list_lt_mtu_frame_data,
       rtp_h264_list_lt_mtu_frame_data_size, rtp_h264_list_lt_mtu_frame_count,
       "video/x-h264,stream-format=(string)byte-stream,alignment=(string)nal",
-      "rtph264pay aggregate-mode=zero-latency", "rtph264depay",
+      "rtph264pay", "rtph264depay",
       rtp_h264_list_lt_mtu_bytes_sent, rtp_h264_list_lt_mtu_mtu_size, TRUE);
 }
 
@@ -888,10 +879,8 @@ static const guint8 rtp_h264_list_lt_mtu_frame_data_avc[] =
   0xad, 0x80, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x0d, 0x00
 };
 
-/* Only the last NAL of each packet is computed by the strange algorithm in
- * rtp_pipeline_chain_list()
- */
-static int rtp_h264_list_lt_mtu_bytes_sent_avc = 7 + 3;
+/* NAL = 4 bytes */
+static int rtp_h264_list_lt_mtu_bytes_sent_avc = 2 * (16 - 2 * 4);
 
 //static int rtp_h264_list_lt_mtu_mtu_size = 1024;
 
@@ -902,7 +891,7 @@ GST_START_TEST (rtp_h264_list_lt_mtu_avc)
       rtp_h264_list_lt_mtu_frame_data_size, rtp_h264_list_lt_mtu_frame_count,
       "video/x-h264,stream-format=(string)avc,alignment=(string)au,"
       "codec_data=(buffer)01640014ffe1001867640014acd94141fb0110000003001773594000f142996001000568ebecb22c",
-      "rtph264pay aggregate-mode=zero-latency", "rtph264depay",
+      "rtph264pay", "rtph264depay",
       rtp_h264_list_lt_mtu_bytes_sent_avc, rtp_h264_list_lt_mtu_mtu_size, TRUE);
 }
 
@@ -1042,7 +1031,7 @@ static const guint8 rtp_h265_list_lt_mtu_frame_data_hvc1[] = {
 };
 
 /* length size is 3 bytes */
-static int rtp_h265_list_lt_mtu_bytes_sent_hvc1 = 4 + 9;
+static int rtp_h265_list_lt_mtu_bytes_sent_hvc1 = 2 * (16 - 2 * 3);
 
 
 GST_START_TEST (rtp_h265_list_lt_mtu_hvc1)
@@ -1054,9 +1043,8 @@ GST_START_TEST (rtp_h265_list_lt_mtu_hvc1)
       "01840010c01ffff01c000000300800000030000030099ac0900a10001003042010101c00"
       "0000300800000030000030099a00a080f1fe36bbb5377725d602dc040404100000300010"
       "00003000a0800a2000100074401c172b02240",
-      "rtph265pay aggregate-mode=zero-latency", "rtph265depay",
-      rtp_h265_list_lt_mtu_bytes_sent_hvc1, rtp_h265_list_lt_mtu_mtu_size,
-      TRUE);
+      "rtph265pay", "rtph265depay", rtp_h265_list_lt_mtu_bytes_sent_hvc1,
+      rtp_h265_list_lt_mtu_mtu_size, TRUE);
 }
 
 GST_END_TEST;
@@ -1305,56 +1293,6 @@ GST_START_TEST (rtp_vorbis)
 }
 
 GST_END_TEST;
-
-/* videotestsrc pattern=red  ! video/x-raw,width=160,height=120 ! vp8enc */
-#define VP8_CAPS "video/x-vp8, profile=(string)0, " \
-    "streamheader=(buffer)4f5650383001010000a000780000010000010000001e00000001, " \
-    "width=(int)160, height=(int)120, framerate=(fraction)30/1"
-
-static const guint8 rtp_vp8_frame_data[] = {
-  0x30, 0x07, 0x00, 0x9d, 0x01, 0x2a, 0xa0, 0x00,
-  0x78, 0x00, 0x00, 0x47, 0x08, 0x85, 0x85, 0x88,
-  0x85, 0x84, 0x88, 0x02, 0x02, 0x02, 0x75, 0xaa,
-  0x03, 0xf8, 0x03, 0xfa, 0x02, 0x06, 0xc3, 0xef,
-  0x05, 0x10, 0x9c, 0x52, 0xd2, 0xa1, 0x38, 0xa5,
-  0xa5, 0x42, 0x71, 0x4b, 0x4a, 0x84, 0xe2, 0x96,
-  0x95, 0x09, 0xc5, 0x2d, 0x2a, 0x13, 0x8a, 0x5a,
-  0x54, 0x27, 0x14, 0xb4, 0xa8, 0x4e, 0x29, 0x69,
-  0x50, 0x9b, 0x00, 0xfe, 0xfd, 0x6e, 0xf3, 0xff,
-  0xe3, 0x99, 0x37, 0x30, 0xc4, 0xff, 0x8e, 0x6d,
-  0xff, 0xf1, 0x61, 0x3c, 0x0e, 0x28, 0xc8, 0xff,
-  0xf1, 0x51, 0x00
-};
-
-GST_START_TEST (rtp_vp8)
-{
-  rtp_pipeline_test (rtp_vp8_frame_data, sizeof (rtp_vp8_frame_data), 1,
-      VP8_CAPS, "rtpvp8pay", "rtpvp8depay", 0, 0, FALSE);
-}
-
-GST_END_TEST;
-
-/* videotestsrc pattern=red  ! video/x-raw,width=160,height=120 ! vp9enc */
-#define VP9_CAPS "video/x-vp9, profile=(string)0, " \
-    "width=(int)160, height=(int)120, framerate=(fraction)30/1"
-
-static const guint8 rtp_vp9_frame_data[] = {
-  0x82, 0x49, 0x83, 0x42, 0x00, 0x09, 0xf0, 0x07,
-  0x76, 0x00, 0x38, 0x24, 0x1c, 0x18, 0x42, 0x00,
-  0x00, 0x30, 0x60, 0x00, 0x00, 0x67, 0x3f, 0xff,
-  0xfe, 0x69, 0x95, 0xff, 0xff, 0xff, 0xfe, 0x99,
-  0x6b, 0xff, 0xff, 0xff, 0xff, 0x62, 0x98, 0x1d,
-  0x45, 0x4c, 0x90, 0xc4, 0x70
-};
-
-GST_START_TEST (rtp_vp9)
-{
-  rtp_pipeline_test (rtp_vp9_frame_data, sizeof (rtp_vp9_frame_data), 1,
-      VP9_CAPS, "rtpvp9pay", "rtpvp9depay", 0, 0, FALSE);
-}
-
-GST_END_TEST;
-
 static const guint8 rtp_jpeg_frame_data[] =
     { /* SOF */ 0xFF, 0xC0, 0x00, 0x11, 0x08, 0x00, 0x08, 0x00, 0x08,
   0x03, 0x00, 0x21, 0x08, 0x01, 0x11, 0x08, 0x02, 0x11, 0x08,
@@ -1628,7 +1566,7 @@ GST_START_TEST (rtp_vorbis_renegotiate)
   gst_audio_info_from_caps (&info, caps);
   buffer = gst_buffer_new_and_alloc (44100 * info.bpf);
   gst_buffer_map (buffer, &map, GST_MAP_WRITE);
-  gst_audio_format_info_fill_silence (info.finfo, map.data, map.size);
+  gst_audio_format_fill_silence (info.finfo, map.data, map.size);
   gst_buffer_unmap (buffer, &map);
   GST_BUFFER_PTS (buffer) = 0;
   GST_BUFFER_DURATION (buffer) = 1 * GST_SECOND;
@@ -1652,7 +1590,7 @@ GST_START_TEST (rtp_vorbis_renegotiate)
   gst_audio_info_from_caps (&info, caps);
   buffer = gst_buffer_new_and_alloc (48000 * info.bpf);
   gst_buffer_map (buffer, &map, GST_MAP_WRITE);
-  gst_audio_format_info_fill_silence (info.finfo, map.data, map.size);
+  gst_audio_format_fill_silence (info.finfo, map.data, map.size);
   gst_buffer_unmap (buffer, &map);
   GST_BUFFER_PTS (buffer) = 0;
   GST_BUFFER_DURATION (buffer) = 1 * GST_SECOND;
@@ -1671,92 +1609,6 @@ GST_START_TEST (rtp_vorbis_renegotiate)
   gst_object_unref (srcpad);
   gst_element_set_state (pipeline, GST_STATE_NULL);
   gst_object_unref (pipeline);
-}
-
-GST_END_TEST;
-
-static guint16
-pull_rtp_buffer (GstHarness * h, gboolean has_marker)
-{
-  gint16 seq;
-  GstBuffer *buf;
-  GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
-
-  buf = gst_harness_try_pull (h);
-  fail_unless (buf);
-
-  fail_unless (gst_rtp_buffer_map (buf, GST_MAP_READ, &rtp));
-  seq = gst_rtp_buffer_get_seq (&rtp);
-  gst_rtp_buffer_unmap (&rtp);
-
-  if (has_marker)
-    fail_unless (GST_BUFFER_FLAG_IS_SET (buf, GST_BUFFER_FLAG_MARKER));
-  else
-    fail_if (GST_BUFFER_FLAG_IS_SET (buf, GST_BUFFER_FLAG_MARKER));
-
-  gst_buffer_unref (buf);
-  return seq;
-}
-
-static void
-test_rtp_opus_dtx (gboolean dtx)
-{
-  GstHarness *h;
-  GstBuffer *buf;
-  /* generated with a muted mic using:
-   * gst-launch-1.0 pulsesrc ! opusenc dtx=true bitrate-type=vbr ! fakesink silent=false dump=true -v
-   */
-  static const guint8 opus_empty[] = { 0xf8 };
-  static const guint8 opus_frame[] = { 0xf8, 0xff, 0xfe };
-  guint16 seq, expected_seq;
-
-  h = gst_harness_new_parse ("rtpopuspay");
-  fail_unless (h);
-
-  gst_harness_set (h, "rtpopuspay", "dtx", dtx, NULL);
-
-  gst_harness_set_caps_str (h,
-      "audio/x-opus, rate=48000, channels=1, channel-mapping-family=0",
-      "application/x-rtp, media=audio, clock-rate=48000, encoding-name=OPUS, sprop-stereo=(string)0, encoding-params=(string)2, sprop-maxcapturerate=(string)48000, payload=96");
-
-  /* push first opus frame */
-  buf = gst_buffer_new_memdup (opus_frame, sizeof (opus_frame));
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-  seq = pull_rtp_buffer (h, TRUE);
-  expected_seq = seq + 1;
-
-  /* push empty frame */
-  buf = gst_buffer_new_memdup (opus_empty, sizeof (opus_empty));
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-  if (dtx) {
-    /* buffer is not transmitted if dtx is enabled */
-    buf = gst_harness_try_pull (h);
-    fail_if (buf);
-  } else {
-    seq = pull_rtp_buffer (h, FALSE);
-    fail_unless_equals_int (seq, expected_seq);
-    expected_seq++;
-  }
-
-  /* push second opus frame */
-  buf = gst_buffer_new_memdup (opus_frame, sizeof (opus_frame));
-  fail_unless_equals_int (gst_harness_push (h, buf), GST_FLOW_OK);
-  seq = pull_rtp_buffer (h, dtx);
-  fail_unless_equals_int (seq, expected_seq);
-
-  gst_harness_teardown (h);
-}
-
-GST_START_TEST (rtp_opus_dtx_disabled)
-{
-  test_rtp_opus_dtx (FALSE);
-}
-
-GST_END_TEST;
-
-GST_START_TEST (rtp_opus_dtx_enabled)
-{
-  test_rtp_opus_dtx (TRUE);
 }
 
 GST_END_TEST;
@@ -1809,8 +1661,6 @@ rtp_payloading_suite (void)
   tcase_add_test (tc_chain, rtp_mp4g);
   tcase_add_test (tc_chain, rtp_theora);
   tcase_add_test (tc_chain, rtp_vorbis);
-  tcase_add_test (tc_chain, rtp_vp8);
-  tcase_add_test (tc_chain, rtp_vp9);
   tcase_add_test (tc_chain, rtp_jpeg);
   tcase_add_test (tc_chain, rtp_jpeg_width_greater_than_2040);
   tcase_add_test (tc_chain, rtp_jpeg_height_greater_than_2040);
@@ -1825,8 +1675,6 @@ rtp_payloading_suite (void)
   tcase_add_test (tc_chain, rtp_g729);
   tcase_add_test (tc_chain, rtp_gst_custom_event);
   tcase_add_test (tc_chain, rtp_vorbis_renegotiate);
-  tcase_add_test (tc_chain, rtp_opus_dtx_disabled);
-  tcase_add_test (tc_chain, rtp_opus_dtx_enabled);
   return s;
 }
 

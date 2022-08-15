@@ -56,8 +56,8 @@
  * until the size is &lt;= GstFaceDetect::min-size-width or
  * GstFaceDetect::min-size-height.
  *
- * ## Example launch line
- *
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 autovideosrc ! decodebin ! colorspace ! facedetect ! videoconvert ! xvimagesink
  * ]| Detect and show faces
@@ -65,6 +65,7 @@
  * gst-launch-1.0 autovideosrc ! video/x-raw,width=320,height=240 ! videoconvert ! facedetect min-size-width=60 min-size-height=60 ! colorspace ! xvimagesink
  * ]| Detect large faces on a smaller image
  *
+ * </refsect2>
  */
 
 /* FIXME: development version of OpenCV has CV_HAAR_FIND_BIGGEST_OBJECT which
@@ -225,12 +226,7 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("RGB"))
     );
 
-G_DEFINE_TYPE_WITH_CODE (GstFaceDetect, gst_face_detect,
-    GST_TYPE_OPENCV_VIDEO_FILTER,
-    GST_DEBUG_CATEGORY_INIT (gst_face_detect_debug, "facedetect", 0,
-        "Performs face detection on videos and images, providing detected positions via bus messages"););
-GST_ELEMENT_REGISTER_DEFINE (facedetect, "facedetect", GST_RANK_NONE,
-    GST_TYPE_FACE_DETECT);
+G_DEFINE_TYPE (GstFaceDetect, gst_face_detect, GST_TYPE_OPENCV_VIDEO_FILTER);
 
 static void gst_face_detect_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -325,7 +321,7 @@ gst_face_detect_class_init (GstFaceDetectClass * klass)
           1.1, 10.0, DEFAULT_SCALE_FACTOR,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_MIN_NEIGHBORS,
-      g_param_spec_int ("min-neighbors", "Minimum neighbors",
+      g_param_spec_int ("min-neighbors", "Mininum neighbors",
           "Minimum number (minus 1) of neighbor rectangles that makes up "
           "an object", 0, G_MAXINT, DEFAULT_MIN_NEIGHBORS,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
@@ -361,9 +357,6 @@ gst_face_detect_class_init (GstFaceDetectClass * klass)
 
   gst_element_class_add_static_pad_template (element_class, &src_factory);
   gst_element_class_add_static_pad_template (element_class, &sink_factory);
-
-  gst_type_mark_as_plugin_api (GST_TYPE_OPENCV_FACE_DETECT_FLAGS, (GstPluginAPIFlags) 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_FACE_DETECT_UPDATES, (GstPluginAPIFlags) 0);
 }
 
 /* initialize the new element
@@ -793,4 +786,21 @@ gst_face_detect_load_profile (GstFaceDetect * filter, gchar * profile)
   }
 
   return cascade;
+}
+
+
+/* entry point to initialize the plug-in
+ * initialize the plug-in itself
+ * register the element factories and other features
+ */
+gboolean
+gst_face_detect_plugin_init (GstPlugin * plugin)
+{
+  /* debug category for fltering log messages */
+  GST_DEBUG_CATEGORY_INIT (gst_face_detect_debug, "facedetect",
+      0,
+      "Performs face detection on videos and images, providing detected positions via bus messages");
+
+  return gst_element_register (plugin, "facedetect", GST_RANK_NONE,
+      GST_TYPE_FACE_DETECT);
 }

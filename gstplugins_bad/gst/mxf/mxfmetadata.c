@@ -252,7 +252,7 @@ mxf_metadata_base_to_buffer (MXFMetadataBase * self, MXFPrimerPack * primer)
         mxf_primer_pack_add_mapping (primer, 0x0000, &t->ul);
         memcpy (tmp->data, t->data, t->size);
       } else {
-        tmp->data = g_memdup2 (t->data, t->size);
+        tmp->data = g_memdup (t->data, t->size);
       }
       tags = g_list_prepend (tags, tmp);
     }
@@ -2247,8 +2247,6 @@ mxf_metadata_source_package_resolve (MXFMetadataBase * m, GHashTable * metadata)
 
   d = MXF_METADATA_FILE_DESCRIPTOR (current);
 
-  self->is_interleaved = MXF_IS_METADATA_MULTIPLE_DESCRIPTOR (self->descriptor);
-
   for (i = 0; i < package->n_tracks; i++) {
     if (!package->tracks[i])
       continue;
@@ -3402,16 +3400,6 @@ mxf_metadata_source_clip_resolve (MXFMetadataBase * m, GHashTable * metadata)
   gchar str[96];
 #endif
 
-  if (mxf_umid_is_zero (&self->source_package_id)) {
-    /* S377-1:2019 B.10 Source Clip.
-     *
-     * SourcePackageID: The value shall be 32 zero valued bytes to terminate the
-     * source reference chain.  */
-    GST_LOG ("Skipping termination source package for source clip %s",
-        mxf_uuid_to_string (&MXF_METADATA_BASE (self)->instance_uid, str));
-    goto chain_up;
-  }
-
   g_hash_table_iter_init (&iter, metadata);
 
   while (g_hash_table_iter_next (&iter, NULL, (gpointer) & current)) {
@@ -3430,7 +3418,6 @@ mxf_metadata_source_clip_resolve (MXFMetadataBase * m, GHashTable * metadata)
         mxf_umid_to_string (&self->source_package_id, str));
   }
 
-chain_up:
   return
       MXF_METADATA_BASE_CLASS (mxf_metadata_source_clip_parent_class)->resolve
       (m, metadata);
@@ -6594,7 +6581,7 @@ mxf_descriptive_metadata_new (guint8 scheme, guint32 type,
 GType
 mxf_descriptive_metadata_framework_get_type (void)
 {
-  static gsize type = 0;
+  static volatile gsize type = 0;
   if (g_once_init_enter (&type)) {
     GType _type = 0;
     static const GTypeInfo info = {

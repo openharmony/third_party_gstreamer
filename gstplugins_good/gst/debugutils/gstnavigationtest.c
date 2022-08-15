@@ -51,8 +51,6 @@ GST_STATIC_PAD_TEMPLATE ("sink",
 
 #define gst_navigationtest_parent_class parent_class
 G_DEFINE_TYPE (GstNavigationtest, gst_navigationtest, GST_TYPE_VIDEO_FILTER);
-GST_ELEMENT_REGISTER_DEFINE (navigationtest, "navigationtest", GST_RANK_NONE,
-    GST_TYPE_NAVIGATIONTEST);
 
 static gboolean
 gst_navigationtest_src_event (GstBaseTransform * trans, GstEvent * event)
@@ -268,7 +266,8 @@ plugin_init (GstPlugin * plugin)
   GST_DEBUG_CATEGORY_INIT (navigationtest_debug, "navigationtest", 0,
       "navigationtest");
 
-  return GST_ELEMENT_REGISTER (navigationtest, plugin);
+  return gst_element_register (plugin, "navigationtest", GST_RANK_NONE,
+      GST_TYPE_NAVIGATIONTEST);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

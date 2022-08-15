@@ -28,14 +28,15 @@
 /**
  * SECTION:element-modplug
  * 
- * Modplug uses the [modplug](http://modplug-xmms.sourceforge.net/) library to
- * decode tracked music in the MOD/S3M/XM/IT and related formats.
+ * Modplug uses the <ulink url="http://modplug-xmms.sourceforge.net/">modplug</ulink>
+ * library to decode tracked music in the MOD/S3M/XM/IT and related formats.
  * 
- * ## Example pipeline
- *
+ * <refsect2>
+ * <title>Example pipeline</title>
  * |[
  * gst-launch-1.0 -v filesrc location=1990s-nostalgia.xm ! modplug ! audioconvert ! alsasink
  * ]| Play a FastTracker xm file.
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -129,8 +130,6 @@ static void gst_modplug_loop (GstModPlug * element);
 
 #define parent_class gst_modplug_parent_class
 G_DEFINE_TYPE (GstModPlug, gst_modplug, GST_TYPE_ELEMENT);
-GST_ELEMENT_REGISTER_DEFINE (modplug, "modplug",
-    GST_RANK_PRIMARY, GST_TYPE_MODPLUG);
 
 static void
 gst_modplug_class_init (GstModPlugClass * klass)
@@ -300,15 +299,11 @@ gst_modplug_src_query (GstPad * pad, GstObject * parent, GstQuery * query)
       gst_query_parse_position (query, &format, NULL);
       if (format == GST_FORMAT_TIME) {
         gint64 pos;
-        guint32 max;
 
-	max = modplug->mSoundFile->GetMaxPosition();
-	if (max > 0) {
-          pos = (modplug->song_length * modplug->mSoundFile->GetCurrentPos ()) /
-            max;
-          gst_query_set_position (query, format, pos);
-          res = TRUE;
-        }
+        pos = (modplug->song_length * modplug->mSoundFile->GetCurrentPos ());
+        pos /= modplug->mSoundFile->GetMaxPosition ();
+        gst_query_set_position (query, format, pos);
+        res = TRUE;
       }
     }
       break;
@@ -904,7 +899,8 @@ gst_modplug_get_property (GObject * object, guint id, GValue * value,
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (modplug, plugin);
+  return gst_element_register (plugin, "modplug",
+      GST_RANK_PRIMARY, GST_TYPE_MODPLUG);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

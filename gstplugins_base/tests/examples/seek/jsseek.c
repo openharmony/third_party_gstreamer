@@ -42,7 +42,7 @@
 #include <linux/input.h>
 #include <linux/joystick.h>
 
-#ifdef HAVE_X11
+#ifdef HAVE_X
 #include <gdk/gdkx.h>
 #endif
 #include <gst/video/videooverlay.h>
@@ -2024,7 +2024,7 @@ shot_cb (GtkButton * button, gpointer data)
 
     /* get the snapshot buffer format now. We set the caps on the appsink so
      * that it can only be an rgb buffer. The only thing we have not specified
-     * on the caps is the height, which is dependent on the pixel-aspect-ratio
+     * on the caps is the height, which is dependant on the pixel-aspect-ratio
      * of the source material */
 #if 0
     caps = GST_BUFFER_CAPS (buffer);
@@ -2416,7 +2416,7 @@ msg_clock_lost (GstBus * bus, GstMessage * message, GstPipeline * data)
   gst_element_set_state (pipeline, GST_STATE_PLAYING);
 }
 
-#ifdef HAVE_X11
+#ifdef HAVE_X
 
 static gulong embed_xid = 0;
 
@@ -2475,7 +2475,7 @@ realize_cb (GtkWidget * widget, gpointer data)
   if (!gdk_window_ensure_native (window))
     g_error ("Couldn't create native window needed for GstVideoOverlay!");
 
-#ifdef HAVE_X11
+#ifdef HAVE_X
   embed_xid = GDK_WINDOW_XID (window);
   g_print ("Window realize: video window XID = %lu\n", embed_xid);
 #endif
@@ -2509,7 +2509,7 @@ connect_bus_signals (GstElement * pipeline)
 {
   GstBus *bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
 
-#ifdef HAVE_X11
+#ifdef HAVE_X
   /* handle prepare-window-handle element message synchronously */
   gst_bus_set_sync_handler (bus, (GstBusSyncHandler) bus_sync_handler,
       pipeline, NULL);
@@ -2552,10 +2552,6 @@ connect_bus_signals (GstElement * pipeline)
   gst_object_unref (bus);
 }
 
-#if !GLIB_CHECK_VERSION(2,70,0)
-#define g_pattern_spec_match_string g_pattern_match_string
-#endif
-
 /* Return GList of paths described in location string */
 static GList *
 handle_wildcards (const gchar * location)
@@ -2575,7 +2571,7 @@ handle_wildcards (const gchar * location)
   }
 
   while ((name = g_dir_read_name (dir)) != NULL) {
-    if (g_pattern_spec_match_string (pspec, name)) {
+    if (g_pattern_match_string (pspec, name)) {
       res = g_list_append (res, g_strjoin ("/", path, name, NULL));
       g_print ("  found clip %s\n", name);
     }
@@ -3002,7 +2998,7 @@ main (int argc, char **argv)
    * asks for the XID of the window to render onto */
   gtk_widget_realize (window);
 
-#ifdef HAVE_X11
+#ifdef HAVE_X
   /* we should have the XID now */
   g_assert (embed_xid != 0);
 #endif

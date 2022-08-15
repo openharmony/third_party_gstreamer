@@ -141,7 +141,7 @@ struct _GstPsDemux
 
   GstSegment sink_segment;
   GstSegment src_segment;
-  guint32 segment_seqnum;
+  gboolean adjust_segment;
 
   /* stream output */
   GstPsStream *current_stream;
@@ -156,9 +156,6 @@ struct _GstPsDemux
 
   /* Indicates an MPEG-2 stream */
   gboolean is_mpeg2_pack;
-
-  /* properties */
-  gboolean ignore_scr;
 };
 
 struct _GstPsDemuxClass
@@ -173,7 +170,6 @@ struct _GstPsDemuxClass
 };
 
 GType gst_ps_demux_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (mpegpsdemux);
 
 G_END_DECLS
 #endif /* __GST_PS_DEMUX_H__ */

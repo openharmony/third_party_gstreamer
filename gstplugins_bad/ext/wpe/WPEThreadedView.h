@@ -21,130 +21,74 @@
 
 #include <EGL/egl.h>
 #include <glib.h>
+#include <gst/gl/gl.h>
 #include <gst/gl/gstglfuncs.h>
+#include <gst/gl/egl/gsteglimage.h>
 #include <gst/gl/egl/gstgldisplay_egl.h>
 #include <wpe/fdo.h>
 #include <wpe/fdo-egl.h>
 #include <wpe/webkit.h>
-#include "gstwpevideosrc.h"
+#include "gstwpesrc.h"
 
-typedef struct _GstGLContext GstGLContext;
-typedef struct _GstGLDisplay GstGLDisplay;
-typedef struct _GstEGLImage GstEGLImage;
+GST_DEBUG_CATEGORY_EXTERN(wpe_src_debug);
 
-class WPEView {
+class WPEThreadedView {
 public:
-    WPEView(WebKitWebContext*, GstWpeVideoSrc*, GstGLContext*, GstGLDisplay*, int width, int height);
-    ~WPEView();
+    WPEThreadedView();
+    ~WPEThreadedView();
 
-    bool operator!() const { return m_isValid; }
+    void initialize(GstWpeSrc*, GstGLContext*, GstGLDisplay*, int width, int height);
 
-    /*  Used by wpevideosrc */
     void resize(int width, int height);
     void loadUri(const gchar*);
-    void loadData(GBytes*);
     void setDrawBackground(gboolean);
 
     GstEGLImage* image();
-    GstBuffer* buffer();
 
-    void dispatchKeyboardEvent(struct wpe_input_keyboard_event&);
-    void dispatchPointerEvent(struct wpe_input_pointer_event&);
-    void dispatchAxisEvent(struct wpe_input_axis_event&);
-
-    /*  Used by WPEContextThread */
-    bool hasUri() const { return webkit.uri; }
-    void disconnectLoadFailedSignal();
-    void waitLoadCompletion();
-
-protected:
-    void handleExportedImage(gpointer);
-    void handleExportedBuffer(struct wpe_fdo_shm_exported_buffer*);
-
-private:
     struct wpe_view_backend* backend() const;
-    void frameComplete();
-    void loadUriUnlocked(const gchar*);
-    void notifyLoadFinished();
-
-    void releaseImage(gpointer);
-    void releaseSHMBuffer(gpointer);
-    static void s_releaseSHMBuffer(gpointer);
-
-    struct {
-        GstGLContext* context;
-        GstGLDisplay* display;
-        GstGLDisplayEGL* display_egl;
-    } gst { nullptr, nullptr, nullptr };
-
-    static struct wpe_view_backend_exportable_fdo_egl_client s_exportableEGLClient;
-    static struct wpe_view_backend_exportable_fdo_client s_exportableClient;
-
-    static void s_releaseImage(GstEGLImage*, gpointer);
-    struct {
-        struct wpe_view_backend_exportable_fdo* exportable;
-        int width;
-        int height;
-    } wpe { nullptr, 0, 0, };
-
-    struct {
-        gchar* uri;
-        WebKitWebView* view;
-    } webkit = { nullptr, nullptr };
-
-    bool m_isValid { false };
-
-    struct {
-        GMutex ready_mutex;
-        GCond ready_cond;
-        gboolean ready;
-    } threading;
-
-    // This mutex guards access to either egl or shm resources declared below,
-    // depending on the runtime behavior.
-    GMutex images_mutex;
-
-    struct {
-        GstEGLImage* pending;
-        GstEGLImage* committed;
-    } egl { nullptr, nullptr };
-
-    struct {
-        GstBuffer* pending;
-        GstBuffer* committed;
-    } shm { nullptr, nullptr };
-
-    struct {
-        gulong init_ext_sigid;
-        gulong extension_msg_sigid;
-    } audio {0, 0};
-
-};
-
-class WPEContextThread {
-public:
-    static WPEContextThread& singleton();
-
-    WPEContextThread();
-    ~WPEContextThread();
-
-    WPEView* createWPEView(GstWpeVideoSrc*, GstGLContext*, GstGLDisplay*, int width, int height);
-
-    template<typename Function>
-    void dispatch(Function);
 
 private:
+    void frameComplete();
+    void releaseImage(EGLImageKHR);
+    void loadUriUnlocked(const gchar*);
+
+    static void s_loadEvent(WebKitWebView*, WebKitLoadEvent, gpointer);
+
     static gpointer s_viewThread(gpointer);
     struct {
         GMutex mutex;
         GCond cond;
-        gboolean ready;
+        GMutex ready_mutex;
+        GCond ready_cond;
         GThread* thread { nullptr };
     } threading;
 
     struct {
         GMainContext* context;
         GMainLoop* loop;
-        WebKitWebContext* web_context;
-    } glib { nullptr, nullptr, nullptr };
+    } glib { nullptr, nullptr };
+
+    struct {
+        GstGLContext* context;
+        GstGLDisplay* display;
+    } gst { nullptr, nullptr };
+
+    static struct wpe_view_backend_exportable_fdo_egl_client s_exportableClient;
+    static void s_releaseImage(GstEGLImage*, gpointer);
+    struct {
+        struct wpe_view_backend_exportable_fdo* exportable;
+        int width;
+        int height;
+    } wpe { nullptr, 0, 0 };
+
+    struct {
+        gchar* uri;
+        WebKitWebView* view;
+    } webkit = { nullptr, nullptr };
+
+    struct {
+        GMutex mutex;
+        GstEGLImage* pending { nullptr };
+        GstEGLImage* committed { nullptr };
+    } images;
 };

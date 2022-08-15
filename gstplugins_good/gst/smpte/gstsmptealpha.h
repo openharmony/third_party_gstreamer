@@ -72,8 +72,7 @@ struct _GstSMPTEAlphaClass {
 };
 
 GType gst_smpte_alpha_get_type (void);
-
-GST_ELEMENT_REGISTER_DECLARE (smptealpha);
+gboolean gst_smpte_alpha_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 

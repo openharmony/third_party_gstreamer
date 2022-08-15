@@ -22,8 +22,6 @@
 #ifndef __GST_EBML_IDS_H__
 #define __GST_EBML_IDS_H__
 
-#include <glib.h>
-
 G_BEGIN_DECLS
 
 /* EBML version supported */
@@ -48,8 +46,8 @@ G_BEGIN_DECLS
 #define GST_EBML_ID_VOID               0xEC
 #define GST_EBML_ID_CRC32              0xBF
 
-/* EbmlDate offset from the unix epoch in nanoseconds, 2001/01/01 00:00:00 UTC */
-#define GST_EBML_DATE_OFFSET           G_GINT64_CONSTANT (978307200000000000)
+/* EbmlDate offset from the unix epoch in seconds, 2001/01/01 00:00:00 UTC */
+#define GST_EBML_DATE_OFFSET           978307200
 
 G_END_DECLS
 

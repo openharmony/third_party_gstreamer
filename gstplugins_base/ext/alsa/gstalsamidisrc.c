@@ -42,7 +42,6 @@
 #  include "config.h"
 #endif
 
-#include "gstalsaelements.h"
 #include "gstalsamidisrc.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_alsa_midi_src_debug);
@@ -169,14 +168,14 @@ start_queue_timer (GstAlsaMidiSrc * alsamidisrc)
 
   ret = snd_seq_start_queue (alsamidisrc->seq, alsamidisrc->queue, NULL);
   if (ret < 0) {
-    GST_ERROR_OBJECT (alsamidisrc, "Timer event output error: %s",
+    GST_ERROR_OBJECT (alsamidisrc, "Timer event output error: %s\n",
         snd_strerror (ret));
     return ret;
   }
 
   ret = snd_seq_drain_output (alsamidisrc->seq);
   if (ret < 0)
-    GST_ERROR_OBJECT (alsamidisrc, "Drain output error: %s",
+    GST_ERROR_OBJECT (alsamidisrc, "Drain output error: %s\n",
         snd_strerror (ret));
 
   return ret;
@@ -199,16 +198,18 @@ schedule_next_tick (GstAlsaMidiSrc * alsamidisrc)
   GST_TIME_TO_TIMESPEC (alsamidisrc->tick * MIDI_TICK_PERIOD_MS * GST_MSECOND,
       time);
 
-  snd_seq_ev_schedule_real (&ev, alsamidisrc->queue, 0, &time);
+  snd_seq_ev_schedule_real (&ev, alsamidisrc->queue, SND_SEQ_TIME_MODE_ABS,
+      &time);
 
   ret = snd_seq_event_output (alsamidisrc->seq, &ev);
   if (ret < 0)
-    GST_ERROR_OBJECT (alsamidisrc, "Event output error: %s",
+    GST_ERROR_OBJECT (alsamidisrc, "Event output error: %s\n",
         snd_strerror (ret));
 
   ret = snd_seq_drain_output (alsamidisrc->seq);
   if (ret < 0)
-    GST_ERROR_OBJECT (alsamidisrc, "Event drain error: %s", snd_strerror (ret));
+    GST_ERROR_OBJECT (alsamidisrc, "Event drain error: %s\n",
+        snd_strerror (ret));
 }
 
 static int
@@ -226,7 +227,7 @@ create_port (GstAlsaMidiSrc * alsamidisrc)
 
   ret = snd_seq_alloc_named_queue (alsamidisrc->seq, DEFAULT_CLIENT_NAME);
   if (ret < 0) {
-    GST_ERROR_OBJECT (alsamidisrc, "Cannot allocate queue: %s",
+    GST_ERROR_OBJECT (alsamidisrc, "Cannot allocate queue: %s\n",
         snd_strerror (ret));
     return ret;
   }
@@ -301,12 +302,11 @@ enum
   PROP_LAST,
 };
 
+#define _do_init \
+    GST_DEBUG_CATEGORY_INIT (gst_alsa_midi_src_debug, "alsamidisrc", 0, "alsamidisrc element");
 #define gst_alsa_midi_src_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstAlsaMidiSrc, gst_alsa_midi_src, GST_TYPE_PUSH_SRC,
-    GST_DEBUG_CATEGORY_INIT (gst_alsa_midi_src_debug, "alsamidisrc", 0,
-        "alsamidisrc element"));
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (alsamidisrc, "alsamidisrc",
-    GST_RANK_PRIMARY, GST_TYPE_ALSA_MIDI_SRC, alsa_element_init (plugin));
+    _do_init);
 
 static void gst_alsa_midi_src_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -420,7 +420,7 @@ push_buffer (GstAlsaMidiSrc * alsamidisrc, gpointer data, guint size,
   GST_BUFFER_DTS (buffer) = time;
   GST_BUFFER_PTS (buffer) = time;
 
-  local_data = g_memdup2 (data, size);
+  local_data = g_memdup (data, size);
 
   gst_buffer_append_memory (buffer,
       gst_memory_new_wrapped (0, local_data, size, 0, size, local_data,

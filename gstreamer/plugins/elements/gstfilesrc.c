@@ -38,18 +38,19 @@
 #endif
 
 #include <gst/gst.h>
-#include <glib/gstdio.h>
 #include "gstfilesrc.h"
-#include "gstcoreelementselements.h"
 
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #ifdef G_OS_WIN32
-#include <windows.h>
 #include <io.h>                 /* lseek, open, close, read */
 /* On win32, stat* default to 32 bit; we need the 64-bit
  * variants, so explicitly define it that way. */
+#undef stat
+#define stat __stat64
+#undef fstat
+#define fstat _fstat64
 #undef lseek
 #define lseek _lseeki64
 #undef off_t
@@ -58,21 +59,16 @@
  * _stat*, since we're explicitly overriding that */
 #undef _INC_STAT_INL
 #endif
-
 #include <fcntl.h>
 
 #ifdef HAVE_UNISTD_H
 #  include <unistd.h>
 #endif
 
-#define struct_stat struct stat
-
 #ifdef __BIONIC__               /* Android */
 #if defined(__ANDROID_API__) && __ANDROID_API__ >= 21
 #undef fstat
 #define fstat fstat64
-#undef struct_stat
-#define struct_stat struct stat64
 #endif
 #endif
 
@@ -98,6 +94,36 @@ static GstStaticPadTemplate srctemplate = GST_STATIC_PAD_TEMPLATE ("src",
 #ifndef O_BINARY
 #define O_BINARY (0)
 #endif
+
+/* Copy of glib's g_open due to win32 libc/cross-DLL brokenness: we can't
+ * use the 'file descriptor' opened in glib (and returned from this function)
+ * in this library, as they may have unrelated C runtimes. */
+static int
+gst_open (const gchar * filename, int flags, int mode)
+{
+#ifdef G_OS_WIN32
+  wchar_t *wfilename = g_utf8_to_utf16 (filename, -1, NULL, NULL, NULL);
+  int retval;
+  int save_errno;
+
+  if (wfilename == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  retval = _wopen (wfilename, flags, mode);
+  save_errno = errno;
+
+  g_free (wfilename);
+
+  errno = save_errno;
+  return retval;
+#elif defined (__BIONIC__)
+  return open (filename, flags | O_LARGEFILE, mode);
+#else
+  return open (filename, flags, mode);
+#endif
+}
 
 GST_DEBUG_CATEGORY_STATIC (gst_file_src_debug);
 #define GST_CAT_DEFAULT gst_file_src_debug
@@ -140,8 +166,6 @@ static void gst_file_src_uri_handler_init (gpointer g_iface,
   GST_DEBUG_CATEGORY_INIT (gst_file_src_debug, "filesrc", 0, "filesrc element");
 #define gst_file_src_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstFileSrc, gst_file_src, GST_TYPE_BASE_SRC, _do_init);
-GST_ELEMENT_REGISTER_DEFINE (filesrc, "filesrc", GST_RANK_PRIMARY,
-    GST_TYPE_FILE_SRC);
 
 static void
 gst_file_src_class_init (GstFileSrcClass * klass)
@@ -406,6 +430,7 @@ gst_file_src_is_seekable (GstBaseSrc * basesrc)
 static gboolean
 gst_file_src_get_size (GstBaseSrc * basesrc, guint64 * size)
 {
+  struct stat stat_results;
   GstFileSrc *src;
 
   src = GST_FILE_SRC (basesrc);
@@ -415,30 +440,11 @@ gst_file_src_get_size (GstBaseSrc * basesrc, guint64 * size)
      * succeed, and wrongly say our length is zero. */
     return FALSE;
   }
-#ifdef G_OS_WIN32
-  {
-    HANDLE h = (HANDLE) _get_osfhandle (src->fd);
-    LARGE_INTEGER file_size;
 
-    if (h == INVALID_HANDLE_VALUE)
-      goto could_not_stat;
+  if (fstat (src->fd, &stat_results) < 0)
+    goto could_not_stat;
 
-    if (!GetFileSizeEx (h, &file_size)) {
-      goto could_not_stat;
-    }
-
-    *size = file_size.QuadPart;
-  }
-#else
-  {
-    struct_stat stat_results;
-
-    if (fstat (src->fd, &stat_results) < 0)
-      goto could_not_stat;
-
-    *size = stat_results.st_size;
-  }
-#endif
+  *size = stat_results.st_size;
 
   return TRUE;
 
@@ -454,10 +460,7 @@ static gboolean
 gst_file_src_start (GstBaseSrc * basesrc)
 {
   GstFileSrc *src = GST_FILE_SRC (basesrc);
-  int flags = O_RDONLY | O_BINARY;
-#if defined (__BIONIC__)
-  flags |= O_LARGEFILE;
-#endif
+  struct stat stat_results;
 
   if (src->filename == NULL || src->filename[0] == '\0')
     goto no_filename;
@@ -465,50 +468,26 @@ gst_file_src_start (GstBaseSrc * basesrc)
   GST_INFO_OBJECT (src, "opening file %s", src->filename);
 
   /* open the file */
-  src->fd = g_open (src->filename, flags, 0);
+  src->fd = gst_open (src->filename, O_RDONLY | O_BINARY, 0);
 
   if (src->fd < 0)
     goto open_failed;
 
-#ifdef G_OS_WIN32
-  {
-    HANDLE h = (HANDLE) _get_osfhandle (src->fd);
-    FILE_STANDARD_INFO file_info;
+  /* check if it is a regular file, otherwise bail out */
+  if (fstat (src->fd, &stat_results) < 0)
+    goto no_stat;
 
-    if (h == INVALID_HANDLE_VALUE)
-      goto no_stat;
+  if (S_ISDIR (stat_results.st_mode))
+    goto was_directory;
 
-    if (!GetFileInformationByHandleEx (h, FileStandardInfo, &file_info,
-            sizeof (FILE_STANDARD_INFO)))
-      goto no_stat;
-
-    if (file_info.Directory)
-      goto was_directory;
-
-    /* everything's a regular file on Windows */
-    src->is_regular = TRUE;
-  }
-#else
-  {
-    struct_stat stat_results;
-
-    /* check if it is a regular file, otherwise bail out */
-    if (fstat (src->fd, &stat_results) < 0)
-      goto no_stat;
-
-    if (S_ISDIR (stat_results.st_mode))
-      goto was_directory;
-
-    if (S_ISSOCK (stat_results.st_mode))
-      goto was_socket;
-
-    /* record if it's a regular (hence seekable and lengthable) file */
-    if (S_ISREG (stat_results.st_mode))
-      src->is_regular = TRUE;
-  }
-#endif
+  if (S_ISSOCK (stat_results.st_mode))
+    goto was_socket;
 
   src->read_position = 0;
+
+  /* record if it's a regular (hence seekable and lengthable) file */
+  if (S_ISREG (stat_results.st_mode))
+    src->is_regular = TRUE;
 
   /* We need to check if the underlying file is seekable. */
   {
@@ -573,14 +552,12 @@ was_directory:
         (_("\"%s\" is a directory."), src->filename), (NULL));
     goto error_close;
   }
-#ifndef G_OS_WIN32
 was_socket:
   {
     GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
         (_("File \"%s\" is a socket."), src->filename), (NULL));
     goto error_close;
   }
-#endif
 lseek_wonky:
   {
     GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ, (NULL),
@@ -601,7 +578,7 @@ gst_file_src_stop (GstBaseSrc * basesrc)
   GstFileSrc *src = GST_FILE_SRC (basesrc);
 
   /* close the file */
-  g_close (src->fd, NULL);
+  close (src->fd);
 
   /* zero out a lot of our state */
   src->fd = 0;

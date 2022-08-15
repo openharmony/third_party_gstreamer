@@ -38,11 +38,12 @@
  * When using #GstRtpBin, this element should be inserted through the
  * #GstRtpBin::request-fec-encoder signal.
  *
- * ## Example pipeline
- *
+ * <refsect2>
+ * <title>Example pipeline</title>
  * |[
  * gst-launch-1.0 videotestsrc ! x264enc ! video/x-h264, profile=baseline ! rtph264pay pt=96 ! rtpulpfecenc percentage=100 pt=122 ! rtpredenc pt=122 distance=2 ! identity drop-probability=0.05 ! udpsink port=8888
  * ]| This example will send a stream with RED and ULP FEC.
+ * </refsect2>
  *
  * See also: #GstRtpRedDec, #GstWebRTCBin, #GstRtpBin
  * Since: 1.14
@@ -52,7 +53,6 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "gstrtpelements.h"
 #include "rtpredcommon.h"
 #include "gstrtpredenc.h"
 
@@ -79,9 +79,8 @@ static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
 
 GST_DEBUG_CATEGORY_STATIC (gst_rtp_red_enc_debug);
 #define GST_CAT_DEFAULT (gst_rtp_red_enc_debug)
+
 G_DEFINE_TYPE (GstRtpRedEnc, gst_rtp_red_enc, GST_TYPE_ELEMENT);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpredenc, "rtpredenc", GST_RANK_NONE,
-    GST_TYPE_RTP_RED_ENC, rtp_element_init (plugin));
 
 enum
 {
@@ -146,7 +145,7 @@ _alloc_red_packet_and_fill_headers (GstRtpRedEnc * self,
   guint red_header_size = rtp_red_block_header_get_length (FALSE) +
       (redundant_block ? rtp_red_block_header_get_length (TRUE) : 0);
 
-  guint32 timestamp = gst_rtp_buffer_get_timestamp (inp_rtp);
+  guint32 timestmap = gst_rtp_buffer_get_timestamp (inp_rtp);
   guint csrc_count = gst_rtp_buffer_get_csrc_count (inp_rtp);
   GstBuffer *red = gst_rtp_buffer_new_allocate (red_header_size, 0, csrc_count);
   guint8 *red_block_header;
@@ -157,16 +156,13 @@ _alloc_red_packet_and_fill_headers (GstRtpRedEnc * self,
     g_assert_not_reached ();
 
   /* Copying RTP header of incoming packet */
-  if (gst_rtp_buffer_get_extension (inp_rtp)
-      && !self->ignoring_extension_warned) {
-    GST_FIXME_OBJECT (self, "Ignoring RTP extension");
-    self->ignoring_extension_warned = TRUE;
-  }
+  if (gst_rtp_buffer_get_extension (inp_rtp))
+    GST_WARNING_OBJECT (self, "FIXME: Ignoring RTP extension");
 
   gst_rtp_buffer_set_marker (&red_rtp, gst_rtp_buffer_get_marker (inp_rtp));
   gst_rtp_buffer_set_payload_type (&red_rtp, self->pt);
   gst_rtp_buffer_set_seq (&red_rtp, gst_rtp_buffer_get_seq (inp_rtp));
-  gst_rtp_buffer_set_timestamp (&red_rtp, timestamp);
+  gst_rtp_buffer_set_timestamp (&red_rtp, timestmap);
   gst_rtp_buffer_set_ssrc (&red_rtp, gst_rtp_buffer_get_ssrc (inp_rtp));
   for (i = 0; i != csrc_count; ++i)
     gst_rtp_buffer_set_csrc (&red_rtp, i,
@@ -178,7 +174,7 @@ _alloc_red_packet_and_fill_headers (GstRtpRedEnc * self,
     rtp_red_block_set_is_redundant (red_block_header, TRUE);
     rtp_red_block_set_payload_type (red_block_header, redundant_block->pt);
     rtp_red_block_set_timestamp_offset (red_block_header,
-        timestamp - redundant_block->timestamp);
+        timestmap - redundant_block->timestamp);
     rtp_red_block_set_payload_length (red_block_header,
         gst_buffer_get_size (redundant_block->payload));
 
@@ -187,27 +183,6 @@ _alloc_red_packet_and_fill_headers (GstRtpRedEnc * self,
   rtp_red_block_set_is_redundant (red_block_header, FALSE);
   rtp_red_block_set_payload_type (red_block_header,
       gst_rtp_buffer_get_payload_type (inp_rtp));
-
-  /* FIXME: remove that logic once https://gitlab.freedesktop.org/gstreamer/gstreamer/-/issues/923
-   * has been addressed. */
-  if (self->twcc_ext_id != 0) {
-    guint8 appbits;
-    gpointer inp_data;
-    guint inp_size;
-    guint16 data;
-
-    /* If the input buffer was meant to hold a TWCC seqnum, we also do that
-     * for our wrapper */
-    if (gst_rtp_buffer_get_extension_onebyte_header (inp_rtp, self->twcc_ext_id,
-            0, &inp_data, &inp_size)) {
-      gst_rtp_buffer_add_extension_onebyte_header (&red_rtp, 1, &data,
-          sizeof (guint16));
-    } else if (gst_rtp_buffer_get_extension_twobytes_header (inp_rtp, &appbits,
-            self->twcc_ext_id, 0, &inp_data, &inp_size)) {
-      gst_rtp_buffer_add_extension_twobytes_header (&red_rtp, appbits,
-          self->twcc_ext_id, &data, sizeof (guint16));
-    }
-  }
 
   gst_rtp_buffer_unmap (&red_rtp);
 
@@ -384,31 +359,6 @@ gst_rtp_red_enc_chain (GstPad G_GNUC_UNUSED * pad, GstObject * parent,
   return _push_red_packet (self, &rtp, buffer, redundant_block, distance);
 }
 
-static guint8
-_get_extmap_id_for_attribute (const GstStructure * s, const gchar * ext_name)
-{
-  guint i;
-  guint8 extmap_id = 0;
-  guint n_fields = gst_structure_n_fields (s);
-
-  for (i = 0; i < n_fields; i++) {
-    const gchar *field_name = gst_structure_nth_field_name (s, i);
-    if (g_str_has_prefix (field_name, "extmap-")) {
-      const gchar *str = gst_structure_get_string (s, field_name);
-      if (str && g_strcmp0 (str, ext_name) == 0) {
-        gint64 id = g_ascii_strtoll (field_name + 7, NULL, 10);
-        if (id > 0 && id < 15) {
-          extmap_id = id;
-          break;
-        }
-      }
-    }
-  }
-  return extmap_id;
-}
-
-#define TWCC_EXTMAP_STR "http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01"
-
 static gboolean
 gst_rtp_red_enc_event_sink (GstPad * pad, GstObject * parent, GstEvent * event)
 {
@@ -417,18 +367,12 @@ gst_rtp_red_enc_event_sink (GstPad * pad, GstObject * parent, GstEvent * event)
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_CAPS:
     {
-      GstCaps *caps;
-      GstStructure *s;
       gboolean replace_with_red_caps =
           self->is_current_caps_red || self->allow_no_red_blocks;
 
-      gst_event_parse_caps (event, &caps);
-      s = gst_caps_get_structure (caps, 0);
-      self->twcc_ext_id = _get_extmap_id_for_attribute (s, TWCC_EXTMAP_STR);
-
-      GST_INFO_OBJECT (self, "TWCC extension ID: %u", self->twcc_ext_id);
-
       if (replace_with_red_caps) {
+        GstCaps *caps;
+        gst_event_parse_caps (event, &caps);
         gst_event_take (&event, _create_caps_event (caps, self->pt));
 
         self->is_current_caps_red = TRUE;
@@ -478,7 +422,6 @@ gst_rtp_red_enc_init (GstRtpRedEnc * self)
   self->allow_no_red_blocks = DEFAULT_ALLOW_NO_RED_BLOCKS;
   self->num_sent = 0;
   self->rtp_history = g_queue_new ();
-  self->ignoring_extension_warned = FALSE;
 }
 
 

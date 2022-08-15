@@ -19,24 +19,14 @@
  */
 
 /**
- * SECTION:element-hlssink2
- * @title: hlssink2
+ * SECTION:element-hlssink
+ * @title: hlssink
  *
- * HTTP Live Streaming sink/server. Unlike the old hlssink which took a muxed
- * MPEG-TS stream as input, this element takes elementary audio and video
- * streams as input and handles the muxing internally. This allows hlssink2
- * to make better decisions as to when to start a new fragment and also works
- * better with input streams where there isn't an encoder element upstream
- * that can generate keyframes on demand as needed.
- *
- * This element only writes fragments and a playlist file into a specified
- * directory, it does not contain an actual HTTP server to serve these files.
- * Just point an external webserver to the directory with the playlist and
- * fragment files.
+ * HTTP Live Streaming sink/server
  *
  * ## Example launch line
  * |[
- * gst-launch-1.0 videotestsrc is-live=true ! x264enc ! h264parse ! hlssink2 max-files=5
+ * gst-launch-1.0 videotestsrc is-live=true ! x264enc ! hlssink max-files=5
  * ]|
  *
  */
@@ -44,7 +34,6 @@
 #include "config.h"
 #endif
 
-#include "gsthlselements.h"
 #include "gsthlssink2.h"
 #include <gst/pbutils/pbutils.h>
 #include <gst/video/video.h>
@@ -77,16 +66,6 @@ enum
   PROP_SEND_KEYFRAME_REQUESTS,
 };
 
-enum
-{
-  SIGNAL_GET_PLAYLIST_STREAM,
-  SIGNAL_GET_FRAGMENT_STREAM,
-  SIGNAL_DELETE_FRAGMENT,
-  SIGNAL_LAST
-};
-
-static guint signals[SIGNAL_LAST];
-
 static GstStaticPadTemplate video_template = GST_STATIC_PAD_TEMPLATE ("video",
     GST_PAD_SINK,
     GST_PAD_REQUEST,
@@ -98,11 +77,6 @@ static GstStaticPadTemplate audio_template = GST_STATIC_PAD_TEMPLATE ("audio",
 
 #define gst_hls_sink2_parent_class parent_class
 G_DEFINE_TYPE (GstHlsSink2, gst_hls_sink2, GST_TYPE_BIN);
-#define _do_init \
-  hls_element_init (plugin); \
-  GST_DEBUG_CATEGORY_INIT (gst_hls_sink2_debug, "hlssink2", 0, "HlsSink2");
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (hlssink2, "hlssink2", GST_RANK_NONE,
-    GST_TYPE_HLS_SINK2, _do_init);
 
 static void gst_hls_sink2_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * spec);
@@ -142,51 +116,6 @@ gst_hls_sink2_finalize (GObject * object)
   G_OBJECT_CLASS (parent_class)->finalize ((GObject *) sink);
 }
 
-/* Default implementations for the signal handlers */
-static GOutputStream *
-gst_hls_sink2_get_playlist_stream (GstHlsSink2 * sink, const gchar * location)
-{
-  GFile *file = g_file_new_for_path (location);
-  GOutputStream *ostream;
-  GError *err = NULL;
-
-  ostream =
-      G_OUTPUT_STREAM (g_file_replace (file, NULL, FALSE,
-          G_FILE_CREATE_REPLACE_DESTINATION, NULL, &err));
-  if (!ostream) {
-    GST_ELEMENT_ERROR (sink, RESOURCE, OPEN_WRITE,
-        (("Got no output stream for playlist '%s': %s."), location,
-            err->message), (NULL));
-    g_clear_error (&err);
-  }
-
-  g_object_unref (file);
-
-  return ostream;
-}
-
-static GOutputStream *
-gst_hls_sink2_get_fragment_stream (GstHlsSink2 * sink, const gchar * location)
-{
-  GFile *file = g_file_new_for_path (location);
-  GOutputStream *ostream;
-  GError *err = NULL;
-
-  ostream =
-      G_OUTPUT_STREAM (g_file_replace (file, NULL, FALSE,
-          G_FILE_CREATE_REPLACE_DESTINATION, NULL, &err));
-  if (!ostream) {
-    GST_ELEMENT_ERROR (sink, RESOURCE, OPEN_WRITE,
-        (("Got no output stream for fragment '%s': %s."), location,
-            err->message), (NULL));
-    g_clear_error (&err);
-  }
-
-  g_object_unref (file);
-
-  return ostream;
-}
-
 static void
 gst_hls_sink2_class_init (GstHlsSink2Class * klass)
 {
@@ -202,7 +131,7 @@ gst_hls_sink2_class_init (GstHlsSink2Class * klass)
   gst_element_class_add_static_pad_template (element_class, &audio_template);
 
   gst_element_class_set_static_metadata (element_class,
-      "HTTP Live Streaming sink", "Sink/Muxer", "HTTP Live Streaming sink",
+      "HTTP Live Streaming sink", "Sink", "HTTP Live Streaming sink",
       "Alessandro Decina <alessandro.d@gmail.com>, "
       "Sebastian Dröge <sebastian@centricular.com>");
 
@@ -256,84 +185,6 @@ gst_hls_sink2_class_init (GstHlsSink2Class * klass)
           "then the input must have keyframes in regular intervals",
           DEFAULT_SEND_KEYFRAME_REQUESTS,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  /**
-   * GstHlsSink2::get-playlist-stream:
-   * @sink: the #GstHlsSink2
-   * @location: Location for the playlist file
-   *
-   * Returns: #GOutputStream for writing the playlist file.
-   *
-   * Since: 1.18
-   */
-  signals[SIGNAL_GET_PLAYLIST_STREAM] =
-      g_signal_new ("get-playlist-stream", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST,
-      G_STRUCT_OFFSET (GstHlsSink2Class, get_playlist_stream),
-      g_signal_accumulator_first_wins, NULL, NULL, G_TYPE_OUTPUT_STREAM, 1,
-      G_TYPE_STRING);
-
-  /**
-   * GstHlsSink2::get-fragment-stream:
-   * @sink: the #GstHlsSink2
-   * @location: Location for the fragment file
-   *
-   * Returns: #GOutputStream for writing the fragment file.
-   *
-   * Since: 1.18
-   */
-  signals[SIGNAL_GET_FRAGMENT_STREAM] =
-      g_signal_new ("get-fragment-stream", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST,
-      G_STRUCT_OFFSET (GstHlsSink2Class, get_fragment_stream),
-      g_signal_accumulator_first_wins, NULL, NULL, G_TYPE_OUTPUT_STREAM, 1,
-      G_TYPE_STRING);
-
-  /**
-   * GstHlsSink2::delete-fragment:
-   * @sink: the #GstHlsSink2
-   * @location: Location for the fragment file to delete
-   *
-   * Requests deletion of an old fragment file that is not needed anymore.
-   *
-   * Since: 1.18
-   */
-  signals[SIGNAL_DELETE_FRAGMENT] =
-      g_signal_new ("delete-fragment", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_STRING);
-
-  klass->get_playlist_stream = gst_hls_sink2_get_playlist_stream;
-  klass->get_fragment_stream = gst_hls_sink2_get_fragment_stream;
-}
-
-static gchar *
-on_format_location (GstElement * splitmuxsink, guint fragment_id,
-    GstHlsSink2 * sink)
-{
-  GOutputStream *stream = NULL;
-  gchar *location;
-
-  location = g_strdup_printf (sink->location, fragment_id);
-  g_signal_emit (sink, signals[SIGNAL_GET_FRAGMENT_STREAM], 0, location,
-      &stream);
-
-  if (!stream) {
-    GST_ELEMENT_ERROR (sink, RESOURCE, OPEN_WRITE,
-        (("Got no output stream for fragment '%s'."), location), (NULL));
-    g_free (sink->current_location);
-    sink->current_location = NULL;
-  } else {
-    g_free (sink->current_location);
-    sink->current_location = g_steal_pointer (&location);
-  }
-  g_object_set (sink->giostreamsink, "stream", stream, NULL);
-
-  if (stream)
-    g_object_unref (stream);
-
-  g_free (location);
-
-  return NULL;
 }
 
 static void
@@ -353,16 +204,10 @@ gst_hls_sink2_init (GstHlsSink2 * sink)
   sink->splitmuxsink = gst_element_factory_make ("splitmuxsink", NULL);
   gst_bin_add (GST_BIN (sink), sink->splitmuxsink);
 
-  sink->giostreamsink = gst_element_factory_make ("giostreamsink", NULL);
-
   mux = gst_element_factory_make ("mpegtsmux", NULL);
-  g_object_set (sink->splitmuxsink, "location", NULL, "max-size-time",
+  g_object_set (sink->splitmuxsink, "location", sink->location, "max-size-time",
       ((GstClockTime) sink->target_duration * GST_SECOND),
-      "send-keyframe-requests", TRUE, "muxer", mux, "sink", sink->giostreamsink,
-      "reset-muxer", FALSE, NULL);
-
-  g_signal_connect (sink->splitmuxsink, "format-location",
-      G_CALLBACK (on_format_location), sink);
+      "send-keyframe-requests", TRUE, "muxer", mux, "reset-muxer", FALSE, NULL);
 
   GST_OBJECT_FLAG_SET (sink, GST_ELEMENT_FLAG_SINK);
 
@@ -377,12 +222,11 @@ gst_hls_sink2_reset (GstHlsSink2 * sink)
   if (sink->playlist)
     gst_m3u8_playlist_free (sink->playlist);
   sink->playlist =
-      gst_m3u8_playlist_new (GST_M3U8_PLAYLIST_VERSION, sink->playlist_length);
+      gst_m3u8_playlist_new (GST_M3U8_PLAYLIST_VERSION, sink->playlist_length,
+      FALSE);
 
   g_queue_foreach (&sink->old_locations, (GFunc) g_free, NULL);
   g_queue_clear (&sink->old_locations);
-
-  sink->state = GST_M3U8_PLAYLIST_RENDER_INIT;
 }
 
 static void
@@ -390,31 +234,18 @@ gst_hls_sink2_write_playlist (GstHlsSink2 * sink)
 {
   char *playlist_content;
   GError *error = NULL;
-  GOutputStream *stream = NULL;
-  gsize bytes_to_write;
-
-  g_signal_emit (sink, signals[SIGNAL_GET_PLAYLIST_STREAM], 0,
-      sink->playlist_location, &stream);
-  if (!stream) {
-    GST_ELEMENT_ERROR (sink, RESOURCE, OPEN_WRITE,
-        (("Got no output stream for playlist '%s'."), sink->playlist_location),
-        (NULL));
-    return;
-  }
 
   playlist_content = gst_m3u8_playlist_render (sink->playlist);
-  bytes_to_write = strlen (playlist_content);
-  if (!g_output_stream_write_all (stream, playlist_content, bytes_to_write,
-          NULL, NULL, &error)) {
+  if (!g_file_set_contents (sink->playlist_location,
+          playlist_content, -1, &error)) {
     GST_ERROR ("Failed to write playlist: %s", error->message);
     GST_ELEMENT_ERROR (sink, RESOURCE, OPEN_WRITE,
         (("Failed to write playlist '%s'."), error->message), (NULL));
     g_error_free (error);
     error = NULL;
   }
-
   g_free (playlist_content);
-  g_object_unref (stream);
+
 }
 
 static void
@@ -428,17 +259,17 @@ gst_hls_sink2_handle_message (GstBin * bin, GstMessage * message)
       const GstStructure *s = gst_message_get_structure (message);
       if (message->src == GST_OBJECT_CAST (sink->splitmuxsink)) {
         if (gst_structure_has_name (s, "splitmuxsink-fragment-opened")) {
+          g_free (sink->current_location);
+          sink->current_location =
+              g_strdup (gst_structure_get_string (s, "location"));
           gst_structure_get_clock_time (s, "running-time",
               &sink->current_running_time_start);
         } else if (gst_structure_has_name (s, "splitmuxsink-fragment-closed")) {
           GstClockTime running_time;
           gchar *entry_location;
 
-          if (!sink->current_location) {
-            GST_ELEMENT_ERROR (sink, RESOURCE, OPEN_WRITE, ((NULL)),
-                ("Fragment closed without knowing its location"));
-            break;
-          }
+          g_assert (strcmp (sink->current_location, gst_structure_get_string (s,
+                      "location")) == 0);
 
           gst_structure_get_clock_time (s, "running-time", &running_time);
 
@@ -457,39 +288,16 @@ gst_hls_sink2_handle_message (GstBin * bin, GstMessage * message)
           g_free (entry_location);
 
           gst_hls_sink2_write_playlist (sink);
-          sink->state |= GST_M3U8_PLAYLIST_RENDER_STARTED;
 
           g_queue_push_tail (&sink->old_locations,
               g_strdup (sink->current_location));
 
-          if (sink->max_files > 0) {
-            while (g_queue_get_length (&sink->old_locations) > sink->max_files) {
-              gchar *old_location = g_queue_pop_head (&sink->old_locations);
-
-
-              if (g_signal_has_handler_pending (sink,
-                      signals[SIGNAL_DELETE_FRAGMENT], 0, FALSE)) {
-                g_signal_emit (sink, signals[SIGNAL_DELETE_FRAGMENT], 0,
-                    old_location);
-              } else {
-                GFile *file = g_file_new_for_path (old_location);
-                GError *err = NULL;
-
-                if (!g_file_delete (file, NULL, &err)) {
-                  GST_ELEMENT_ERROR (sink, RESOURCE, OPEN_WRITE,
-                      (("Failed to delete fragment file '%s': %s."),
-                          old_location, err->message), (NULL));
-                  g_clear_error (&err);
-                }
-
-                g_object_unref (file);
-              }
-              g_free (old_location);
-            }
+          while (g_queue_get_length (&sink->old_locations) >
+              g_queue_get_length (sink->playlist->entries)) {
+            gchar *old_location = g_queue_pop_head (&sink->old_locations);
+            g_remove (old_location);
+            g_free (old_location);
           }
-
-          g_free (sink->current_location);
-          sink->current_location = NULL;
         }
       }
       break;
@@ -497,7 +305,6 @@ gst_hls_sink2_handle_message (GstBin * bin, GstMessage * message)
     case GST_MESSAGE_EOS:{
       sink->playlist->end_list = TRUE;
       gst_hls_sink2_write_playlist (sink);
-      sink->state |= GST_M3U8_PLAYLIST_RENDER_ENDED;
       break;
     }
     default:
@@ -525,7 +332,7 @@ gst_hls_sink2_request_new_pad (GstElement * element, GstPadTemplate * templ,
   is_audio = strcmp (templ->name_template, "audio") == 0;
 
   peer =
-      gst_element_request_pad_simple (sink->splitmuxsink,
+      gst_element_get_request_pad (sink->splitmuxsink,
       is_audio ? "audio_0" : "video");
   if (!peer)
     return NULL;
@@ -551,9 +358,9 @@ gst_hls_sink2_release_pad (GstElement * element, GstPad * pad)
 
   g_return_if_fail (pad == sink->audio_sink || pad == sink->video_sink);
 
-  peer = gst_ghost_pad_get_target (GST_GHOST_PAD (pad));
+  peer = gst_pad_get_peer (pad);
   if (peer) {
-    gst_element_release_request_pad (sink->splitmuxsink, peer);
+    gst_element_release_request_pad (sink->splitmuxsink, pad);
     gst_object_unref (peer);
   }
 
@@ -590,13 +397,6 @@ gst_hls_sink2_change_state (GstElement * element, GstStateChange trans)
     case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
       break;
     case GST_STATE_CHANGE_PAUSED_TO_READY:
-      /* drain playlist with #EXT-X-ENDLIST */
-      if (sink->playlist && (sink->state & GST_M3U8_PLAYLIST_RENDER_STARTED) &&
-          !(sink->state & GST_M3U8_PLAYLIST_RENDER_ENDED)) {
-        sink->playlist->end_list = TRUE;
-        gst_hls_sink2_write_playlist (sink);
-      }
-      /* fall-through */
     case GST_STATE_CHANGE_READY_TO_NULL:
       gst_hls_sink2_reset (sink);
       break;
@@ -687,4 +487,12 @@ gst_hls_sink2_get_property (GObject * object, guint prop_id,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+}
+
+gboolean
+gst_hls_sink2_plugin_init (GstPlugin * plugin)
+{
+  GST_DEBUG_CATEGORY_INIT (gst_hls_sink2_debug, "hlssink2", 0, "HlsSink2");
+  return gst_element_register (plugin, "hlssink2", GST_RANK_NONE,
+      gst_hls_sink2_get_type ());
 }

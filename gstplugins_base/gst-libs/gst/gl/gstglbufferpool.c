@@ -219,7 +219,7 @@ gst_gl_buffer_pool_set_config (GstBufferPool * pool, GstStructure * config)
     priv->gl_params->target = tex_target;
   }
 
-  /* Recalculate the size and offset as we don't add padding between planes. */
+  /* Recalulate the size and offset as we don't add padding between planes. */
   priv->gl_params->v_info->size = 0;
   for (p = 0; p < GST_VIDEO_INFO_N_PLANES (priv->gl_params->v_info); p++) {
     priv->gl_params->v_info->offset[p] = priv->gl_params->v_info->size;
@@ -380,31 +380,6 @@ gst_gl_buffer_pool_finalize (GObject * object)
 }
 
 /**
- * gst_gl_buffer_pool_get_gl_allocation_params:
- * @pool: the #GstGLBufferPool
- *
- * The returned #GstGLAllocationParams will by %NULL before the first successful
- * call to gst_buffer_pool_set_config().  Subsequent successful calls to
- * gst_buffer_pool_set_config() will cause this function to return a new
- * #GstGLAllocationParams which may or may not contain the same information.
- *
- * Returns: (transfer full): a copy of the #GstGLAllocationParams being used by the @pool
- *
- * Since: 1.20
- */
-GstGLAllocationParams *
-gst_gl_buffer_pool_get_gl_allocation_params (GstGLBufferPool * pool)
-{
-  g_return_val_if_fail (GST_IS_GL_BUFFER_POOL (pool), NULL);
-
-  if (pool->priv->gl_params)
-    return gst_gl_allocation_params_copy ((GstGLAllocationParams *) pool->
-        priv->gl_params);
-  else
-    return NULL;
-}
-
-/**
  * gst_buffer_pool_config_get_gl_allocation_params:
  * @config: a buffer pool config
  *
@@ -431,7 +406,7 @@ gst_buffer_pool_config_get_gl_allocation_params (GstStructure * config)
  */
 void
 gst_buffer_pool_config_set_gl_allocation_params (GstStructure * config,
-    const GstGLAllocationParams * params)
+    GstGLAllocationParams * params)
 {
   g_return_if_fail (config != NULL);
   g_return_if_fail (params != NULL);

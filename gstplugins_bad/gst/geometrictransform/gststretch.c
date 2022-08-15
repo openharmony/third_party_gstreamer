@@ -79,9 +79,6 @@ enum
 
 #define gst_stretch_parent_class parent_class
 G_DEFINE_TYPE (GstStretch, gst_stretch, GST_TYPE_CIRCLE_GEOMETRIC_TRANSFORM);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (stretch, "stretch", GST_RANK_NONE,
-    GST_TYPE_STRETCH, GST_DEBUG_CATEGORY_INIT (gst_stretch_debug, "stretch", 0,
-        "stretch"));
 
 static void
 gst_stretch_set_property (GObject * object, guint prop_id, const GValue * value,
@@ -142,7 +139,7 @@ stretch_map (GstGeometricTransform * gt, gint x, gint y, gdouble * in_x,
   gdouble height = gt->height;
   gdouble a, b;
 
-  /* normalize in ((-1.0, -1.0), (1.0, 1.0) and translate the center */
+  /* normalize in ((-1.0, -1.0), (1.0, 1.0) and traslate the center */
   norm_x = 2.0 * (x / width - cgt->x_center);
   norm_y = 2.0 * (y / height - cgt->y_center);
 
@@ -211,4 +208,13 @@ gst_stretch_init (GstStretch * filter)
 
   filter->intensity = DEFAULT_INTENSITY;
   gt->off_edge_pixels = GST_GT_OFF_EDGES_PIXELS_CLAMP;
+}
+
+gboolean
+gst_stretch_plugin_init (GstPlugin * plugin)
+{
+  GST_DEBUG_CATEGORY_INIT (gst_stretch_debug, "stretch", 0, "stretch");
+
+  return gst_element_register (plugin, "stretch", GST_RANK_NONE,
+      GST_TYPE_STRETCH);
 }

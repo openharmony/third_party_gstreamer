@@ -15,5 +15,4 @@ gstreplaygain = library('gstreplaygain',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstreplaygain, install_dir : plugins_pkgconfig_install_dir)
-plugins += [gstreplaygain]
 

@@ -1,8 +1,6 @@
 v4l2_sources = [
   'gstv4l2.c',
-  'gstv4l2element.c',
   'gstv4l2allocator.c',
-  'gstv4l2codec.c',
   'gstv4l2colorbalance.c',
   'gstv4l2deviceprovider.c',
   'gstv4l2object.c',
@@ -16,18 +14,12 @@ v4l2_sources = [
   'gstv4l2videoenc.c',
   'gstv4l2fwhtenc.c',
   'gstv4l2h263enc.c',
-  'gstv4l2h264codec.c',
   'gstv4l2h264enc.c',
-  'gstv4l2h265codec.c',
   'gstv4l2h265enc.c',
   'gstv4l2jpegenc.c',
-  'gstv4l2mpeg2codec.c',
-  'gstv4l2mpeg4codec.c',
   'gstv4l2mpeg4enc.c',
   'gstv4l2vidorient.c',
-  'gstv4l2vp8codec.c',
   'gstv4l2vp8enc.c',
-  'gstv4l2vp9codec.c',
   'gstv4l2vp9enc.c',
   'v4l2_calls.c',
   'v4l2-utils.c',
@@ -69,5 +61,4 @@ if have_v4l2
     install_dir : plugins_install_dir,
   )
   pkgconfig.generate(gstv4l2, install_dir : plugins_pkgconfig_install_dir)
-  plugins += [gstv4l2]
 endif

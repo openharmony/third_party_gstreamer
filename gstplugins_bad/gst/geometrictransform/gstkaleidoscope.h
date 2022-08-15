@@ -82,7 +82,7 @@ struct _GstKaleidoscopeClass
 
 GType gst_kaleidoscope_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (kaleidoscope);
+gboolean gst_kaleidoscope_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 

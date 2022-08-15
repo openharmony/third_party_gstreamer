@@ -36,7 +36,6 @@
 #include "config.h"
 #endif
 
-#include "gstglelements.h"
 #include "gstglstereosplit.h"
 
 #define GST_CAT_DEFAULT gst_gl_stereosplit_debug
@@ -48,8 +47,6 @@ GST_DEBUG_CATEGORY_STATIC (GST_CAT_DEFAULT);
 
 G_DEFINE_TYPE_WITH_CODE (GstGLStereoSplit, gst_gl_stereosplit,
     GST_TYPE_ELEMENT, DEBUG_INIT);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (glstereosplit, "glstereosplit",
-    GST_RANK_NONE, GST_TYPE_GL_STEREOSPLIT, gl_element_init (plugin));
 
 static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK, GST_PAD_ALWAYS,
@@ -88,7 +85,6 @@ static gboolean stereosplit_src_query (GstPad * pad, GstObject * parent,
 static gboolean stereosplit_src_event (GstPad * pad, GstObject * parent,
     GstEvent * event);
 static gboolean ensure_context (GstGLStereoSplit * self);
-static gboolean ensure_context_unlocked (GstGLStereoSplit * self);
 
 static void
 gst_gl_stereosplit_class_init (GstGLStereoSplitClass * klass)
@@ -140,8 +136,6 @@ gst_gl_stereosplit_init (GstGLStereoSplit * self)
   gst_element_add_pad (GST_ELEMENT (self), self->right_pad);
 
   self->viewconvert = gst_gl_view_convert_new ();
-
-  g_rec_mutex_init (&self->context_lock);
 }
 
 static void
@@ -161,8 +155,6 @@ stereosplit_finalize (GstGLStereoSplit * self)
   if (self->viewconvert)
     gst_object_replace ((GstObject **) & self->viewconvert, NULL);
 
-  g_rec_mutex_clear (&self->context_lock);
-
   klass->finalize ((GObject *) (self));
 }
 
@@ -170,36 +162,12 @@ static void
 stereosplit_set_context (GstElement * element, GstContext * context)
 {
   GstGLStereoSplit *stereosplit = GST_GL_STEREOSPLIT (element);
-  GstGLDisplay *old_display, *new_display;
 
-  g_rec_mutex_lock (&stereosplit->context_lock);
-  GST_DEBUG_OBJECT (element, "set context of %" GST_PTR_FORMAT, context);
-  old_display =
-      stereosplit->display ? gst_object_ref (stereosplit->display) : NULL;
   gst_gl_handle_set_context (element, context, &stereosplit->display,
       &stereosplit->other_context);
 
   if (stereosplit->display)
     gst_gl_display_filter_gl_api (stereosplit->display, SUPPORTED_GL_APIS);
-
-  new_display =
-      stereosplit->display ? gst_object_ref (stereosplit->display) : NULL;
-
-  if (old_display && new_display) {
-    if (old_display != new_display) {
-      gst_clear_object (&stereosplit->context);
-      gst_gl_view_convert_set_context (stereosplit->viewconvert, NULL);
-      GST_INFO_OBJECT (stereosplit, "display changed to %" GST_PTR_FORMAT,
-          new_display);
-      if (ensure_context_unlocked (stereosplit)) {
-        gst_gl_view_convert_set_context (stereosplit->viewconvert,
-            stereosplit->context);
-      }
-    }
-  }
-  gst_clear_object (&old_display);
-  gst_clear_object (&new_display);
-  g_rec_mutex_unlock (&stereosplit->context_lock);
 
   GST_ELEMENT_CLASS (gst_gl_stereosplit_parent_class)->set_context (element,
       context);
@@ -213,13 +181,11 @@ stereosplit_change_state (GstElement * element, GstStateChange transition)
 
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
-      g_rec_mutex_lock (&stereosplit->context_lock);
       if (!gst_gl_ensure_element_data (element, &stereosplit->display,
               &stereosplit->other_context))
         return GST_STATE_CHANGE_FAILURE;
 
       gst_gl_display_filter_gl_api (stereosplit->display, SUPPORTED_GL_APIS);
-      g_rec_mutex_unlock (&stereosplit->context_lock);
       break;
     default:
       break;
@@ -231,10 +197,15 @@ stereosplit_change_state (GstElement * element, GstStateChange transition)
 
   switch (transition) {
     case GST_STATE_CHANGE_READY_TO_NULL:
-      g_rec_mutex_lock (&stereosplit->context_lock);
-      gst_clear_object (&stereosplit->other_context);
-      gst_clear_object (&stereosplit->display);
-      g_rec_mutex_unlock (&stereosplit->context_lock);
+      if (stereosplit->other_context) {
+        gst_object_unref (stereosplit->other_context);
+        stereosplit->other_context = NULL;
+      }
+
+      if (stereosplit->display) {
+        gst_object_unref (stereosplit->display);
+        stereosplit->display = NULL;
+      }
       break;
     case GST_STATE_CHANGE_PAUSED_TO_READY:
       stereosplit_reset (stereosplit);
@@ -251,6 +222,10 @@ stereosplit_transform_caps (GstGLStereoSplit * self, GstPadDirection direction,
     GstCaps * caps, GstCaps * filter)
 {
   GstCaps *next_caps;
+
+  /* FIXME: Is this the right way to ensure a context here ? */
+  if (!ensure_context (self))
+    return NULL;
 
   next_caps =
       gst_gl_view_convert_transform_caps (self->viewconvert, direction, caps,
@@ -342,11 +317,6 @@ stereosplit_set_output_caps (GstGLStereoSplit * split, GstCaps * sinkcaps)
    * left right pad to either left/mono and right/mono, as they prefer
    */
 
-  if (!ensure_context (split)) {
-    res = FALSE;
-    goto fail;
-  }
-
   /* Calculate what downstream can collectively support */
   left =
       stereosplit_get_src_caps (split, split->left_pad,
@@ -414,10 +384,6 @@ stereosplit_set_output_caps (GstGLStereoSplit * split, GstCaps * sinkcaps)
     goto fail;
   }
 
-  /* FIXME: Provide left and right caps to do_bufferpool */
-  stereosplit_do_bufferpool (split, left);
-
-  g_rec_mutex_lock (&split->context_lock);
   gst_gl_view_convert_set_context (split->viewconvert, split->context);
 
   tridcaps = gst_caps_make_writable (tridcaps);
@@ -426,11 +392,12 @@ stereosplit_set_output_caps (GstGLStereoSplit * split, GstCaps * sinkcaps)
   tridcaps = gst_caps_fixate (tridcaps);
 
   if (!gst_gl_view_convert_set_caps (split->viewconvert, sinkcaps, tridcaps)) {
-    g_rec_mutex_unlock (&split->context_lock);
     GST_ERROR_OBJECT (split, "Failed to set caps on converter");
     goto fail;
   }
-  g_rec_mutex_unlock (&split->context_lock);
+
+  /* FIXME: Provide left and right caps to do_bufferpool */
+  stereosplit_do_bufferpool (split, left);
 
   res = TRUE;
 
@@ -445,88 +412,28 @@ fail:
 }
 
 static gboolean
-_find_local_gl_context_unlocked (GstGLStereoSplit * split)
+_find_local_gl_context (GstGLStereoSplit * split)
 {
-  GstGLContext *context, *prev_context;
-  gboolean ret;
-
-  if (split->context && split->context->display == split->display)
+  if (gst_gl_query_local_gl_context (GST_ELEMENT (split), GST_PAD_SRC,
+          &split->context))
     return TRUE;
-
-  context = prev_context = split->context;
-  g_rec_mutex_unlock (&split->context_lock);
-  /* we need to drop the lock to query as another element may also be
-   * performing a context query on us which would also attempt to take the
-   * context_lock. Our query could block on the same lock in the other element.
-   */
-  ret =
-      gst_gl_query_local_gl_context (GST_ELEMENT (split), GST_PAD_SRC,
-      &context);
-  g_rec_mutex_lock (&split->context_lock);
-  if (ret) {
-    if (split->context != prev_context) {
-      /* we need to recheck everything since we dropped the lock and the
-       * context has changed */
-      if (split->context && split->context->display == split->display) {
-        if (context != split->context)
-          gst_clear_object (&context);
-        return TRUE;
-      }
-    }
-
-    if (context->display == split->display) {
-      split->context = context;
-      return TRUE;
-    }
-    if (context != split->context)
-      gst_clear_object (&context);
-  }
-
-  context = prev_context = split->context;
-  g_rec_mutex_unlock (&split->context_lock);
-  /* we need to drop the lock to query as another element may also be
-   * performing a context query on us which would also attempt to take the
-   * context_lock. Our query could block on the same lock in the other element.
-   */
-  ret =
-      gst_gl_query_local_gl_context (GST_ELEMENT (split), GST_PAD_SINK,
-      &context);
-  g_rec_mutex_lock (&split->context_lock);
-  if (ret) {
-    if (split->context != prev_context) {
-      /* we need to recheck everything now that we dropped the lock */
-      if (split->context && split->context->display == split->display) {
-        if (context != split->context)
-          gst_clear_object (&context);
-        return TRUE;
-      }
-    }
-
-    if (context->display == split->display) {
-      split->context = context;
-      return TRUE;
-    }
-    if (context != split->context)
-      gst_clear_object (&context);
-  }
-
+  if (gst_gl_query_local_gl_context (GST_ELEMENT (split), GST_PAD_SINK,
+          &split->context))
+    return TRUE;
   return FALSE;
 }
 
 static gboolean
-ensure_context_unlocked (GstGLStereoSplit * self)
+ensure_context (GstGLStereoSplit * self)
 {
   GError *error = NULL;
-
-  GST_DEBUG_OBJECT (self, "attempting to find an OpenGL context, existing %"
-      GST_PTR_FORMAT, self->context);
 
   if (!gst_gl_ensure_element_data (self, &self->display, &self->other_context))
     return FALSE;
 
   gst_gl_display_filter_gl_api (self->display, SUPPORTED_GL_APIS);
 
-  _find_local_gl_context_unlocked (self);
+  _find_local_gl_context (self);
 
   if (!self->context) {
     GST_OBJECT_LOCK (self->display);
@@ -553,9 +460,6 @@ ensure_context_unlocked (GstGLStereoSplit * self)
       goto unsupported_gl_api;
   }
 
-  GST_INFO_OBJECT (self, "found OpenGL context %" GST_PTR_FORMAT,
-      self->context);
-
   return TRUE;
 
 unsupported_gl_api:
@@ -581,27 +485,19 @@ context_error:
 }
 
 static gboolean
-ensure_context (GstGLStereoSplit * self)
-{
-  gboolean ret;
-  g_rec_mutex_lock (&self->context_lock);
-  ret = ensure_context_unlocked (self);
-  g_rec_mutex_unlock (&self->context_lock);
-  return ret;
-}
-
-static gboolean
 stereosplit_decide_allocation (GstGLStereoSplit * self, GstQuery * query)
 {
-  if (!ensure_context_unlocked (self))
+  if (!ensure_context (self))
     return FALSE;
 
   return TRUE;
+
 }
 
 static gboolean
 stereosplit_propose_allocation (GstGLStereoSplit * self, GstQuery * query)
 {
+
   if (!gst_gl_ensure_element_data (self, &self->display, &self->other_context))
     return FALSE;
 
@@ -641,32 +537,22 @@ stereosplit_chain (GstPad * pad, GstGLStereoSplit * split, GstBuffer * buf)
 
   GST_LOG_OBJECT (split, "chaining buffer %" GST_PTR_FORMAT, buf);
 
-  gst_buffer_ref (buf);
-
-  g_rec_mutex_lock (&split->context_lock);
-
   if (gst_gl_view_convert_submit_input_buffer (split->viewconvert,
           GST_BUFFER_IS_DISCONT (buf), buf) != GST_FLOW_OK) {
-    g_rec_mutex_unlock (&split->context_lock);
     GST_ELEMENT_ERROR (split, RESOURCE, NOT_FOUND, ("%s",
             "Failed to 3d convert buffer"),
         ("Could not get submit input buffer"));
-    gst_buffer_unref (buf);
     return GST_FLOW_ERROR;
   }
 
   ret = gst_gl_view_convert_get_output (split->viewconvert, &split_buffer);
-  g_rec_mutex_unlock (&split->context_lock);
   if (ret != GST_FLOW_OK) {
     GST_ELEMENT_ERROR (split, RESOURCE, NOT_FOUND, ("%s",
             "Failed to 3d convert buffer"), ("Could not get output buffer"));
-    gst_buffer_unref (buf);
     return GST_FLOW_ERROR;
   }
-  if (split_buffer == NULL) {
-    gst_buffer_unref (buf);
+  if (split_buffer == NULL)
     return GST_FLOW_OK;         /* Need another input buffer */
-  }
 
   left = gst_buffer_new ();
   gst_buffer_copy_into (left, buf,
@@ -685,7 +571,6 @@ stereosplit_chain (GstPad * pad, GstGLStereoSplit * split, GstBuffer * buf)
   gst_buffer_unref (left);
   if (G_UNLIKELY (ret != GST_FLOW_OK && ret != GST_FLOW_NOT_LINKED)) {
     gst_buffer_unref (split_buffer);
-    gst_buffer_unref (buf);
     return ret;
   }
 
@@ -702,7 +587,6 @@ stereosplit_chain (GstPad * pad, GstGLStereoSplit * split, GstBuffer * buf)
   ret = gst_pad_push (split->right_pad, gst_buffer_ref (right));
   gst_buffer_unref (right);
   gst_buffer_unref (split_buffer);
-  gst_buffer_unref (buf);
   return ret;
 }
 
@@ -714,26 +598,8 @@ stereosplit_src_query (GstPad * pad, GstObject * parent, GstQuery * query)
   switch (GST_QUERY_TYPE (query)) {
     case GST_QUERY_CONTEXT:
     {
-      GstGLDisplay *display = NULL;
-      GstGLContext *other = NULL, *local = NULL;
-      gboolean ret;
-
-      g_rec_mutex_lock (&split->context_lock);
-      if (split->display)
-        display = gst_object_ref (split->display);
-      if (split->context)
-        local = gst_object_ref (split->context);
-      if (split->other_context)
-        other = gst_object_ref (split->other_context);
-      g_rec_mutex_unlock (&split->context_lock);
-
-      ret = gst_gl_handle_context_query ((GstElement *) split, query,
-          display, local, other);
-
-      gst_clear_object (&display);
-      gst_clear_object (&other);
-      gst_clear_object (&local);
-      if (ret)
+      if (gst_gl_handle_context_query ((GstElement *) split, query,
+              split->display, split->context, split->other_context))
         return TRUE;
 
       return gst_pad_query_default (pad, parent, query);
@@ -761,26 +627,8 @@ stereosplit_sink_query (GstPad * pad, GstObject * parent, GstQuery * query)
   switch (GST_QUERY_TYPE (query)) {
     case GST_QUERY_CONTEXT:
     {
-      GstGLDisplay *display = NULL;
-      GstGLContext *other = NULL, *local = NULL;
-      gboolean ret;
-
-      g_rec_mutex_lock (&split->context_lock);
-      if (split->display)
-        display = gst_object_ref (split->display);
-      if (split->context)
-        local = gst_object_ref (split->context);
-      if (split->other_context)
-        other = gst_object_ref (split->other_context);
-      g_rec_mutex_unlock (&split->context_lock);
-
-      ret = gst_gl_handle_context_query ((GstElement *) split, query,
-          display, local, other);
-
-      gst_clear_object (&display);
-      gst_clear_object (&other);
-      gst_clear_object (&local);
-      if (ret)
+      if (gst_gl_handle_context_query ((GstElement *) split, query,
+              split->display, split->context, split->other_context))
         return TRUE;
 
       return gst_pad_query_default (pad, parent, query);
@@ -808,7 +656,6 @@ stereosplit_sink_query (GstPad * pad, GstObject * parent, GstQuery * query)
     case GST_QUERY_CAPS:
     {
       GstCaps *filter, *left, *right, *combined, *ret, *templ_caps;
-      gboolean result;
 
       gst_query_parse_caps (query, &filter);
 
@@ -857,14 +704,11 @@ stereosplit_sink_query (GstPad * pad, GstObject * parent, GstQuery * query)
           gst_caps_intersect_full (combined, templ_caps,
           GST_CAPS_INTERSECT_FIRST);
       gst_caps_unref (templ_caps);
-      gst_caps_unref (combined);
 
       GST_LOG_OBJECT (split, "Returning sink pad caps %" GST_PTR_FORMAT, ret);
 
       gst_query_set_caps_result (query, ret);
-      result = !gst_caps_is_empty (ret);
-      gst_caps_unref (ret);
-      return result;
+      return !gst_caps_is_empty (ret);
     }
     default:
       return gst_pad_query_default (pad, parent, query);

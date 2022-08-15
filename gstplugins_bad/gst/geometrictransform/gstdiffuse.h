@@ -83,7 +83,7 @@ struct _GstDiffuseClass
 
 GType gst_diffuse_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (diffuse);
+gboolean gst_diffuse_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 

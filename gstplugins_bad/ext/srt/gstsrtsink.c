@@ -23,11 +23,11 @@
  * SECTION:element-srtsink
  * @title: srtsink
  *
- * srtsink is a network sink that sends [SRT](http://www.srtalliance.org/)
+ * srtsink is a network sink that sends <ulink url="http://www.srtalliance.org/">SRT</ulink>
  * packets to the network.
  *
- * ## Examples</title>
- *
+ * <refsect2>
+ * <title>Examples</title>
  * |[
  * gst-launch-1.0 -v audiotestsrc ! srtsink uri=srt://host
  * ]| This pipeline shows how to serve SRT packets through the default port.
@@ -35,14 +35,14 @@
  * |[
  * gst-launch-1.0 -v audiotestsrc ! srtsink uri=srt://:port
  * ]| This pipeline shows how to wait SRT callers.
- *
+ * </refsect2>
+ * 
  */
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
 
-#include "gstsrtelements.h"
 #include "gstsrtsink.h"
 
 static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
@@ -57,8 +57,7 @@ enum
 {
   SIG_CALLER_ADDED,
   SIG_CALLER_REMOVED,
-  SIG_CALLER_REJECTED,
-  SIG_CALLER_CONNECTING,
+
   LAST_SIGNAL
 };
 
@@ -69,37 +68,12 @@ static void gst_srt_sink_uri_handler_init (gpointer g_iface,
 static gchar *gst_srt_sink_uri_get_uri (GstURIHandler * handler);
 static gboolean gst_srt_sink_uri_set_uri (GstURIHandler * handler,
     const gchar * uri, GError ** error);
-static gboolean default_caller_connecting (GstSRTSink * self,
-    GSocketAddress * addr, const gchar * username, gpointer data);
-static gboolean authentication_accumulator (GSignalInvocationHint * ihint,
-    GValue * return_accu, const GValue * handler_return, gpointer data);
 
 #define gst_srt_sink_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstSRTSink, gst_srt_sink,
     GST_TYPE_BASE_SINK,
     G_IMPLEMENT_INTERFACE (GST_TYPE_URI_HANDLER, gst_srt_sink_uri_handler_init)
     GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "srtsink", 0, "SRT Sink"));
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (srtsink, "srtsink", GST_RANK_PRIMARY,
-    GST_TYPE_SRT_SINK, srt_element_init (plugin));
-
-static gboolean
-default_caller_connecting (GstSRTSink * self,
-    GSocketAddress * addr, const gchar * stream_id, gpointer data)
-{
-  /* Accept all connections. */
-  return TRUE;
-}
-
-static gboolean
-authentication_accumulator (GSignalInvocationHint * ihint,
-    GValue * return_accu, const GValue * handler_return, gpointer data)
-{
-  gboolean ret = g_value_get_boolean (handler_return);
-  /* Handlers return TRUE on authentication success and we want to stop on
-   * the first failure. */
-  g_value_set_boolean (return_accu, ret);
-  return ret;
-}
 
 static void
 gst_srt_sink_set_property (GObject * object,
@@ -145,15 +119,40 @@ gst_srt_sink_init (GstSRTSink * self)
   gst_srt_object_set_uri (self->srtobject, GST_SRT_DEFAULT_URI, NULL);
 }
 
+static void
+gst_srt_sink_caller_added_cb (int sock, GSocketAddress * addr,
+    GstSRTObject * srtobject)
+{
+  g_signal_emit (srtobject->element, signals[SIG_CALLER_ADDED], 0, sock, addr);
+}
+
+static void
+gst_srt_sink_caller_removed_cb (int sock, GSocketAddress * addr,
+    GstSRTObject * srtobject)
+{
+  g_signal_emit (srtobject->element, signals[SIG_CALLER_REMOVED], 0, sock,
+      addr);
+}
+
 static gboolean
 gst_srt_sink_start (GstBaseSink * bsink)
 {
   GstSRTSink *self = GST_SRT_SINK (bsink);
+  GstSRTConnectionMode connection_mode = GST_SRT_CONNECTION_MODE_NONE;
 
   GError *error = NULL;
   gboolean ret = FALSE;
 
-  ret = gst_srt_object_open (self->srtobject, self->cancellable, &error);
+  gst_structure_get_enum (self->srtobject->parameters, "mode",
+      GST_TYPE_SRT_CONNECTION_MODE, (gint *) & connection_mode);
+
+  if (connection_mode == GST_SRT_CONNECTION_MODE_LISTENER) {
+    ret =
+        gst_srt_object_open_full (self->srtobject, gst_srt_sink_caller_added_cb,
+        gst_srt_sink_caller_removed_cb, self->cancellable, &error);
+  } else {
+    ret = gst_srt_object_open (self->srtobject, self->cancellable, &error);
+  }
 
   if (!ret) {
     /* ensure error is posted since state change will fail */
@@ -170,7 +169,6 @@ gst_srt_sink_stop (GstBaseSink * bsink)
 {
   GstSRTSink *self = GST_SRT_SINK (bsink);
 
-  g_clear_pointer (&self->headers, gst_buffer_list_unref);
   gst_srt_object_close (self->srtobject);
 
   return TRUE;
@@ -202,10 +200,6 @@ gst_srt_sink_render (GstBaseSink * sink, GstBuffer * buffer)
 
   if (gst_srt_object_write (self->srtobject, self->headers, &info,
           self->cancellable, &error) < 0) {
-    GST_ELEMENT_ERROR (self, RESOURCE, WRITE,
-        ("Failed to write to SRT socket: %s",
-            error ? error->message : "Unknown error"), (NULL));
-    g_clear_error (&error);
     ret = GST_FLOW_ERROR;
   }
 
@@ -304,69 +298,34 @@ gst_srt_sink_class_init (GstSRTSinkClass * klass)
   gobject_class->set_property = gst_srt_sink_set_property;
   gobject_class->get_property = gst_srt_sink_get_property;
   gobject_class->finalize = gst_srt_sink_finalize;
-  klass->caller_connecting = default_caller_connecting;
 
   /**
    * GstSRTSink::caller-added:
    * @gstsrtsink: the srtsink element that emitted this signal
-   * @unused: always zero (for ABI compatibility with previous versions)
-   * @addr: the #GSocketAddress of the new caller
+   * @sock: the client socket descriptor that was added to srtsink
+   * @addr: the #GSocketAddress that describes the @sock
    * 
-   * A new caller has connected to @gstsrtsink.
+   * The given socket descriptor was added to srtsink.
    */
   signals[SIG_CALLER_ADDED] =
       g_signal_new ("caller-added", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstSRTSinkClass, caller_added),
-      NULL, NULL, NULL, G_TYPE_NONE, 2, G_TYPE_INT, G_TYPE_SOCKET_ADDRESS);
+      NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE,
+      2, G_TYPE_INT, G_TYPE_SOCKET_ADDRESS);
 
   /**
    * GstSRTSink::caller-removed:
    * @gstsrtsink: the srtsink element that emitted this signal
-   * @unused: always zero (for ABI compatibility with previous versions)
-   * @addr: the #GSocketAddress of the caller
+   * @sock: the client socket descriptor that was added to srtsink
+   * @addr: the #GSocketAddress that describes the @sock
    *
-   * The given caller has disconnected.
+   * The given socket descriptor was removed from srtsink.
    */
   signals[SIG_CALLER_REMOVED] =
       g_signal_new ("caller-removed", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstSRTSinkClass,
-          caller_added), NULL, NULL, NULL, G_TYPE_NONE,
+          caller_added), NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE,
       2, G_TYPE_INT, G_TYPE_SOCKET_ADDRESS);
-
-  /**
-   * GstSRTSink::caller-rejected:
-   * @gstsrtsink: the srtsink element that emitted this signal
-   * @addr: the #GSocketAddress that describes the client socket
-   * @stream_id: the stream Id to which the caller wants to connect
-   *
-   * A caller's connection to srtsink in listener mode has been rejected.
-   *
-   * Since: 1.20
-   *
-   */
-  signals[SIG_CALLER_REJECTED] =
-      g_signal_new ("caller-rejected", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE,
-      2, G_TYPE_SOCKET_ADDRESS, G_TYPE_STRING);
-
-  /**
-   * GstSRTSink::caller-connecting:
-   * @gstsrtsink: the srtsink element that emitted this signal
-   * @addr: the #GSocketAddress that describes the client socket
-   * @stream_id: the stream Id to which the caller wants to connect
-   *
-   * Whether to accept or reject a caller's connection to srtsink in listener mode.
-   * The Caller's connection is rejected if the callback returns FALSE, else
-   * the connection is accepeted.
-   *
-   * Since: 1.20
-   *
-   */
-  signals[SIG_CALLER_CONNECTING] =
-      g_signal_new ("caller-connecting", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstSRTSinkClass, caller_connecting),
-      authentication_accumulator, NULL, NULL, G_TYPE_BOOLEAN,
-      2, G_TYPE_SOCKET_ADDRESS, G_TYPE_STRING);
 
   gst_srt_object_install_properties_helper (gobject_class);
 
@@ -417,13 +376,8 @@ gst_srt_sink_uri_set_uri (GstURIHandler * handler,
     const gchar * uri, GError ** error)
 {
   GstSRTSink *self = GST_SRT_SINK (handler);
-  gboolean ret;
 
-  GST_OBJECT_LOCK (self);
-  ret = gst_srt_object_set_uri (self->srtobject, uri, error);
-  GST_OBJECT_UNLOCK (self);
-
-  return ret;
+  return gst_srt_object_set_uri (self->srtobject, uri, error);
 }
 
 static void

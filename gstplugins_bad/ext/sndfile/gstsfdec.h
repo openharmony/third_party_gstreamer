@@ -22,6 +22,7 @@
 #define __GST_SF_DEC_H__
 
 
+#include "gstsf.h"
 #include <gst/base/gstbasesrc.h>
 
 
@@ -68,7 +69,6 @@ struct _GstSFDecClass {
   GstElementClass parent_class;
 };
 
-GType gst_sf_dec_get_type (void);
 
 G_END_DECLS
 

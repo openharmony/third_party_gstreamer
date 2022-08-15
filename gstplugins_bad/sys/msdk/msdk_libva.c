@@ -62,11 +62,6 @@ static const struct fourcc_map gst_msdk_fourcc_mfx_to_va[] = {
   FOURCC_MFX_TO_VA (RGB4, ARGB),
   FOURCC_MFX_TO_VA (P8, P208),
   FOURCC_MFX_TO_VA (P010, P010),
-#if (MFX_VERSION >= 1031)
-  FOURCC_MFX_TO_VA (P016, P016),
-  FOURCC_MFX_TO_VA (Y216, Y216),
-  FOURCC_MFX_TO_VA (Y416, Y416),
-#endif
 #if (MFX_VERSION >= 1028)
   FOURCC_MFX_TO_VA (RGB565, RGB565),
 #endif
@@ -74,17 +69,6 @@ static const struct fourcc_map gst_msdk_fourcc_mfx_to_va[] = {
 #if VA_CHECK_VERSION(1, 4, 1)
   FOURCC_MFX_TO_VA (A2RGB10, A2R10G10B10),
 #endif
-#if ((MFX_VERSION >= 1027) && VA_CHECK_VERSION(1, 2, 0))
-  FOURCC_MFX_TO_VA (Y210, Y210),
-  FOURCC_MFX_TO_VA (Y410, Y410),
-#endif
-  FOURCC_MFX_TO_VA (BGR4, ABGR),
-
-#if (MFX_VERSION >= 2004)
-  FOURCC_MFX_TO_VA (RGBP, RGBP),
-  FOURCC_MFX_TO_VA (BGRP, BGRP),
-#endif
-
   {0, 0}
 };
 

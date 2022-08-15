@@ -26,8 +26,6 @@
 #include <gst/check/gstharness.h>
 #include <gst/rtp/rtp.h>
 
-#include "rtpdummyhdrextimpl.c"
-
 #define DEFAULT_CLOCK_RATE (42)
 
 /* GstRtpDummyDepay */
@@ -43,13 +41,6 @@
 #define GST_IS_RTP_DUMMY_DEPAY_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_RTP_DUMMY_DEPAY))
 
-typedef enum
-{
-  GST_RTP_DUMMY_RETURN_TO_PUSH,
-  GST_RTP_DUMMY_USE_PUSH_FUNC,
-  GST_RTP_DUMMY_USE_PUSH_LIST_FUNC,
-} GstRtpDummyPushMethod;
-
 typedef struct _GstRtpDummyDepay GstRtpDummyDepay;
 typedef struct _GstRtpDummyDepayClass GstRtpDummyDepayClass;
 
@@ -57,9 +48,6 @@ struct _GstRtpDummyDepay
 {
   GstRTPBaseDepayload depayload;
   guint64 rtptime;
-
-  GstRtpDummyPushMethod push_method;
-  guint num_buffers_in_blist;
 };
 
 struct _GstRtpDummyDepayClass
@@ -111,7 +99,6 @@ static void
 gst_rtp_dummy_depay_init (GstRtpDummyDepay * depay)
 {
   depay->rtptime = 0;
-  depay->num_buffers_in_blist = 1;
 }
 
 static GstRtpDummyDepay *
@@ -123,8 +110,7 @@ rtp_dummy_depay_new (void)
 static GstBuffer *
 gst_rtp_dummy_depay_process (GstRTPBaseDepayload * depayload, GstBuffer * buf)
 {
-  GstRtpDummyDepay *self = GST_RTP_DUMMY_DEPAY (depayload);
-  GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
+  GstRTPBuffer rtp = { NULL };
   GstBuffer *outbuf;
   guint32 rtptime;
   guint i;
@@ -162,26 +148,6 @@ gst_rtp_dummy_depay_process (GstRTPBaseDepayload * depayload, GstBuffer * buf)
     GST_LOG ("\tsize=%" G_GSIZE_FORMAT " offset=%" G_GSIZE_FORMAT " maxsize=%"
         G_GSIZE_FORMAT, size, offset, maxsize);
     gst_memory_unref (mem);
-  }
-
-  switch (self->push_method) {
-    case GST_RTP_DUMMY_USE_PUSH_FUNC:
-      gst_rtp_base_depayload_push (depayload, outbuf);
-      outbuf = NULL;
-      break;
-    case GST_RTP_DUMMY_USE_PUSH_LIST_FUNC:{
-      GstBufferList *blist = gst_buffer_list_new ();
-      gint i;
-      gst_buffer_list_add (blist, outbuf);
-      for (i = 0; i != self->num_buffers_in_blist - 1; ++i) {
-        gst_buffer_list_add (blist, gst_buffer_copy (outbuf));
-      }
-      outbuf = NULL;
-      gst_rtp_base_depayload_push_list (depayload, blist);
-      break;
-    }
-    case GST_RTP_DUMMY_RETURN_TO_PUSH:
-      break;
   }
 
   return outbuf;
@@ -286,12 +252,12 @@ validate_event (guint index, const gchar * name, const gchar * field, ...)
       gdouble expected = va_arg (var_args, gdouble);
       const GstSegment *segment;
       gst_event_parse_segment (event, &segment);
-      fail_unless_equals_float (segment->applied_rate, expected);
+      fail_unless_equals_uint64 (segment->applied_rate, expected);
     } else if (!g_strcmp0 (field, "rate")) {
       gdouble expected = va_arg (var_args, gdouble);
       const GstSegment *segment;
       gst_event_parse_segment (event, &segment);
-      fail_unless_equals_float (segment->rate, expected);
+      fail_unless_equals_uint64 (segment->rate, expected);
     } else if (!g_strcmp0 (field, "base")) {
       GstClockTime expected = va_arg (var_args, GstClockTime);
       const GstSegment *segment;
@@ -357,7 +323,7 @@ static void
 rtp_buffer_set_valist (GstBuffer * buf, const gchar * field, va_list var_args,
     gboolean * extra_ref_)
 {
-  GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
+  GstRTPBuffer rtp = { NULL };
   gboolean mapped = FALSE;
   gboolean extra_ref = FALSE;
 
@@ -400,25 +366,6 @@ rtp_buffer_set_valist (GstBuffer * buf, const gchar * field, va_list var_args,
         guint idx = va_arg (var_args, guint);
         guint csrc = va_arg (var_args, guint);
         gst_rtp_buffer_set_csrc (&rtp, idx, csrc);
-      } else if (g_str_has_prefix (field, "hdrext-")) {
-        GstRTPHeaderExtension *ext = va_arg (var_args, GstRTPHeaderExtension *);
-        guint id = gst_rtp_header_extension_get_id (ext);
-        gsize size = gst_rtp_header_extension_get_max_size (ext, buf);
-        guint8 *data = g_malloc0 (size);
-
-        if (!g_strcmp0 (field, "hdrext-1")) {
-          fail_unless (gst_rtp_header_extension_write (ext, buf,
-                  GST_RTP_HEADER_EXTENSION_ONE_BYTE, buf, data, size) > 0);
-          fail_unless (gst_rtp_buffer_add_extension_onebyte_header (&rtp, id,
-                  data, size));
-        } else if (!g_strcmp0 (field, "hdrext-2")) {
-          fail_unless (gst_rtp_header_extension_write (ext, buf,
-                  GST_RTP_HEADER_EXTENSION_TWO_BYTE, buf, data, size) > 0);
-          fail_unless (gst_rtp_buffer_add_extension_twobytes_header (&rtp, 0,
-                  id, data, size));
-        }
-
-        g_free (data);
       } else {
         fail ("test cannot set unknown buffer field '%s'", field);
       }
@@ -1022,7 +969,7 @@ GST_START_TEST (rtp_base_depayload_packet_lost_before_first_buffer_test)
               "duration", G_TYPE_UINT64, (guint64) 10 * GST_MSECOND, NULL)));
 
   /* When a buffer is pushed, an updated (and more accurate) segment event
-   * should also be sent. */
+   * should aslo be sent. */
   gst_harness_push (h, gst_rtp_buffer_new_allocate (0, 0, 0));
 
   /* Verify that setup events are sent before gap event */
@@ -1124,7 +1071,7 @@ GST_END_TEST
  * it should save these timestamps as they should affect the next segment event
  * being pushed by the depayloader. a new segment event is not pushed by the
  * depayloader until a flush_stop event and a succeeding segment event are
- * received. of course the initial event are unaffected, as is the incoming caps
+ * received. of course the intial event are unaffected, as is the incoming caps
  * event.
  */
 GST_START_TEST (rtp_base_depayload_npt_test)
@@ -1189,7 +1136,7 @@ GST_END_TEST
  * this rate as it should affect the next segment event being pushed by the
  * depayloader. a new segment event is not pushed by the depayloader until a
  * flush_stop event and a succeeding segment event are received. of course the
- * initial event are unaffected, as is the incoming caps event.
+ * intial event are unaffected, as is the incoming caps event.
  */
 GST_START_TEST (rtp_base_depayload_play_scale_test)
 {
@@ -1250,7 +1197,7 @@ GST_END_TEST
  * this rate as it should affect the next segment event being pushed by the
  * depayloader. a new segment event is not pushed by the depayloader until a
  * flush_stop event and a succeeding segment event are received. of course the
- * initial event are unaffected, as is the incoming caps event.
+ * intial event are unaffected, as is the incoming caps event.
  */
 GST_START_TEST (rtp_base_depayload_play_speed_test)
 {
@@ -1309,8 +1256,8 @@ GST_START_TEST (rtp_base_depayload_play_speed_test)
 GST_END_TEST
 /* when a depayloader receives new caps events with npt-start, npt-stop and
  * clock-base it should save these timestamps as they should affect the next
- * segment event being pushed by the depayloader. the produced segment should
- * make the position of the stream reflect the position from clock-base instead
+ * segment event being pushed by the depayloader. the produce segment should
+ * make the positon of the stream reflect the postion form clock-base instead
  * of reflecting the running time (for RTSP).
  */
 GST_START_TEST (rtp_base_depayload_clock_base_test)
@@ -1427,455 +1374,6 @@ GST_START_TEST (rtp_base_depayload_source_info_test)
 
 GST_END_TEST;
 
-/* verify that if a buffer arriving in the depayloader already has source-info
-   meta on it, that this does not affect the source-info coming out of the
-   depayloder, which should be all derived from the rtp-header */
-GST_START_TEST (rtp_base_depayload_source_info_from_rtp_only)
-{
-  GstHarness *h;
-  GstRtpDummyDepay *depay;
-  GstBuffer *buffer;
-  GstRTPSourceMeta *meta;
-  guint rtp_ssrc = 0x11;
-  guint rtp_csrc = 0x22;
-  guint32 meta_ssrc = 0x55;
-  guint32 meta_csrc = 0x66;
-
-  depay = rtp_dummy_depay_new ();
-  h = gst_harness_new_with_element (GST_ELEMENT_CAST (depay), "sink", "src");
-  gst_harness_set_src_caps_str (h, "application/x-rtp");
-
-  g_object_set (depay, "source-info", TRUE, NULL);
-  buffer = gst_rtp_buffer_new_allocate (0, 0, 1);
-  rtp_buffer_set (buffer, "seq", 0, "ssrc", rtp_ssrc, "csrc", 0, rtp_csrc,
-      NULL);
-  meta = gst_buffer_add_rtp_source_meta (buffer, &meta_ssrc, &meta_csrc, 1);
-
-  buffer = gst_harness_push_and_pull (h, buffer);
-  fail_unless ((meta = gst_buffer_get_rtp_source_meta (buffer)));
-  fail_unless (meta->ssrc_valid);
-  fail_unless_equals_int (meta->ssrc, rtp_ssrc);
-  fail_unless_equals_int (meta->csrc_count, 1);
-  fail_unless_equals_int (meta->csrc[0], rtp_csrc);
-  gst_buffer_unref (buffer);
-
-  g_object_unref (depay);
-  gst_harness_teardown (h);
-}
-
-GST_END_TEST;
-
-/* Test max-reorder property. Reordered packets with a gap less than
- * max-reordered will be dropped, reordered packets with gap larger than
- * max-reorder is considered coming fra a restarted sender and should not be
- * dropped. */
-GST_START_TEST (rtp_base_depayload_max_reorder)
-{
-  GstHarness *h;
-  GstRtpDummyDepay *depay;
-  guint seq = 1000;
-
-  depay = rtp_dummy_depay_new ();
-  h = gst_harness_new_with_element (GST_ELEMENT_CAST (depay), "sink", "src");
-  gst_harness_set_src_caps_str (h, "application/x-rtp");
-
-#define PUSH_AND_CHECK(seqnum, pushed) G_STMT_START {                   \
-    GstBuffer *buffer = gst_rtp_buffer_new_allocate (0, 0, 0);          \
-    rtp_buffer_set (buffer, "seq", seqnum, "ssrc", 0x11, NULL);         \
-    fail_unless_equals_int (GST_FLOW_OK, gst_harness_push (h, buffer)); \
-    fail_unless_equals_int (gst_harness_buffers_in_queue (h), pushed);  \
-    if (pushed)                                                         \
-      gst_buffer_unref (gst_harness_pull (h));                          \
-  } G_STMT_END;
-
-  /* By default some reordering is accepted. Old seqnums should be
-   * dropped, but not too old */
-  PUSH_AND_CHECK (seq, TRUE);
-  PUSH_AND_CHECK (seq - 50, FALSE);
-  PUSH_AND_CHECK (seq - 100, TRUE);
-
-  /* Update property to allow less reordering */
-  g_object_set (depay, "max-reorder", 3, NULL);
-
-  /* Gaps up to max allowed reordering is dropped. */
-  PUSH_AND_CHECK (seq, TRUE);
-  PUSH_AND_CHECK (seq - 2, FALSE);
-  PUSH_AND_CHECK (seq - 3, TRUE);
-
-  /* After a push the initial state should be reset, so a duplicate of the
-   * last packet should be dropped */
-  PUSH_AND_CHECK (seq - 3, FALSE);
-
-  /* Update property to minimum value. Should never drop buffers. */
-  g_object_set (depay, "max-reorder", 0, NULL);
-
-  /* Duplicate buffer should now be pushed. */
-  PUSH_AND_CHECK (seq, TRUE);
-  PUSH_AND_CHECK (seq, TRUE);
-
-  g_object_unref (depay);
-  gst_harness_teardown (h);
-}
-
-GST_END_TEST;
-
-GST_START_TEST (rtp_base_depayload_flow_return_push_func)
-{
-  State *state;
-
-  state = create_depayloader ("application/x-rtp", NULL);
-
-  GST_RTP_DUMMY_DEPAY (state->element)->push_method =
-      GST_RTP_DUMMY_USE_PUSH_LIST_FUNC;
-
-  set_state (state, GST_STATE_PLAYING);
-
-  GST_PAD_SET_FLUSHING (state->sinkpad);
-
-  push_rtp_buffer_fails (state, GST_FLOW_FLUSHING,
-      "pts", 0 * GST_SECOND,
-      "rtptime", G_GUINT64_CONSTANT (0x1234), "seq", 0x4242, NULL);
-
-  set_state (state, GST_STATE_NULL);
-
-  destroy_depayloader (state);
-}
-
-GST_END_TEST;
-
-GST_START_TEST (rtp_base_depayload_flow_return_push_list_func)
-{
-  State *state;
-
-  state = create_depayloader ("application/x-rtp", NULL);
-
-  GST_RTP_DUMMY_DEPAY (state->element)->push_method =
-      GST_RTP_DUMMY_USE_PUSH_FUNC;
-
-  set_state (state, GST_STATE_PLAYING);
-
-  GST_PAD_SET_FLUSHING (state->sinkpad);
-
-  push_rtp_buffer_fails (state, GST_FLOW_FLUSHING,
-      "pts", 0 * GST_SECOND,
-      "rtptime", G_GUINT64_CONSTANT (0x1234), "seq", 0x4242, NULL);
-
-  set_state (state, GST_STATE_NULL);
-
-  destroy_depayloader (state);
-}
-
-GST_END_TEST;
-
-GST_START_TEST (rtp_base_depayload_one_byte_hdr_ext)
-{
-  GstRTPHeaderExtension *ext;
-  State *state;
-
-  state = create_depayloader ("application/x-rtp", NULL);
-  ext = rtp_dummy_hdr_ext_new ();
-  gst_rtp_header_extension_set_id (ext, 1);
-
-  GST_RTP_DUMMY_DEPAY (state->element)->push_method =
-      GST_RTP_DUMMY_RETURN_TO_PUSH;
-
-  g_signal_emit_by_name (state->element, "add-extension", ext);
-
-  set_state (state, GST_STATE_PLAYING);
-
-  push_rtp_buffer (state, "pts", 0 * GST_SECOND,
-      "rtptime", G_GUINT64_CONSTANT (0x1234), "seq", 0x4242, "hdrext-1", ext,
-      NULL);
-
-  set_state (state, GST_STATE_NULL);
-
-  validate_buffers_received (1);
-
-  validate_buffer (0, "pts", 0 * GST_SECOND, "discont", FALSE, NULL);
-
-  fail_unless_equals_int (GST_RTP_DUMMY_HDR_EXT (ext)->read_count, 1);
-
-  gst_object_unref (ext);
-  destroy_depayloader (state);
-}
-
-GST_END_TEST;
-
-GST_START_TEST (rtp_base_depayload_two_byte_hdr_ext)
-{
-  GstRTPHeaderExtension *ext;
-  State *state;
-
-  state = create_depayloader ("application/x-rtp", NULL);
-  ext = rtp_dummy_hdr_ext_new ();
-  gst_rtp_header_extension_set_id (ext, 1);
-
-  GST_RTP_DUMMY_DEPAY (state->element)->push_method =
-      GST_RTP_DUMMY_RETURN_TO_PUSH;
-
-  g_signal_emit_by_name (state->element, "add-extension", ext);
-
-  set_state (state, GST_STATE_PLAYING);
-
-  push_rtp_buffer (state, "pts", 0 * GST_SECOND,
-      "rtptime", G_GUINT64_CONSTANT (0x1234), "seq", 0x4242, "hdrext-2", ext,
-      NULL);
-
-  set_state (state, GST_STATE_NULL);
-
-  validate_buffers_received (1);
-
-  validate_buffer (0, "pts", 0 * GST_SECOND, "discont", FALSE, NULL);
-
-  fail_unless_equals_int (GST_RTP_DUMMY_HDR_EXT (ext)->read_count, 1);
-
-  gst_object_unref (ext);
-  destroy_depayloader (state);
-}
-
-GST_END_TEST;
-
-static GstRTPHeaderExtension *
-request_extension (GstRTPBaseDepayload * depayload, guint ext_id,
-    const gchar * ext_uri, gpointer user_data)
-{
-  GstRTPHeaderExtension *ext = user_data;
-
-  if (ext && gst_rtp_header_extension_get_id (ext) == ext_id
-      && g_strcmp0 (ext_uri, gst_rtp_header_extension_get_uri (ext)) == 0)
-    return gst_object_ref (ext);
-
-  return NULL;
-}
-
-GST_START_TEST (rtp_base_depayload_request_extension)
-{
-  GstRTPHeaderExtension *ext;
-  GstRTPDummyHdrExt *dummy;
-  State *state;
-
-  state =
-      create_depayloader ("application/x-rtp,extmap-3=(string)"
-      DUMMY_HDR_EXT_URI, NULL);
-  ext = rtp_dummy_hdr_ext_new ();
-  dummy = GST_RTP_DUMMY_HDR_EXT (ext);
-  gst_rtp_header_extension_set_id (ext, 3);
-
-  GST_RTP_DUMMY_DEPAY (state->element)->push_method =
-      GST_RTP_DUMMY_RETURN_TO_PUSH;
-
-  g_signal_connect (state->element, "request-extension",
-      G_CALLBACK (request_extension), ext);
-
-  fail_unless (dummy->set_attributes_count == 0);
-
-  set_state (state, GST_STATE_PLAYING);
-
-  push_rtp_buffer (state, "pts", 0 * GST_SECOND,
-      "rtptime", G_GUINT64_CONSTANT (0x1234), "seq", 0x4242, "hdrext-1", ext,
-      NULL);
-
-  set_state (state, GST_STATE_NULL);
-
-  validate_buffers_received (1);
-
-  validate_buffer (0, "pts", 0 * GST_SECOND, "discont", FALSE, NULL);
-
-  fail_unless_equals_int (GST_RTP_DUMMY_HDR_EXT (ext)->read_count, 1);
-  fail_unless (dummy->set_attributes_count == 1);
-
-  gst_object_unref (ext);
-  destroy_depayloader (state);
-}
-
-GST_END_TEST;
-
-GST_START_TEST (rtp_base_depayload_clear_extensions)
-{
-  GstRTPHeaderExtension *ext;
-  State *state;
-
-  state = create_depayloader ("application/x-rtp", NULL);
-  ext = rtp_dummy_hdr_ext_new ();
-  gst_rtp_header_extension_set_id (ext, 1);
-
-  GST_RTP_DUMMY_DEPAY (state->element)->push_method =
-      GST_RTP_DUMMY_RETURN_TO_PUSH;
-
-  g_signal_emit_by_name (state->element, "add-extension", ext);
-
-  set_state (state, GST_STATE_PLAYING);
-
-  push_rtp_buffer (state, "pts", 0 * GST_SECOND,
-      "rtptime", G_GUINT64_CONSTANT (0x1234), "seq", 0x4242, "hdrext-1", ext,
-      NULL);
-
-  g_signal_emit_by_name (state->element, "clear-extensions");
-
-  push_rtp_buffer (state, "pts", 1 * GST_SECOND,
-      "rtptime", G_GUINT64_CONSTANT (0x1234) + 1 * DEFAULT_CLOCK_RATE,
-      "seq", 0x4242 + 1, "hdrext-1", ext, NULL);
-
-  set_state (state, GST_STATE_NULL);
-
-  validate_buffers_received (2);
-
-  validate_buffer (0, "pts", 0 * GST_SECOND, "discont", FALSE, NULL);
-  validate_buffer (1, "pts", 1 * GST_SECOND, "discont", FALSE, NULL);
-
-  fail_unless_equals_int (GST_RTP_DUMMY_HDR_EXT (ext)->read_count, 1);
-
-  gst_object_unref (ext);
-  destroy_depayloader (state);
-}
-
-GST_END_TEST;
-
-GST_START_TEST (rtp_base_depayload_multiple_exts)
-{
-  GstRTPHeaderExtension *ext1;
-  GstRTPHeaderExtension *ext2;
-  State *state;
-
-  state = create_depayloader ("application/x-rtp", NULL);
-  ext1 = rtp_dummy_hdr_ext_new ();
-  gst_rtp_header_extension_set_id (ext1, 1);
-  ext2 = rtp_dummy_hdr_ext_new ();
-  gst_rtp_header_extension_set_id (ext2, 2);
-
-  GST_RTP_DUMMY_DEPAY (state->element)->push_method =
-      GST_RTP_DUMMY_RETURN_TO_PUSH;
-
-  g_signal_emit_by_name (state->element, "add-extension", ext1);
-  g_signal_emit_by_name (state->element, "add-extension", ext2);
-
-  set_state (state, GST_STATE_PLAYING);
-
-  push_rtp_buffer (state, "pts", 0 * GST_SECOND,
-      "rtptime", G_GUINT64_CONSTANT (0x1234), "seq", 0x4242, "hdrext-1", ext1,
-      "hdrext-1", ext2, NULL);
-
-  set_state (state, GST_STATE_NULL);
-
-  validate_buffers_received (1);
-
-  validate_buffer (0, "pts", 0 * GST_SECOND, "discont", FALSE, NULL);
-
-  fail_unless_equals_int (GST_RTP_DUMMY_HDR_EXT (ext1)->read_count, 1);
-  fail_unless_equals_int (GST_RTP_DUMMY_HDR_EXT (ext2)->read_count, 1);
-
-  gst_object_unref (ext1);
-  gst_object_unref (ext2);
-  destroy_depayloader (state);
-}
-
-GST_END_TEST;
-
-static GstRTPHeaderExtension *
-request_extension_ignored (GstRTPBaseDepayload * depayload, guint ext_id,
-    const gchar * ext_uri, gpointer user_data)
-{
-  guint *request_counter = user_data;
-
-  *request_counter += 1;
-
-  return NULL;
-}
-
-GST_START_TEST (rtp_base_depayload_caps_request_ignored)
-{
-  State *state;
-  guint request_counter = 0;
-
-  state =
-      create_depayloader ("application/x-rtp,extmap-3=(string)"
-      DUMMY_HDR_EXT_URI, NULL);
-
-  GST_RTP_DUMMY_DEPAY (state->element)->push_method =
-      GST_RTP_DUMMY_RETURN_TO_PUSH;
-  g_signal_connect (state->element, "request-extension",
-      G_CALLBACK (request_extension_ignored), &request_counter);
-
-  set_state (state, GST_STATE_PLAYING);
-
-  push_rtp_buffer (state,
-      "pts", 0 * GST_SECOND,
-      "rtptime", G_GUINT64_CONSTANT (0x1234), "seq", 0x4242, NULL);
-
-  fail_unless_equals_int (request_counter, 1);
-
-  set_state (state, GST_STATE_NULL);
-
-  validate_buffers_received (1);
-
-  destroy_depayloader (state);
-}
-
-GST_END_TEST;
-
-static GstFlowReturn
-hdr_ext_caps_change_chain_func (GstPad * pad, GstObject * parent,
-    GstBuffer * buffer)
-{
-  GstFlowReturn res;
-  GstCaps *caps;
-  guint val;
-  static guint expected_caps_val = 0;
-
-  res = gst_check_chain_func (pad, parent, buffer);
-  if (res != GST_FLOW_OK) {
-    return res;
-  }
-
-  caps = gst_pad_get_current_caps (pad);
-
-  fail_unless (gst_structure_get_uint (gst_caps_get_structure (caps, 0),
-          "dummy-hdrext-val", &val));
-
-  /* Every fifth buffer increments "dummy-hdrext-val". */
-  if (g_list_length (buffers) % 5 == 1) {
-    expected_caps_val++;
-  }
-
-  fail_unless_equals_int (expected_caps_val, val);
-
-  gst_caps_unref (caps);
-
-  return res;
-}
-
-GST_START_TEST (rtp_base_depayload_hdr_ext_caps_change)
-{
-  GstRTPHeaderExtension *ext;
-  State *state;
-
-  state = create_depayloader ("application/x-rtp", NULL);
-  gst_pad_set_chain_function (state->sinkpad, hdr_ext_caps_change_chain_func);
-
-  ext = rtp_dummy_hdr_ext_new ();
-  gst_rtp_header_extension_set_id (ext, 1);
-
-  GST_RTP_DUMMY_DEPAY (state->element)->push_method =
-      GST_RTP_DUMMY_USE_PUSH_LIST_FUNC;
-  GST_RTP_DUMMY_DEPAY (state->element)->num_buffers_in_blist = 15;
-
-  g_signal_emit_by_name (state->element, "add-extension", ext);
-
-  set_state (state, GST_STATE_PLAYING);
-
-  push_rtp_buffer (state, "pts", 0 * GST_SECOND,
-      "rtptime", G_GUINT64_CONSTANT (0x1234), "seq", 0x4242, "hdrext-1", ext,
-      NULL);
-
-  set_state (state, GST_STATE_NULL);
-
-  validate_buffers_received (15);
-
-  gst_object_unref (ext);
-  destroy_depayloader (state);
-}
-
-GST_END_TEST;
 
 static Suite *
 rtp_basepayloading_suite (void)
@@ -1908,19 +1406,6 @@ rtp_basepayloading_suite (void)
   tcase_add_test (tc_chain, rtp_base_depayload_clock_base_test);
 
   tcase_add_test (tc_chain, rtp_base_depayload_source_info_test);
-  tcase_add_test (tc_chain, rtp_base_depayload_source_info_from_rtp_only);
-  tcase_add_test (tc_chain, rtp_base_depayload_max_reorder);
-
-  tcase_add_test (tc_chain, rtp_base_depayload_flow_return_push_func);
-  tcase_add_test (tc_chain, rtp_base_depayload_flow_return_push_list_func);
-
-  tcase_add_test (tc_chain, rtp_base_depayload_one_byte_hdr_ext);
-  tcase_add_test (tc_chain, rtp_base_depayload_two_byte_hdr_ext);
-  tcase_add_test (tc_chain, rtp_base_depayload_request_extension);
-  tcase_add_test (tc_chain, rtp_base_depayload_clear_extensions);
-  tcase_add_test (tc_chain, rtp_base_depayload_multiple_exts);
-  tcase_add_test (tc_chain, rtp_base_depayload_caps_request_ignored);
-  tcase_add_test (tc_chain, rtp_base_depayload_hdr_ext_caps_change);
 
   return s;
 }

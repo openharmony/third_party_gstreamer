@@ -948,16 +948,10 @@ static const GstMaskDefinition definitions[] = {
 void
 _gst_barboxwipes_register (void)
 {
-  static gsize id = 0;
+  gint i = 0;
 
-  if (g_once_init_enter (&id)) {
-    gint i = 0;
-
-    while (definitions[i].short_name) {
-      _gst_mask_register (&definitions[i]);
-      i++;
-    }
-
-    g_once_init_leave (&id, 1);
+  while (definitions[i].short_name) {
+    _gst_mask_register (&definitions[i]);
+    i++;
   }
 }

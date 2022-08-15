@@ -9,4 +9,3 @@ audioresample = library('gstaudioresample',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(audioresample, install_dir : plugins_pkgconfig_install_dir)
-plugins += [audioresample]

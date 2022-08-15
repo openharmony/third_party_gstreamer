@@ -52,7 +52,6 @@ struct _GstOss4SourceClass {
 };
 
 GType  gst_oss4_source_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (oss4src);
 
 G_END_DECLS
 

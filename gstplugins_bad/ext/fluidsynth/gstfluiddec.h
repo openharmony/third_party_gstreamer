@@ -73,8 +73,6 @@ struct _GstFluidDecClass
 
 GType gst_fluid_dec_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (fluiddec);
-
 G_END_DECLS
 
 #endif /* __GST_FLUID_DEC_H__ */

@@ -21,6 +21,7 @@
  * SECTION:element-curlsftpsink
  * @title: curlsftpsink
  * @short_description: sink that uploads data to a server using libcurl
+ * @see_also:
  *
  * This is a network sink that uses libcurl as a client to upload data to
  * a SFTP (SSH File Transfer Protocol) server.
@@ -44,7 +45,6 @@
 #include "config.h"
 #endif
 
-#include "gstcurlelements.h"
 #include "gstcurlsshsink.h"
 #include "gstcurlsftpsink.h"
 
@@ -93,8 +93,6 @@ static gboolean set_sftp_dynamic_options_unlocked (GstCurlBaseSink *
 
 #define gst_curl_sftp_sink_parent_class parent_class
 G_DEFINE_TYPE (GstCurlSftpSink, gst_curl_sftp_sink, GST_TYPE_CURL_SSH_SINK);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (curlsftpsink, "curlsftpsink",
-    GST_RANK_NONE, GST_TYPE_CURL_SFTP_SINK, curl_element_init (plugin));
 
 static void
 gst_curl_sftp_sink_class_init (GstCurlSftpSinkClass * klass)
@@ -106,7 +104,7 @@ gst_curl_sftp_sink_class_init (GstCurlSftpSinkClass * klass)
   GST_DEBUG_CATEGORY_INIT (gst_curl_sftp_sink_debug, "curlsftpsink", 0,
       "curl sftp sink element");
 
-  GST_DEBUG ("class_init");
+  GST_DEBUG_OBJECT (klass, "class_init");
 
   gst_element_class_set_static_metadata (element_class,
       "Curl sftp sink",

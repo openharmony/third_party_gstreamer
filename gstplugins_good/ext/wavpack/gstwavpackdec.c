@@ -23,19 +23,19 @@
 
 /**
  * SECTION:element-wavpackdec
- * @title: wavpackdec
  *
  * WavpackDec decodes framed (for example by the WavpackParse element)
  * Wavpack streams and decodes them to raw audio.
- * [Wavpack](http://www.wavpack.com/) is an open-source audio codec that
- * features both lossless and lossy encoding.
+ * <ulink url="http://www.wavpack.com/">Wavpack</ulink> is an open-source
+ * audio codec that features both lossless and lossy encoding.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 filesrc location=test.wv ! wavpackparse ! wavpackdec ! audioconvert ! audioresample ! autoaudiosink
  * ]| This pipeline decodes the Wavpack file test.wv into raw audio buffers and
  * tries to play it back using an automatically found audio sink.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -49,7 +49,6 @@
 #include <string.h>
 
 #include <wavpack/wavpack.h>
-#include "gstwavpackelements.h"
 #include "gstwavpackdec.h"
 #include "gstwavpackcommon.h"
 #include "gstwavpackstreamreader.h"
@@ -83,10 +82,6 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
         "audio/x-raw, "
         "format = (string) " GST_AUDIO_NE (S32) ", "
         "layout = (string) interleaved, "
-        "channels = (int) [ 1, 8 ], " "rate = (int) [ 6000, 192000 ]; "
-        "audio/x-raw, "
-        "format = (string) " GST_AUDIO_NE (F32) ", "
-        "layout = (string) interleaved, "
         "channels = (int) [ 1, 8 ], " "rate = (int) [ 6000, 192000 ]")
     );
 
@@ -102,12 +97,6 @@ static void gst_wavpack_dec_post_tags (GstWavpackDec * dec);
 
 #define gst_wavpack_dec_parent_class parent_class
 G_DEFINE_TYPE (GstWavpackDec, gst_wavpack_dec, GST_TYPE_AUDIO_DECODER);
-#define _do_init \
-  GST_DEBUG_CATEGORY_INIT (gst_wavpack_dec_debug, "wavpackdec", 0, \
-      "Wavpack decoder"); \
-  wavpack_element_init (plugin);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (wavpackdec, "wavpackdec",
-    GST_RANK_PRIMARY, GST_TYPE_WAVPACK_DEC, _do_init);
 
 static void
 gst_wavpack_dec_class_init (GstWavpackDecClass * klass)
@@ -142,7 +131,6 @@ gst_wavpack_dec_reset (GstWavpackDec * dec)
   dec->channel_mask = 0;
   dec->sample_rate = 0;
   dec->depth = 0;
-  dec->mode_float = FALSE;
 }
 
 static void
@@ -220,9 +208,7 @@ gst_wavpack_dec_negotiate (GstWavpackDec * dec)
       break;
     case 24:
     case 32:
-      fmt =
-          dec->mode_float ? _GST_AUDIO_FORMAT_NE (F32) :
-          _GST_AUDIO_FORMAT_NE (S32);
+      fmt = _GST_AUDIO_FORMAT_NE (S32);
       dec->width = 32;
       break;
     default:
@@ -291,8 +277,7 @@ gst_wavpack_dec_handle_frame (GstAudioDecoder * bdec, GstBuffer * buf)
   WavpackHeader wph;
   int32_t decoded, unpacked_size;
   gboolean format_changed;
-  gint width, depth, i, j, max, wavpack_mode;
-  gboolean mode_float;
+  gint width, depth, i, j, max;
   gint32 *dec_data = NULL;
   guint8 *out_data;
   GstMapInfo map, omap;
@@ -338,14 +323,10 @@ gst_wavpack_dec_handle_frame (GstAudioDecoder * bdec, GstBuffer * buf)
 
   g_assert (dec->context != NULL);
 
-  wavpack_mode = WavpackGetMode (dec->context);
-  mode_float = (wavpack_mode & MODE_FLOAT) == MODE_FLOAT;
-
   format_changed =
       (dec->sample_rate != WavpackGetSampleRate (dec->context)) ||
       (dec->channels != WavpackGetNumChannels (dec->context)) ||
       (dec->depth != WavpackGetBytesPerSample (dec->context) * 8) ||
-      (dec->mode_float != mode_float) ||
       (dec->channel_mask != WavpackGetChannelMask (dec->context));
 
   if (!gst_pad_has_current_caps (GST_AUDIO_DECODER_SRC_PAD (dec)) ||
@@ -355,7 +336,6 @@ gst_wavpack_dec_handle_frame (GstAudioDecoder * bdec, GstBuffer * buf)
     dec->sample_rate = WavpackGetSampleRate (dec->context);
     dec->channels = WavpackGetNumChannels (dec->context);
     dec->depth = WavpackGetBytesPerSample (dec->context) * 8;
-    dec->mode_float = mode_float;
 
     channel_mask = WavpackGetChannelMask (dec->context);
     if (channel_mask == 0)
@@ -479,4 +459,15 @@ decode_error:
       gst_audio_decoder_finish_frame (bdec, NULL, 1);
     goto out;
   }
+}
+
+gboolean
+gst_wavpack_dec_plugin_init (GstPlugin * plugin)
+{
+  if (!gst_element_register (plugin, "wavpackdec",
+          GST_RANK_PRIMARY, GST_TYPE_WAVPACK_DEC))
+    return FALSE;
+  GST_DEBUG_CATEGORY_INIT (gst_wavpack_dec_debug, "wavpackdec", 0,
+      "Wavpack decoder");
+  return TRUE;
 }

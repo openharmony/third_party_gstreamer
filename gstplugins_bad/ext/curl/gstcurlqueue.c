@@ -71,31 +71,6 @@ gst_curl_http_src_add_queue_item (GstCurlHttpSrcQueueElement ** queue,
     insert_point = *queue;
   } else {
     insert_point = *queue;
-#ifndef OHOS_OPT_COMPAT
-    /**
-     * ohos.opt.compat.0033
-     * When remove the GstCurlHttpSrc instance from queue, only the one item will be removed, but
-     * add_queue_item allow to push same instance multi-time, which will lead to the remove_queue_item
-     * can not remove all items of the specified instance. So, if the instance has already exist in
-     * the queue, return directly.
-     */
-    GstCurlHttpSrcQueueElement *prev_point = NULL;
-    while (insert_point != NULL) {
-      if (insert_point->p == s) {
-        g_atomic_int_set (&insert_point->running, 0);
-        s->connection_status = GSTCURL_CONNECTED;
-        return TRUE;
-      }
-      prev_point = insert_point;
-      insert_point = insert_point->next;
-    }
-    insert_point = (GstCurlHttpSrcQueueElement *)
-      g_malloc (sizeof (GstCurlHttpSrcQueueElement));
-    if (insert_point == NULL) {
-      return FALSE;
-    }
-    prev_point->next = insert_point;
-#else
     while (insert_point->next != NULL) {
       insert_point = insert_point->next;
     }
@@ -105,7 +80,6 @@ gst_curl_http_src_add_queue_item (GstCurlHttpSrcQueueElement ** queue,
       return FALSE;
     }
     insert_point = insert_point->next;
-#endif
   }
 
   insert_point->p = s;

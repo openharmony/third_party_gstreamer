@@ -108,15 +108,15 @@
  * pre-defined helper application will be called.
  *
  * The exact path of the helper application to be called is set at compile
- * time, usually by the build system based on the install prefix.
+ * time, usually by the `./configure` script based on the install prefix.
  * For a normal package build into the `/usr` prefix, this will usually
  * default to `/usr/libexec/gst-install-plugins-helper` or
  * `/usr/lib/gst-install-plugins-helper`.
  *
  * Vendors/distros who want to support GStreamer plugin installation should
- * either provide such a helper script/application or use the meson option
- * `-Dinstall_plugins_helper'=/path/to/installer` to make GStreamer call an
- * installer of their own directly.
+ * either provide such a helper script/application or use the `./configure`
+ * option `--with-install-plugins-helper=/path/to/installer` to make
+ * GStreamer call an installer of their own directly.
  *
  * It is strongly recommended that vendors provide a small helper
  * application as interlocutor to the real installer though, even more so
@@ -124,7 +124,7 @@
  * line arguments passed by GStreamer to the helper application into
  * arguments that are understood by the real installer.
  *
- * The helper application path defined at compile time can be overridden at
+ * The helper application path defined at compile time can be overriden at
  * runtime by setting the GST_INSTALL_PLUGINS_HELPER environment
  * variable. This can be useful for testing/debugging purposes.
  *
@@ -216,7 +216,7 @@
  * -   1 if no appropriate installation candidate for any of the requested
  *     plugins could be found. Only return this if nothing has been
  *     installed (#GST_INSTALL_PLUGINS_NOT_FOUND)
- * -   2 if an error occurred during the installation. The application will
+ * -   2 if an error occured during the installation. The application will
  *     assume that the user will already have seen an error message by the
  *     installer in this case and will usually not show another one
  *     (#GST_INSTALL_PLUGINS_ERROR)
@@ -271,27 +271,6 @@
 #endif
 
 #include <string.h>
-
-#ifndef GST_DISABLE_GST_DEBUG
-#define GST_CAT_DEFAULT gst_pb_utils_install_plugins_ensure_debug_category()
-
-static GstDebugCategory *
-gst_pb_utils_install_plugins_ensure_debug_category (void)
-{
-  static gsize cat_gonce = 0;
-
-  if (g_once_init_enter (&cat_gonce)) {
-    GstDebugCategory *cat = NULL;
-
-    GST_DEBUG_CATEGORY_INIT (cat, "install-plugins", 0,
-        "GstPbUtils plugins installation helper");
-
-    g_once_init_leave (&cat_gonce, (gsize) cat);
-  }
-
-  return (GstDebugCategory *) cat_gonce;
-}
-#endif /* GST_DISABLE_GST_DEBUG */
 
 /* best effort to make things compile and possibly even work on win32 */
 #ifndef WEXITSTATUS
@@ -413,13 +392,13 @@ void gst_install_plugins_context_set_startup_notification_id
  * Gtk+/Gnome application should be able to obtain the XID of the top-level
  * window like this:
  * |[
- * ##include <gtk/gtk.h>
+ * ##include &lt;gtk/gtk.h&gt;
  * ##ifdef GDK_WINDOWING_X11
- * ##include <gdk/gdkx.h>
+ * ##include &lt;gdk/gdkx.h&gt;
  * ##endif
  * ...
  * ##ifdef GDK_WINDOWING_X11
- *   xid = GDK_WINDOW_XWINDOW (GTK_WIDGET (application_window)->window);
+ *   xid = GDK_WINDOW_XWINDOW (GTK_WIDGET (application_window)-&gt;window);
  * ##endif
  * ...
  * ]|
@@ -464,16 +443,6 @@ gst_install_plugins_context_free (GstInstallPluginsContext * ctx)
   g_free (ctx);
 }
 
-/**
- * gst_install_plugins_context_copy:
- * @ctx: a #GstInstallPluginsContext
- *
- * Copies a #GstInstallPluginsContext.
- *
- * Returns: (transfer full): A copy of @ctx
- *
- * Since: 1.12.1
- */
 GstInstallPluginsContext *
 gst_install_plugins_context_copy (GstInstallPluginsContext * ctx)
 {

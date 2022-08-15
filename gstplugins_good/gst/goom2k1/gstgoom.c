@@ -21,18 +21,18 @@
 
 /**
  * SECTION:element-goom2k1
- * @title: goom2k1
  * @see_also: goom, synaesthesia
  *
  * Goom2k1 is an audio visualisation element. It creates warping structures
  * based on the incoming audio signal. Goom2k1 is the older version of the
  * visualisation. Also available is goom2k4, with a different look.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 -v audiotestsrc ! goom2k1 ! videoconvert ! xvimagesink
  * ]|
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -86,8 +86,7 @@ static gboolean gst_goom2k1_render (GstAudioVisualizer * base,
 
 
 G_DEFINE_TYPE (GstGoom2k1, gst_goom2k1, GST_TYPE_AUDIO_VISUALIZER);
-GST_ELEMENT_REGISTER_DEFINE (goom2k1, "goom2k1", GST_RANK_NONE,
-    GST_TYPE_GOOM2K1);
+
 static void
 gst_goom2k1_class_init (GstGoom2k1Class * klass)
 {
@@ -183,7 +182,8 @@ gst_goom2k1_render (GstAudioVisualizer * base, GstBuffer * audio,
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (goom2k1, plugin);
+  return gst_element_register (plugin, "goom2k1", GST_RANK_NONE,
+      GST_TYPE_GOOM2K1);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

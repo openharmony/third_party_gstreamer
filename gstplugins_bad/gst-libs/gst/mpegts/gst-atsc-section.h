@@ -32,29 +32,15 @@ G_BEGIN_DECLS
 
 /**
  * GstMpegtsSectionATSCTableID:
- * @GST_MTS_TABLE_ID_ATSC_MASTER_GUIDE: Master Guide Table (MGT)
- * @GST_MTS_TABLE_ID_ATSC_TERRESTRIAL_VIRTUAL_CHANNEL: Terrestrial Virtual Channel Table (TVCT)
- * @GST_MTS_TABLE_ID_ATSC_CABLE_VIRTUAL_CHANNEL: Cable Virtual Channel Table (CVCT)
- * @GST_MTS_TABLE_ID_ATSC_RATING_REGION: Rating Region Table (RRT)
- * @GST_MTS_TABLE_ID_ATSC_EVENT_INFORMATION: Event Information Table (EIT)
- * @GST_MTS_TABLE_ID_ATSC_CHANNEL_OR_EVENT_EXTENDED_TEXT: Extended Text Table (ETT)
- * @GST_MTS_TABLE_ID_ATSC_SYSTEM_TIME: System Time Table (STT)
- * @GST_MTS_TABLE_ID_ATSC_DATA_EVENT: A/90: Data Event Table (DET)
- * @GST_MTS_TABLE_ID_ATSC_DATA_SERVICE: A/90: Data Service Table (DST)
- * @GST_MTS_TABLE_ID_ATSC_NETWORK_RESOURCE: A/90: Network Resources Table (NRT)
- * @GST_MTS_TABLE_ID_ATSC_LONG_TERM_SERVICE: A/90: Long Term Service Table (LTST)
- * @GST_MTS_TABLE_ID_ATSC_DIRECTED_CHANNEL_CHANGE: Directed Channel Change Table (DCCT)
- * @GST_MTS_TABLE_ID_ATSC_DIRECTED_CHANNEL_CHANGE_SECTION_CODE: Directed Channel Change Selection Code Table (DCCSCT)
- * @GST_MTS_TABLE_ID_ATSC_SATELLITE_VIRTUAL_CHANNEL: A/81: Satellite Virtual Channel Table
  *
  * Values for a #GstMpegtsSection table_id.
  *
- * These are the registered ATSC section `table_id` variants. Unless specified
- * otherwise, they are defined in the "ATSC A/65" specification.
+ * These are the registered ATSC table_id variants.
  *
- * see also: #GstMpegtsSectionTableID and other variants.
+ * see also: #GstMpegtsSectionTableID
  */
 typedef enum {
+
 
   /* ATSC (A/65) */
   GST_MTS_TABLE_ID_ATSC_MASTER_GUIDE                    = 0xC7,
@@ -67,56 +53,18 @@ typedef enum {
   /* ATSC (A/90) */
   GST_MTS_TABLE_ID_ATSC_DATA_EVENT                      = 0xCE,
   GST_MTS_TABLE_ID_ATSC_DATA_SERVICE                    = 0xCF,
-
-  /* ATSC (A/57B) */
-  /**
-   * GST_MTS_TABLE_ID_ATSC_PROGRAM_IDENTIFIER:
-   *
-   * A/57B: Program Identifier Table.
-   *
-   * Since: 1.20
-   */
-  GST_MTS_TABLE_ID_ATSC_PROGRAM_IDENTIFIER		= 0xD0,
-  /* ATSC (A/90) */
+  /* 0xD0 ?? */
   GST_MTS_TABLE_ID_ATSC_NETWORK_RESOURCE                = 0xD1,
   GST_MTS_TABLE_ID_ATSC_LONG_TERM_SERVICE               = 0xD2,
-  /* ATSC (A/65) */
   GST_MTS_TABLE_ID_ATSC_DIRECTED_CHANNEL_CHANGE         = 0xD3,
   GST_MTS_TABLE_ID_ATSC_DIRECTED_CHANNEL_CHANGE_SECTION_CODE = 0xD4,
-  /* 0xD5-0xD9 covered in CEA/SCTE */
+  /* 0xD5 ?? */
   GST_MTS_TABLE_ID_ATSC_AGGREGATE_EVENT_INFORMATION     = 0xD6,
   GST_MTS_TABLE_ID_ATSC_AGGREGATE_EXTENDED_TEXT         = 0xD7,
+  /* 0xD8 ?? */
   GST_MTS_TABLE_ID_ATSC_AGGREGATE_DATA_EVENT            = 0xD9,
-  /*  */
   GST_MTS_TABLE_ID_ATSC_SATELLITE_VIRTUAL_CHANNEL       = 0xDA,
 } GstMpegtsSectionATSCTableID;
-
-/**
- * GstMpegtsATSCStreamType:
- * @GST_MPEGTS_STREAM_TYPE_ATSC_DCII_VIDEO:  DigiCipher II video | Identical to ITU-T Rec. H.262 | ISO/IEC 13818-2 Video
- * @GST_MPEGTS_STREAM_TYPE_ATSC_AUDIO_AC3:   ATSC A/53 Audio | AC-3
- * @GST_MPEGTS_STREAM_TYPE_ATSC_SUBTITLING:  SCTE-27 Subtitling
- * @GST_MPEGTS_STREAM_TYPE_ATSC_ISOCH_DATA:  SCTE-19 Isochronous data | Reserved
- * @GST_MPEGTS_STREAM_TYPE_ATSC_SIT:         SCTE-35 Splice Information Table
- * @GST_MPEGTS_STREAM_TYPE_ATSC_AUDIO_EAC3:  E-AC-3 A/52:2018
- * @GST_MPEGTS_STREAM_TYPE_ATSC_AUDIO_DTS_HD:  E-AC-3 A/107 (ATSC 2.0)
- *
- * Type of mpeg-ts streams for ATSC, as defined by the ATSC Code Points
- * Registry. For convenience, some stream types from %GstMpegtsScteStreamType
- * are also included.
- *
- * Since: 1.20
- */
-typedef enum {
-  GST_MPEGTS_STREAM_TYPE_ATSC_DCII_VIDEO = 0x80,
-  GST_MPEGTS_STREAM_TYPE_ATSC_AUDIO_AC3  = 0x81,
-  GST_MPEGTS_STREAM_TYPE_ATSC_SUBTITLING = 0x82,
-  GST_MPEGTS_STREAM_TYPE_ATSC_ISOCH_DATA = 0x83,
-  /* 0x84-0x85 : RESERVED */
-  GST_MPEGTS_STREAM_TYPE_ATSC_SIT        = 0x86,
-  GST_MPEGTS_STREAM_TYPE_ATSC_AUDIO_EAC3 = 0x87,
-  GST_MPEGTS_STREAM_TYPE_ATSC_AUDIO_DTS_HD = 0x88,
-} GstMpegtsATSCStreamType;
 
 /* TVCT/CVCT */
 #define GST_TYPE_MPEGTS_ATSC_VCT (gst_mpegts_atsc_vct_get_type ())
@@ -144,7 +92,7 @@ typedef struct _GstMpegtsAtscVCT GstMpegtsAtscVCT;
  * @source_id: The source id
  * @descriptors: (element-type GstMpegtsDescriptor): an array of #GstMpegtsDescriptor
  *
- * Source from a %GstMpegtsAtscVCT, can be used both for TVCT and CVCT tables
+ * Source from a @GstMpegtsAtscVCT, can be used both for TVCT and CVCT tables
  */
 struct _GstMpegtsAtscVCTSource
 {
@@ -260,13 +208,7 @@ GType gst_mpegts_atsc_mgt_table_get_type (void);
 GST_MPEGTS_API
 const GstMpegtsAtscMGT * gst_mpegts_section_get_atsc_mgt (GstMpegtsSection * section);
 
-GST_MPEGTS_API
-GstMpegtsSection * gst_mpegts_section_from_atsc_mgt (GstMpegtsAtscMGT * mgt);
-
-GST_MPEGTS_API
-GstMpegtsAtscMGT * gst_mpegts_atsc_mgt_new (void);
-
-/* Multiple string structure (used in ETT and EIT) */
+/* Multiple string structure (used in ETT and EIT */
 
 #define GST_TYPE_MPEGTS_ATSC_STRING_SEGMENT (gst_mpegts_atsc_string_segment_get_type())
 #define GST_TYPE_MPEGTS_ATSC_MULT_STRING (gst_mpegts_atsc_mult_string_get_type())
@@ -295,13 +237,6 @@ struct _GstMpegtsAtscStringSegment {
 
 GST_MPEGTS_API
 const gchar * gst_mpegts_atsc_string_segment_get_string (GstMpegtsAtscStringSegment * seg);
-
-GST_MPEGTS_API
-gboolean
-gst_mpegts_atsc_string_segment_set_string (GstMpegtsAtscStringSegment * seg,
-                                           gchar *string,
-                                           guint8 compression_type,
-                                           guint8 mode);
 
 /**
  * GstMpegtsAtscMultString:
@@ -447,96 +382,6 @@ const GstMpegtsAtscSTT * gst_mpegts_section_get_atsc_stt (GstMpegtsSection * sec
 
 GST_MPEGTS_API
 GstDateTime * gst_mpegts_atsc_stt_get_datetime_utc (GstMpegtsAtscSTT * stt);
-
-GST_MPEGTS_API
-GstMpegtsSection * gst_mpegts_section_from_atsc_stt (GstMpegtsAtscSTT * stt);
-
-GST_MPEGTS_API
-GstMpegtsAtscSTT * gst_mpegts_atsc_stt_new (void);
-
-/* RRT */
-#define GST_TYPE_MPEGTS_ATSC_RRT (gst_mpegts_atsc_rrt_get_type ())
-#define GST_TYPE_MPEGTS_ATSC_RRT_DIMENSION (gst_mpegts_atsc_rrt_dimension_get_type ())
-#define GST_TYPE_MPEGTS_ATSC_RRT_DIMENSION_VALUE (gst_mpegts_atsc_rrt_dimension_value_get_type ())
-
-typedef struct _GstMpegtsAtscRRT GstMpegtsAtscRRT;
-typedef struct _GstMpegtsAtscRRTDimension GstMpegtsAtscRRTDimension;
-typedef struct _GstMpegtsAtscRRTDimensionValue GstMpegtsAtscRRTDimensionValue;
-
-/**
- * GstMpegtsAtscRRTDimensionValue:
- * @abbrev_ratings: (element-type GstMpegtsAtscMultString): the abbreviated ratings
- * @ratings: (element-type GstMpegtsAtscMultString): the ratings
- *
- * Since: 1.18
- */
-struct _GstMpegtsAtscRRTDimensionValue
-{
-  GPtrArray *abbrev_ratings;
-  GPtrArray *ratings;
-};
-
-/**
- * GstMpegtsAtscRRTDimension:
- * @names: (element-type GstMpegtsAtscMultString): the names
- * @graduated_scale: whether the ratings represent a graduated scale
- * @values_defined: the number of values defined for this dimension
- * @values: (element-type GstMpegtsAtscRRTDimensionValue): set of values
- *
- * Since: 1.18
- */
-struct _GstMpegtsAtscRRTDimension
-{
-  GPtrArray * names;
-  gboolean    graduated_scale;
-  guint8      values_defined;
-  GPtrArray * values;
-};
-
-/**
- * GstMpegtsAtscRRT:
- * @protocol_version: The protocol version
- * @names: (element-type GstMpegtsAtscMultString): the names
- * @dimensions_defined: the number of dimensions defined for this rating table
- * @dimensions: (element-type GstMpegtsAtscRRTDimension): A set of dimensions
- * @descriptors: descriptors
- *
- * Region Rating Table (A65)
- *
- * Since: 1.18
- */
-struct _GstMpegtsAtscRRT
-{
-  guint8      protocol_version;
-  GPtrArray * names;
-  guint8      dimensions_defined;
-  GPtrArray * dimensions;
-  GPtrArray * descriptors;
-};
-
-GST_MPEGTS_API
-GType gst_mpegts_atsc_rrt_get_type (void);
-
-GST_MPEGTS_API
-GType gst_mpegts_atsc_rrt_dimension_get_type (void);
-
-GST_MPEGTS_API
-GType gst_mpegts_atsc_rrt_dimension_value_get_type (void);
-
-GST_MPEGTS_API
-const GstMpegtsAtscRRT * gst_mpegts_section_get_atsc_rrt (GstMpegtsSection * section);
-
-GST_MPEGTS_API
-GstMpegtsSection * gst_mpegts_section_from_atsc_rrt (GstMpegtsAtscRRT * rrt);
-
-GST_MPEGTS_API
-GstMpegtsAtscRRT * gst_mpegts_atsc_rrt_new (void);
-
-GST_MPEGTS_API
-GstMpegtsAtscRRTDimension * gst_mpegts_atsc_rrt_dimension_new (void);
-
-GST_MPEGTS_API
-GstMpegtsAtscRRTDimensionValue * gst_mpegts_atsc_rrt_dimension_value_new (void);
 
 G_END_DECLS
 

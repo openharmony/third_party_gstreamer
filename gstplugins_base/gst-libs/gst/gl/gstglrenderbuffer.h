@@ -64,10 +64,10 @@ struct _GstGLRenderbuffer
   guint                     width;
   guint                     height;
 
-  /*< protected >*/
+  /* <protected> */
   gboolean                  renderbuffer_wrapped;
 
-  /*< private >*/
+  /* <private> */
   gpointer                  _padding[GST_PADDING];
 };
 
@@ -80,7 +80,7 @@ struct _GstGLRenderbufferAllocator
 {
   GstGLBaseMemoryAllocator parent;
 
-  /*< private >*/
+  /* <private> */
   gpointer                  _padding[GST_PADDING];
 };
 
@@ -93,7 +93,7 @@ struct _GstGLRenderbufferAllocatorClass
 {
   GstGLBaseMemoryAllocatorClass             parent_class;
 
-  /*< private >*/
+  /* <private> */
   gpointer                  _padding[GST_PADDING];
 };
 
@@ -122,35 +122,26 @@ struct _GstGLRenderbufferAllocationParams
   guint width;
   guint height;
 
-  /*< private >*/
+  /* <private> */
   gpointer _padding[GST_PADDING];
 };
 
 GST_GL_API
 GstGLRenderbufferAllocationParams *     gst_gl_renderbuffer_allocation_params_new           (GstGLContext * context,
-                                                                                             const GstAllocationParams * alloc_params,
+                                                                                             GstAllocationParams * alloc_params,
                                                                                              GstGLFormat renderbuffer_format,
                                                                                              guint width,
                                                                                              guint height);
 
 GST_GL_API
 GstGLRenderbufferAllocationParams *     gst_gl_renderbuffer_allocation_params_new_wrapped   (GstGLContext * context,
-                                                                                             const GstAllocationParams * alloc_params,
+                                                                                             GstAllocationParams * alloc_params,
                                                                                              GstGLFormat renderbuffer_format,
                                                                                              guint width,
                                                                                              guint height,
                                                                                              gpointer gl_handle,
                                                                                              gpointer user_data,
                                                                                              GDestroyNotify notify);
-
-/**
- * GST_TYPE_GL_RENDERBUFFER:
- *
- * Since: 1.20
- */
-#define GST_TYPE_GL_RENDERBUFFER (gst_gl_renderbuffer_get_type())
-GST_GL_API
-GType gst_gl_renderbuffer_get_type(void);
 
 GST_GL_API
 void            gst_gl_renderbuffer_init_once   (void);

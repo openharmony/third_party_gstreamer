@@ -21,17 +21,17 @@
 
 /**
  * SECTION:element-monoscope
- * @title: monoscope
  * @see_also: goom
  *
  * Monoscope is an audio visualisation element. It creates a coloured
  * curve of the audio signal like on an oscilloscope.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 -v audiotestsrc ! audioconvert ! monoscope ! videoconvert ! ximagesink
  * ]|
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -75,10 +75,6 @@ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
 
 #define gst_monoscope_parent_class parent_class
 G_DEFINE_TYPE (GstMonoscope, gst_monoscope, GST_TYPE_ELEMENT);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (monoscope, "monoscope",
-    GST_RANK_NONE, GST_TYPE_MONOSCOPE,
-    GST_DEBUG_CATEGORY_INIT (monoscope_debug, "monoscope", 0,
-        "monoscope element"););
 
 static void gst_monoscope_finalize (GObject * object);
 static GstFlowReturn gst_monoscope_chain (GstPad * pad, GstObject * parent,
@@ -587,8 +583,11 @@ gst_monoscope_change_state (GstElement * element, GstStateChange transition)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (monoscope, plugin);
+  GST_DEBUG_CATEGORY_INIT (monoscope_debug, "monoscope", 0,
+      "monoscope element");
 
+  return gst_element_register (plugin, "monoscope",
+      GST_RANK_NONE, GST_TYPE_MONOSCOPE);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

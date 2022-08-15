@@ -74,8 +74,6 @@ struct _GstVideoBalanceClass {
 
 GType gst_video_balance_get_type(void);
 
-GST_ELEMENT_REGISTER_DECLARE (videobalance);
-
 G_END_DECLS
 
 #endif /* __GST_VIDEO_BALANCE_H__ */

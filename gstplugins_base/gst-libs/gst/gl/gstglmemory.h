@@ -46,26 +46,14 @@ GType gst_gl_memory_allocator_get_type(void);
  */
 #define GST_CAPS_FEATURE_MEMORY_GL_MEMORY "memory:GLMemory"
 /**
- * GST_GL_MEMORY_VIDEO_EXT_FORMATS: (skip)
- */
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-#define GST_GL_MEMORY_VIDEO_EXT_FORMATS \
-    ", BGR10A2_LE, RGB10A2_LE, P010_10LE, P012_LE, P016_LE, Y212_LE, Y412_LE"
-#else
-#define GST_GL_MEMORY_VIDEO_EXT_FORMATS \
-    ", P010_10BE, P012_BE, P016_BE, Y212_BE, Y412_BE"
-#endif
-
-/**
  * GST_GL_MEMORY_VIDEO_FORMATS_STR:
  *
  * List of video formats that are supported by #GstGLMemory
  */
 #define GST_GL_MEMORY_VIDEO_FORMATS_STR \
-    "{ RGBA, BGRA, RGBx, BGRx, ARGB, ABGR, xRGB, xBGR, GBRA, GBR, RGBP, BGRP, RGB, BGR, RGB16, BGR16, " \
-    "AYUV, VUYA, Y410, I420, YV12, NV12, NV21, NV16, NV61, YUY2, UYVY, Y210, Y41B, " \
-    "Y42B, Y444, GRAY8, GRAY16_LE, GRAY16_BE, ARGB64, A420, AV12" \
-    GST_GL_MEMORY_VIDEO_EXT_FORMATS "}"
+    "{ RGBA, BGRA, RGBx, BGRx, ARGB, ABGR, xRGB, xBGR, RGB, BGR, RGB16, BGR16, " \
+    "AYUV, VUYA, I420, YV12, NV12, NV21, YUY2, UYVY, Y41B, Y42B, Y444, " \
+    "GRAY8, GRAY16_LE, GRAY16_BE, ARGB64 }"
 
 /**
  * GstGLMemory:
@@ -92,12 +80,12 @@ struct _GstGLMemory
   guint                     plane;
   gfloat                    tex_scaling[2];
 
-  /*< protected >*/
+  /* <protected> */
   gboolean                  texture_wrapped;
   guint                     unpack_length;
   guint                     tex_width;
 
-  /*< private >*/
+  /* <private> */
   gpointer                  _padding[GST_PADDING];
 };
 
@@ -134,7 +122,7 @@ struct _GstGLVideoAllocationParams
   GstGLTextureTarget     target;
   GstGLFormat            tex_format;
 
-  /*< private >*/
+  /* <private> */
   gpointer               _padding[GST_PADDING];
 };
 
@@ -145,10 +133,10 @@ gboolean        gst_gl_video_allocation_params_init_full        (GstGLVideoAlloc
                                                                  GstGLAllocationParamsCopyFunc copy,
                                                                  GstGLAllocationParamsFreeFunc free,
                                                                  GstGLContext * context,
-                                                                 const GstAllocationParams * alloc_params,
-                                                                 const GstVideoInfo * v_info,
+                                                                 GstAllocationParams * alloc_params,
+                                                                 GstVideoInfo * v_info,
                                                                  guint plane,
-                                                                 const GstVideoAlignment * valign,
+                                                                 GstVideoAlignment * valign,
                                                                  GstGLTextureTarget target,
                                                                  GstGLFormat tex_format,
                                                                  gpointer wrapped_data,
@@ -157,18 +145,18 @@ gboolean        gst_gl_video_allocation_params_init_full        (GstGLVideoAlloc
                                                                  GDestroyNotify notify);
 GST_GL_API
 GstGLVideoAllocationParams * gst_gl_video_allocation_params_new (GstGLContext * context,
-                                                                 const GstAllocationParams * alloc_params,
-                                                                 const GstVideoInfo * v_info,
+                                                                 GstAllocationParams * alloc_params,
+                                                                 GstVideoInfo * v_info,
                                                                  guint plane,
-                                                                 const GstVideoAlignment * valign,
+                                                                 GstVideoAlignment * valign,
                                                                  GstGLTextureTarget target,
                                                                  GstGLFormat tex_format);
 GST_GL_API
 GstGLVideoAllocationParams * gst_gl_video_allocation_params_new_wrapped_data    (GstGLContext * context,
-                                                                                 const GstAllocationParams * alloc_params,
-                                                                                 const GstVideoInfo * v_info,
+                                                                                 GstAllocationParams * alloc_params,
+                                                                                 GstVideoInfo * v_info,
                                                                                  guint plane,
-                                                                                 const GstVideoAlignment * valign,
+                                                                                 GstVideoAlignment * valign,
                                                                                  GstGLTextureTarget target,
                                                                                  GstGLFormat tex_format,
                                                                                  gpointer wrapped_data,
@@ -177,10 +165,10 @@ GstGLVideoAllocationParams * gst_gl_video_allocation_params_new_wrapped_data    
 
 GST_GL_API
 GstGLVideoAllocationParams * gst_gl_video_allocation_params_new_wrapped_texture (GstGLContext * context,
-                                                                                 const GstAllocationParams * alloc_params,
-                                                                                 const GstVideoInfo * v_info,
+                                                                                 GstAllocationParams * alloc_params,
+                                                                                 GstVideoInfo * v_info,
                                                                                  guint plane,
-                                                                                 const GstVideoAlignment * valign,
+                                                                                 GstVideoAlignment * valign,
                                                                                  GstGLTextureTarget target,
                                                                                  GstGLFormat tex_format,
                                                                                  guint tex_id,
@@ -189,10 +177,10 @@ GstGLVideoAllocationParams * gst_gl_video_allocation_params_new_wrapped_texture 
 
 GST_GL_API
 GstGLVideoAllocationParams * gst_gl_video_allocation_params_new_wrapped_gl_handle (GstGLContext * context,
-                                                                                 const GstAllocationParams * alloc_params,
-                                                                                 const GstVideoInfo * v_info,
+                                                                                 GstAllocationParams * alloc_params,
+                                                                                 GstVideoInfo * v_info,
                                                                                  guint plane,
-                                                                                 const GstVideoAlignment * valign,
+                                                                                 GstVideoAlignment * valign,
                                                                                  GstGLTextureTarget target,
                                                                                  GstGLFormat tex_format,
                                                                                  gpointer gl_handle,
@@ -214,7 +202,7 @@ void            gst_gl_video_allocation_params_copy_data    (GstGLVideoAllocatio
  */
 struct _GstGLMemoryAllocator
 {
-  /*< private >*/
+  /* <private> */
   GstGLBaseMemoryAllocator parent;
 
   gpointer _padding[GST_PADDING];
@@ -228,15 +216,15 @@ struct _GstGLMemoryAllocator
  */
 struct _GstGLMemoryAllocatorClass
 {
-  /*< private >*/
+  /* <private> */
   GstGLBaseMemoryAllocatorClass             parent_class;
 
-  /*< public >*/
+  /* <public> */
   GstGLBaseMemoryAllocatorMapFunction       map;
   GstGLBaseMemoryAllocatorCopyFunction      copy;
   GstGLBaseMemoryAllocatorUnmapFunction     unmap;
 
-  /*< private >*/
+  /* <private> */
   gpointer                                  _padding[GST_PADDING];
 };
 
@@ -248,15 +236,6 @@ struct _GstGLMemoryAllocatorClass
  * The name of the GL memory allocator
  */
 #define GST_GL_MEMORY_ALLOCATOR_NAME   "GLMemory"
-
-/**
- * GST_TYPE_GL_MEMORY:
- *
- * Since: 1.20
- */
-#define GST_TYPE_GL_MEMORY (gst_gl_memory_get_type())
-GST_GL_API
-GType gst_gl_memory_get_type(void);
 
 GST_GL_API
 void            gst_gl_memory_init_once (void);
@@ -270,10 +249,10 @@ void            gst_gl_memory_init              (GstGLMemory * mem,
                                                  GstGLContext * context,
                                                  GstGLTextureTarget target,
                                                  GstGLFormat tex_format,
-                                                 const GstAllocationParams *params,
-                                                 const GstVideoInfo * info,
+                                                 GstAllocationParams *params,
+                                                 GstVideoInfo * info,
                                                  guint plane,
-                                                 const GstVideoAlignment *valign,
+                                                 GstVideoAlignment *valign,
                                                  gpointer user_data,
                                                  GDestroyNotify notify);
 
@@ -294,7 +273,7 @@ gboolean        gst_gl_memory_copy_teximage     (GstGLMemory * src,
 
 GST_GL_API
 gboolean        gst_gl_memory_read_pixels       (GstGLMemory * gl_mem,
-                                                 gpointer write_pointer);
+                                                 gpointer read_pointer);
 GST_GL_API
 void            gst_gl_memory_texsubimage       (GstGLMemory * gl_mem,
                                                  gpointer read_pointer);

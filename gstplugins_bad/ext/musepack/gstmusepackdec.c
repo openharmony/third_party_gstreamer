@@ -74,12 +74,8 @@ static GstStateChangeReturn
 gst_musepackdec_change_state (GstElement * element, GstStateChange transition);
 
 #define parent_class gst_musepackdec_parent_class
-G_DEFINE_TYPE_WITH_CODE (GstMusepackDec, gst_musepackdec, GST_TYPE_ELEMENT,
-    GST_DEBUG_CATEGORY_INIT (musepackdec_debug, "musepackdec", 0,
-        "mpc decoder");
-    );
-GST_ELEMENT_REGISTER_DEFINE (musepackdec, "musepackdec",
-    GST_RANK_PRIMARY, GST_TYPE_MUSEPACK_DEC);
+G_DEFINE_TYPE (GstMusepackDec, gst_musepackdec, GST_TYPE_ELEMENT);
+
 static void
 gst_musepackdec_class_init (GstMusepackDecClass * klass)
 {
@@ -286,12 +282,12 @@ gst_musepackdec_src_query (GstPad * pad, GstObject * parent, GstQuery * query)
 
   samplerate = g_atomic_int_get (&musepackdec->rate);
 
+  if (samplerate == 0)
+    goto done;
+
   switch (GST_QUERY_TYPE (query)) {
     case GST_QUERY_POSITION:{
       gint64 cur, cur_off;
-
-      if (samplerate == 0)
-        goto done;
 
       gst_query_parse_position (query, &format, NULL);
 
@@ -311,9 +307,6 @@ gst_musepackdec_src_query (GstPad * pad, GstObject * parent, GstQuery * query)
     }
     case GST_QUERY_DURATION:{
       gint64 len, len_off;
-
-      if (samplerate == 0)
-        goto done;
 
       gst_query_parse_duration (query, &format, NULL);
 
@@ -632,7 +625,10 @@ gst_musepackdec_change_state (GstElement * element, GstStateChange transition)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (musepackdec, plugin);
+  GST_DEBUG_CATEGORY_INIT (musepackdec_debug, "musepackdec", 0, "mpc decoder");
+
+  return gst_element_register (plugin, "musepackdec",
+      GST_RANK_PRIMARY, GST_TYPE_MUSEPACK_DEC);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

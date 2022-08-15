@@ -29,11 +29,21 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_ALPHA (gst_alpha_get_type ())
+#define GST_TYPE_ALPHA \
+  (gst_alpha_get_type())
+#define GST_ALPHA(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_ALPHA,GstAlpha))
+#define GST_ALPHA_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_ALPHA,GstAlphaClass))
+#define GST_IS_ALPHA(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_ALPHA))
+#define GST_IS_ALPHA_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_ALPHA))
 
-G_DECLARE_FINAL_TYPE (GstAlpha, gst_alpha, GST, ALPHA, GstVideoFilter)
+typedef struct _GstAlpha GstAlpha;
+typedef struct _GstAlphaClass GstAlphaClass;
 
-/**
+/** 
  * GstAlphaMethod:
  * @ALPHA_METHOD_SET: Set/adjust alpha channel
  * @ALPHA_METHOD_GREEN: Chroma Key green
@@ -92,7 +102,12 @@ struct _GstAlpha
   guint noise_level2;
 };
 
-GST_ELEMENT_REGISTER_DECLARE (alpha);
+struct _GstAlphaClass
+{
+  GstVideoFilterClass parent_class;
+};
+
+GType gst_alpha_get_type (void);
 
 G_END_DECLS
 

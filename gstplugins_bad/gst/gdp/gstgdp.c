@@ -23,17 +23,21 @@
 
 #include "dataprotocol.h"
 
-#include "gstgdpelements.h"
+#include "gstgdppay.h"
+#include "gstgdpdepay.h"
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  gst_dp_init ();
 
-  ret |= GST_ELEMENT_REGISTER (gdpdepay, plugin);
-  ret |= GST_ELEMENT_REGISTER (gdppay, plugin);
+  if (!gst_gdp_depay_plugin_init (plugin))
+    return FALSE;
 
-  return ret;
+  if (!gst_gdp_pay_plugin_init (plugin))
+    return FALSE;
+
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR, GST_VERSION_MINOR,

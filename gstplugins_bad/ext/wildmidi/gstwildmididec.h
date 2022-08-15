@@ -62,7 +62,6 @@ struct _GstWildmidiDecClass
 
 GType gst_wildmidi_dec_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (wildmididec);
 
 G_END_DECLS
 

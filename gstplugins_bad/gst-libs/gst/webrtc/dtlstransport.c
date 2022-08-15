@@ -23,7 +23,7 @@
  * @title: GstWebRTCDTLSTransport
  * @see_also: #GstWebRTCRTPSender, #GstWebRTCRTPReceiver, #GstWebRTCICETransport
  *
- * <https://www.w3.org/TR/webrtc/#rtcdtlstransport>
+ * <ulink url="https://www.w3.org/TR/webrtc/#rtcdtlstransport">https://www.w3.org/TR/webrtc/#rtcdtlstransport</ulink>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -31,8 +31,6 @@
 #endif
 
 #include "dtlstransport.h"
-
-#include "webrtc-priv.h"
 
 #define GST_CAT_DEFAULT gst_webrtc_dtls_transport_debug
 GST_DEBUG_CATEGORY_STATIC (GST_CAT_DEFAULT);
@@ -57,26 +55,20 @@ enum
   PROP_STATE,
   PROP_CLIENT,
   PROP_CERTIFICATE,
-  PROP_REMOTE_CERTIFICATE
+  PROP_REMOTE_CERTIFICATE,
+  PROP_RTCP,
 };
 
 void
 gst_webrtc_dtls_transport_set_transport (GstWebRTCDTLSTransport * transport,
     GstWebRTCICETransport * ice)
 {
-  gboolean notify = FALSE;
-
   g_return_if_fail (GST_IS_WEBRTC_DTLS_TRANSPORT (transport));
   g_return_if_fail (GST_IS_WEBRTC_ICE_TRANSPORT (ice));
 
   GST_OBJECT_LOCK (transport);
-  notify =
-      gst_object_replace ((GstObject **) & transport->transport,
-      GST_OBJECT (ice));
+  gst_object_replace ((GstObject **) & transport->transport, GST_OBJECT (ice));
   GST_OBJECT_UNLOCK (transport);
-
-  if (notify)
-    g_object_notify (G_OBJECT (transport), "transport");
 }
 
 static void
@@ -95,6 +87,9 @@ gst_webrtc_dtls_transport_set_property (GObject * object, guint prop_id,
       break;
     case PROP_CERTIFICATE:
       g_object_set_property (G_OBJECT (webrtc->dtlssrtpdec), "pem", value);
+      break;
+    case PROP_RTCP:
+      webrtc->is_rtcp = g_value_get_boolean (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -128,6 +123,9 @@ gst_webrtc_dtls_transport_get_property (GObject * object, guint prop_id,
     case PROP_REMOTE_CERTIFICATE:
       g_object_get_property (G_OBJECT (webrtc->dtlssrtpdec), "peer-pem", value);
       break;
+    case PROP_RTCP:
+      g_value_set_boolean (value, webrtc->is_rtcp);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -148,36 +146,6 @@ gst_webrtc_dtls_transport_finalize (GObject * object)
 }
 
 static void
-on_connection_state_changed (GObject * obj, GParamSpec * pspec,
-    gpointer user_data)
-{
-  GstWebRTCDTLSTransport *webrtc = GST_WEBRTC_DTLS_TRANSPORT (user_data);
-  gint state;
-
-  g_object_get (obj, "connection-state", &state, NULL);
-  switch (state) {
-    case 0:
-      webrtc->state = GST_WEBRTC_DTLS_TRANSPORT_STATE_NEW;
-      break;
-    case 1:
-      webrtc->state = GST_WEBRTC_DTLS_TRANSPORT_STATE_CLOSED;
-      break;
-    default:
-    case 2:
-      webrtc->state = GST_WEBRTC_DTLS_TRANSPORT_STATE_FAILED;
-      break;
-    case 3:
-      webrtc->state = GST_WEBRTC_DTLS_TRANSPORT_STATE_CONNECTING;
-      break;
-    case 4:
-      webrtc->state = GST_WEBRTC_DTLS_TRANSPORT_STATE_CONNECTED;
-      break;
-  }
-
-  g_object_notify (G_OBJECT (webrtc), "state");
-}
-
-static void
 gst_webrtc_dtls_transport_constructed (GObject * object)
 {
   GstWebRTCDTLSTransport *webrtc = GST_WEBRTC_DTLS_TRANSPORT (object);
@@ -186,19 +154,16 @@ gst_webrtc_dtls_transport_constructed (GObject * object)
   /* XXX: this may collide with another connection_id however this is only a
    * problem if multiple dtls element sets are being used within the same
    * process */
-  connection_id = g_strdup_printf ("rtp_%u_%u", webrtc->session_id,
-      g_random_int ());
+  connection_id = g_strdup_printf ("%s_%u_%u", webrtc->is_rtcp ? "rtcp" : "rtp",
+      webrtc->session_id, g_random_int ());
 
   webrtc->dtlssrtpenc = gst_element_factory_make ("dtlssrtpenc", NULL);
   g_object_set (webrtc->dtlssrtpenc, "connection-id", connection_id,
-      "is-client", webrtc->client, "rtp-sync", FALSE, NULL);
+      "is-client", webrtc->client, NULL);
 
   webrtc->dtlssrtpdec = gst_element_factory_make ("dtlssrtpdec", NULL);
   g_object_set (webrtc->dtlssrtpdec, "connection-id", connection_id, NULL);
   g_free (connection_id);
-
-  g_signal_connect (webrtc->dtlssrtpenc, "notify::connection-state",
-      G_CALLBACK (on_connection_state_changed), webrtc);
 
   G_OBJECT_CLASS (parent_class)->constructed (object);
 }
@@ -226,6 +191,7 @@ gst_webrtc_dtls_transport_class_init (GstWebRTCDTLSTransportClass * klass)
           GST_TYPE_WEBRTC_ICE_TRANSPORT,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
+  /* FIXME: implement */
   g_object_class_install_property (gobject_class,
       PROP_STATE,
       g_param_spec_enum ("state", "DTLS state",
@@ -251,6 +217,12 @@ gst_webrtc_dtls_transport_class_init (GstWebRTCDTLSTransportClass * klass)
       g_param_spec_string ("remote-certificate", "Remote DTLS certificate",
           "Remote DTLS certificate", NULL,
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class,
+      PROP_RTCP,
+      g_param_spec_boolean ("rtcp", "RTCP",
+          "The transport is being used solely for RTCP", FALSE,
+          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS));
 }
 
 static void
@@ -259,8 +231,8 @@ gst_webrtc_dtls_transport_init (GstWebRTCDTLSTransport * webrtc)
 }
 
 GstWebRTCDTLSTransport *
-gst_webrtc_dtls_transport_new (guint session_id)
+gst_webrtc_dtls_transport_new (guint session_id, gboolean is_rtcp)
 {
   return g_object_new (GST_TYPE_WEBRTC_DTLS_TRANSPORT, "session-id", session_id,
-      NULL);
+      "rtcp", is_rtcp, NULL);
 }

@@ -68,7 +68,6 @@ struct _GstVideoFrameAudioLevelClass
 };
 
 GType gst_videoframe_audiolevel_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (videoframe_audiolevel);
 
 G_END_DECLS
 #endif /* __GST_VIDEOFRAME_AUDIOLEVEL_H__ */

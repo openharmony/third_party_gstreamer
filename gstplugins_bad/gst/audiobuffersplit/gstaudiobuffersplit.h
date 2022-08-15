@@ -45,18 +45,15 @@ struct _GstAudioBufferSplit {
   /* Properties */
   gint output_buffer_duration_n;
   gint output_buffer_duration_d;
-  guint output_buffer_size;
 
   /* State */
-  GstSegment in_segment, out_segment;
-  guint32 segment_seqnum;
-  gboolean segment_pending;
+  GstSegment segment;
   GstAudioInfo info;
 
   GstAdapter *adapter;
 
   GstAudioStreamAlign *stream_align;
-  GstClockTime resync_pts, resync_rt;
+  GstClockTime resync_time;
   guint64 current_offset; /* offset from start time in samples */
   guint64 drop_samples; /* number of samples to drop in gapless mode */
 
@@ -74,7 +71,6 @@ struct _GstAudioBufferSplitClass {
 };
 
 GType gst_audio_buffer_split_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (audiobuffersplit);
 
 G_END_DECLS
 

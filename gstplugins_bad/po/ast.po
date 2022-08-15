@@ -5,8 +5,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: gst-plugins-bad 1.12.0\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2021-10-25 01:02+0100\n"
+"Report-Msgid-Bugs-To: http://bugzilla.gnome.org/\n"
+"POT-Creation-Date: 2019-12-03 11:13+0000\n"
 "PO-Revision-Date: 2018-07-16 17:14+0100\n"
 "Last-Translator: enolp <enolp@softastur.org>\n"
 "Language-Team: Asturian <ubuntu-l10n-ast@lists.ubuntu.com>\n"
@@ -73,7 +73,6 @@ msgstr "El formatu de soimaxe nun se configuró enantes de fluxu de datos"
 msgid "Failed to get fragment URL."
 msgstr "Fallu al consiguir la URL del fragmentu."
 
-#, c-format
 msgid "Couldn't download fragments"
 msgstr "Nun pudieron baxase fragamentos"
 
@@ -100,7 +99,6 @@ msgstr "Nun puen numberase los sitemes d'entrega del preséu frontal «%s»."
 msgid "Could not open file \"%s\" for reading."
 msgstr "Nun pudo abrise'l ficheru «%s» pa la llectura."
 
-#, c-format
 msgid "Couldn't find channel configuration file"
 msgstr "Nun pudo alcontrase'l ficheru de configuración de canales"
 
@@ -124,7 +122,6 @@ msgstr "Fallu al afitar les propiedaes pa la canal «%s»"
 msgid "Couldn't find channel configuration file: '%s'"
 msgstr "Nun pudo alcontrase'l ficheru de configuración de canales: %s"
 
-#, c-format
 msgid "Channel configuration file doesn't contain any channels"
 msgstr "El ficheru de configuración de canales nun contién denguna canal"
 

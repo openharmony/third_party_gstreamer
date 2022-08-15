@@ -69,9 +69,6 @@
 #include <gst/video/videoorientation.h>
 #include <gst/video/videooverlay.h>
 #include <gst/video/navigation.h>
-#if defined (TEST_GST_GL_ABI_CHECK)
-#include "gstgl-public-headers.h"
-#endif
 
 /* initial version of the file was generated using:
  * grep -A1 "<STRUCT>" ../../docs/libs/gst-plugins-base-libs-decl.txt | \
@@ -94,9 +91,6 @@
 # define HAVE_ABI_SIZES TRUE
 #elif defined HAVE_CPU_ARM
 # include "struct_arm.h"
-# define HAVE_ABI_SIZES FALSE
-#elif defined HAVE_CPU_AARCH64
-# include "struct_aarch64.h"
 # define HAVE_ABI_SIZES FALSE
 #elif defined HAVE_CPU_PPC
 # include "struct_ppc32.h"

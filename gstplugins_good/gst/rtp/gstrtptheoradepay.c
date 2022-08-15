@@ -26,7 +26,6 @@
 #include <gst/video/video.h>
 
 #include <string.h>
-#include "gstrtpelements.h"
 #include "gstrtptheoradepay.h"
 #include "gstrtputils.h"
 
@@ -65,8 +64,6 @@ GST_STATIC_PAD_TEMPLATE ("src",
 #define gst_rtp_theora_depay_parent_class parent_class
 G_DEFINE_TYPE (GstRtpTheoraDepay, gst_rtp_theora_depay,
     GST_TYPE_RTP_BASE_DEPAYLOAD);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtptheoradepay, "rtptheoradepay",
-    GST_RANK_SECONDARY, GST_TYPE_RTP_THEORA_DEPAY, rtp_element_init (plugin));
 
 static gboolean gst_rtp_theora_depay_setcaps (GstRTPBaseDepayload * depayload,
     GstCaps * caps);
@@ -602,7 +599,7 @@ no_output:
 
   return NULL;
 
-  /* ERRORS */
+  /* ERORRS */
 switch_failed:
   {
     GST_ELEMENT_WARNING (rtptheoradepay, STREAM, DECODE,
@@ -681,6 +678,13 @@ gst_rtp_theora_depay_change_state (GstElement * element,
       break;
   }
   return ret;
+}
+
+gboolean
+gst_rtp_theora_depay_plugin_init (GstPlugin * plugin)
+{
+  return gst_element_register (plugin, "rtptheoradepay",
+      GST_RANK_SECONDARY, GST_TYPE_RTP_THEORA_DEPAY);
 }
 
 static gboolean

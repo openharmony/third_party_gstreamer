@@ -1,6 +1,5 @@
 kate_sources = [
   'gstkate.c',
-  'gstkateelement.c',
   'gstkatedec.c',
   'gstkateenc.c',
   'gstkateparse.c',
@@ -23,5 +22,4 @@ if kate_dep.found()
     install : true,
     install_dir : plugins_install_dir)
   pkgconfig.generate(gstkate, install_dir : plugins_pkgconfig_install_dir)
-  plugins += [gstkate]
 endif

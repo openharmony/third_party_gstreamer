@@ -43,6 +43,9 @@
  *    clipped properly during blitting (if wrapping is disabled)
  */
 
+GST_DEBUG_CATEGORY (pango_debug);
+#define GST_CAT_DEFAULT pango_debug
+
 #define DEFAULT_PROP_TEXT 	""
 #define DEFAULT_PROP_SHADING	FALSE
 #define DEFAULT_PROP_VALIGNMENT	GST_BASE_TEXT_OVERLAY_VALIGN_BASELINE
@@ -111,9 +114,6 @@ enum
   PROP_TEXT_HEIGHT,
   PROP_LAST
 };
-
-GST_DEBUG_CATEGORY_STATIC (base_text_overlay_debug);
-#define GST_CAT_DEFAULT base_text_overlay_debug
 
 #define VIDEO_FORMATS GST_VIDEO_OVERLAY_COMPOSITION_BLEND_FORMATS
 
@@ -348,9 +348,6 @@ gst_base_text_overlay_class_init (GstBaseTextOverlayClass * klass)
   GObjectClass *gobject_class;
   GstElementClass *gstelement_class;
 
-  GST_DEBUG_CATEGORY_INIT (base_text_overlay_debug, "basetextoverlay", 0,
-      "Base Text Overlay");
-
   gobject_class = (GObjectClass *) klass;
   gstelement_class = (GstElementClass *) klass;
 
@@ -382,8 +379,7 @@ gst_base_text_overlay_class_init (GstBaseTextOverlayClass * klass)
       g_param_spec_uint ("shading-value", "background shading value",
           "Shading value to apply if shaded-background is true", 1, 255,
           DEFAULT_PROP_SHADING_VALUE,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
-          GST_PARAM_DOC_SHOW_DEFAULT));
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_VALIGNMENT,
       g_param_spec_enum ("valignment", "vertical alignment",
           "Vertical alignment of the text", GST_TYPE_BASE_TEXT_OVERLAY_VALIGN,
@@ -391,9 +387,7 @@ gst_base_text_overlay_class_init (GstBaseTextOverlayClass * klass)
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_HALIGNMENT,
       g_param_spec_enum ("halignment", "horizontal alignment",
           "Horizontal alignment of the text", GST_TYPE_BASE_TEXT_OVERLAY_HALIGN,
-          DEFAULT_PROP_HALIGNMENT,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
-          GST_PARAM_DOC_SHOW_DEFAULT));
+          DEFAULT_PROP_HALIGNMENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_XPAD,
       g_param_spec_int ("xpad", "horizontal paddding",
           "Horizontal paddding when using left/right alignment", 0, G_MAXINT,
@@ -409,8 +403,8 @@ gst_base_text_overlay_class_init (GstBaseTextOverlayClass * klass)
           GST_PARAM_CONTROLLABLE | G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_DELTAY,
       g_param_spec_int ("deltay", "Y position modifier",
-          "Shift Y position up or down. Unit is pixels.", G_MININT, G_MAXINT,
-          DEFAULT_PROP_DELTAY,
+          "Shift Y position up or down. Unit is pixels.",
+          G_MININT, G_MAXINT, DEFAULT_PROP_DELTAY,
           GST_PARAM_CONTROLLABLE | G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /**
@@ -636,13 +630,6 @@ gst_base_text_overlay_class_init (GstBaseTextOverlayClass * klass)
           "Pixel aspect ratio of video scale to compensate for in user scale-mode",
           1, 100, 100, 1, DEFAULT_PROP_SCALE_PAR_N, DEFAULT_PROP_SCALE_PAR_D,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  gst_type_mark_as_plugin_api (GST_TYPE_BASE_TEXT_OVERLAY_HALIGN, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_BASE_TEXT_OVERLAY_VALIGN, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_BASE_TEXT_OVERLAY_LINE_ALIGN, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_BASE_TEXT_OVERLAY_SCALE_MODE, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_BASE_TEXT_OVERLAY_WRAP_MODE, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_BASE_TEXT_OVERLAY, 0);
 }
 
 static void
@@ -895,7 +882,7 @@ gst_base_text_overlay_negotiate (GstBaseTextOverlay * overlay, GstCaps * caps)
   }
 
   if (upstream_has_meta || caps_has_meta) {
-    /* Send caps immediately, it's needed by GstBaseTransform to get a reply
+    /* Send caps immediatly, it's needed by GstBaseTransform to get a reply
      * from allocation query */
     ret = gst_pad_set_caps (overlay->srcpad, overlay_caps);
 
@@ -1868,7 +1855,7 @@ gst_base_text_overlay_render_pangocairo (GstBaseTextOverlay * overlay,
     overlay->ink_rect.y = tmp.x;
     overlay->ink_rect.width = tmp.height;
     overlay->ink_rect.height = tmp.width;
-    /* We want the top left correct, but we now have the top right */
+    /* We want the top left corect, but we now have the top right */
     overlay->ink_rect.x += overlay->ink_rect.width;
 
     tmp = overlay->logical_rect;
@@ -1914,7 +1901,7 @@ gst_base_text_overlay_render_pangocairo (GstBaseTextOverlay * overlay,
   if (overlay->use_vertical_render) {
     gint tmp;
 
-    /* translate to the center of the image, rotate, and translate the rotated
+    /* tranlate to the center of the image, rotate, and tranlate the rotated
      * image back to the right place */
     cairo_matrix_translate (&cairo_matrix, unscaled_height / 2.0l,
         unscaled_width / 2.0l);
@@ -3078,3 +3065,28 @@ gst_base_text_overlay_change_state (GstElement * element,
 
   return ret;
 }
+
+static gboolean
+plugin_init (GstPlugin * plugin)
+{
+  if (!gst_element_register (plugin, "textoverlay", GST_RANK_NONE,
+          GST_TYPE_TEXT_OVERLAY) ||
+      !gst_element_register (plugin, "timeoverlay", GST_RANK_NONE,
+          GST_TYPE_TIME_OVERLAY) ||
+      !gst_element_register (plugin, "clockoverlay", GST_RANK_NONE,
+          GST_TYPE_CLOCK_OVERLAY) ||
+      !gst_element_register (plugin, "textrender", GST_RANK_NONE,
+          GST_TYPE_TEXT_RENDER)) {
+    return FALSE;
+  }
+
+  /*texttestsrc_plugin_init(module, plugin); */
+
+  GST_DEBUG_CATEGORY_INIT (pango_debug, "pango", 0, "Pango elements");
+
+  return TRUE;
+}
+
+GST_PLUGIN_DEFINE (GST_VERSION_MAJOR, GST_VERSION_MINOR,
+    pango, "Pango-based text rendering and overlay", plugin_init,
+    VERSION, GST_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)

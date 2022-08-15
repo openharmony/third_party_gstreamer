@@ -29,7 +29,6 @@
 #include <gst/base/gstbaseparse.h>
 #include <gst/codecparsers/gsth264parser.h>
 #include <gst/video/video.h>
-#include "gstvideoparseutils.h"
 
 G_BEGIN_DECLS
 
@@ -61,7 +60,6 @@ struct _GstH264Parse
   gint upstream_par_n, upstream_par_d;
   gint parsed_par_n, parsed_par_d;
   gint parsed_fps_n, parsed_fps_d;
-  GstVideoColorimetry parsed_colorimetry;
   /* current codec_data in output caps, if any */
   GstBuffer *codec_data;
   /* input codec_data, if any */
@@ -92,17 +90,7 @@ struct _GstH264Parse
   gboolean have_sps_in_frame;
   gboolean have_pps_in_frame;
 
-  /* per frame AU Delimiter check used when in_format == avc or avc3 */
-  gboolean have_aud_in_frame;
-
-  /* tracing state whether h264parse needs to insert AUD or not.
-   * Used when in_format == byte-stream */
-  gboolean aud_needed;
-
-  /* For insertion of AU Delimiter */
-  gboolean aud_insert;
-
-  gboolean first_frame;
+  gboolean sent_codec_tag;
 
   /* collected SPS and PPS NALUs */
   GstBuffer *sps_nals[GST_H264_MAX_SPS_COUNT];
@@ -110,7 +98,7 @@ struct _GstH264Parse
 
   /* collected SEI timestamps */
   guint num_clock_timestamp;
-  GstH264PicTiming pic_timing_sei;
+  GstH264ClockTimestamp clock_timestamp[3];
 
   /* Infos we need to keep track of */
   guint32 sei_cpb_removal_delay;
@@ -126,19 +114,14 @@ struct _GstH264Parse
   gboolean do_ts;
 
   gboolean discont;
-  gboolean marker;
 
   /* frame parsing */
   /*guint last_nal_pos;*/
   /*guint next_sc_pos;*/
   gint idr_pos, sei_pos;
-  gint pic_timing_sei_pos;
-  gint pic_timing_sei_size;
   gboolean update_caps;
   GstAdapter *frame_out;
   gboolean keyframe;
-  gboolean predicted;
-  gboolean bidirectional;
   gboolean header;
   gboolean frame_start;
   /* AU state */
@@ -146,7 +129,6 @@ struct _GstH264Parse
 
   /* props */
   gint interval;
-  gboolean update_timecode;
 
   GstClockTime pending_key_unit_ts;
   GstEvent *force_key_unit_event;
@@ -156,16 +138,14 @@ struct _GstH264Parse
   GstVideoMultiviewFlags multiview_flags;
   gboolean first_in_bundle;
 
-  GstVideoParseUserData user_data;
+  /* For insertion of AU Delimiter */
+  gboolean aud_needed;
+  gboolean aud_insert;
 
-  GstVideoMasteringDisplayInfo mastering_display_info;
-  guint mastering_display_info_state;
-
-  GstVideoContentLightLevel content_light_level;
-  guint content_light_level_state;
-
-  /* For forward predicted trickmode */
-  gboolean discard_bidirectional;
+  /* pending closed captions */
+  guint8 closedcaptions[96];
+  guint closedcaptions_size;
+  GstVideoCaptionType closedcaptions_type;
 };
 
 struct _GstH264ParseClass

@@ -45,7 +45,6 @@ static void gst_sdp_src_handler_init (gpointer g_iface, gpointer iface_data);
 #define gst_sdp_src_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstSdpSrc, gst_sdp_src, GST_TYPE_BIN,
     G_IMPLEMENT_INTERFACE (GST_TYPE_URI_HANDLER, gst_sdp_src_handler_init));
-GST_ELEMENT_REGISTER_DEFINE (sdpsrc, "sdpsrc", GST_RANK_NONE, GST_TYPE_SDP_SRC);
 
 static void
 gst_sdp_src_finalize (GObject * object)
@@ -111,21 +110,26 @@ pad_added_cb (GstElement * element, GstPad * pad, gpointer user_data)
       gst_static_pad_template_get (&src_template));
   gst_pad_set_active (ghost, TRUE);
   gst_element_add_pad (GST_ELEMENT_CAST (self), ghost);
-  g_object_set_data (G_OBJECT (pad), "GstSdpSrc.ghostpad", ghost);
 }
 
 static void
 pad_removed_cb (GstElement * element, GstPad * pad, gpointer user_data)
 {
   GstSdpSrc *self = GST_SDP_SRC_CAST (user_data);
-  GstPad *ghost;
+  GstPad *peer;
 
-  ghost = g_object_get_data (G_OBJECT (pad), "GstSdpSrc.ghostpad");
-  if (ghost) {
-    g_object_set_data (G_OBJECT (pad), "GstSdpSrc.ghostpad", NULL);
+  peer = gst_pad_get_peer (pad);
+  if (peer) {
+    GstPad *ghost =
+        GST_PAD_CAST (gst_proxy_pad_get_internal (GST_PROXY_PAD (peer)));
 
-    gst_pad_set_active (ghost, FALSE);
-    gst_element_remove_pad (GST_ELEMENT_CAST (self), ghost);
+    if (ghost) {
+      gst_ghost_pad_set_target (GST_GHOST_PAD_CAST (ghost), NULL);
+      gst_element_remove_pad (GST_ELEMENT_CAST (self), ghost);
+      gst_object_unref (ghost);
+    }
+
+    gst_object_unref (peer);
   }
 }
 
@@ -160,11 +164,8 @@ gst_sdp_src_change_state (GstElement * element, GstStateChange transition)
       if (self->location && strcmp (self->location, "sdp://") != 0) {
         /* Do nothing */
       } else if (self->sdp) {
-        guint sdp_len = strlen (self->sdp);
-
         self->sdp_buffer =
-            gst_buffer_new_wrapped (g_strndup (self->sdp, sdp_len),
-            sdp_len + 1);
+            gst_buffer_new_wrapped (self->sdp, strlen (self->sdp) + 1);
       } else {
         ret = GST_STATE_CHANGE_FAILURE;
       }

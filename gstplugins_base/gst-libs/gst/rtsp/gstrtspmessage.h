@@ -288,8 +288,6 @@ typedef struct _GstRTSPAuthParam GstRTSPAuthParam;
  * @authorization: The authorization for the basic schem
  *
  * RTSP Authentication credentials
- *
- * Since: 1.12
  */
 struct _GstRTSPAuthCredential {
   GstRTSPAuthMethod scheme;
@@ -308,8 +306,6 @@ struct _GstRTSPAuthCredential {
  * @value: The value of the parameter
  *
  * RTSP Authentication parameter
- *
- * Since: 1.12
  */
 struct _GstRTSPAuthParam {
   gchar *name;

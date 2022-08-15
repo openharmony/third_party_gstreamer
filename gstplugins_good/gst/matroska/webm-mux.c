@@ -19,11 +19,11 @@
 
 /**
  * SECTION:element-webmmux
- * @title: webmmux
  *
  * webmmux muxes VP8 video and Vorbis audio streams into a WebM file.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 webmmux name=mux ! filesink location=newfile.webm         \
  *   uridecodebin uri=file:///path/to/somefile.ogv name=demux                \
@@ -35,14 +35,13 @@
  *   videotestsrc num-buffers=250 ! video/x-raw,framerate=25/1 ! videoconvert ! vp8enc ! queue ! mux.video_0 \
  *   audiotestsrc samplesperbuffer=44100 num-buffers=10 ! audio/x-raw,rate=44100 ! vorbisenc ! queue ! mux.audio_0
  * ]| This pipeline muxes a test video and a sine wave into a WebM file.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
-#include "gstmatroskaelements.h"
 #include "webm-mux.h"
 
 #define COMMON_VIDEO_CAPS \
@@ -55,8 +54,6 @@
   "rate = (int) [ 1, MAX ]"
 
 G_DEFINE_TYPE (GstWebMMux, gst_webm_mux, GST_TYPE_MATROSKA_MUX);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (webmmux, "webmmux",
-    GST_RANK_PRIMARY, GST_TYPE_WEBM_MUX, matroska_element_init (plugin));
 
 static GstStaticPadTemplate webm_src_templ = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,

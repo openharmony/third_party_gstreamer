@@ -29,7 +29,6 @@
 
 #include <ImfRgbaFile.h>
 #include <ImfIO.h>
-#include <ImfInt64.h>
 using namespace Imf;
 using namespace Imath;
 
@@ -113,8 +112,6 @@ GST_STATIC_PAD_TEMPLATE ("src",
 
 #define parent_class gst_openexr_dec_parent_class
 G_DEFINE_TYPE (GstOpenEXRDec, gst_openexr_dec, GST_TYPE_VIDEO_DECODER);
-GST_ELEMENT_REGISTER_DEFINE (openexrdec, "openexrdec", GST_RANK_PRIMARY,
-          GST_TYPE_OPENEXR_DEC);
 
 static void
 gst_openexr_dec_class_init (GstOpenEXRDecClass * klass)

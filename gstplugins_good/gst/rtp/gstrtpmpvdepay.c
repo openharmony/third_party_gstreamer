@@ -25,7 +25,6 @@
 #include <gst/video/video.h>
 
 #include <string.h>
-#include "gstrtpelements.h"
 #include "gstrtpmpvdepay.h"
 #include "gstrtputils.h"
 
@@ -56,8 +55,6 @@ static GstStaticPadTemplate gst_rtp_mpv_depay_sink_template =
     );
 
 G_DEFINE_TYPE (GstRtpMPVDepay, gst_rtp_mpv_depay, GST_TYPE_RTP_BASE_DEPAYLOAD);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpmpvdepay, "rtpmpvdepay",
-    GST_RANK_SECONDARY, GST_TYPE_RTP_MPV_DEPAY, rtp_element_init (plugin));
 
 static gboolean gst_rtp_mpv_depay_setcaps (GstRTPBaseDepayload * depayload,
     GstCaps * caps);
@@ -191,4 +188,11 @@ empty_packet:
         (NULL), ("Empty payload."));
     return NULL;
   }
+}
+
+gboolean
+gst_rtp_mpv_depay_plugin_init (GstPlugin * plugin)
+{
+  return gst_element_register (plugin, "rtpmpvdepay",
+      GST_RANK_SECONDARY, GST_TYPE_RTP_MPV_DEPAY);
 }

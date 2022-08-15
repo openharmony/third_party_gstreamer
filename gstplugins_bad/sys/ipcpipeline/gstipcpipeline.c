@@ -22,15 +22,21 @@
 #include "config.h"
 #endif
 
-#include "gstipcpipelineelements.h"
-
+#include "gstipcpipelinecomm.h"
+#include "gstipcpipelinesink.h"
+#include "gstipcpipelinesrc.h"
+#include "gstipcslavepipeline.h"
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  GST_ELEMENT_REGISTER (ipcpipelinesrc, plugin);
-  GST_ELEMENT_REGISTER (ipcpipelinesink, plugin);
-  GST_ELEMENT_REGISTER (ipcslavepipeline, plugin);
+  gst_ipc_pipeline_comm_plugin_init ();
+  gst_element_register (plugin, "ipcpipelinesrc", GST_RANK_NONE,
+      GST_TYPE_IPC_PIPELINE_SRC);
+  gst_element_register (plugin, "ipcpipelinesink", GST_RANK_NONE,
+      GST_TYPE_IPC_PIPELINE_SINK);
+  gst_element_register (plugin, "ipcslavepipeline", GST_RANK_NONE,
+      GST_TYPE_IPC_SLAVE_PIPELINE);
 
   return TRUE;
 }

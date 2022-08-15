@@ -58,6 +58,8 @@ struct _GstRtpMP4APayClass
 
 GType gst_rtp_mp4a_pay_get_type (void);
 
+gboolean gst_rtp_mp4a_pay_plugin_init (GstPlugin * plugin);
+
 G_END_DECLS
 
 #endif /* __GST_RTP_MP4A_PAY_H__ */

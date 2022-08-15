@@ -15,5 +15,4 @@ if de265_dep.found()
     install_dir : plugins_install_dir,
   )
   pkgconfig.generate(gstde265, install_dir : plugins_pkgconfig_install_dir)
-  plugins += [gstde265]
 endif

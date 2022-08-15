@@ -34,12 +34,12 @@ typedef struct _GstRtpPtDemuxPad GstRtpPtDemuxPad;
 
 struct _GstRtpPtDemux
 {
-  GstElement parent;  /*< parent class */
+  GstElement parent;  /**< parent class */
 
-  GstPad *sink;       /*< the sink pad */
-  guint16 last_pt;    /*< pt of the last packet 0xFFFF if none */
-  GSList *srcpads;    /*< a linked list of GstRtpPtDemuxPad objects */
-  GValue ignored_pts; /*< a GstValueArray of payload types that will not have pads created for */
+  GstPad *sink;       /**< the sink pad */
+  guint16 last_pt;    /**< pt of the last packet 0xFFFF if none */
+  GSList *srcpads;    /**< a linked list of GstRtpPtDemuxPad objects */
+  GValue ignored_pts; /**< a GstValueArray of payload types that will not have pads created for */
 };
 
 struct _GstRtpPtDemuxClass
@@ -49,7 +49,7 @@ struct _GstRtpPtDemuxClass
   /* get the caps for pt */
   GstCaps* (*request_pt_map)      (GstRtpPtDemux *demux, guint pt);
 
-  /* signal emitted when a new PT is found from the incoming stream */
+  /* signal emmited when a new PT is found from the incoming stream */
   void     (*new_payload_type)    (GstRtpPtDemux *demux, guint pt, GstPad * pad);
 
   /* signal emitted when the payload type changes */
@@ -59,7 +59,5 @@ struct _GstRtpPtDemuxClass
 };
 
 GType gst_rtp_pt_demux_get_type (void);
-
-GST_ELEMENT_REGISTER_DECLARE (rtpptdemux);
 
 #endif /* __GST_RTP_PT_DEMUX_H__ */

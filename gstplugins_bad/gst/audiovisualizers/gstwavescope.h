@@ -53,8 +53,7 @@ struct _GstWaveScopeClass
 };
 
 GType gst_wave_scope_get_type (void);
-
-GST_ELEMENT_REGISTER_DECLARE (wavescope);
+gboolean gst_wave_scope_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 #endif /* __GST_WAVE_SCOPE_H__ */

@@ -9,10 +9,12 @@
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  gboolean ret;
 
-  ret |= GST_ELEMENT_REGISTER (videoparse, plugin);
-  ret |= GST_ELEMENT_REGISTER (audioparse, plugin);
+  ret = gst_element_register (plugin, "videoparse", GST_RANK_NONE,
+      gst_video_parse_get_type ());
+  ret &= gst_element_register (plugin, "audioparse", GST_RANK_NONE,
+      gst_audio_parse_get_type ());
 
   return ret;
 }

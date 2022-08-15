@@ -23,14 +23,7 @@
 #include "corevideobuffer.h"
 #include "corevideomemory.h"
 #if !HAVE_IOS
-#include "iosurfaceglmemory.h"
-#endif
-#include "videotexturecache-gl.h"
-#if defined(APPLEMEDIA_MOLTENVK)
-#include "videotexturecache-vulkan.h"
-#if !HAVE_IOS
-#include "iosurfacevulkanmemory.h"
-#endif
+#include "iosurfacememory.h"
 #endif
 
 static const GstMetaInfo *gst_core_video_meta_get_info (void);
@@ -80,7 +73,7 @@ gst_core_video_meta_transform (GstBuffer * transbuf, GstCoreVideoMeta * meta,
 GType
 gst_core_video_meta_api_get_type (void)
 {
-  static GType type;
+  static volatile GType type;
   static const gchar *tags[] = { "memory", NULL };
 
   if (g_once_init_enter (&type)) {
@@ -113,28 +106,19 @@ _create_glmem (GstAppleCoreVideoPixelBuffer * gpixbuf,
 #if HAVE_IOS
   return gst_video_texture_cache_create_memory (cache, gpixbuf, plane, size);
 #else
-  GstIOSurfaceGLMemory *mem;
+  GstIOSurfaceMemory *mem;
+  GstGLFormat tex_format =
+      gst_gl_format_from_video_info (cache->ctx, info, plane);
   CVPixelBufferRef pixel_buf = gpixbuf->buf;
   IOSurfaceRef surface = CVPixelBufferGetIOSurface (pixel_buf);
-  GstGLFormat tex_format;
-  GstVideoTextureCacheGL *cache_gl = GST_VIDEO_TEXTURE_CACHE_GL (cache);
-
-  tex_format = gst_gl_format_from_video_info (cache_gl->ctx, info, plane);
 
   CFRetain (pixel_buf);
-  mem = gst_io_surface_gl_memory_wrapped (cache_gl->ctx,
+  mem = gst_io_surface_memory_wrapped (cache->ctx,
       surface, GST_GL_TEXTURE_TARGET_RECTANGLE, tex_format,
       info, plane, NULL, pixel_buf, (GDestroyNotify) CFRelease);
   return GST_MEMORY_CAST (mem);
 #endif
 }
-
-#if defined(APPLEMEDIA_MOLTENVK)
-/* in videotexturecache-vulkan.m to avoid objc-ism from Metal being included
-  * in a non-objc file */
-extern GstMemory *_create_vulkan_memory (GstAppleCoreVideoPixelBuffer * gpixbuf,
-    GstVideoInfo * info, guint plane, gsize size, GstVideoTextureCache * cache);
-#endif
 
 void
 gst_core_video_wrap_pixel_buffer (GstBuffer * buf,
@@ -148,10 +132,7 @@ gst_core_video_wrap_pixel_buffer (GstBuffer * buf,
   UInt32 size;
   GstAppleCoreVideoPixelBuffer *gpixbuf;
   GstMemory *mem = NULL;
-  gboolean do_gl = GST_IS_VIDEO_TEXTURE_CACHE_GL (cache);
-#if defined(APPLEMEDIA_MOLTENVK)
-  gboolean do_vulkan = GST_IS_VIDEO_TEXTURE_CACHE_VULKAN (cache);
-#endif
+  gboolean do_gl = cache != NULL;
 
   gpixbuf = gst_apple_core_video_pixel_buffer_new (pixel_buf);
 
@@ -174,10 +155,6 @@ gst_core_video_wrap_pixel_buffer (GstBuffer * buf,
 
       if (do_gl)
         mem = _create_glmem (gpixbuf, info, i, size, cache);
-#if defined(APPLEMEDIA_MOLTENVK)
-      else if (do_vulkan)
-        mem = _create_vulkan_memory (gpixbuf, info, i, size, cache);
-#endif
       else
         mem =
             GST_MEMORY_CAST (gst_apple_core_video_memory_new_wrapped (gpixbuf,
@@ -192,10 +169,6 @@ gst_core_video_wrap_pixel_buffer (GstBuffer * buf,
 
     if (do_gl)
       mem = _create_glmem (gpixbuf, info, 0, size, cache);
-#if defined(APPLEMEDIA_MOLTENVK)
-    else if (do_vulkan)
-      mem = _create_vulkan_memory (gpixbuf, info, 0, size, cache);
-#endif
     else
       mem =
           GST_MEMORY_CAST (gst_apple_core_video_memory_new_wrapped (gpixbuf, 0,
@@ -206,7 +179,10 @@ gst_core_video_wrap_pixel_buffer (GstBuffer * buf,
   gst_apple_core_video_pixel_buffer_unref (gpixbuf);
 
   if (info) {
-    gst_buffer_add_video_meta_full (buf, GST_VIDEO_FRAME_FLAG_NONE,
+    GstVideoMeta *video_meta;
+
+    video_meta =
+        gst_buffer_add_video_meta_full (buf, GST_VIDEO_FRAME_FLAG_NONE,
         GST_VIDEO_INFO_FORMAT (info), info->width, info->height, n_planes,
         offset, stride);
   }

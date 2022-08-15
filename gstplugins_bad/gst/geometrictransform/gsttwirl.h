@@ -80,7 +80,7 @@ struct _GstTwirlClass
 
 GType gst_twirl_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (twirl);
+gboolean gst_twirl_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 

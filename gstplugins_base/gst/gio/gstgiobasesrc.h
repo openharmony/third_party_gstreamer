@@ -2,7 +2,7 @@
  *
  * Copyright (C) 2007 Rene Stadler <mail@renestadler.de>
  * Copyright (C) 2007-2009 Sebastian Dröge <slomo@circular-chaos.org>
- *
+ * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
  * License as published by the Free Software Foundation; either
@@ -22,8 +22,8 @@
 #ifndef __GST_GIO_BASE_SRC_H__
 #define __GST_GIO_BASE_SRC_H__
 
-#include <gst/gst.h>
-#include <gio/gio.h>
+#include "gstgio.h"
+
 #include <gst/base/gstbasesrc.h>
 
 G_BEGIN_DECLS
@@ -47,7 +47,7 @@ typedef struct _GstGioBaseSrcClass GstGioBaseSrcClass;
 struct _GstGioBaseSrc
 {
   GstBaseSrc src;
-
+  
   /* < protected > */
   GCancellable *cancel;
   guint64 position;
@@ -57,23 +57,15 @@ struct _GstGioBaseSrc
   GstBuffer *cache;
 };
 
-struct _GstGioBaseSrcClass
+struct _GstGioBaseSrcClass 
 {
   GstBaseSrcClass parent_class;
 
   GInputStream * (*get_stream) (GstGioBaseSrc *bsrc);
-
-  /* Returns TRUE if the files grew and we should try
-    reading again, FALSE otherwise */
-  gboolean (*wait_for_data) (GstGioBaseSrc *bsrc);
-  void (*waited_for_data) (GstGioBaseSrc *bsrc);
-
   gboolean close_on_stop;
 };
 
 GType gst_gio_base_src_get_type (void);
-
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (GstGioBaseSrc, gst_object_unref)
 
 G_END_DECLS
 

@@ -52,8 +52,6 @@
 #include <gst/pbutils/pbutils.h>
 #include <gst/tag/tag.h>
 #include <gst/glib-compat-private.h>
-
-#include "gstopuselements.h"
 #include "gstopusheader.h"
 #include "gstopuscommon.h"
 #include "gstopusenc.h"
@@ -80,7 +78,7 @@ gst_opus_enc_bandwidth_get_type (void)
     {OPUS_AUTO, "Auto", "auto"},
     {0, NULL, NULL}
   };
-  static GType id = 0;
+  static volatile GType id = 0;
 
   if (g_once_init_enter ((gsize *) & id)) {
     GType _id;
@@ -106,7 +104,7 @@ gst_opus_enc_frame_size_get_type (void)
     {60, "60", "60"},
     {0, NULL, NULL}
   };
-  static GType id = 0;
+  static volatile GType id = 0;
 
   if (g_once_init_enter ((gsize *) & id)) {
     GType _id;
@@ -126,11 +124,9 @@ gst_opus_enc_audio_type_get_type (void)
   static const GEnumValue values[] = {
     {OPUS_APPLICATION_AUDIO, "Generic audio", "generic"},
     {OPUS_APPLICATION_VOIP, "Voice", "voice"},
-    {OPUS_APPLICATION_RESTRICTED_LOWDELAY, "Restricted low delay",
-        "restricted-lowdelay"},
     {0, NULL, NULL}
   };
-  static GType id = 0;
+  static volatile GType id = 0;
 
   if (g_once_init_enter ((gsize *) & id)) {
     GType _id;
@@ -153,7 +149,7 @@ gst_opus_enc_bitrate_type_get_type (void)
     {BITRATE_TYPE_CONSTRAINED_VBR, "Constrained VBR", "constrained-vbr"},
     {0, NULL, NULL}
   };
-  static GType id = 0;
+  static volatile GType id = 0;
 
   if (g_once_init_enter ((gsize *) & id)) {
     GType _id;
@@ -245,8 +241,6 @@ static GstFlowReturn gst_opus_enc_encode (GstOpusEnc * enc, GstBuffer * buffer);
 G_DEFINE_TYPE_WITH_CODE (GstOpusEnc, gst_opus_enc, GST_TYPE_AUDIO_ENCODER,
     G_IMPLEMENT_INTERFACE (GST_TYPE_TAG_SETTER, NULL);
     G_IMPLEMENT_INTERFACE (GST_TYPE_PRESET, NULL));
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (opusenc, "opusenc",
-    GST_RANK_PRIMARY, GST_TYPE_OPUS_ENC, opus_element_init (plugin));
 
 static void
 gst_opus_enc_set_tags (GstOpusEnc * enc)
@@ -348,11 +342,6 @@ gst_opus_enc_class_init (GstOpusEncClass * klass)
   gobject_class->finalize = GST_DEBUG_FUNCPTR (gst_opus_enc_finalize);
 
   GST_DEBUG_CATEGORY_INIT (opusenc_debug, "opusenc", 0, "Opus encoder");
-
-  gst_type_mark_as_plugin_api (GST_OPUS_ENC_TYPE_AUDIO_TYPE, 0);
-  gst_type_mark_as_plugin_api (GST_OPUS_ENC_TYPE_BANDWIDTH, 0);
-  gst_type_mark_as_plugin_api (GST_OPUS_ENC_TYPE_BITRATE_TYPE, 0);
-  gst_type_mark_as_plugin_api (GST_OPUS_ENC_TYPE_FRAME_SIZE, 0);
 }
 
 static void
@@ -819,7 +808,7 @@ gst_opus_enc_sink_event (GstAudioEncoder * benc, GstEvent * event)
 static GstCaps *
 gst_opus_enc_get_sink_template_caps (void)
 {
-  static gsize init = 0;
+  static volatile gsize init = 0;
   static GstCaps *caps = NULL;
 
   if (g_once_init_enter (&init)) {

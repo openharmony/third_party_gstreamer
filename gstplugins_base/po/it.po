@@ -7,8 +7,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: gst-plugins-base-1.16.0\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2021-10-25 01:01+0100\n"
+"Report-Msgid-Bugs-To: http://bugzilla.gnome.org/\n"
+"POT-Creation-Date: 2019-12-03 11:03+0000\n"
 "PO-Revision-Date: 2019-09-03 10:01+0200\n"
 "Last-Translator: Milo Casagrande <milo@milo.name>\n"
 "Language-Team: Italian <tp@lists.linux.it>\n"
@@ -82,16 +82,25 @@ msgstr "Impossibile effettuare il posizionamento nel CD."
 msgid "Could not read CD."
 msgstr "Impossibile leggere il CD."
 
-msgid "Could not determine type of stream"
-msgstr "Impossibile determinare il tipo di flusso"
+msgid "failed to draw pattern"
+msgstr "generazione modello non riuscita"
 
-msgid "This appears to be a text file"
-msgstr "Questo sembra essere un file di testo"
+msgid "A GL error occurred"
+msgstr "Si è verificato un errore GL"
+
+msgid "format wasn't negotiated before get function"
+msgstr "il formato non è stato concordato prima della funzione get"
 
 #, c-format
 msgid "Missing element '%s' - check your GStreamer installation."
 msgstr ""
 "Elemento «%s» mancante - verificare la propria installazione di GStreamer."
+
+msgid "Could not determine type of stream"
+msgstr "Impossibile determinare il tipo di flusso"
+
+msgid "This appears to be a text file"
+msgstr "Questo sembra essere un file di testo"
 
 msgid "Could not create \"uridecodebin\" element."
 msgstr "Impossibile creare l'elemento «uridecodebin»."
@@ -176,15 +185,6 @@ msgstr "Impossibile registrare l'audio a velocità adeguata"
 msgid "This CD has no audio tracks"
 msgstr "Questo CD non presenta alcuna traccia audio"
 
-msgid "failed to draw pattern"
-msgstr "generazione modello non riuscita"
-
-msgid "A GL error occurred"
-msgstr "Si è verificato un errore GL"
-
-msgid "format wasn't negotiated before get function"
-msgstr "il formato non è stato concordato prima della funzione get"
-
 msgid "ID3 tag"
 msgstr "Tag ID3"
 
@@ -219,11 +219,9 @@ msgstr "MSZH senza perdita"
 msgid "Run-length encoding"
 msgstr "RLE (Run-Length Encoding)"
 
-#. subtitle formats with static descriptions
 msgid "Timed Text"
 msgstr "Testo temporizzato"
 
-#. FIXME: add variant field to typefinder?
 msgid "Subtitle"
 msgstr "Sottotitolo"
 
@@ -319,9 +317,6 @@ msgstr "Sorgente protocollo RTSP (Real Time Streaming Protocol)"
 msgid "Microsoft Media Server (MMS) protocol source"
 msgstr "Sorgente protocollo MMS (Microsoft Media Server)"
 
-#. TODO: find out how to add a comment for translators to the source code
-#. * (and tell them to make the first letter uppercase below if they move
-#. * the protocol to the middle or end of the string)
 #, c-format
 msgid "%s protocol source"
 msgstr "Sorgente protocollo %s"
@@ -385,8 +380,6 @@ msgstr "Elemendo di decodifica sconosciuto"
 msgid "Unknown encoder element"
 msgstr "Elemento di codifica sconosciuto"
 
-#. we should really never get here, but we better still return
-#. * something if we do
 msgid "Plugin or element of unknown type"
 msgstr "Plugin o elemento di tipo sconosciuto"
 
@@ -417,32 +410,11 @@ msgstr "ID artista dell'album"
 msgid "MusicBrainz album artist ID"
 msgstr "ID MusicBrainz dell'artista dell'album"
 
-msgid "release group ID"
-msgstr ""
-
-#, fuzzy
-msgid "MusicBrainz release group ID"
-msgstr "ID MusicBrainz della traccia"
-
-#, fuzzy
-msgid "release track ID"
-msgstr "ID traccia"
-
-#, fuzzy
-msgid "MusicBrainz release track ID"
-msgstr "ID MusicBrainz della traccia"
-
 msgid "track TRM ID"
 msgstr "ID TRM della traccia"
 
 msgid "MusicBrainz TRM ID"
 msgstr "ID MusicBrainz del TRM"
-
-msgid "AcoustID ID"
-msgstr ""
-
-msgid "AcoustID fingerprint (chromaprint)"
-msgstr ""
 
 msgid "capturing shutter speed"
 msgstr "velocità di scatto di cattura"
@@ -605,18 +577,9 @@ msgstr ""
 "Non esce dopo aver mostrato l'elenco dispositivi, ma attende dispositivi "
 "aggiunti/rimossi"
 
-msgid "Include devices from hidden device providers."
-msgstr ""
-
 #, c-format
 msgid "Volume: %.0f%%"
 msgstr "Volume: %.0f%%"
-
-msgid "Mute: on"
-msgstr ""
-
-msgid "Mute: off"
-msgstr ""
 
 msgid "Buffering..."
 msgstr "Riempimento buffer..."
@@ -682,9 +645,6 @@ msgstr "alza volume"
 msgid "volume down"
 msgstr "abbassa volumne"
 
-msgid "toggle audio mute on/off"
-msgstr ""
-
 msgid "increase playback rate"
 msgstr "aumenta velocità riproduzione"
 
@@ -741,14 +701,8 @@ msgstr "Disabilita il controllo interattivo da tastiera"
 msgid "Volume"
 msgstr "Volume"
 
-msgid "Start position in seconds."
-msgstr ""
-
 msgid "Playlist file containing input media files"
 msgstr "File playlist contenente i file multimediali di ingresso"
-
-msgid "Use the experimental instant-rate-change flag when changing rate"
-msgstr ""
 
 msgid "Do not print any output (apart from errors)"
 msgstr "Non stampare nulla (a parte gli errori)"

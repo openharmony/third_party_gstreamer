@@ -23,17 +23,19 @@
 
 #include <gst/gst.h>
 
-#include "gstbayerelements.h"
+
+GType gst_bayer2rgb_get_type (void);
+GType gst_rgb2bayer_get_type (void);
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  gst_element_register (plugin, "bayer2rgb", GST_RANK_NONE,
+      gst_bayer2rgb_get_type ());
+  gst_element_register (plugin, "rgb2bayer", GST_RANK_NONE,
+      gst_rgb2bayer_get_type ());
 
-  ret |= GST_ELEMENT_REGISTER (bayer2rgb, plugin);
-  ret |= GST_ELEMENT_REGISTER (rgb2bayer, plugin);
-
-  return ret;
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

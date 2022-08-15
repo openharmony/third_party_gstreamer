@@ -121,8 +121,6 @@ gst_dtls_srtp_bin_class_init (GstDtlsSrtpBinClass * klass)
       G_PARAM_READWRITE | GST_PARAM_MUTABLE_PLAYING | G_PARAM_STATIC_STRINGS);
 
   g_object_class_install_properties (gobject_class, NUM_PROPERTIES, properties);
-
-  gst_type_mark_as_plugin_api (GST_TYPE_DTLS_SRTP_BIN, 0);
 }
 
 static void
@@ -218,8 +216,7 @@ gst_dtls_srtp_bin_get_property (GObject * object,
         g_object_get_property (G_OBJECT (self->dtls_element), "connection-id",
             value);
       } else {
-        GST_WARNING_OBJECT (self,
-            "tried to get connection-id after disabling DTLS");
+        g_warning ("tried to get connection-id after disabling DTLS");
       }
       break;
     case PROP_KEY:
