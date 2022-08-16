@@ -65,7 +65,6 @@ struct _MpegTSBaseStream
 
   GstMpegtsPMTStream *stream;
   GstStream          *stream_object;
-  gboolean            in_collection;
   gchar              *stream_id;
 };
 
@@ -95,9 +94,6 @@ struct _MpegTSBaseProgram
   gboolean active;
   /* TRUE if this is the first program created */
   gboolean initial_program;
-
-  /* TRUE if the program shouldn't be freed */
-  gboolean recycle;
 };
 
 typedef enum {
@@ -126,7 +122,7 @@ struct _MpegTSBase {
 
   /* the following vars must be protected with the OBJECT_LOCK as they can be
    * accessed from the application thread and the streaming thread */
-  GPtrArray *programs;
+  GHashTable *programs;
 
   GPtrArray  *pat;
   MpegTSPacketizer2 *packetizer;
@@ -152,9 +148,6 @@ struct _MpegTSBase {
   /* Upstream segment */
   GstSegment segment;
 
-  /* Downstream segment, for use by sub-classes */
-  GstSegment out_segment;
-
   /* Last received seek event seqnum (default GST_SEQNUM_INVALID) */
   guint last_seek_seqnum;
 
@@ -164,18 +157,10 @@ struct _MpegTSBase {
   /* Whether to push data and/or sections to subclasses */
   gboolean push_data;
   gboolean push_section;
-  gboolean push_unknown;
 
   /* Whether the parent bin is streams-aware, meaning we can
    * add/remove streams at any point in time */
   gboolean streams_aware;
-
-  /* Do not use the PCR stream for timestamp calculation. Useful for
-   * streams with broken/invalid PCR streams. */
-  gboolean ignore_pcr;
-
-  /* Used for delayed seek events */
-  GstEvent *seek_event;
 };
 
 struct _MpegTSBaseClass {
@@ -187,7 +172,6 @@ struct _MpegTSBaseClass {
   void (*inspect_packet) (MpegTSBase *base, MpegTSPacketizerPacket *packet);
   /* takes ownership of @event */
   gboolean (*push_event) (MpegTSBase *base, GstEvent * event);
-  void (*handle_psi) (MpegTSBase *base, GstMpegtsSection * section);
 
   /* program_started gets called when program's pmt arrives for first time */
   void (*program_started) (MpegTSBase *base, MpegTSBaseProgram *program);
@@ -214,12 +198,12 @@ struct _MpegTSBaseClass {
   GstFlowReturn (*drain) (MpegTSBase * base);
 
   /* flush all streams
-   * The hard inicator is used to flush completely on FLUSH_STOP events
+   * The hard inicator is used to flush completelly on FLUSH_STOP events
    * or partially in pull mode seeks of tsdemux */
   void (*flush) (MpegTSBase * base, gboolean hard);
 
   /* Notifies subclasses input buffer has been handled */
-  GstFlowReturn (*input_done) (MpegTSBase *base);
+  GstFlowReturn (*input_done) (MpegTSBase *base, GstBuffer *buffer);
 
   /* signals */
   void (*pat_info) (GstStructure *pat);
@@ -242,8 +226,6 @@ G_GNUC_INTERNAL MpegTSBaseProgram *mpegts_base_get_program (MpegTSBase * base, g
 G_GNUC_INTERNAL MpegTSBaseProgram *mpegts_base_add_program (MpegTSBase * base, gint program_number, guint16 pmt_pid);
 
 G_GNUC_INTERNAL const GstMpegtsDescriptor *mpegts_get_descriptor_from_stream (MpegTSBaseStream * stream, guint8 tag);
-G_GNUC_INTERNAL const GstMpegtsDescriptor *mpegts_get_descriptor_from_stream_with_extension (MpegTSBaseStream * stream,
-    guint8 tag, guint8 tag_extension);
 G_GNUC_INTERNAL const GstMpegtsDescriptor *mpegts_get_descriptor_from_program (MpegTSBaseProgram * program, guint8 tag);
 
 G_GNUC_INTERNAL gboolean

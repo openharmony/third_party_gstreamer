@@ -7,4 +7,3 @@ gstid3demux = library('gstid3demux',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstid3demux, install_dir : plugins_pkgconfig_install_dir)
-plugins += [gstid3demux]

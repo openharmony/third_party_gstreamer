@@ -67,7 +67,6 @@ struct _GstIdentity {
   gboolean 	 check_imperfect_timestamp;
   gboolean 	 check_imperfect_offset;
   gboolean	 single_segment;
-  GstSegment seek_segment;
   GstBufferFlags drop_buffer_flags;
   GstClockTime   prev_timestamp;
   GstClockTime   prev_duration;
@@ -83,8 +82,6 @@ struct _GstIdentity {
   gboolean       drop_allocation;
   gint           eos_after;
   gint           eos_after_counter;
-  guint64        num_bytes;
-  guint64        num_buffers;
 };
 
 struct _GstIdentityClass {

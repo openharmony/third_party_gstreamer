@@ -22,11 +22,12 @@
  *
  * Audio decoder for MPEG-1 layer 1/2/3 audio data.
  *
- * ## Example pipelines
- *
+ * <refsect2>
+ * <title>Example pipelines</title>
  * |[
  * gst-launch-1.0 filesrc location=music.mp3 ! mpegaudioparse ! mpg123audiodec ! audioconvert ! audioresample ! autoaudiosink
  * ]| Decode and play the mp3 file
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -83,8 +84,6 @@ static gboolean gst_mpg123_audio_dec_set_format (GstAudioDecoder * dec,
 static void gst_mpg123_audio_dec_flush (GstAudioDecoder * dec, gboolean hard);
 
 G_DEFINE_TYPE (GstMpg123AudioDec, gst_mpg123_audio_dec, GST_TYPE_AUDIO_DECODER);
-GST_ELEMENT_REGISTER_DEFINE (mpg123audiodec, "mpg123audiodec",
-    GST_RANK_MARGINAL, GST_TYPE_MPG123_AUDIO_DEC);
 
 static void
 gst_mpg123_audio_dec_class_init (GstMpg123AudioDecClass * klass)
@@ -625,7 +624,8 @@ gst_mpg123_audio_dec_flush (GstAudioDecoder * dec, gboolean hard)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (mpg123audiodec, plugin);
+  return gst_element_register (plugin, "mpg123audiodec",
+      GST_RANK_MARGINAL, gst_mpg123_audio_dec_get_type ());
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

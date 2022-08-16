@@ -113,7 +113,6 @@ struct MpegPsPadData {
 };
 
 GType mpegpsmux_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (mpegpsmux);
 
 #define CLOCK_BASE 9LL
 #define CLOCK_FREQ (CLOCK_BASE * 10000)

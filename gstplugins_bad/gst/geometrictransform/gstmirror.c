@@ -78,9 +78,6 @@ enum
 
 #define gst_mirror_parent_class parent_class
 G_DEFINE_TYPE (GstMirror, gst_mirror, GST_TYPE_GEOMETRIC_TRANSFORM);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (mirror, "mirror", GST_RANK_NONE,
-    GST_TYPE_MIRROR, GST_DEBUG_CATEGORY_INIT (gst_mirror_debug, "mirror", 0,
-        "mirror"));
 
 #define GST_TYPE_MIRROR_MODE (gst_mirror_mode_get_type())
 static GType
@@ -229,8 +226,6 @@ gst_mirror_class_init (GstMirrorClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gstgt_class->map_func = mirror_map;
-
-  gst_type_mark_as_plugin_api (GST_TYPE_MIRROR_MODE, 0);
 }
 
 static void
@@ -240,4 +235,13 @@ gst_mirror_init (GstMirror * filter)
 
   filter->mode = DEFAULT_PROP_MODE;
   gt->off_edge_pixels = GST_GT_OFF_EDGES_PIXELS_CLAMP;
+}
+
+gboolean
+gst_mirror_plugin_init (GstPlugin * plugin)
+{
+  GST_DEBUG_CATEGORY_INIT (gst_mirror_debug, "mirror", 0, "mirror");
+
+  return gst_element_register (plugin, "mirror", GST_RANK_NONE,
+      GST_TYPE_MIRROR);
 }

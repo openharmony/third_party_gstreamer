@@ -93,27 +93,40 @@ void                    gst_promise_expire                  (GstPromise * promis
 GST_API
 const GstStructure *    gst_promise_get_reply               (GstPromise * promise);
 
-#ifndef GST_DISABLE_MINIOBJECT_INLINE_FUNCTIONS
+/**
+ * gst_promise_ref:
+ * @promise: a #GstPromise.
+ *
+ * Increases the refcount of the given @promise by one.
+ *
+ * Returns: (transfer full): @promise
+ *
+ * Since: 1.14
+ */
 static inline GstPromise *
 gst_promise_ref (GstPromise * promise)
 {
   return (GstPromise *) gst_mini_object_ref (GST_MINI_OBJECT_CAST (promise));
 }
 
+/**
+ * gst_promise_unref:
+ * @promise: (transfer full): a #GstPromise.
+ *
+ * Decreases the refcount of the promise. If the refcount reaches 0, the
+ * promise will be freed.
+ *
+ * Since: 1.14
+ */
 static inline void
 gst_promise_unref (GstPromise * promise)
 {
   gst_mini_object_unref (GST_MINI_OBJECT_CAST (promise));
 }
-#else /* GST_DISABLE_MINIOBJECT_INLINE_FUNCTIONS */
-GST_API
-GstPromise *  gst_promise_ref (GstPromise * promise);
 
-GST_API
-void          gst_promise_unref (GstPromise * promise);
-#endif /* GST_DISABLE_MINIOBJECT_INLINE_FUNCTIONS */
-
+#ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GstPromise, gst_promise_unref)
+#endif
 
 G_END_DECLS
 

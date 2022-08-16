@@ -51,6 +51,5 @@ struct _GstVideoParseClass
 };
 
 GType gst_video_parse_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (videoparse);
 
 #endif /*  __GST_VIDEO_PARSE_H__ */

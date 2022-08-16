@@ -85,12 +85,8 @@ typedef void *LPVOID;
 #define IID_IUnknown		(REFIID){0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xC0,0x00,0x00,0x00,0x00,0x00,0x00,0x46}
 #define IUnknownUUID		IID_IUnknown
 
-#ifndef BMD_PUBLIC
-	#define BMD_PUBLIC
-#endif
-
 #ifdef __cplusplus
-class BMD_PUBLIC IUnknown
+class IUnknown
 {
     public:
     	virtual HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, LPVOID *ppv) = 0;

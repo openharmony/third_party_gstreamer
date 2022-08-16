@@ -23,20 +23,26 @@
 
 #include <gst/gst.h>
 
-#include "gsttheoradec.h"
-#include "gsttheoraenc.h"
-#include "gsttheoraparse.h"
+extern GType gst_theora_dec_get_type (void);
+extern GType gst_theora_enc_get_type (void);
+extern GType gst_theora_parse_get_type (void);
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  if (!gst_element_register (plugin, "theoradec", GST_RANK_PRIMARY,
+          gst_theora_dec_get_type ()))
+    return FALSE;
 
-  ret |= GST_ELEMENT_REGISTER (theoradec, plugin);
-  ret |= GST_ELEMENT_REGISTER (theoraenc, plugin);
-  ret |= GST_ELEMENT_REGISTER (theoraparse, plugin);
+  if (!gst_element_register (plugin, "theoraenc", GST_RANK_PRIMARY,
+          gst_theora_enc_get_type ()))
+    return FALSE;
 
-  return ret;
+  if (!gst_element_register (plugin, "theoraparse", GST_RANK_NONE,
+          gst_theora_parse_get_type ()))
+    return FALSE;
+
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

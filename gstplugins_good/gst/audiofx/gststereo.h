@@ -52,6 +52,4 @@ struct _GstStereoClass {
 
 GType gst_stereo_get_type(void);
 
-GST_ELEMENT_REGISTER_DECLARE (stereo);
-
 #endif /* __GST_STEREO_H__ */

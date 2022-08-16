@@ -20,7 +20,6 @@
 
 /**
  * SECTION:element-auparse
- * @title: auparse
  *
  * Parses .au files mostly originating from sun os based computers.
  */
@@ -103,8 +102,6 @@ static gboolean gst_au_parse_src_convert (GstAuParse * auparse,
 
 #define gst_au_parse_parent_class parent_class
 G_DEFINE_TYPE (GstAuParse, gst_au_parse, GST_TYPE_ELEMENT);
-GST_ELEMENT_REGISTER_DEFINE (auparse, "auparse", GST_RANK_SECONDARY,
-    GST_TYPE_AU_PARSE);
 
 static void
 gst_au_parse_class_init (GstAuParseClass * klass)
@@ -419,9 +416,9 @@ gst_au_parse_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GstFlowReturn ret = GST_FLOW_OK;
   GstAuParse *auparse;
   gint avail, sendnow = 0;
-  gint64 timestamp = 0;
-  gint64 duration = 0;
-  gint64 offset = 0;
+  gint64 timestamp;
+  gint64 duration;
+  gint64 offset;
 
   auparse = GST_AU_PARSE (parent);
 
@@ -799,8 +796,10 @@ gst_au_parse_change_state (GstElement * element, GstStateChange transition)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  if (!GST_ELEMENT_REGISTER (auparse, plugin))
+  if (!gst_element_register (plugin, "auparse", GST_RANK_SECONDARY,
+          GST_TYPE_AU_PARSE)) {
     return FALSE;
+  }
 
   return TRUE;
 }

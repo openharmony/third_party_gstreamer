@@ -28,7 +28,6 @@
 #include <string.h>
 #include <gst/rtp/gstrtpbuffer.h>
 
-#include "gstrtpelements.h"
 #include "gstrtpg726pay.h"
 
 GST_DEBUG_CATEGORY_STATIC (rtpg726pay_debug);
@@ -78,8 +77,6 @@ static GstFlowReturn gst_rtp_g726_pay_handle_buffer (GstRTPBasePayload *
 #define gst_rtp_g726_pay_parent_class parent_class
 G_DEFINE_TYPE (GstRtpG726Pay, gst_rtp_g726_pay,
     GST_TYPE_RTP_BASE_AUDIO_PAYLOAD);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpg726pay, "rtpg726pay",
-    GST_RANK_SECONDARY, GST_TYPE_RTP_G726_PAY, rtp_element_init (plugin));
 
 static void
 gst_rtp_g726_pay_class_init (GstRtpG726PayClass * klass)
@@ -223,7 +220,7 @@ gst_rtp_g726_pay_setcaps (GstRTPBasePayload * payload, GstCaps * caps)
     encoding_name =
         g_strdup (gst_structure_get_string (structure, "encoding-name"));
 
-    /* if we managed to negotiate to AAL2, we definitely are going to do AAL2
+    /* if we managed to negotiate to AAL2, we definatly are going to do AAL2
      * encoding. Else we only encode AAL2 when explicitly set by the
      * property. */
     if (g_str_has_prefix (encoding_name, "AAL2-"))
@@ -415,4 +412,11 @@ gst_rtp_g726_pay_get_property (GObject * object, guint prop_id,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+}
+
+gboolean
+gst_rtp_g726_pay_plugin_init (GstPlugin * plugin)
+{
+  return gst_element_register (plugin, "rtpg726pay",
+      GST_RANK_SECONDARY, GST_TYPE_RTP_G726_PAY);
 }

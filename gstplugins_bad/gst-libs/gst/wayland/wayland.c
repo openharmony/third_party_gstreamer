@@ -46,7 +46,7 @@ gst_wayland_display_handle_context_new (struct wl_display * display)
   GstContext *context =
       gst_context_new (GST_WAYLAND_DISPLAY_HANDLE_CONTEXT_TYPE, TRUE);
   gst_structure_set (gst_context_writable_structure (context),
-      "display", G_TYPE_POINTER, display, NULL);
+      "handle", G_TYPE_POINTER, display, NULL);
   return context;
 }
 
@@ -59,11 +59,8 @@ gst_wayland_display_handle_context_get_handle (GstContext * context)
   g_return_val_if_fail (GST_IS_CONTEXT (context), NULL);
 
   s = gst_context_get_structure (context);
-  if (gst_structure_get (s, "display", G_TYPE_POINTER, &display, NULL))
-    return display;
-  if (gst_structure_get (s, "handle", G_TYPE_POINTER, &display, NULL))
-    return display;
-  return NULL;
+  gst_structure_get (s, "handle", G_TYPE_POINTER, &display, NULL);
+  return display;
 }
 
 
@@ -87,7 +84,7 @@ gst_wayland_video_default_init (GstWaylandVideoInterface * klass)
  *
  * Please note that any calls to this method MUST be matched by
  * calls to end_geometry_change() and AFTER the parent surface has
- * committed its geometry changes.
+ * commited its geometry changes.
  */
 void
 gst_wayland_video_begin_geometry_change (GstWaylandVideo * video)
@@ -109,11 +106,11 @@ gst_wayland_video_begin_geometry_change (GstWaylandVideo * video)
  *
  * Notifies the video sink that we just finished changing the
  * geometry of both itself and its parent surface. This should
- * have been earlier preceded by a call to begin_geometry_change()
+ * have been earlier preceeded by a call to begin_geometry_change()
  * which notified the sink before any of these changes had happened.
  *
  * It is important to call this method only AFTER the parent surface
- * has committed its geometry changes, otherwise no synchronization
+ * has commited its geometry changes, otherwise no synchronization
  * is actually achieved.
  */
 void

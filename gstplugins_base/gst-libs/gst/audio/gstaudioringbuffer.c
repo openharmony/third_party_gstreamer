@@ -656,7 +656,7 @@ gst_audio_ring_buffer_acquire (GstAudioRingBuffer * buf,
   buf->empty_seg = g_malloc (segsize);
 
   if (buf->spec.type == GST_AUDIO_RING_BUFFER_FORMAT_TYPE_RAW) {
-    gst_audio_format_info_fill_silence (buf->spec.info.finfo, buf->empty_seg,
+    gst_audio_format_fill_silence (buf->spec.info.finfo, buf->empty_seg,
         segsize);
   } else {
     /* FIXME, non-raw formats get 0 as the empty sample */
@@ -1189,11 +1189,11 @@ done:
  * implementation uses another internal buffer between the audio
  * device.
  *
- * For playback ringbuffers this is the amount of samples transferred from the
+ * For playback ringbuffers this is the amount of samples transfered from the
  * ringbuffer to the device but still not played.
  *
  * For capture ringbuffers this is the amount of samples in the device that are
- * not yet transferred to the ringbuffer.
+ * not yet transfered to the ringbuffer.
  *
  * Returns: The number of samples queued in the audio device.
  *
@@ -1291,12 +1291,6 @@ gst_audio_ring_buffer_set_sample (GstAudioRingBuffer * buf, guint64 sample)
       sample, buf->segbase);
 }
 
-/**
- * default_clear_all:
- * @buf: the #GstAudioRingBuffer to clear
- *
- * Fill the ringbuffer with silence.
- */
 static void
 default_clear_all (GstAudioRingBuffer * buf)
 {
@@ -1317,7 +1311,7 @@ default_clear_all (GstAudioRingBuffer * buf)
  * gst_audio_ring_buffer_clear_all:
  * @buf: the #GstAudioRingBuffer to clear
  *
- * Clear all samples from the ringbuffer.
+ * Fill the ringbuffer with silence.
  *
  * MT safe.
  */

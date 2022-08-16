@@ -32,7 +32,6 @@
 
 /**
  * SECTION:element-audiowsincband
- * @title: audiowsincband
  *
  * Attenuates all frequencies outside (bandpass) or inside (bandreject) of a frequency
  * band. The length parameter controls the rolloff, the window parameter
@@ -43,13 +42,14 @@
  * a much better rolloff when using a larger kernel size and almost linear phase. The only
  * disadvantage is the much slower execution time with larger kernels.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 audiotestsrc freq=1500 ! audioconvert ! audiowsincband mode=band-pass lower-frequency=3000 upper-frequency=10000 length=501 window=blackman ! audioconvert ! alsasink
  * gst-launch-1.0 filesrc location="melo1.ogg" ! oggdemux ! vorbisdec ! audioconvert ! audiowsincband mode=band-reject lower-frequency=59 upper-frequency=61 length=10001 window=hamming ! audioconvert ! alsasink
  * gst-launch-1.0 audiotestsrc wave=white-noise ! audioconvert ! audiowsincband mode=band-pass lower-frequency=1000 upper-frequency=2000 length=31 ! audioconvert ! alsasink
  * ]|
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -142,8 +142,6 @@ gst_gst_audio_wsincband_window_get_type (void)
 #define gst_audio_wsincband_parent_class parent_class
 G_DEFINE_TYPE (GstAudioWSincBand, gst_audio_wsincband,
     GST_TYPE_AUDIO_FX_BASE_FIR_FILTER);
-GST_ELEMENT_REGISTER_DEFINE (audiowsincband, "audiowsincband",
-    GST_RANK_NONE, GST_TYPE_AUDIO_WSINC_BAND);
 
 static void gst_audio_wsincband_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -207,9 +205,6 @@ gst_audio_wsincband_class_init (GstAudioWSincBandClass * klass)
       "Sebastian Dröge <sebastian.droege@collabora.co.uk>");
 
   filter_class->setup = GST_DEBUG_FUNCPTR (gst_audio_wsincband_setup);
-
-  gst_type_mark_as_plugin_api (GST_TYPE_AUDIO_WSINC_BAND_MODE, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_AUDIO_WSINC_BAND_WINDOW, 0);
 }
 
 static void

@@ -30,7 +30,6 @@
 #include <gst/gl/gstglfuncs.h>
 #include <gst/video/video.h>
 
-#include "gstglelements.h"
 #include "gstgloverlaycompositorelement.h"
 
 enum
@@ -47,9 +46,6 @@ GST_DEBUG_CATEGORY_STATIC (GST_CAT_DEFAULT);
 #define gst_gl_overlay_compositor_element_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstGLOverlayCompositorElement,
     gst_gl_overlay_compositor_element, GST_TYPE_GL_FILTER, DEBUG_INIT);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (gloverlaycompositor,
-    "gloverlaycompositor", GST_RANK_NONE,
-    GST_TYPE_GL_OVERLAY_COMPOSITOR_ELEMENT, gl_element_init (plugin));
 
 static GstStaticPadTemplate overlay_sink_pad_template =
     GST_STATIC_PAD_TEMPLATE ("sink",
@@ -160,13 +156,16 @@ _oce_transform_internal_caps (GstGLFilter * filter,
     for (i = 0; i < n; i++) {
       GstCapsFeatures *feat = gst_caps_get_features (removed, i);
 
-      if (feat && gst_caps_features_contains (feat,
-              GST_CAPS_FEATURE_META_GST_VIDEO_OVERLAY_COMPOSITION)) {
+      if (feat) {
         feat = gst_caps_features_copy (feat);
-        /* prefer the passthrough case */
-        gst_caps_features_remove (feat,
-            GST_CAPS_FEATURE_META_GST_VIDEO_OVERLAY_COMPOSITION);
-        gst_caps_set_features (removed, i, feat);
+
+        if (gst_caps_features_contains (feat,
+                GST_CAPS_FEATURE_META_GST_VIDEO_OVERLAY_COMPOSITION)) {
+          /* prefer the passthrough case */
+          gst_caps_features_remove (feat,
+              GST_CAPS_FEATURE_META_GST_VIDEO_OVERLAY_COMPOSITION);
+          gst_caps_set_features (removed, i, feat);
+        }
       }
     }
 
@@ -189,7 +188,7 @@ gst_gl_overlay_compositor_element_propose_allocation (GstBaseTransform * trans,
           decide_query, query))
     return FALSE;
 
-  if (decide_query) {
+  if ((width == 0 || height == 0) && decide_query) {
     GstCaps *decide_caps;
     gst_query_parse_allocation (decide_query, &decide_caps, NULL);
 
@@ -205,7 +204,7 @@ gst_gl_overlay_compositor_element_propose_allocation (GstBaseTransform * trans,
 
   if ((width == 0 || height == 0) && query) {
     GstCaps *caps;
-    gst_query_parse_allocation (query, &caps, NULL);
+    gst_query_parse_allocation (decide_query, &caps, NULL);
 
     if (caps) {
       GstVideoInfo vinfo;
@@ -225,12 +224,9 @@ gst_gl_overlay_compositor_element_propose_allocation (GstBaseTransform * trans,
 
   GST_DEBUG_OBJECT (trans, "Adding overlay composition meta with size %ux%u",
       width, height);
-  if (allocation_meta) {
-    if (query)
-      gst_query_add_allocation_meta (query,
-          GST_VIDEO_OVERLAY_COMPOSITION_META_API_TYPE, allocation_meta);
-    gst_structure_free (allocation_meta);
-  }
+  gst_query_add_allocation_meta (query,
+      GST_VIDEO_OVERLAY_COMPOSITION_META_API_TYPE, allocation_meta);
+
   return TRUE;
 }
 

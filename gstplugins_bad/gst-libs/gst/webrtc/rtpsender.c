@@ -23,7 +23,7 @@
  * @title: GstWebRTCRTPSender
  * @see_also: #GstWebRTCRTPReceiver, #GstWebRTCRTPTransceiver
  *
- * <https://www.w3.org/TR/webrtc/#rtcrtpsender-interface>
+ * <ulink url="https://www.w3.org/TR/webrtc/#rtcrtpsender-interface">https://www.w3.org/TR/webrtc/#rtcrtpsender-interface</ulink>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -32,7 +32,6 @@
 
 #include "rtpsender.h"
 #include "rtptransceiver.h"
-#include "webrtc-priv.h"
 
 #define GST_CAT_DEFAULT gst_webrtc_rtp_sender_debug
 GST_DEBUG_CATEGORY_STATIC (GST_CAT_DEFAULT);
@@ -52,44 +51,45 @@ enum
 enum
 {
   PROP_0,
-  PROP_PRIORITY,
-  PROP_TRANSPORT,
+  PROP_MID,
+  PROP_SENDER,
+  PROP_STOPPED,
+  PROP_DIRECTION,
 };
 
 //static guint gst_webrtc_rtp_sender_signals[LAST_SIGNAL] = { 0 };
 
-/**
- * gst_webrtc_rtp_sender_set_priority:
- * @sender: a #GstWebRTCRTPSender
- * @priority: The priority of this sender
- *
- * Sets the content of the IPv4 Type of Service (ToS), also known as DSCP
- * (Differentiated Services Code Point).
- * This also sets the Traffic Class field of IPv6.
- *
- * Since: 1.20
- */
+void
+gst_webrtc_rtp_sender_set_transport (GstWebRTCRTPSender * sender,
+    GstWebRTCDTLSTransport * transport)
+{
+  g_return_if_fail (GST_IS_WEBRTC_RTP_SENDER (sender));
+  g_return_if_fail (GST_IS_WEBRTC_DTLS_TRANSPORT (transport));
+
+  GST_OBJECT_LOCK (sender);
+  gst_object_replace ((GstObject **) & sender->transport,
+      GST_OBJECT (transport));
+  GST_OBJECT_UNLOCK (sender);
+}
 
 void
-gst_webrtc_rtp_sender_set_priority (GstWebRTCRTPSender * sender,
-    GstWebRTCPriorityType priority)
+gst_webrtc_rtp_sender_set_rtcp_transport (GstWebRTCRTPSender * sender,
+    GstWebRTCDTLSTransport * transport)
 {
+  g_return_if_fail (GST_IS_WEBRTC_RTP_SENDER (sender));
+  g_return_if_fail (GST_IS_WEBRTC_DTLS_TRANSPORT (transport));
+
   GST_OBJECT_LOCK (sender);
-  sender->priority = priority;
+  gst_object_replace ((GstObject **) & sender->rtcp_transport,
+      GST_OBJECT (transport));
   GST_OBJECT_UNLOCK (sender);
-  g_object_notify (G_OBJECT (sender), "priority");
 }
 
 static void
 gst_webrtc_rtp_sender_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
-  GstWebRTCRTPSender *sender = GST_WEBRTC_RTP_SENDER (object);
-
   switch (prop_id) {
-    case PROP_PRIORITY:
-      gst_webrtc_rtp_sender_set_priority (sender, g_value_get_uint (value));
-      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -100,19 +100,7 @@ static void
 gst_webrtc_rtp_sender_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
 {
-  GstWebRTCRTPSender *sender = GST_WEBRTC_RTP_SENDER (object);
-
   switch (prop_id) {
-    case PROP_PRIORITY:
-      GST_OBJECT_LOCK (sender);
-      g_value_set_uint (value, sender->priority);
-      GST_OBJECT_UNLOCK (sender);
-      break;
-    case PROP_TRANSPORT:
-      GST_OBJECT_LOCK (sender);
-      g_value_set_object (value, sender->transport);
-      GST_OBJECT_UNLOCK (sender);
-      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -122,11 +110,15 @@ gst_webrtc_rtp_sender_get_property (GObject * object, guint prop_id,
 static void
 gst_webrtc_rtp_sender_finalize (GObject * object)
 {
-  GstWebRTCRTPSender *sender = GST_WEBRTC_RTP_SENDER (object);
+  GstWebRTCRTPSender *webrtc = GST_WEBRTC_RTP_SENDER (object);
 
-  if (sender->transport)
-    gst_object_unref (sender->transport);
-  sender->transport = NULL;
+  if (webrtc->transport)
+    gst_object_unref (webrtc->transport);
+  webrtc->transport = NULL;
+
+  if (webrtc->rtcp_transport)
+    gst_object_unref (webrtc->rtcp_transport);
+  webrtc->rtcp_transport = NULL;
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -139,35 +131,6 @@ gst_webrtc_rtp_sender_class_init (GstWebRTCRTPSenderClass * klass)
   gobject_class->get_property = gst_webrtc_rtp_sender_get_property;
   gobject_class->set_property = gst_webrtc_rtp_sender_set_property;
   gobject_class->finalize = gst_webrtc_rtp_sender_finalize;
-
-  /**
-   * GstWebRTCRTPSender:priority:
-   *
-   * The priority from which to set the DSCP field on packets
-   *
-   * Since: 1.20
-   */
-  g_object_class_install_property (gobject_class,
-      PROP_PRIORITY,
-      g_param_spec_enum ("priority",
-          "Priority",
-          "The priority from which to set the DSCP field on packets",
-          GST_TYPE_WEBRTC_PRIORITY_TYPE, GST_WEBRTC_PRIORITY_TYPE_LOW,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  /**
-   * GstWebRTCRTPSender:transport:
-   *
-   * The DTLS transport for this sender
-   *
-   * Since: 1.20
-   */
-  g_object_class_install_property (gobject_class,
-      PROP_TRANSPORT,
-      g_param_spec_object ("transport", "Transport",
-          "The DTLS transport for this sender",
-          GST_TYPE_WEBRTC_DTLS_TRANSPORT,
-          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 }
 
 static void

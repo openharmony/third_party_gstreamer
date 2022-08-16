@@ -48,8 +48,6 @@ struct _GstLine21Encoder
   vbi_sampling_par sp;
 
   GstVideoInfo info;
-
-  gboolean remove_caption_meta;
 };
 
 struct _GstLine21EncoderClass
@@ -58,8 +56,6 @@ struct _GstLine21EncoderClass
 };
 
 GType gst_line_21_encoder_get_type (void);
-
-GST_ELEMENT_REGISTER_DECLARE (line21encoder);
 
 G_END_DECLS
 #endif /* __GST_LINE21ENCODER_H__ */

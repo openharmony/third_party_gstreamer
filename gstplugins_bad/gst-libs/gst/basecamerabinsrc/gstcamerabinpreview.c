@@ -22,7 +22,8 @@
  * SECTION:camerabingeneral
  * @short_description: helper functions for #GstCameraBin and it's modules
  *
- * Common helper functions for #GstCameraBin.
+ * Common helper functions for #GstCameraBin, #GstCameraBinImage and
+ * #GstCameraBinVideo.
  *
  */
 #ifdef HAVE_CONFIG_H
@@ -56,7 +57,7 @@ bus_callback (GstBus * bus, GstMessage * message, gpointer user_data)
       g_error_free (err);
 
       /* TODO Not sure if we should post an Error or Warning here */
-      GST_ELEMENT_ERROR (data->element, CORE, FAILED,
+      GST_ELEMENT_ERROR (data, CORE, FAILED,
           ("fatal error in preview pipeline, disposing the pipeline"), (NULL));
 
       /* Possible error situations:
@@ -192,6 +193,8 @@ gst_camerabin_create_preview_pipeline (GstElement * element,
   bus = gst_pipeline_get_bus (GST_PIPELINE (data->pipeline));
   gst_bus_add_watch (bus, bus_callback, data);
   gst_object_unref (bus);
+
+  g_object_set (data->appsink, "sync", FALSE, NULL);
 
   data->element = element;
   data->filter = filter;

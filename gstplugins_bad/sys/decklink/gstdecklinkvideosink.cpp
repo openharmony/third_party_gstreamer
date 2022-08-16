@@ -34,7 +34,7 @@
  *
  * # Duplex-Mode:
  * Certain DechLink Cards like the Duo2 or the Quad2 contain two or four
- * independent SDI units with two connectors each. These units can operate either
+ * independant SDI units with two connectors each. These units can operate either
  * in half- or in full-duplex mode.
  *
  * The Duplex-Mode of a Card can be configured using the `duplex-mode`-Property.
@@ -42,7 +42,7 @@
  *
  * ## Half-Duplex-Mode (default):
  * By default decklinkvideosink will configure them into half-duplex mode, so that
- * each connector acts as if it were an independent DeckLink Card which can either
+ * each connector acts as if it were an independant DeckLink Card which can either
  * be used as an Input or as an Output. In this mode the Duo2 can be used as as 4 SDI
  * In-/Outputs and the Quad2 as 8 SDI In-/Outputs.
  *
@@ -238,13 +238,12 @@ enum
   PROP_MODE,
   PROP_DEVICE_NUMBER,
   PROP_VIDEO_FORMAT,
-  PROP_PROFILE_ID,
+  PROP_DUPLEX_MODE,
   PROP_TIMECODE_FORMAT,
   PROP_KEYER_MODE,
   PROP_KEYER_LEVEL,
   PROP_HW_SERIAL_NUMBER,
   PROP_CC_LINE,
-  PROP_AFD_BAR_LINE,
 };
 
 static void gst_decklink_video_sink_set_property (GObject * object,
@@ -280,8 +279,6 @@ gst_decklink_video_sink_start_scheduled_playback (GstElement * element);
 #define parent_class gst_decklink_video_sink_parent_class
 G_DEFINE_TYPE (GstDecklinkVideoSink, gst_decklink_video_sink,
     GST_TYPE_BASE_SINK);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (decklinkvideosink, "decklinkvideosink", GST_RANK_NONE,
-                                       GST_TYPE_DECKLINK_VIDEO_SINK, decklink_element_init (plugin));
 
 static gboolean
 reset_framerate (GstCapsFeatures * features, GstStructure * structure,
@@ -343,26 +340,17 @@ gst_decklink_video_sink_class_init (GstDecklinkVideoSinkClass * klass)
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               G_PARAM_CONSTRUCT)));
 
-  /**
-   * GstDecklinkVideoSink:profile
-   *
-   * Specifies decklink profile to use.
-   *
-   * Since: 1.20
-   */
-  g_object_class_install_property (gobject_class, PROP_PROFILE_ID,
-      g_param_spec_enum ("profile", "Profile",
-          "Certain DeckLink devices such as the DeckLink 8K Pro, the DeckLink "
-          "Quad 2 and the DeckLink Duo 2 support multiple profiles to "
-          "configure the capture and playback behavior of its sub-devices."
-          "For the DeckLink Duo 2 and DeckLink Quad 2, a profile is shared "
-          "between any 2 sub-devices that utilize the same connectors. For the "
-          "DeckLink 8K Pro, a profile is shared between all 4 sub-devices. Any "
-          "sub-devices that share a profile are considered to be part of the "
-          "same profile group."
+  g_object_class_install_property (gobject_class, PROP_DUPLEX_MODE,
+      g_param_spec_enum ("duplex-mode", "Duplex mode",
+          "Certain DeckLink devices such as the DeckLink Quad 2 and the "
           "DeckLink Duo 2 support configuration of the duplex mode of "
-          "individual sub-devices.",
-          GST_TYPE_DECKLINK_PROFILE_ID, GST_DECKLINK_PROFILE_ID_DEFAULT,
+          "individual sub-devices."
+          "A sub-device configured as full-duplex will use two connectors, "
+          "which allows simultaneous capture and playback, internal keying, "
+          "and fill & key scenarios."
+          "A half-duplex sub-device will use a single connector as an "
+          "individual capture or playback channel.",
+          GST_TYPE_DECKLINK_DUPLEX_MODE, GST_DECKLINK_DUPLEX_MODE_HALF,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               G_PARAM_CONSTRUCT)));
 
@@ -400,13 +388,6 @@ gst_decklink_video_sink_class_init (GstDecklinkVideoSinkClass * klass)
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               G_PARAM_CONSTRUCT)));
 
-  g_object_class_install_property (gobject_class, PROP_AFD_BAR_LINE,
-      g_param_spec_int ("afd-bar-line", "AFD/Bar Line",
-          "Line number to use for inserting AFD/Bar data (0 = disabled)", 0,
-          10000, 0,
-          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
-              G_PARAM_CONSTRUCT)));
-
   templ_caps = gst_decklink_mode_get_template_caps (FALSE);
   templ_caps = gst_caps_make_writable (templ_caps);
   /* For output we support any framerate and only really care about timestamps */
@@ -430,11 +411,10 @@ gst_decklink_video_sink_init (GstDecklinkVideoSink * self)
   self->mode = GST_DECKLINK_MODE_NTSC;
   self->device_number = 0;
   self->video_format = GST_DECKLINK_VIDEO_FORMAT_8BIT_YUV;
-  self->profile_id = GST_DECKLINK_PROFILE_ID_DEFAULT;
+  self->duplex_mode = bmdDuplexModeHalf;
   /* VITC is legacy, we should expect RP188 in modern use cases */
   self->timecode_format = bmdTimecodeRP188Any;
   self->caption_line = 0;
-  self->afd_bar_line = 0;
 
   gst_base_sink_set_max_lateness (GST_BASE_SINK_CAST (self), 20 * GST_MSECOND);
   gst_base_sink_set_qos_enabled (GST_BASE_SINK_CAST (self), TRUE);
@@ -468,8 +448,10 @@ gst_decklink_video_sink_set_property (GObject * object, guint property_id,
           break;
       }
       break;
-    case PROP_PROFILE_ID:
-      self->profile_id = (GstDecklinkProfileId) g_value_get_enum (value);
+    case PROP_DUPLEX_MODE:
+      self->duplex_mode =
+          gst_decklink_duplex_mode_from_enum ((GstDecklinkDuplexMode)
+          g_value_get_enum (value));
       break;
     case PROP_TIMECODE_FORMAT:
       self->timecode_format =
@@ -486,9 +468,6 @@ gst_decklink_video_sink_set_property (GObject * object, guint property_id,
       break;
     case PROP_CC_LINE:
       self->caption_line = g_value_get_int (value);
-      break;
-    case PROP_AFD_BAR_LINE:
-      self->afd_bar_line = g_value_get_int (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -512,8 +491,9 @@ gst_decklink_video_sink_get_property (GObject * object, guint property_id,
     case PROP_VIDEO_FORMAT:
       g_value_set_enum (value, self->video_format);
       break;
-    case PROP_PROFILE_ID:
-      g_value_set_enum (value, self->profile_id);
+    case PROP_DUPLEX_MODE:
+      g_value_set_enum (value,
+          gst_decklink_duplex_mode_to_enum (self->duplex_mode));
       break;
     case PROP_TIMECODE_FORMAT:
       g_value_set_enum (value,
@@ -534,9 +514,6 @@ gst_decklink_video_sink_get_property (GObject * object, guint property_id,
       break;
     case PROP_CC_LINE:
       g_value_set_int (value, self->caption_line);
-      break;
-    case PROP_AFD_BAR_LINE:
-      g_value_set_int (value, self->afd_bar_line);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -636,15 +613,13 @@ gst_decklink_video_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
    * Note that this flag will have no effect in practice if the video stream
    * does not contain timecode metadata.
    */
-  if ((gint64) self->timecode_format ==
-      (gint64) GST_DECKLINK_TIMECODE_FORMAT_VITC
-      || (gint64) self->timecode_format ==
-      (gint64) GST_DECKLINK_TIMECODE_FORMAT_VITCFIELD2)
+  if ((gint64) self->timecode_format == (gint64) GST_DECKLINK_TIMECODE_FORMAT_VITC ||
+      (gint64) self->timecode_format == (gint64) GST_DECKLINK_TIMECODE_FORMAT_VITCFIELD2)
     flags = bmdVideoOutputVITC;
   else
     flags = bmdVideoOutputRP188;
 
-  if (self->caption_line > 0 || self->afd_bar_line > 0)
+  if (self->caption_line > 0)
     flags = (BMDVideoOutputFlags) (flags | bmdVideoOutputVANC);
 
   ret = self->output->output->EnableVideoOutput (mode->mode, flags);
@@ -796,12 +771,12 @@ gst_decklink_video_sink_convert_to_internal_clock (GstDecklinkVideoSink * self,
   }
 
   if (external_base != GST_CLOCK_TIME_NONE &&
-      internal_base != GST_CLOCK_TIME_NONE)
+          internal_base != GST_CLOCK_TIME_NONE)
     *timestamp += internal_offset;
   else
     *timestamp = gst_clock_get_internal_time (self->output->clock);
 
-  GST_DEBUG_OBJECT (self, "Output timestamp %" GST_TIME_FORMAT
+  GST_LOG_OBJECT (self, "Output timestamp %" GST_TIME_FORMAT
       " using clock epoch %" GST_TIME_FORMAT,
       GST_TIME_ARGS (*timestamp), GST_TIME_ARGS (self->output->clock_epoch));
 
@@ -831,7 +806,7 @@ convert_cea708_cc_data_cea708_cdp_internal (GstDecklinkVideoSink * self,
     gst_byte_writer_put_uint8_unchecked (&bw, 0x2f);
   } else if (mode->fps_n == 25 && mode->fps_d == 1) {
     gst_byte_writer_put_uint8_unchecked (&bw, 0x3f);
-  } else if (mode->fps_n == 30000 && mode->fps_d == 1001) {
+  } else if (mode->fps_n == 30 && mode->fps_d == 1001) {
     gst_byte_writer_put_uint8_unchecked (&bw, 0x4f);
   } else if (mode->fps_n == 30 && mode->fps_d == 1) {
     gst_byte_writer_put_uint8_unchecked (&bw, 0x5f);
@@ -861,42 +836,26 @@ convert_cea708_cc_data_cea708_cdp_internal (GstDecklinkVideoSink * self,
 
   if (tc_meta) {
     const GstVideoTimeCode *tc = &tc_meta->tc;
-    guint8 u8;
 
     gst_byte_writer_put_uint8_unchecked (&bw, 0x71);
-    /* reserved 11 - 2 bits */
-    u8 = 0xc0;
-    /* tens of hours - 2 bits */
-    u8 |= ((tc->hours / 10) & 0x3) << 4;
-    /* units of hours - 4 bits */
-    u8 |= (tc->hours % 10) & 0xf;
-    gst_byte_writer_put_uint8_unchecked (&bw, u8);
+    gst_byte_writer_put_uint8_unchecked (&bw, 0xc0 |
+        (((tc->hours % 10) & 0x3) << 4) |
+        ((tc->hours - (tc->hours % 10)) & 0xf));
 
-    /* reserved 1 - 1 bit */
-    u8 = 0x80;
-    /* tens of minutes - 3 bits */
-    u8 |= ((tc->minutes / 10) & 0x7) << 4;
-    /* units of minutes - 4 bits */
-    u8 |= (tc->minutes % 10) & 0xf;
-    gst_byte_writer_put_uint8_unchecked (&bw, u8);
+    gst_byte_writer_put_uint8_unchecked (&bw, 0x80 |
+        (((tc->minutes % 10) & 0x7) << 4) |
+        ((tc->minutes - (tc->minutes % 10)) & 0xf));
 
-    /* field flag - 1 bit */
-    u8 = tc->field_count < 2 ? 0x00 : 0x80;
-    /* tens of seconds - 3 bits */
-    u8 |= ((tc->seconds / 10) & 0x7) << 4;
-    /* units of seconds - 4 bits */
-    u8 |= (tc->seconds % 10) & 0xf;
-    gst_byte_writer_put_uint8_unchecked (&bw, u8);
+    gst_byte_writer_put_uint8_unchecked (&bw,
+        (tc->field_count <
+            2 ? 0x00 : 0x80) | (((tc->seconds %
+                    10) & 0x7) << 4) | ((tc->seconds -
+                (tc->seconds % 10)) & 0xf));
 
-    /* drop frame flag - 1 bit */
-    u8 = (tc->config.flags & GST_VIDEO_TIME_CODE_FLAGS_DROP_FRAME) ? 0x80 :
-        0x00;
-    /* reserved0 - 1 bit */
-    /* tens of frames - 2 bits */
-    u8 |= ((tc->frames / 10) & 0x3) << 4;
-    /* units of frames 4 bits */
-    u8 |= (tc->frames % 10) & 0xf;
-    gst_byte_writer_put_uint8_unchecked (&bw, u8);
+    gst_byte_writer_put_uint8_unchecked (&bw,
+        ((tc->config.flags & GST_VIDEO_TIME_CODE_FLAGS_DROP_FRAME) ? 0x80 :
+            0x00) | (((tc->frames % 10) & 0x3) << 4) | ((tc->frames -
+                (tc->frames % 10)) & 0xf));
   }
 
   gst_byte_writer_put_uint8_unchecked (&bw, 0x72);
@@ -924,287 +883,6 @@ convert_cea708_cc_data_cea708_cdp_internal (GstDecklinkVideoSink * self,
   return len;
 }
 
-static void
-write_vbi (GstDecklinkVideoSink * self, GstBuffer * buffer,
-    BMDPixelFormat format, IDeckLinkMutableVideoFrame * frame,
-    GstVideoTimeCodeMeta * tc_meta)
-{
-  IDeckLinkVideoFrameAncillary *vanc_frame = NULL;
-  gpointer iter = NULL;
-  GstVideoCaptionMeta *cc_meta;
-  guint8 *vancdata;
-  gboolean got_captions = FALSE;
-
-  if (self->caption_line == 0 && self->afd_bar_line == 0)
-    return;
-
-  if (self->vbiencoder == NULL) {
-    self->vbiencoder =
-        gst_video_vbi_encoder_new (GST_VIDEO_FORMAT_v210, self->info.width);
-    self->anc_vformat = GST_VIDEO_FORMAT_v210;
-  }
-
-  /* Put any closed captions into the configured line */
-  while ((cc_meta =
-          (GstVideoCaptionMeta *) gst_buffer_iterate_meta_filtered (buffer,
-              &iter, GST_VIDEO_CAPTION_META_API_TYPE))) {
-    switch (cc_meta->caption_type) {
-      case GST_VIDEO_CAPTION_TYPE_CEA608_RAW:{
-        guint8 data[138];
-        guint i, n;
-
-        n = cc_meta->size / 2;
-        if (cc_meta->size > 46) {
-          GST_WARNING_OBJECT (self, "Too big raw CEA608 buffer");
-          break;
-        }
-
-        /* This is the offset from line 9 for 525-line fields and from line
-         * 5 for 625-line fields.
-         *
-         * The highest bit is set for field 1 but not for field 0, but we
-         * have no way of knowning the field here
-         */
-        for (i = 0; i < n; i++) {
-          data[3 * i] = 0x80 | (self->info.height ==
-              525 ? self->caption_line - 9 : self->caption_line - 5);
-          data[3 * i + 1] = cc_meta->data[2 * i];
-          data[3 * i + 2] = cc_meta->data[2 * i + 1];
-        }
-
-        if (!gst_video_vbi_encoder_add_ancillary (self->vbiencoder,
-                FALSE,
-                GST_VIDEO_ANCILLARY_DID16_S334_EIA_608 >> 8,
-                GST_VIDEO_ANCILLARY_DID16_S334_EIA_608 & 0xff, data, 3))
-          GST_WARNING_OBJECT (self, "Couldn't add meta to ancillary data");
-
-        got_captions = TRUE;
-
-        break;
-      }
-      case GST_VIDEO_CAPTION_TYPE_CEA608_S334_1A:{
-        if (!gst_video_vbi_encoder_add_ancillary (self->vbiencoder,
-                FALSE,
-                GST_VIDEO_ANCILLARY_DID16_S334_EIA_608 >> 8,
-                GST_VIDEO_ANCILLARY_DID16_S334_EIA_608 & 0xff, cc_meta->data,
-                cc_meta->size))
-          GST_WARNING_OBJECT (self, "Couldn't add meta to ancillary data");
-
-        got_captions = TRUE;
-
-        break;
-      }
-      case GST_VIDEO_CAPTION_TYPE_CEA708_RAW:{
-        guint8 data[256];
-        guint n;
-
-        n = cc_meta->size / 3;
-        if (cc_meta->size > 46) {
-          GST_WARNING_OBJECT (self, "Too big raw CEA708 buffer");
-          break;
-        }
-
-        n = convert_cea708_cc_data_cea708_cdp_internal (self, cc_meta->data,
-            cc_meta->size, data, sizeof (data), tc_meta);
-        if (!gst_video_vbi_encoder_add_ancillary (self->vbiencoder, FALSE,
-                GST_VIDEO_ANCILLARY_DID16_S334_EIA_708 >> 8,
-                GST_VIDEO_ANCILLARY_DID16_S334_EIA_708 & 0xff, data, n))
-          GST_WARNING_OBJECT (self, "Couldn't add meta to ancillary data");
-
-        got_captions = TRUE;
-
-        break;
-      }
-      case GST_VIDEO_CAPTION_TYPE_CEA708_CDP:{
-        if (!gst_video_vbi_encoder_add_ancillary (self->vbiencoder,
-                FALSE,
-                GST_VIDEO_ANCILLARY_DID16_S334_EIA_708 >> 8,
-                GST_VIDEO_ANCILLARY_DID16_S334_EIA_708 & 0xff, cc_meta->data,
-                cc_meta->size))
-          GST_WARNING_OBJECT (self, "Couldn't add meta to ancillary data");
-
-        got_captions = TRUE;
-
-        break;
-      }
-      default:{
-        GST_FIXME_OBJECT (self, "Caption type %d not supported",
-            cc_meta->caption_type);
-        break;
-      }
-    }
-  }
-
-  if ((got_captions || self->afd_bar_line != 0)
-      && self->output->output->CreateAncillaryData (bmdFormat10BitYUV,
-          &vanc_frame) == S_OK) {
-    GstVideoAFDMeta *afd_meta = NULL, *afd_meta2 = NULL;
-    GstVideoBarMeta *bar_meta = NULL, *bar_meta2 = NULL;
-    GstMeta *meta;
-    gpointer meta_iter;
-    guint8 afd_bar_data[8] = { 0, };
-    guint8 afd_bar_data2[8] = { 0, };
-    guint8 afd = 0;
-    gboolean is_letterbox = 0;
-    guint16 bar1 = 0, bar2 = 0;
-    guint i;
-
-    // Get any reasonable AFD/Bar metas for both fields
-    meta_iter = NULL;
-    while ((meta =
-            gst_buffer_iterate_meta_filtered (buffer, &meta_iter,
-                GST_VIDEO_AFD_META_API_TYPE))) {
-      GstVideoAFDMeta *tmp_meta = (GstVideoAFDMeta *) meta;
-
-      if (tmp_meta->field == 0 || !afd_meta || (afd_meta && afd_meta->field != 0
-              && tmp_meta->field == 0))
-        afd_meta = tmp_meta;
-      if (tmp_meta->field == 1 || !afd_meta2 || (afd_meta2
-              && afd_meta->field != 1 && tmp_meta->field == 1))
-        afd_meta2 = tmp_meta;
-    }
-
-    meta_iter = NULL;
-    while ((meta =
-            gst_buffer_iterate_meta_filtered (buffer, &meta_iter,
-                GST_VIDEO_BAR_META_API_TYPE))) {
-      GstVideoBarMeta *tmp_meta = (GstVideoBarMeta *) meta;
-
-      if (tmp_meta->field == 0 || !bar_meta || (bar_meta && bar_meta->field != 0
-              && tmp_meta->field == 0))
-        bar_meta = tmp_meta;
-      if (tmp_meta->field == 1 || !bar_meta2 || (bar_meta2
-              && bar_meta->field != 1 && tmp_meta->field == 1))
-        bar_meta2 = tmp_meta;
-    }
-
-    for (i = 0; i < 2; i++) {
-      guint8 *afd_bar_data_ptr;
-
-      if (i == 0) {
-        afd_bar_data_ptr = afd_bar_data;
-        afd = afd_meta ? afd_meta->afd : 0;
-        is_letterbox = bar_meta ? bar_meta->is_letterbox : FALSE;
-        bar1 = bar_meta ? bar_meta->bar_data1 : 0;
-        bar2 = bar_meta ? bar_meta->bar_data2 : 0;
-      } else {
-        afd_bar_data_ptr = afd_bar_data2;
-        afd = afd_meta2 ? afd_meta2->afd : 0;
-        is_letterbox = bar_meta2 ? bar_meta2->is_letterbox : FALSE;
-        bar1 = bar_meta2 ? bar_meta2->bar_data1 : 0;
-        bar2 = bar_meta2 ? bar_meta2->bar_data2 : 0;
-      }
-
-      /* See SMPTE 2016-3 Section 4 */
-      /* AFD and AR */
-      if (self->mode <= (gint) GST_DECKLINK_MODE_PAL_P) {
-        afd_bar_data_ptr[0] = (afd << 3) | 0x0;
-      } else {
-        afd_bar_data_ptr[0] = (afd << 3) | 0x4;
-      }
-
-      /* Bar flags */
-      afd_bar_data_ptr[3] = is_letterbox ? 0xc0 : 0x30;
-
-      /* Bar value 1 and 2 */
-      GST_WRITE_UINT16_BE (&afd_bar_data_ptr[4], bar1);
-      GST_WRITE_UINT16_BE (&afd_bar_data_ptr[6], bar2);
-    }
-
-    /* AFD on the same line as the captions */
-    if (self->caption_line == self->afd_bar_line) {
-      if (!gst_video_vbi_encoder_add_ancillary (self->vbiencoder,
-              FALSE, GST_VIDEO_ANCILLARY_DID16_S2016_3_AFD_BAR >> 8,
-              GST_VIDEO_ANCILLARY_DID16_S2016_3_AFD_BAR & 0xff, afd_bar_data,
-              sizeof (afd_bar_data)))
-        GST_WARNING_OBJECT (self,
-            "Couldn't add AFD/Bar data to ancillary data");
-    }
-
-    /* FIXME: Add captions to the correct field? Captions for the second
-     * field should probably be inserted into the second field */
-
-    if (got_captions || self->caption_line == self->afd_bar_line) {
-      if (vanc_frame->GetBufferForVerticalBlankingLine (self->caption_line,
-              (void **) &vancdata) == S_OK) {
-        gst_video_vbi_encoder_write_line (self->vbiencoder, vancdata);
-      } else {
-        GST_WARNING_OBJECT (self,
-            "Failed to get buffer for line %d ancillary data",
-            self->caption_line);
-      }
-    }
-
-    /* AFD on a different line than the captions */
-    if (self->afd_bar_line != 0 && self->caption_line != self->afd_bar_line) {
-      if (!gst_video_vbi_encoder_add_ancillary (self->vbiencoder,
-              FALSE, GST_VIDEO_ANCILLARY_DID16_S2016_3_AFD_BAR >> 8,
-              GST_VIDEO_ANCILLARY_DID16_S2016_3_AFD_BAR & 0xff, afd_bar_data,
-              sizeof (afd_bar_data)))
-        GST_WARNING_OBJECT (self,
-            "Couldn't add AFD/Bar data to ancillary data");
-
-      if (vanc_frame->GetBufferForVerticalBlankingLine (self->afd_bar_line,
-              (void **) &vancdata) == S_OK) {
-        gst_video_vbi_encoder_write_line (self->vbiencoder, vancdata);
-      } else {
-        GST_WARNING_OBJECT (self,
-            "Failed to get buffer for line %d ancillary data",
-            self->afd_bar_line);
-      }
-    }
-
-    /* For interlaced video we need to also add AFD to the second field */
-    if (GST_VIDEO_INFO_IS_INTERLACED (&self->info) && self->afd_bar_line != 0) {
-      guint field2_offset;
-
-      /* The VANC lines for the second field are at an offset, depending on
-       * the format in use.
-       */
-      switch (self->info.height) {
-        case 486:
-          /* NTSC: 525 / 2 + 1 */
-          field2_offset = 263;
-          break;
-        case 576:
-          /* PAL: 625 / 2 + 1 */
-          field2_offset = 313;
-          break;
-        case 1080:
-          /* 1080i: 1125 / 2 + 1 */
-          field2_offset = 563;
-          break;
-        default:
-          g_assert_not_reached ();
-      }
-
-      if (!gst_video_vbi_encoder_add_ancillary (self->vbiencoder,
-              FALSE, GST_VIDEO_ANCILLARY_DID16_S2016_3_AFD_BAR >> 8,
-              GST_VIDEO_ANCILLARY_DID16_S2016_3_AFD_BAR & 0xff, afd_bar_data2,
-              sizeof (afd_bar_data)))
-        GST_WARNING_OBJECT (self,
-            "Couldn't add AFD/Bar data to ancillary data");
-
-      if (vanc_frame->GetBufferForVerticalBlankingLine (self->afd_bar_line +
-              field2_offset, (void **) &vancdata) == S_OK) {
-        gst_video_vbi_encoder_write_line (self->vbiencoder, vancdata);
-      } else {
-        GST_WARNING_OBJECT (self,
-            "Failed to get buffer for line %d ancillary data",
-            self->afd_bar_line);
-      }
-    }
-
-    if (frame->SetAncillaryData (vanc_frame) != S_OK) {
-      GST_WARNING_OBJECT (self, "Failed to set ancillary data");
-    }
-
-    vanc_frame->Release ();
-  } else if (got_captions || self->afd_bar_line != 0) {
-    GST_WARNING_OBJECT (self, "Failed to allocate ancillary data frame");
-  }
-}
-
 static GstFlowReturn
 gst_decklink_video_sink_prepare (GstBaseSink * bsink, GstBuffer * buffer)
 {
@@ -1224,7 +902,7 @@ gst_decklink_video_sink_prepare (GstBaseSink * bsink, GstBuffer * buffer)
   gint stride;
   GstVideoTimeCodeMeta *tc_meta;
 
-  GST_DEBUG_OBJECT (self, "Preparing buffer %" GST_PTR_FORMAT, buffer);
+  GST_DEBUG_OBJECT (self, "Preparing buffer %p", buffer);
 
   // FIXME: Handle no timestamps
   if (!GST_BUFFER_TIMESTAMP_IS_VALID (buffer)) {
@@ -1326,7 +1004,131 @@ gst_decklink_video_sink_prepare (GstBaseSink * bsink, GstBuffer * buffer)
     g_free (tc_str);
   }
 
-  write_vbi (self, buffer, format, frame, tc_meta);
+  if (self->caption_line != 0) {
+    IDeckLinkVideoFrameAncillary *vanc_frame = NULL;
+    gpointer iter = NULL;
+    GstVideoCaptionMeta *cc_meta;
+    guint8 *vancdata;
+    gboolean got_captions = FALSE;
+
+    /* Put any closed captions into the configured line */
+    while ((cc_meta =
+            (GstVideoCaptionMeta *) gst_buffer_iterate_meta_filtered (buffer,
+                &iter, GST_VIDEO_CAPTION_META_API_TYPE))) {
+      if (self->vbiencoder == NULL) {
+        self->vbiencoder =
+            gst_video_vbi_encoder_new (self->info.finfo->format,
+            self->info.width);
+        self->anc_vformat = self->info.finfo->format;
+      }
+
+      switch (cc_meta->caption_type) {
+        case GST_VIDEO_CAPTION_TYPE_CEA608_RAW:{
+          guint8 data[138];
+          guint i, n;
+
+          n = cc_meta->size / 2;
+          if (cc_meta->size > 46) {
+            GST_WARNING_OBJECT (self, "Too big raw CEA608 buffer");
+            break;
+          }
+
+          /* This is the offset from line 9 for 525-line fields and from line
+           * 5 for 625-line fields.
+           *
+           * The highest bit is set for field 1 but not for field 0, but we
+           * have no way of knowning the field here
+           */
+          for (i = 0; i < n; i++) {
+            data[3 * i] = 0x80 | (self->info.height ==
+                525 ? self->caption_line - 9 : self->caption_line - 5);
+            data[3 * i + 1] = cc_meta->data[2 * i];
+            data[3 * i + 2] = cc_meta->data[2 * i + 1];
+          }
+
+          if (!gst_video_vbi_encoder_add_ancillary (self->vbiencoder,
+                  FALSE,
+                  GST_VIDEO_ANCILLARY_DID16_S334_EIA_608 >> 8,
+                  GST_VIDEO_ANCILLARY_DID16_S334_EIA_608 & 0xff, data, 3))
+            GST_WARNING_OBJECT (self, "Couldn't add meta to ancillary data");
+
+          got_captions = TRUE;
+
+          break;
+        }
+        case GST_VIDEO_CAPTION_TYPE_CEA608_S334_1A:{
+          if (!gst_video_vbi_encoder_add_ancillary (self->vbiencoder,
+                  FALSE,
+                  GST_VIDEO_ANCILLARY_DID16_S334_EIA_608 >> 8,
+                  GST_VIDEO_ANCILLARY_DID16_S334_EIA_608 & 0xff, cc_meta->data,
+                  cc_meta->size))
+            GST_WARNING_OBJECT (self, "Couldn't add meta to ancillary data");
+
+          got_captions = TRUE;
+
+          break;
+        }
+        case GST_VIDEO_CAPTION_TYPE_CEA708_RAW:{
+          guint8 data[256];
+          guint n;
+
+          n = cc_meta->size / 3;
+          if (cc_meta->size > 46) {
+            GST_WARNING_OBJECT (self, "Too big raw CEA708 buffer");
+            break;
+          }
+
+          n = convert_cea708_cc_data_cea708_cdp_internal (self, cc_meta->data,
+              cc_meta->size, data, sizeof (data), tc_meta);
+          if (!gst_video_vbi_encoder_add_ancillary (self->vbiencoder, FALSE,
+                  GST_VIDEO_ANCILLARY_DID16_S334_EIA_708 >> 8,
+                  GST_VIDEO_ANCILLARY_DID16_S334_EIA_708 & 0xff, data, n))
+            GST_WARNING_OBJECT (self, "Couldn't add meta to ancillary data");
+
+          got_captions = TRUE;
+
+          break;
+        }
+        case GST_VIDEO_CAPTION_TYPE_CEA708_CDP:{
+          if (!gst_video_vbi_encoder_add_ancillary (self->vbiencoder,
+                  FALSE,
+                  GST_VIDEO_ANCILLARY_DID16_S334_EIA_708 >> 8,
+                  GST_VIDEO_ANCILLARY_DID16_S334_EIA_708 & 0xff, cc_meta->data,
+                  cc_meta->size))
+            GST_WARNING_OBJECT (self, "Couldn't add meta to ancillary data");
+
+          got_captions = TRUE;
+
+          break;
+        }
+        default:{
+          GST_FIXME_OBJECT (self, "Caption type %d not supported",
+              cc_meta->caption_type);
+          break;
+        }
+      }
+    }
+
+    if (got_captions
+        && self->output->output->CreateAncillaryData (format,
+            &vanc_frame) == S_OK) {
+      if (vanc_frame->GetBufferForVerticalBlankingLine (self->caption_line,
+              (void **) &vancdata) == S_OK) {
+        gst_video_vbi_encoder_write_line (self->vbiencoder, vancdata);
+        if (frame->SetAncillaryData (vanc_frame) != S_OK) {
+          GST_WARNING_OBJECT (self, "Failed to set ancillary data");
+        }
+      } else {
+        GST_WARNING_OBJECT (self,
+            "Failed to get buffer for line %d ancillary data",
+            self->caption_line);
+      }
+      vanc_frame->Release ();
+    } else if (got_captions) {
+      GST_WARNING_OBJECT (self, "Failed to allocate ancillary data frame");
+    }
+
+  }
 
   gst_decklink_video_sink_convert_to_internal_clock (self, &running_time,
       &running_time_duration);
@@ -1522,7 +1324,7 @@ gst_decklink_video_sink_start_scheduled_playback (GstElement * element)
     _wait_for_stop_notify (self);
   }
 
-  GST_INFO_OBJECT (self,
+  GST_DEBUG_OBJECT (self,
       "Starting scheduled playback at %" GST_TIME_FORMAT,
       GST_TIME_ARGS (start_time));
 
@@ -1551,7 +1353,7 @@ gst_decklink_video_sink_stop_scheduled_playback (GstDecklinkVideoSink * self)
 
   start_time = gst_clock_get_internal_time (self->output->clock);
 
-  GST_INFO_OBJECT (self,
+  GST_DEBUG_OBJECT (self,
       "Stopping scheduled playback at %" GST_TIME_FORMAT,
       GST_TIME_ARGS (start_time));
 
@@ -1617,16 +1419,10 @@ gst_decklink_video_sink_change_state (GstElement * element,
         }
 
         GST_OBJECT_LOCK (self);
-        if (self->external_base_time == GST_CLOCK_TIME_NONE
-            || self->internal_base_time == GST_CLOCK_TIME_NONE) {
+        if (self->external_base_time == GST_CLOCK_TIME_NONE || self->internal_base_time == GST_CLOCK_TIME_NONE) {
           self->external_base_time = gst_clock_get_internal_time (clock);
-          self->internal_base_time =
-              gst_clock_get_internal_time (self->output->clock);
+          self->internal_base_time = gst_clock_get_internal_time (self->output->clock);
           self->internal_time_offset = self->internal_base_time;
-        } else if (GST_CLOCK_TIME_IS_VALID (self->internal_pause_time)) {
-          self->internal_time_offset +=
-              gst_clock_get_internal_time (self->output->clock) -
-              self->internal_pause_time;
         }
 
         GST_INFO_OBJECT (self, "clock has been set to %" GST_PTR_FORMAT
@@ -1680,7 +1476,6 @@ gst_decklink_video_sink_change_state (GstElement * element,
       GST_OBJECT_LOCK (self);
       self->internal_base_time = GST_CLOCK_TIME_NONE;
       self->external_base_time = GST_CLOCK_TIME_NONE;
-      self->internal_pause_time = GST_CLOCK_TIME_NONE;
       GST_OBJECT_UNLOCK (self);
       break;
     }
@@ -1690,8 +1485,6 @@ gst_decklink_video_sink_change_state (GstElement * element,
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
       break;
     case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-      self->internal_pause_time =
-          gst_clock_get_internal_time (self->output->clock);
       break;
     default:
       break;

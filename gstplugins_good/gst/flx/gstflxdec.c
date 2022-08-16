@@ -19,7 +19,6 @@
  */
 /**
  * SECTION:element-flxdec
- * @title: flxdec
  *
  * This element decodes fli/flc/flx-video into raw video
  */
@@ -89,8 +88,6 @@ static gboolean flx_decode_delta_flc (GstFlxDec * flxdec,
 
 #define gst_flxdec_parent_class parent_class
 G_DEFINE_TYPE (GstFlxDec, gst_flxdec, GST_TYPE_ELEMENT);
-GST_ELEMENT_REGISTER_DEFINE (flxdec, "flxdec",
-    GST_RANK_PRIMARY, GST_TYPE_FLXDEC);
 
 static void
 gst_flxdec_class_init (GstFlxDecClass * klass)
@@ -990,7 +987,8 @@ gst_flxdec_change_state (GstElement * element, GstStateChange transition)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (flxdec, plugin);
+  return gst_element_register (plugin, "flxdec",
+      GST_RANK_PRIMARY, GST_TYPE_FLXDEC);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

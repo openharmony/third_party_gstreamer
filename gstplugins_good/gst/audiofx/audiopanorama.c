@@ -21,19 +21,19 @@
 
 /**
  * SECTION:element-audiopanorama
- * @title: audiopanorama
  *
  * Stereo panorama effect with controllable pan position. One can choose between the default psychoacoustic panning method,
  * which keeps the same perceived loudness, and a simple panning method that just controls the volume on one channel.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 audiotestsrc wave=saw ! audiopanorama panorama=-1.00 ! alsasink
  * gst-launch-1.0 filesrc location="melo1.ogg" ! oggdemux ! vorbisdec ! audioconvert ! audiopanorama panorama=-1.00 ! alsasink
  * gst-launch-1.0 audiotestsrc wave=saw ! audioconvert ! audiopanorama panorama=-1.00 ! audioconvert ! alsasink
  * gst-launch-1.0 audiotestsrc wave=saw ! audioconvert ! audiopanorama method=simple panorama=-0.50 ! audioconvert ! alsasink
  * ]|
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -103,8 +103,6 @@ static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
     );
 
 G_DEFINE_TYPE (GstAudioPanorama, gst_audio_panorama, GST_TYPE_BASE_TRANSFORM);
-GST_ELEMENT_REGISTER_DEFINE (audiopanorama, "audiopanorama",
-    GST_RANK_NONE, GST_TYPE_AUDIO_PANORAMA);
 
 static void gst_audio_panorama_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -187,7 +185,7 @@ gst_audio_panorama_class_init (GstAudioPanoramaClass * klass)
    *
    * Panning method: psychoacoustic mode keeps the same perceived loudness,
    * while simple mode just controls the volume of one channel. It's merely
-   * a matter of taste which method should be chosen.
+   * a matter of taste which method should be chosen. 
    */
   g_object_class_install_property (gobject_class, PROP_METHOD,
       g_param_spec_enum ("method", "Panning method",
@@ -212,8 +210,6 @@ gst_audio_panorama_class_init (GstAudioPanoramaClass * klass)
       GST_DEBUG_FUNCPTR (gst_audio_panorama_set_caps);
   GST_BASE_TRANSFORM_CLASS (klass)->transform =
       GST_DEBUG_FUNCPTR (gst_audio_panorama_transform);
-
-  gst_type_mark_as_plugin_api (GST_TYPE_AUDIO_PANORAMA_METHOD, 0);
 }
 
 static void

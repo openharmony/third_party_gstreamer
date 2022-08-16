@@ -21,6 +21,7 @@
  * SECTION:element-curlsink
  * @title: curlsink
  * @short_description: sink that uploads data to a server using libcurl
+ * @see_also:
  *
  * This is a network sink that uses libcurl as a client to upload data to
  * an SMTP server.
@@ -72,7 +73,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include "gstcurlelements.h"
 #include "gstcurltlssink.h"
 #include "gstcurlsmtpsink.h"
 
@@ -135,8 +135,6 @@ static size_t transfer_payload_headers (GstCurlSmtpSink * sink, void *curl_ptr,
 
 #define gst_curl_smtp_sink_parent_class parent_class
 G_DEFINE_TYPE (GstCurlSmtpSink, gst_curl_smtp_sink, GST_TYPE_CURL_TLS_SINK);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (curlsmtpsink, "curlsmtpsink",
-    GST_RANK_NONE, GST_TYPE_CURL_SMTP_SINK, curl_element_init (plugin));
 
 static void
 gst_curl_smtp_sink_notify_transfer_end_unlocked (GstCurlSmtpSink * sink)
@@ -255,6 +253,7 @@ gst_curl_smtp_sink_class_init (GstCurlSmtpSinkClass * klass)
 
   GST_DEBUG_CATEGORY_INIT (gst_curl_smtp_sink_debug, "curlsmtpsink", 0,
       "curl smtp sink element");
+  GST_DEBUG_OBJECT (klass, "class_init");
 
   gst_element_class_set_static_metadata (element_class,
       "Curl smtp sink",
@@ -637,7 +636,7 @@ gst_curl_smtp_sink_set_transfer_options_unlocked (GstCurlBaseSink * bcsink)
 
   /* time */
   date = g_date_time_new_now_local ();
-  date_str = g_date_time_format (date, "%a, %e %b %Y %H:%M:%S %z");
+  date_str = g_date_time_format (date, "%a %b %e %H:%M:%S %Y %z");
   g_date_time_unref (date);
 
   /* recipient, sender and subject are all UTF-8 strings, which are additionally

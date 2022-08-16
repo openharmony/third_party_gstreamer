@@ -48,8 +48,6 @@ GST_STATIC_PAD_TEMPLATE ("src",
     );
 
 G_DEFINE_TYPE (GstRtpOnvifParse, gst_rtp_onvif_parse, GST_TYPE_ELEMENT);
-GST_ELEMENT_REGISTER_DEFINE (rtponvifparse, "rtponvifparse",
-    GST_RANK_NONE, GST_TYPE_RTP_ONVIF_PARSE);
 
 static void
 gst_rtp_onvif_parse_class_init (GstRtpOnvifParseClass * klass)
@@ -88,21 +86,19 @@ gst_rtp_onvif_parse_init (GstRtpOnvifParse * self)
 #define EXTENSION_SIZE 3
 
 static gboolean
-handle_buffer (GstRtpOnvifParse * self, GstBuffer * buf, gboolean * send_eos)
+handle_buffer (GstRtpOnvifParse * self, GstBuffer * buf)
 {
   GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
   guint8 *data;
   guint16 bits;
   guint wordlen;
   guint8 flags;
-  guint64 timestamp_seconds;
-  guint64 timestamp_fraction;
-  guint64 timestamp_nseconds;
   /*
+     guint64 timestamp;
      guint8 cseq;
    */
 
-  if (!gst_rtp_buffer_map (buf, GST_MAP_READWRITE, &rtp)) {
+  if (!gst_rtp_buffer_map (buf, GST_MAP_READ, &rtp)) {
     GST_ELEMENT_ERROR (self, STREAM, FAILED,
         ("Failed to map RTP buffer"), (NULL));
     return FALSE;
@@ -116,18 +112,7 @@ handle_buffer (GstRtpOnvifParse * self, GstBuffer * buf, gboolean * send_eos)
   if (bits != EXTENSION_ID || wordlen != EXTENSION_SIZE)
     goto out;
 
-  timestamp_seconds = GST_READ_UINT32_BE (data);
-  timestamp_fraction = GST_READ_UINT32_BE (data + 4);
-  timestamp_nseconds =
-      (timestamp_fraction * G_GINT64_CONSTANT (1000000000)) >> 32;
-
-  if (timestamp_seconds == G_MAXUINT32 && timestamp_fraction == G_MAXUINT32) {
-    GST_BUFFER_PTS (buf) = GST_CLOCK_TIME_NONE;
-  } else {
-    GST_BUFFER_PTS (buf) =
-        timestamp_seconds * GST_SECOND + timestamp_nseconds * GST_NSECOND;
-  }
-
+  /* timestamp = GST_READ_UINT64_BE (data);  TODO */
   flags = GST_READ_UINT8 (data + 8);
   /* cseq = GST_READ_UINT8 (data + 9);  TODO */
 
@@ -146,10 +131,6 @@ handle_buffer (GstRtpOnvifParse * self, GstBuffer * buf, gboolean * send_eos)
   else
     GST_BUFFER_FLAG_UNSET (buf, GST_BUFFER_FLAG_DISCONT);
 
-  /* T */
-  if (flags & (1 << 4))
-    *send_eos = TRUE;
-
 out:
   gst_rtp_buffer_unmap (&rtp);
   return TRUE;
@@ -159,23 +140,11 @@ static GstFlowReturn
 gst_rtp_onvif_parse_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
   GstRtpOnvifParse *self = GST_RTP_ONVIF_PARSE (parent);
-  GstFlowReturn ret;
-  gboolean send_eos = FALSE;
 
-  if (!handle_buffer (self, buf, &send_eos)) {
+  if (!handle_buffer (self, buf)) {
     gst_buffer_unref (buf);
     return GST_FLOW_ERROR;
   }
 
-  ret = gst_pad_push (self->srcpad, buf);
-
-  if (ret == GST_FLOW_OK && send_eos) {
-    GstEvent *event;
-
-    event = gst_event_new_eos ();
-    gst_pad_push_event (self->srcpad, event);
-    ret = GST_FLOW_EOS;
-  }
-
-  return ret;
+  return gst_pad_push (self->srcpad, buf);
 }

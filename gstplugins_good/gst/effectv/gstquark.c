@@ -26,16 +26,16 @@
 
 /**
  * SECTION:element-quarktv
- * @title: quarktv
  *
  * QuarkTV disolves moving objects. It picks up pixels from
  * the last frames randomly.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 -v videotestsrc ! quarktv ! videoconvert ! autovideosink
  * ]| This pipeline shows the effect of quarktv on a test stream.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -48,7 +48,7 @@
 #include "gstquark.h"
 #include "gsteffectv.h"
 
-/* number of frames of time-buffer. It should be as a configurable parameter */
+/* number of frames of time-buffer. It should be as a configurable paramater */
 /* This number also must be 2^n just for the speed. */
 #define PLANES 16
 
@@ -60,8 +60,6 @@ enum
 
 #define gst_quarktv_parent_class parent_class
 G_DEFINE_TYPE (GstQuarkTV, gst_quarktv, GST_TYPE_VIDEO_FILTER);
-GST_ELEMENT_REGISTER_DEFINE (quarktv, "quarktv", GST_RANK_NONE,
-    GST_TYPE_QUARKTV);
 
 static void gst_quarktv_planetable_clear (GstQuarkTV * filter);
 

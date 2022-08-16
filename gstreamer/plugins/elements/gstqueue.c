@@ -60,7 +60,6 @@
 
 #include <gst/gst.h>
 #include "gstqueue.h"
-#include "gstcoreelementselements.h"
 
 #include "../../gst/gst-i18n-lib.h"
 #include "../../gst/glib-compat-private.h"
@@ -188,7 +187,6 @@ enum
         "dataflow inside the queue element");
 #define gst_queue_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstQueue, gst_queue, GST_TYPE_ELEMENT, _do_init);
-GST_ELEMENT_REGISTER_DEFINE (queue, "queue", GST_RANK_NONE, GST_TYPE_QUEUE);
 
 static void gst_queue_finalize (GObject * object);
 static void gst_queue_set_property (GObject * object,
@@ -275,7 +273,7 @@ gst_queue_class_init (GstQueueClass * klass)
   gst_queue_signals[SIGNAL_UNDERRUN] =
       g_signal_new ("underrun", G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_FIRST,
       G_STRUCT_OFFSET (GstQueueClass, underrun), NULL, NULL,
-      NULL, G_TYPE_NONE, 0);
+      g_cclosure_marshal_VOID__VOID, G_TYPE_NONE, 0);
   /**
    * GstQueue::running:
    * @queue: the queue instance
@@ -287,7 +285,7 @@ gst_queue_class_init (GstQueueClass * klass)
   gst_queue_signals[SIGNAL_RUNNING] =
       g_signal_new ("running", G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_FIRST,
       G_STRUCT_OFFSET (GstQueueClass, running), NULL, NULL,
-      NULL, G_TYPE_NONE, 0);
+      g_cclosure_marshal_VOID__VOID, G_TYPE_NONE, 0);
   /**
    * GstQueue::overrun:
    * @queue: the queue instance
@@ -300,7 +298,7 @@ gst_queue_class_init (GstQueueClass * klass)
   gst_queue_signals[SIGNAL_OVERRUN] =
       g_signal_new ("overrun", G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_FIRST,
       G_STRUCT_OFFSET (GstQueueClass, overrun), NULL, NULL,
-      NULL, G_TYPE_NONE, 0);
+      g_cclosure_marshal_VOID__VOID, G_TYPE_NONE, 0);
   /**
    * GstQueue::pushing:
    * @queue: the queue instance
@@ -311,7 +309,7 @@ gst_queue_class_init (GstQueueClass * klass)
   gst_queue_signals[SIGNAL_PUSHING] =
       g_signal_new ("pushing", G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_FIRST,
       G_STRUCT_OFFSET (GstQueueClass, pushing), NULL, NULL,
-      NULL, G_TYPE_NONE, 0);
+      g_cclosure_marshal_VOID__VOID, G_TYPE_NONE, 0);
 
   /* properties */
   g_object_class_install_property (gobject_class, PROP_CUR_LEVEL_BYTES,
@@ -385,7 +383,7 @@ gst_queue_class_init (GstQueueClass * klass)
           G_PARAM_STATIC_STRINGS));
 
   /**
-   * queue:flush-on-eos:
+   * GstQueue:flush-on-eos
    *
    * Discard all data in the queue when an EOS event is received, and pass
    * on the EOS event as soon as possible (instead of waiting until all
@@ -421,8 +419,6 @@ gst_queue_class_init (GstQueueClass * klass)
   GST_DEBUG_REGISTER_FUNCPTR (gst_queue_handle_src_query);
   GST_DEBUG_REGISTER_FUNCPTR (gst_queue_chain);
   GST_DEBUG_REGISTER_FUNCPTR (gst_queue_chain_list);
-
-  gst_type_mark_as_plugin_api (GST_TYPE_QUEUE_LEAKY, 0);
 }
 
 static void
@@ -1246,10 +1242,10 @@ gst_queue_chain_buffer_or_list (GstPad * pad, GstObject * parent,
             "queue is full, waiting for free space");
 
         /* don't leak. Instead, wait for space to be available */
-        /* for as long as the queue is filled, wait till an item was deleted. */
-        while (gst_queue_is_filled (queue)) {
+        do {
+          /* for as long as the queue is filled, wait till an item was deleted. */
           GST_QUEUE_WAIT_DEL_CHECK (queue, out_flushing);
-        };
+        } while (gst_queue_is_filled (queue));
 
         GST_CAT_DEBUG_OBJECT (queue_dataflow, queue, "queue is not full");
 
@@ -1674,7 +1670,7 @@ gst_queue_handle_src_query (GstPad * pad, GstObject * parent, GstQuery * query)
           && queue->leaky == GST_QUEUE_NO_LEAK)
         max += queue->max_size.time;
       else if (queue->max_size.time > 0 && queue->leaky != GST_QUEUE_NO_LEAK)
-        max = MAX (queue->max_size.time, max);
+        max = MIN (queue->max_size.time, max);
       else
         max = -1;
 

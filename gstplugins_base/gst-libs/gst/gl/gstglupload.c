@@ -27,11 +27,9 @@
 
 #include "gl.h"
 #include "gstglupload.h"
-#include "gstglfuncs.h"
 
 #if GST_GL_HAVE_PLATFORM_EGL
 #include "egl/gsteglimage.h"
-#include "egl/gsteglimage_private.h"
 #include "egl/gstglmemoryegl.h"
 #include "egl/gstglcontext_egl.h"
 #endif
@@ -496,9 +494,8 @@ struct DmabufUpload
   guint n_mem;
 
   gboolean direct;
-  GstGLTextureTarget target;
   GstVideoInfo out_info;
-  /* only used for pointer comparison */
+  /* only used for pointer comparision */
   gpointer out_caps;
 };
 
@@ -513,7 +510,6 @@ _dma_buf_upload_new (GstGLUpload * upload)
 {
   struct DmabufUpload *dmabuf = g_new0 (struct DmabufUpload, 1);
   dmabuf->upload = upload;
-  dmabuf->target = GST_GL_TEXTURE_TARGET_2D;
   return dmabuf;
 }
 
@@ -526,11 +522,6 @@ _dma_buf_upload_transform_caps (gpointer impl, GstGLContext * context,
   GstCaps *ret;
 
   if (context) {
-    const GstGLFuncs *gl = context->gl_vtable;
-
-    if (!gl->EGLImageTargetTexture2D)
-      return NULL;
-
     /* Don't propose DMABuf caps feature unless it can be supported */
     if (gst_gl_context_get_gl_platform (context) != GST_GL_PLATFORM_EGL)
       return NULL;
@@ -563,6 +554,7 @@ _dma_buf_upload_transform_caps (gpointer impl, GstGLContext * context,
         _set_caps_features_with_passthrough (caps,
         GST_CAPS_FEATURE_MEMORY_SYSTEM_MEMORY, passthrough);
     gst_caps_append (ret, tmp);
+
 
     n = gst_caps_get_size (ret);
     for (i = 0; i < n; i++) {
@@ -630,40 +622,22 @@ _dma_buf_upload_accept (gpointer impl, GstBuffer * buffer, GstCaps * in_caps,
   n_mem = gst_buffer_n_memory (buffer);
   meta = gst_buffer_get_video_meta (buffer);
 
-  if (!dmabuf->upload->context->gl_vtable->EGLImageTargetTexture2D)
-    return FALSE;
-
   /* dmabuf upload is only supported with EGL contexts. */
   if (gst_gl_context_get_gl_platform (dmabuf->upload->context) !=
       GST_GL_PLATFORM_EGL)
     return FALSE;
 
   if (!gst_gl_context_check_feature (dmabuf->upload->context,
-          "EGL_KHR_image_base")) {
-    GST_DEBUG_OBJECT (dmabuf->upload, "no EGL_KHR_image_base extension");
+          "EGL_KHR_image_base"))
     return FALSE;
-  }
-
-  if (dmabuf->target == GST_GL_TEXTURE_TARGET_EXTERNAL_OES &&
-      !gst_gl_context_check_feature (dmabuf->upload->context,
-          "GL_OES_EGL_image_external")) {
-    GST_DEBUG_OBJECT (dmabuf->upload,
-        "no EGL_KHR_image_base_external extension");
-    return FALSE;
-  }
 
   /* This will eliminate most non-dmabuf out there */
-  if (!gst_is_dmabuf_memory (gst_buffer_peek_memory (buffer, 0))) {
-    GST_DEBUG_OBJECT (dmabuf->upload, "input not dmabuf");
+  if (!gst_is_dmabuf_memory (gst_buffer_peek_memory (buffer, 0)))
     return FALSE;
-  }
 
   /* We cannot have multiple dmabuf per plane */
-  if (n_mem > n_planes) {
-    GST_DEBUG_OBJECT (dmabuf->upload,
-        "number of memory (%u) != number of planes (%u)", n_mem, n_planes);
+  if (n_mem > n_planes)
     return FALSE;
-  }
 
   /* Update video info based on video meta */
   if (meta) {
@@ -686,8 +660,8 @@ _dma_buf_upload_accept (gpointer impl, GstBuffer * buffer, GstCaps * in_caps,
     gst_gl_allocation_params_free ((GstGLAllocationParams *) dmabuf->params);
   if (!(dmabuf->params =
           gst_gl_video_allocation_params_new_wrapped_gl_handle (dmabuf->
-              upload->context, NULL, out_info, -1, NULL, dmabuf->target, 0,
-              NULL, NULL, NULL)))
+              upload->context, NULL, out_info, -1, NULL,
+              GST_GL_TEXTURE_TARGET_2D, 0, NULL, NULL, NULL)))
     return FALSE;
 
   /* Find and validate all memories */
@@ -700,39 +674,26 @@ _dma_buf_upload_accept (gpointer impl, GstBuffer * buffer, GstCaps * in_caps,
     plane_size = gst_gl_get_plane_data_size (in_info, NULL, i);
 
     if (!gst_buffer_find_memory (buffer, in_info->offset[i], plane_size,
-            &mem_idx, &length, &mem_skip)) {
-      GST_DEBUG_OBJECT (dmabuf->upload, "could not find memory %u", i);
+            &mem_idx, &length, &mem_skip))
       return FALSE;
-    }
 
     /* We can't have more then one dmabuf per plane */
-    if (length != 1) {
-      GST_DEBUG_OBJECT (dmabuf->upload, "data for plane %u spans %u memories",
-          i, length);
+    if (length != 1)
       return FALSE;
-    }
 
     mems[i] = gst_buffer_peek_memory (buffer, mem_idx);
 
     /* And all memory found must be dmabuf */
-    if (!gst_is_dmabuf_memory (mems[i])) {
-      GST_DEBUG_OBJECT (dmabuf->upload, "memory %u is not dmabuf", i);
+    if (!gst_is_dmabuf_memory (mems[i]))
       return FALSE;
-    }
 
     offset[i] = mems[i]->offset + mem_skip;
     fd[i] = gst_dmabuf_memory_get_fd (mems[i]);
   }
 
-  if (dmabuf->direct) {
-    /* Check if this format is supported by the driver */
+  if (dmabuf->direct)
     dmabuf->n_mem = 1;
-    if (!gst_egl_image_check_dmabuf_direct (dmabuf->upload->context, in_info,
-            dmabuf->target)) {
-      GST_DEBUG_OBJECT (dmabuf->upload, "direct check failed");
-      return FALSE;
-    }
-  } else
+  else
     dmabuf->n_mem = n_planes;
 
   /* Now create an EGLImage for each dmabufs */
@@ -749,16 +710,14 @@ _dma_buf_upload_accept (gpointer impl, GstBuffer * buffer, GstCaps * in_caps,
     /* otherwise create one and cache it */
     if (dmabuf->direct)
       dmabuf->eglimage[i] =
-          gst_egl_image_from_dmabuf_direct_target (dmabuf->upload->context, fd,
-          offset, in_info, dmabuf->target);
+          gst_egl_image_from_dmabuf_direct (dmabuf->upload->context, fd, offset,
+          in_info);
     else
       dmabuf->eglimage[i] = gst_egl_image_from_dmabuf (dmabuf->upload->context,
           fd[i], in_info, i, offset[i]);
 
-    if (!dmabuf->eglimage[i]) {
-      GST_DEBUG_OBJECT (dmabuf->upload, "could not create eglimage");
+    if (!dmabuf->eglimage[i])
       return FALSE;
-    }
 
     _set_cached_eglimage (mems[i], dmabuf->eglimage[i], cache_id);
     dmabuf->formats[i] = dmabuf->eglimage[i]->format;
@@ -795,15 +754,6 @@ static GstGLUploadReturn
 _dma_buf_upload_perform (gpointer impl, GstBuffer * buffer, GstBuffer ** outbuf)
 {
   struct DmabufUpload *dmabuf = impl;
-
-  /* The direct path sets sinkpad caps to RGBA but this may be incorrect for
-   * the non-direct path, if that path fails to accept. In that case, we need
-   * to reconfigure.
-   */
-  if (!dmabuf->direct &&
-      GST_VIDEO_INFO_FORMAT (&dmabuf->upload->priv->in_info) !=
-      GST_VIDEO_INFO_FORMAT (&dmabuf->out_info))
-    return GST_GL_UPLOAD_RECONFIGURE;
 
   gst_gl_context_thread_add (dmabuf->upload->context,
       (GstGLContextThreadFunc) _dma_buf_upload_perform_gl_thread, dmabuf);
@@ -842,7 +792,7 @@ static const UploadMethod _dma_buf_upload = {
   &_dma_buf_upload_free
 };
 
-/* a variant of the DMABuf uploader that relies on HW color conversion instead
+/* a variant of the DMABuf uploader that relies on HW color convertion instead
  * of shaders */
 
 static gpointer
@@ -859,31 +809,14 @@ _direct_dma_buf_upload_transform_caps (gpointer impl, GstGLContext * context,
     GstPadDirection direction, GstCaps * caps)
 {
   struct DmabufUpload *dmabuf = impl;
-  GstCapsFeatures *passthrough;
-  GstCaps *ret;
-
-  if (context) {
-    const GstGLFuncs *gl = context->gl_vtable;
-
-    if (!gl->EGLImageTargetTexture2D)
-      return NULL;
-
-    /* Don't propose direct DMABuf caps feature unless it can be supported */
-    if (gst_gl_context_get_gl_platform (context) != GST_GL_PLATFORM_EGL)
-      return NULL;
-
-    if (dmabuf->target == GST_GL_TEXTURE_TARGET_EXTERNAL_OES &&
-        !gst_gl_context_check_feature (context, "GL_OES_EGL_image_external"))
-      return NULL;
-  }
-
-  passthrough = gst_caps_features_from_string
+  GstCapsFeatures *passthrough =
+      gst_caps_features_from_string
       (GST_CAPS_FEATURE_META_GST_VIDEO_OVERLAY_COMPOSITION);
+  GstCaps *ret;
 
   if (direction == GST_PAD_SINK) {
     gint i, n;
     GstCaps *tmp;
-    GstGLTextureTarget target_mask;
 
     ret =
         _set_caps_features_with_passthrough (caps,
@@ -898,9 +831,7 @@ _direct_dma_buf_upload_transform_caps (gpointer impl, GstGLContext * context,
       gst_structure_remove_fields (s, "chroma-site", NULL);
       gst_structure_remove_fields (s, "colorimetry", NULL);
     }
-
-    target_mask = 1 << dmabuf->target;
-    tmp = _caps_intersect_texture_target (ret, target_mask);
+    tmp = _caps_intersect_texture_target (ret, 1 << GST_GL_TEXTURE_TARGET_2D);
     gst_caps_unref (ret);
     ret = tmp;
   } else {
@@ -946,28 +877,6 @@ static const UploadMethod _direct_dma_buf_upload = {
   0,
   &_dma_buf_upload_caps,
   &_direct_dma_buf_upload_new,
-  &_direct_dma_buf_upload_transform_caps,
-  &_dma_buf_upload_accept,
-  &_dma_buf_upload_propose_allocation,
-  &_dma_buf_upload_perform,
-  &_dma_buf_upload_free
-};
-
-/* a variant of the direct DMABuf uploader that uses external OES textures */
-
-static gpointer
-_direct_dma_buf_external_upload_new (GstGLUpload * upload)
-{
-  struct DmabufUpload *dmabuf = _direct_dma_buf_upload_new (upload);
-  dmabuf->target = GST_GL_TEXTURE_TARGET_EXTERNAL_OES;
-  return dmabuf;
-}
-
-static const UploadMethod _direct_dma_buf_external_upload = {
-  "DirectDmabufExternal",
-  0,
-  &_dma_buf_upload_caps,
-  &_direct_dma_buf_external_upload_new,
   &_direct_dma_buf_upload_transform_caps,
   &_dma_buf_upload_accept,
   &_dma_buf_upload_propose_allocation,
@@ -1395,7 +1304,6 @@ _raw_data_upload_perform (gpointer impl, GstBuffer * buffer,
   } else {
     GST_ERROR_OBJECT (raw->upload, "Failed to allocate wrapped texture");
     gst_buffer_unref (*outbuf);
-    gst_object_unref (allocator);
     return GST_GL_UPLOAD_ERROR;
   }
   gst_object_unref (allocator);
@@ -1750,499 +1658,14 @@ static const UploadMethod _directviv_upload = {
 
 #endif /* GST_GL_HAVE_VIV_DIRECTVIV */
 
-#if defined(HAVE_NVMM)
-#include "nvbuf_utils.h"
-
-struct NVMMUpload
-{
-  GstGLUpload *upload;
-
-  GstGLVideoAllocationParams *params;
-  guint n_mem;
-
-  GstGLTextureTarget target;
-  GstVideoInfo out_info;
-  /* only used for pointer comparison */
-  gpointer out_caps;
-};
-
-#define GST_CAPS_FEATURE_MEMORY_NVMM "memory:NVMM"
-
-/* FIXME: other formats? */
-static GstStaticCaps _nvmm_upload_caps =
-GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE_WITH_FEATURES
-    (GST_CAPS_FEATURE_MEMORY_NVMM,
-        "RGBA"));
-
-static gpointer
-_nvmm_upload_new (GstGLUpload * upload)
-{
-  struct NVMMUpload *nvmm = g_new0 (struct NVMMUpload, 1);
-  nvmm->upload = upload;
-  nvmm->target = GST_GL_TEXTURE_TARGET_EXTERNAL_OES;
-  return nvmm;
-}
-
-static GstCaps *
-_nvmm_upload_transform_caps (gpointer impl, GstGLContext * context,
-    GstPadDirection direction, GstCaps * caps)
-{
-  struct NVMMUpload *nvmm = impl;
-  GstCapsFeatures *passthrough;
-  GstCaps *ret;
-
-  if (context) {
-    const GstGLFuncs *gl = context->gl_vtable;
-
-    if (!gl->EGLImageTargetTexture2D)
-      return NULL;
-
-    /* Don't propose NVMM caps feature unless it can be supported */
-    if (gst_gl_context_get_gl_platform (context) != GST_GL_PLATFORM_EGL)
-      return NULL;
-
-    if (!gst_gl_context_check_feature (context, "EGL_KHR_image_base"))
-      return NULL;
-  }
-
-  passthrough = gst_caps_features_from_string
-      (GST_CAPS_FEATURE_META_GST_VIDEO_OVERLAY_COMPOSITION);
-
-  if (direction == GST_PAD_SINK) {
-    GstCaps *tmp;
-
-    ret =
-        _set_caps_features_with_passthrough (caps,
-        GST_CAPS_FEATURE_MEMORY_GL_MEMORY, passthrough);
-
-    tmp =
-        _caps_intersect_texture_target (ret,
-        1 << GST_GL_TEXTURE_TARGET_EXTERNAL_OES);
-    gst_caps_unref (ret);
-    ret = tmp;
-  } else {
-    gint i, n;
-
-    ret =
-        _set_caps_features_with_passthrough (caps,
-        GST_CAPS_FEATURE_MEMORY_NVMM, passthrough);
-
-    n = gst_caps_get_size (ret);
-    for (i = 0; i < n; i++) {
-      GstStructure *s = gst_caps_get_structure (ret, i);
-
-      gst_structure_remove_fields (s, "texture-target", NULL);
-    }
-  }
-
-  gst_caps_features_free (passthrough);
-
-  GST_DEBUG_OBJECT (nvmm->upload, "transformed %" GST_PTR_FORMAT " into %"
-      GST_PTR_FORMAT, caps, ret);
-
-  return ret;
-}
-
-static gboolean
-_nvmm_upload_accept (gpointer impl, GstBuffer * buffer, GstCaps * in_caps,
-    GstCaps * out_caps)
-{
-  struct NVMMUpload *nvmm = impl;
-  GstVideoInfo *in_info = &nvmm->upload->priv->in_info;
-  GstVideoInfo *out_info = &nvmm->out_info;
-  GstVideoMeta *meta;
-  GstMapInfo in_map_info = GST_MAP_INFO_INIT;
-  guint n_mem;
-  guint i;
-
-  n_mem = gst_buffer_n_memory (buffer);
-  if (n_mem != 1) {
-    GST_DEBUG_OBJECT (nvmm->upload, "NVMM uploader only supports "
-        "1 memory, not %u", n_mem);
-    return FALSE;
-  }
-
-  meta = gst_buffer_get_video_meta (buffer);
-
-  if (!nvmm->upload->context->gl_vtable->EGLImageTargetTexture2D)
-    return FALSE;
-
-  /* NVMM upload is only supported with EGL contexts. */
-  if (gst_gl_context_get_gl_platform (nvmm->upload->context) !=
-      GST_GL_PLATFORM_EGL)
-    return FALSE;
-
-  if (!gst_gl_context_check_feature (nvmm->upload->context,
-          "EGL_KHR_image_base"))
-    return FALSE;
-
-  if (!gst_buffer_map (buffer, &in_map_info, GST_MAP_READ)) {
-    GST_DEBUG_OBJECT (nvmm->upload, "Failed to map readonly NvBuffer");
-    return FALSE;
-  }
-  if (in_map_info.size != NvBufferGetSize ()) {
-    GST_DEBUG_OBJECT (nvmm->upload, "Memory size (%" G_GSIZE_FORMAT ") is "
-        "not the same as what NvBuffer advertises (%u)", in_map_info.size,
-        NvBufferGetSize ());
-    gst_buffer_unmap (buffer, &in_map_info);
-    return FALSE;
-  }
-  gst_buffer_unmap (buffer, &in_map_info);
-
-  /* Update video info based on video meta */
-  if (meta) {
-    in_info->width = meta->width;
-    in_info->height = meta->height;
-
-    for (i = 0; i < meta->n_planes; i++) {
-      in_info->offset[i] = meta->offset[i];
-      in_info->stride[i] = meta->stride[i];
-    }
-  }
-
-  if (out_caps != nvmm->out_caps) {
-    nvmm->out_caps = out_caps;
-    if (!gst_video_info_from_caps (out_info, out_caps))
-      return FALSE;
-  }
-
-  if (nvmm->params)
-    gst_gl_allocation_params_free ((GstGLAllocationParams *) nvmm->params);
-  if (!(nvmm->params =
-          gst_gl_video_allocation_params_new_wrapped_gl_handle (nvmm->
-              upload->context, NULL, out_info, -1, NULL, nvmm->target, 0, NULL,
-              NULL, NULL))) {
-    return FALSE;
-  }
-
-  return TRUE;
-}
-
-static void
-_nvmm_upload_propose_allocation (gpointer impl, GstQuery * decide_query,
-    GstQuery * query)
-{
-  /* nothing to do for now. */
-}
-
-static void
-_egl_image_mem_unref (GstEGLImage * image, GstMemory * mem)
-{
-  GstGLDisplayEGL *egl_display = NULL;
-  EGLDisplay display;
-
-  egl_display = gst_gl_display_egl_from_gl_display (image->context->display);
-  if (!egl_display) {
-    GST_ERROR ("Could not retrieve GstGLDisplayEGL from GstGLDisplay");
-    return;
-  }
-  display =
-      (EGLDisplay) gst_gl_display_get_handle (GST_GL_DISPLAY (egl_display));
-
-  if (NvDestroyEGLImage (display, image->image)) {
-    GST_ERROR ("Failed to destroy EGLImage %p from NvBuffer", image->image);
-  } else {
-    GST_DEBUG ("destroyed EGLImage %p from NvBuffer", image->image);
-  }
-
-  gst_memory_unref (mem);
-  gst_object_unref (egl_display);
-}
-
-static const char *
-payload_type_to_string (NvBufferPayloadType ptype)
-{
-  switch (ptype) {
-    case NvBufferPayload_SurfArray:
-      return "SurfArray";
-    case NvBufferPayload_MemHandle:
-      return "MemHandle";
-    default:
-      return "<unknown>";
-  }
-}
-
-static const char *
-pixel_format_to_string (NvBufferColorFormat fmt)
-{
-  switch (fmt) {
-    case NvBufferColorFormat_YUV420:
-      return "YUV420";
-    case NvBufferColorFormat_YVU420:
-      return "YVU420";
-    case NvBufferColorFormat_YUV422:
-      return "YUV422";
-    case NvBufferColorFormat_YUV420_ER:
-      return "YUV420_ER";
-    case NvBufferColorFormat_YVU420_ER:
-      return "YVU420_ER";
-    case NvBufferColorFormat_NV12:
-      return "NV12";
-    case NvBufferColorFormat_NV12_ER:
-      return "NV12_ER";
-    case NvBufferColorFormat_NV21:
-      return "NV21";
-    case NvBufferColorFormat_NV21_ER:
-      return "NV21_ER";
-    case NvBufferColorFormat_UYVY:
-      return "UYVY";
-    case NvBufferColorFormat_UYVY_ER:
-      return "UYVY_ER";
-    case NvBufferColorFormat_VYUY:
-      return "VYUY";
-    case NvBufferColorFormat_VYUY_ER:
-      return "VYUY_ER";
-    case NvBufferColorFormat_YUYV:
-      return "YUYV";
-    case NvBufferColorFormat_YUYV_ER:
-      return "YUYV_ER";
-    case NvBufferColorFormat_YVYU:
-      return "YVYU";
-    case NvBufferColorFormat_YVYU_ER:
-      return "YVYU_ER";
-    case NvBufferColorFormat_ABGR32:
-      return "ABGR32";
-    case NvBufferColorFormat_XRGB32:
-      return "XRGB32";
-    case NvBufferColorFormat_ARGB32:
-      return "ARGB32";
-    case NvBufferColorFormat_NV12_10LE:
-      return "NV12_10LE";
-    case NvBufferColorFormat_NV12_10LE_709:
-      return "NV12_10LE_709";
-    case NvBufferColorFormat_NV12_10LE_709_ER:
-      return "NV12_10LE_709_ER";
-    case NvBufferColorFormat_NV12_10LE_2020:
-      return "NV12_2020";
-    case NvBufferColorFormat_NV21_10LE:
-      return "NV21_10LE";
-    case NvBufferColorFormat_NV12_12LE:
-      return "NV12_12LE";
-    case NvBufferColorFormat_NV12_12LE_2020:
-      return "NV12_12LE_2020";
-    case NvBufferColorFormat_NV21_12LE:
-      return "NV21_12LE";
-    case NvBufferColorFormat_YUV420_709:
-      return "YUV420_709";
-    case NvBufferColorFormat_YUV420_709_ER:
-      return "YUV420_709_ER";
-    case NvBufferColorFormat_NV12_709:
-      return "NV12_709";
-    case NvBufferColorFormat_NV12_709_ER:
-      return "NV12_709_ER";
-    case NvBufferColorFormat_YUV420_2020:
-      return "YUV420_2020";
-    case NvBufferColorFormat_NV12_2020:
-      return "NV12_2020";
-    case NvBufferColorFormat_SignedR16G16:
-      return "SignedR16G16";
-    case NvBufferColorFormat_A32:
-      return "A32";
-    case NvBufferColorFormat_YUV444:
-      return "YUV444";
-    case NvBufferColorFormat_GRAY8:
-      return "GRAY8";
-    case NvBufferColorFormat_NV16:
-      return "NV16";
-    case NvBufferColorFormat_NV16_10LE:
-      return "NV16_10LE";
-    case NvBufferColorFormat_NV24:
-      return "NV24";
-    case NvBufferColorFormat_NV16_ER:
-      return "NV16_ER";
-    case NvBufferColorFormat_NV24_ER:
-      return "NV24_ER";
-    case NvBufferColorFormat_NV16_709:
-      return "NV16_709";
-    case NvBufferColorFormat_NV24_709:
-      return "NV24_709";
-    case NvBufferColorFormat_NV16_709_ER:
-      return "NV16_709_ER";
-    case NvBufferColorFormat_NV24_709_ER:
-      return "NV24_709_ER";
-    case NvBufferColorFormat_NV24_10LE_709:
-      return "NV24_10LE_709";
-    case NvBufferColorFormat_NV24_10LE_709_ER:
-      return "NV24_10LE_709_ER";
-    case NvBufferColorFormat_NV24_10LE_2020:
-      return "NV24_10LE_2020";
-    case NvBufferColorFormat_NV24_12LE_2020:
-      return "NV24_12LE_2020";
-    case NvBufferColorFormat_RGBA_10_10_10_2_709:
-      return "RGBA_10_10_10_2_709";
-    case NvBufferColorFormat_RGBA_10_10_10_2_2020:
-      return "RGBA_10_10_10_2_2020";
-    case NvBufferColorFormat_BGRA_10_10_10_2_709:
-      return "BGRA_10_10_10_2_709";
-    case NvBufferColorFormat_BGRA_10_10_10_2_2020:
-      return "BGRA_10_10_10_2_2020";
-    case NvBufferColorFormat_Invalid:
-      return "Invalid";
-    default:
-      return "<unknown>";
-  }
-}
-
-static void
-dump_nv_buf_params (GstObject * debug_object, NvBufferParamsEx * params)
-{
-  GST_DEBUG_OBJECT (debug_object, "nvbuffer fd: %u size %i nv_buffer: %p of "
-      "size %u, payload: (0x%x) %s, pixel format: (0x%x) %s, n_planes: %u, "
-      "plane 0 { wxh: %ux%u, pitch: %u, offset: %u, psize: %u, layout: %u } "
-      "plane 1 { wxh: %ux%u, pitch: %u, offset: %u, psize: %u, layout: %u } "
-      "plane 2 { wxh: %ux%u, pitch: %u, offset: %u, psize: %u, layout: %u }",
-      params->params.dmabuf_fd, params->params.memsize,
-      params->params.nv_buffer, params->params.nv_buffer_size,
-      params->params.payloadType,
-      payload_type_to_string (params->params.payloadType),
-      params->params.pixel_format,
-      pixel_format_to_string (params->params.pixel_format),
-      params->params.num_planes, params->params.width[0],
-      params->params.height[0], params->params.pitch[0],
-      params->params.offset[0], params->params.psize[0],
-      params->params.offset[0], params->params.width[1],
-      params->params.height[1], params->params.pitch[1],
-      params->params.offset[1], params->params.psize[1],
-      params->params.offset[1], params->params.width[2],
-      params->params.height[2], params->params.pitch[2],
-      params->params.offset[2], params->params.psize[2],
-      params->params.offset[2]);
-}
-
-static GstGLUploadReturn
-_nvmm_upload_perform (gpointer impl, GstBuffer * buffer, GstBuffer ** outbuf)
-{
-  struct NVMMUpload *nvmm = impl;
-  GstGLMemoryAllocator *allocator = NULL;
-  GstMapInfo in_map_info = GST_MAP_INFO_INIT;
-  GstGLDisplayEGL *egl_display = NULL;
-  GstEGLImage *eglimage = NULL;
-  EGLDisplay display = EGL_NO_DISPLAY;
-  EGLImageKHR image = EGL_NO_IMAGE;
-  int in_dmabuf_fd;
-  NvBufferParamsEx params = { 0, };
-  GstGLUploadReturn ret = GST_GL_UPLOAD_ERROR;
-
-  if (!gst_buffer_map (buffer, &in_map_info, GST_MAP_READ)) {
-    GST_DEBUG_OBJECT (nvmm->upload, "Failed to map readonly NvBuffer");
-    goto done;
-  }
-
-  if (ExtractFdFromNvBuffer (in_map_info.data, &in_dmabuf_fd)) {
-    GST_DEBUG_OBJECT (nvmm->upload, "Failed to extract fd from NvBuffer");
-    goto done;
-  }
-  if (NvBufferGetParamsEx (in_dmabuf_fd, &params)) {
-    GST_WARNING_OBJECT (nvmm->upload, "Failed to get NvBuffer params");
-    goto done;
-  }
-  dump_nv_buf_params ((GstObject *) nvmm->upload, &params);
-
-  egl_display =
-      gst_gl_display_egl_from_gl_display (nvmm->upload->context->display);
-  if (!egl_display) {
-    GST_WARNING ("Failed to retrieve GstGLDisplayEGL from GstGLDisplay");
-    goto done;
-  }
-  display =
-      (EGLDisplay) gst_gl_display_get_handle (GST_GL_DISPLAY (egl_display));
-
-  image = NvEGLImageFromFd (display, in_dmabuf_fd);
-  if (!image) {
-    GST_DEBUG_OBJECT (nvmm->upload, "Failed construct EGLImage "
-        "from NvBuffer fd %i", in_dmabuf_fd);
-    goto done;
-  }
-  GST_DEBUG_OBJECT (nvmm->upload, "constructed EGLImage %p "
-      "from NvBuffer fd %i", image, in_dmabuf_fd);
-
-  eglimage = gst_egl_image_new_wrapped (nvmm->upload->context, image,
-      GST_GL_RGBA, gst_memory_ref (in_map_info.memory),
-      (GstEGLImageDestroyNotify) _egl_image_mem_unref);
-  if (!eglimage) {
-    GST_WARNING_OBJECT (nvmm->upload, "Failed to wrap constructed "
-        "EGLImage from NvBuffer");
-    goto done;
-  }
-
-  gst_buffer_unmap (buffer, &in_map_info);
-  in_map_info = (GstMapInfo) GST_MAP_INFO_INIT;
-
-  allocator =
-      GST_GL_MEMORY_ALLOCATOR (gst_allocator_find
-      (GST_GL_MEMORY_EGL_ALLOCATOR_NAME));
-
-  /* TODO: buffer pool */
-  *outbuf = gst_buffer_new ();
-  if (!gst_gl_memory_setup_buffer (allocator, *outbuf, nvmm->params,
-          NULL, (gpointer *) & eglimage, 1)) {
-    GST_WARNING_OBJECT (nvmm->upload, "Failed to setup "
-        "NVMM -> EGLImage buffer");
-    goto done;
-  }
-  gst_egl_image_unref (eglimage);
-
-  gst_buffer_add_parent_buffer_meta (*outbuf, buffer);
-
-  /* TODO: NvBuffer has some sync functions that may be more useful here */
-  {
-    GstGLSyncMeta *sync_meta;
-
-    sync_meta = gst_buffer_add_gl_sync_meta (nvmm->upload->context, *outbuf);
-    if (sync_meta) {
-      gst_gl_sync_meta_set_sync_point (sync_meta, nvmm->upload->context);
-    }
-  }
-
-  ret = GST_GL_UPLOAD_DONE;
-
-done:
-  if (in_map_info.memory)
-    gst_buffer_unmap (buffer, &in_map_info);
-
-  gst_clear_object (&egl_display);
-  gst_clear_object (&allocator);
-
-  return ret;
-}
-
-static void
-_nvmm_upload_free (gpointer impl)
-{
-  struct NVMMUpload *nvmm = impl;
-
-  if (nvmm->params)
-    gst_gl_allocation_params_free ((GstGLAllocationParams *) nvmm->params);
-
-  g_free (impl);
-}
-
-static const UploadMethod _nvmm_upload = {
-  "NVMM",
-  0,
-  &_nvmm_upload_caps,
-  &_nvmm_upload_new,
-  &_nvmm_upload_transform_caps,
-  &_nvmm_upload_accept,
-  &_nvmm_upload_propose_allocation,
-  &_nvmm_upload_perform,
-  &_nvmm_upload_free
-};
-
-#endif /* HAVE_NVMM */
-
 static const UploadMethod *upload_methods[] = { &_gl_memory_upload,
 #if GST_GL_HAVE_DMABUF
   &_direct_dma_buf_upload,
-  &_direct_dma_buf_external_upload,
   &_dma_buf_upload,
 #endif
 #if GST_GL_HAVE_VIV_DIRECTVIV
   &_directviv_upload,
 #endif
-#if defined(HAVE_NVMM)
-  &_nvmm_upload,
-#endif /* HAVE_NVMM */
   &_upload_meta_upload, &_raw_data_upload
 };
 
@@ -2366,19 +1789,16 @@ gst_gl_upload_transform_caps (GstGLUpload * upload, GstGLContext * context,
   if (upload->priv->method) {
     tmp = upload->priv->method->transform_caps (upload->priv->method_impl,
         context, direction, caps);
-    if (tmp) {
-      if (filter) {
-        result =
-            gst_caps_intersect_full (filter, tmp, GST_CAPS_INTERSECT_FIRST);
-        gst_caps_unref (tmp);
-      } else {
-        result = tmp;
-      }
-      if (!gst_caps_is_empty (result))
-        return result;
-      else
-        gst_caps_unref (result);
+    if (filter) {
+      result = gst_caps_intersect_full (filter, tmp, GST_CAPS_INTERSECT_FIRST);
+      gst_caps_unref (tmp);
+    } else {
+      result = tmp;
     }
+    if (!gst_caps_is_empty (result))
+      return result;
+    else
+      gst_caps_unref (result);
   }
 
   tmp = gst_caps_new_empty ();
@@ -2542,7 +1962,7 @@ gst_gl_upload_perform_with_buffer (GstGLUpload * upload, GstBuffer * buffer,
     GstBuffer ** outbuf_ptr)
 {
   GstGLUploadReturn ret = GST_GL_UPLOAD_ERROR;
-  GstBuffer *outbuf = NULL;
+  GstBuffer *outbuf;
   gpointer last_impl = upload->priv->method_impl;
 
   g_return_val_if_fail (GST_IS_GL_UPLOAD (upload), FALSE);
@@ -2571,8 +1991,6 @@ restart:
   ret =
       upload->priv->method->perform (upload->priv->method_impl, buffer,
       &outbuf);
-  GST_LOG_OBJECT (upload, "uploader %s returned %u, buffer: %p",
-      upload->priv->method->name, ret, outbuf);
   if (ret == GST_GL_UPLOAD_UNSHARED_GL_CONTEXT) {
     gint i;
 
@@ -2585,8 +2003,6 @@ restart:
         break;
       }
     }
-
-    gst_buffer_replace (&outbuf, NULL);
     goto restart;
   } else if (ret == GST_GL_UPLOAD_DONE || ret == GST_GL_UPLOAD_RECONFIGURE) {
     if (last_impl != upload->priv->method_impl) {
@@ -2601,7 +2017,6 @@ restart:
     /* we are done */
   } else {
     upload->priv->method_impl = NULL;
-    gst_buffer_replace (&outbuf, NULL);
     NEXT_METHOD;
   }
 

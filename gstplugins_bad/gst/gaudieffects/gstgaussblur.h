@@ -81,7 +81,6 @@ struct _GstGaussianBlurClass
 };
 
 GType gst_gaussianblur_get_type(void);
-GST_ELEMENT_REGISTER_DECLARE (gaussianblur);
 
 G_END_DECLS
 

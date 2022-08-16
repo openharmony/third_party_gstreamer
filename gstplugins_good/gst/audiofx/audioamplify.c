@@ -21,18 +21,18 @@
 
 /**
  * SECTION:element-audioamplify
- * @title: audioamplify
  *
  * Amplifies an audio stream by a given factor and allows the selection of different clipping modes.
  * The difference between the clipping modes is best evaluated by testing.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 audiotestsrc wave=saw ! audioamplify amplification=1.5 ! alsasink
  * gst-launch-1.0 filesrc location="melo1.ogg" ! oggdemux ! vorbisdec ! audioconvert ! audioamplify amplification=1.5 clipping-method=wrap-negative ! alsasink
  * gst-launch-1.0 audiotestsrc wave=saw ! audioconvert ! audioamplify amplification=1.5 clipping-method=wrap-positive ! audioconvert ! alsasink
  * ]|
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -103,8 +103,6 @@ gst_audio_amplify_clipping_method_get_type (void)
     " layout=(string) {interleaved, non-interleaved}"
 
 G_DEFINE_TYPE (GstAudioAmplify, gst_audio_amplify, GST_TYPE_AUDIO_FILTER);
-GST_ELEMENT_REGISTER_DEFINE (audioamplify, "audioamplify",
-    GST_RANK_NONE, GST_TYPE_AUDIO_AMPLIFY);
 
 static gboolean gst_audio_amplify_set_process_function (GstAudioAmplify *
     filter, gint clipping, GstAudioFormat format);
@@ -305,8 +303,6 @@ gst_audio_amplify_class_init (GstAudioAmplifyClass * klass)
 
   GST_AUDIO_FILTER_CLASS (klass)->setup =
       GST_DEBUG_FUNCPTR (gst_audio_amplify_setup);
-
-  gst_type_mark_as_plugin_api (GST_TYPE_AUDIO_AMPLIFY_CLIPPING_METHOD, 0);
 }
 
 static void

@@ -41,7 +41,6 @@ struct _GstFFMpegVidEnc
   AVCodecContext *context;
   AVFrame *picture;
   gboolean opened;
-  gboolean need_reopen;
   gboolean discont;
   guint pass;
   gfloat quantizer;

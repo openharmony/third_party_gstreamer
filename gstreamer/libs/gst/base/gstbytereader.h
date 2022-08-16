@@ -362,10 +362,7 @@ static inline guint8 *
 gst_byte_reader_dup_data_unchecked (GstByteReader * reader, guint size)
 {
   gconstpointer data = gst_byte_reader_get_data_unchecked (reader, size);
-  guint8 *dup_data = (guint8 *) g_malloc (size);
-
-  memcpy (dup_data, data, size);
-  return dup_data;
+  return (guint8 *) g_memdup2 (data, size);
 }
 
 /* Unchecked variants that should not be used */

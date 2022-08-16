@@ -113,7 +113,7 @@ typedef struct
   gulong video_pad_probe_block_id;
 
   /* The current running time of this item; updated with every audio buffer if
-   * this item has audio; otherwise it's updated with very video buffer */
+   * this item has audio; otherwise it's updated withe very video buffer */
   guint64 running_time;
 } PlayoutItem;
 
@@ -824,7 +824,7 @@ playout_app_activate_item (PlayoutItem * item)
   /* Hook up to mixers and remove the probes blocking the pads */
   if (item->audio_pad) {
     GST_DEBUG ("%s: hooking up audio pad to mixer", item->fn);
-    sinkpad = gst_element_request_pad_simple (app->audio_mixer, "sink_%u");
+    sinkpad = gst_element_get_request_pad (app->audio_mixer, "sink_%u");
     gst_pad_link (item->audio_pad, sinkpad);
 
     segment_time = playout_item_pad_get_segment_time (item->audio_pad);
@@ -857,13 +857,13 @@ playout_app_activate_item (PlayoutItem * item)
 
   if (item->video_pad) {
     GST_DEBUG ("%s: hooking up video pad to mixer", item->fn);
-    sinkpad = gst_element_request_pad_simple (app->video_mixer, "sink_%u");
+    sinkpad = gst_element_get_request_pad (app->video_mixer, "sink_%u");
 
     /* Get new height/width/xpos/ypos such that the video scales up or down to
      * fit within the output video size without any cropping */
     gst_video_sink_center_rect (item->video_irect, item->app->video_orect,
         &item->video_orect, TRUE);
-    GST_DEBUG ("%s: w: %i, h: %i, x: %i, y: %i", item->fn,
+    GST_DEBUG ("%s: w: %i, h: %i, x: %i, y: %i\n", item->fn,
         item->video_orect.w, item->video_orect.h, item->video_orect.x,
         item->video_orect.y);
     g_object_set (sinkpad, "width", item->video_orect.w, "height",

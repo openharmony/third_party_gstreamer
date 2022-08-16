@@ -32,7 +32,6 @@
 #ifdef HAVE_SYS_UIO_H
 #include <sys/uio.h>
 #endif
-#include <sys/types.h>
 #include <errno.h>
 #include <string.h>
 #include <string.h>
@@ -40,11 +39,6 @@
 #include "gstelements_private.h"
 
 #ifdef G_OS_WIN32
-#  include <io.h>               /* lseek, open, close, read */
-#  undef lseek
-#  define lseek _lseeki64
-#  undef off_t
-#  define off_t guint64
 #  define WIN32_LEAN_AND_MEAN   /* prevents from including too many things */
 #  include <windows.h>
 #  undef WIN32_LEAN_AND_MEAN
@@ -167,7 +161,7 @@ gst_writev (gint fd, const struct iovec *iov, gint iovcnt, gsize total_bytes)
      * cases, and it's not clear how that can be reconciled with the
      * possibility of short writes, so in any case we might want to
      * simplify this later or just remove it. */
-    if (iovcnt > 1 && total_bytes <= FDSINK_MAX_MALLOC_SIZE) {
+    if (total_bytes <= FDSINK_MAX_MALLOC_SIZE) {
       gchar *mem, *p;
 
       if (total_bytes <= FDSINK_MAX_ALLOCA_SIZE)
@@ -206,34 +200,67 @@ gst_writev (gint fd, const struct iovec *iov, gint iovcnt, gsize total_bytes)
   return written;
 }
 
-static GstFlowReturn
-gst_writev_iovecs (GstObject * sink, gint fd, GstPoll * fdset,
-    struct iovec *vecs, guint n_vecs, gsize bytes_to_write,
-    guint64 * bytes_written, gint max_transient_error_timeout,
-    guint64 current_position, gboolean * flushing)
+static gsize
+fill_vectors (struct iovec *vecs, GstMapInfo * maps, guint n, GstBuffer * buf)
 {
+  GstMemory *mem;
+  gsize size = 0;
+  guint i;
+
+  g_assert (gst_buffer_n_memory (buf) == n);
+
+  for (i = 0; i < n; ++i) {
+    mem = gst_buffer_peek_memory (buf, i);
+    if (gst_memory_map (mem, &maps[i], GST_MAP_READ)) {
+      vecs[i].iov_base = maps[i].data;
+      vecs[i].iov_len = maps[i].size;
+    } else {
+      GST_WARNING ("Failed to map memory %p for reading", mem);
+      vecs[i].iov_base = (void *) "";
+      vecs[i].iov_len = 0;
+    }
+    size += vecs[i].iov_len;
+  }
+
+  return size;
+}
+
+GstFlowReturn
+gst_writev_buffers (GstObject * sink, gint fd, GstPoll * fdset,
+    GstBuffer ** buffers, guint num_buffers, guint8 * mem_nums,
+    guint total_mem_num, guint64 * bytes_written, guint64 skip)
+{
+  struct iovec *vecs;
+  GstMapInfo *map_infos;
   GstFlowReturn flow_ret;
-  gint64 start_time = 0;
+  gsize size = 0;
+  guint i, j;
 
-  *bytes_written = 0;
-  max_transient_error_timeout *= 1000;
-  if (max_transient_error_timeout)
-    start_time = g_get_monotonic_time ();
+  GST_LOG_OBJECT (sink, "%u buffers, %u memories", num_buffers, total_mem_num);
 
-  GST_LOG_OBJECT (sink, "%u iovecs", n_vecs);
+  vecs = g_newa (struct iovec, total_mem_num);
+  map_infos = g_newa (GstMapInfo, total_mem_num);
+
+  /* populate output vectors */
+  for (i = 0, j = 0; i < num_buffers; ++i) {
+    size += fill_vectors (&vecs[j], &map_infos[j], mem_nums[i], buffers[i]);
+    j += mem_nums[i];
+  }
 
   /* now write it all out! */
   {
     gssize ret, left;
+    guint n_vecs = total_mem_num;
 
-    left = bytes_to_write;
+    left = size;
+
+    if (skip) {
+      ret = skip;
+      errno = 0;
+      goto skip_first;
+    }
 
     do {
-      if (flushing != NULL && g_atomic_int_get (flushing)) {
-        GST_DEBUG_OBJECT (sink, "Flushing, exiting loop");
-        flow_ret = GST_FLOW_FLUSHING;
-        goto out;
-      }
 #ifndef HAVE_WIN32
       if (fdset != NULL) {
         do {
@@ -254,49 +281,34 @@ gst_writev_iovecs (GstObject * sink, gint fd, GstPoll * fdset,
       ret = gst_writev (fd, vecs, n_vecs, left);
 
       if (ret > 0) {
-        /* Wrote something, allow the caller to update the vecs passed here */
-        *bytes_written = ret;
-        break;
+        if (bytes_written)
+          *bytes_written += ret;
       }
 
-      if (errno == EAGAIN || errno == EWOULDBLOCK || ret == 0) {
-        /* do nothing, try again */
-        if (max_transient_error_timeout)
-          start_time = g_get_monotonic_time ();
-      } else if (errno == EACCES && max_transient_error_timeout > 0) {
-        /* seek back to where we started writing and try again after sleeping
-         * for 10ms.
-         *
-         * Some network file systems report EACCES spuriously, presumably
-         * because at the same time another client is reading the file.
-         * It happens at least on Linux and macOS on SMB/CIFS and NFS file
-         * systems.
-         *
-         * Note that NFS does not check access permissions during open()
-         * but only on write()/read() according to open(2), so we would
-         * loop here in case of NFS.
-         */
-        if (g_get_monotonic_time () > start_time + max_transient_error_timeout) {
-          GST_ERROR_OBJECT (sink, "Got EACCES for more than %dms, failing",
-              max_transient_error_timeout);
-          goto write_error;
-        }
-        GST_DEBUG_OBJECT (sink, "got EACCES, retry after 10ms sleep");
-        g_assert (current_position != -1);
-        g_usleep (10000);
+    skip_first:
 
-        /* Seek back to the current position, sometimes a partial write
-         * happened and we have no idea how much and if what was written
-         * is actually correct (it sometimes isn't)
-         */
-        ret = lseek (fd, current_position, SEEK_SET);
-        if (ret < 0 || ret != current_position) {
-          GST_ERROR_OBJECT (sink,
-              "failed to seek back to current write position");
-          goto write_error;
-        }
-      } else {
+      if (ret == left)
+        break;
+
+      if (ret < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+        /* do nothing, try again */
+      } else if (ret < 0) {
         goto write_error;
+      } else if (ret < left) {
+        /* skip vectors that have been written in full */
+        while (ret >= vecs[0].iov_len) {
+          ret -= vecs[0].iov_len;
+          left -= vecs[0].iov_len;
+          ++vecs;
+          --n_vecs;
+        }
+        g_assert (n_vecs > 0);
+        /* skip partially written vector data */
+        if (ret > 0) {
+          vecs[0].iov_len -= ret;
+          vecs[0].iov_base = ((guint8 *) vecs[0].iov_base) + ret;
+          left -= ret;
+        }
       }
 #ifdef HAVE_WIN32
       /* do short sleep on windows where we don't use gst_poll(),
@@ -304,6 +316,7 @@ gst_writev_iovecs (GstObject * sink, gint fd, GstPoll * fdset,
       if (fdset != NULL)
         g_usleep (1000);
 #endif
+
     }
     while (left > 0);
   }
@@ -311,6 +324,9 @@ gst_writev_iovecs (GstObject * sink, gint fd, GstPoll * fdset,
   flow_ret = GST_FLOW_OK;
 
 out:
+
+  for (i = 0; i < total_mem_num; ++i)
+    gst_memory_unmap (map_infos[i].memory, &map_infos[i]);
 
   return flow_ret;
 
@@ -346,294 +362,4 @@ write_error:
     flow_ret = GST_FLOW_ERROR;
     goto out;
   }
-}
-
-GstFlowReturn
-gst_writev_buffer (GstObject * sink, gint fd, GstPoll * fdset,
-    GstBuffer * buffer,
-    guint64 * bytes_written, guint64 skip,
-    gint max_transient_error_timeout, guint64 current_position,
-    gboolean * flushing)
-{
-  GstFlowReturn flow_ret = GST_FLOW_OK;
-  struct iovec *vecs;
-  GstMapInfo *maps;
-  guint i, num_mem, num_vecs;
-  gsize left = 0;
-
-  /* Buffers can contain up to 16 memories, so we can safely directly call
-   * writev() here without splitting up */
-  g_assert (gst_buffer_get_max_memory () <= GST_IOV_MAX);
-
-  num_mem = num_vecs = gst_buffer_n_memory (buffer);
-
-  GST_DEBUG ("Writing buffer %p with %u memories and %" G_GSIZE_FORMAT " bytes",
-      buffer, num_mem, gst_buffer_get_size (buffer));
-
-  vecs = g_newa (struct iovec, num_mem);
-  maps = g_newa (GstMapInfo, num_mem);
-
-  /* Map all memories */
-  {
-    GstMemory *mem;
-    guint i;
-
-    for (i = 0; i < num_mem; ++i) {
-      mem = gst_buffer_peek_memory (buffer, i);
-      if (gst_memory_map (mem, &maps[i], GST_MAP_READ)) {
-        vecs[i].iov_base = maps[i].data;
-        vecs[i].iov_len = maps[i].size;
-      } else {
-        GST_WARNING ("Failed to map memory %p for reading", mem);
-        vecs[i].iov_base = (void *) "";
-        vecs[i].iov_len = 0;
-      }
-      left += vecs[i].iov_len;
-    }
-  }
-
-  do {
-    guint64 bytes_written_local = 0;
-
-    flow_ret =
-        gst_writev_iovecs (sink, fd, fdset, vecs, num_vecs, left,
-        &bytes_written_local, max_transient_error_timeout, current_position,
-        flushing);
-
-    GST_DEBUG ("Wrote %" G_GUINT64_FORMAT " bytes of %" G_GSIZE_FORMAT ": %s",
-        bytes_written_local, left, gst_flow_get_name (flow_ret));
-
-    if (flow_ret != GST_FLOW_OK) {
-      g_assert (bytes_written_local == 0);
-      break;
-    }
-
-    if (bytes_written)
-      *bytes_written += bytes_written_local;
-
-    /* Done, no need to do bookkeeping */
-    if (bytes_written_local == left)
-      break;
-
-    /* skip vectors that have been written in full */
-    while (bytes_written_local >= vecs[0].iov_len) {
-      bytes_written_local -= vecs[0].iov_len;
-      left -= vecs[0].iov_len;
-      ++vecs;
-      --num_vecs;
-    }
-    g_assert (num_vecs > 0);
-    /* skip partially written vector data */
-    if (bytes_written_local > 0) {
-      vecs[0].iov_len -= bytes_written_local;
-      vecs[0].iov_base = ((guint8 *) vecs[0].iov_base) + bytes_written_local;
-      left -= bytes_written_local;
-    }
-  } while (left > 0);
-
-  for (i = 0; i < num_mem; i++)
-    gst_memory_unmap (maps[i].memory, &maps[i]);
-
-  return flow_ret;
-}
-
-GstFlowReturn
-gst_writev_mem (GstObject * sink, gint fd, GstPoll * fdset,
-    const guint8 * data, guint size,
-    guint64 * bytes_written, guint64 skip,
-    gint max_transient_error_timeout, guint64 current_position,
-    gboolean * flushing)
-{
-  GstFlowReturn flow_ret = GST_FLOW_OK;
-  struct iovec vec;
-  gsize left;
-
-  GST_DEBUG ("Writing memory %p with %u bytes", data, size);
-
-  vec.iov_len = size;
-  vec.iov_base = (guint8 *) data;
-  left = size;
-
-  do {
-    guint64 bytes_written_local = 0;
-
-    flow_ret =
-        gst_writev_iovecs (sink, fd, fdset, &vec, 1, left,
-        &bytes_written_local, max_transient_error_timeout, current_position,
-        flushing);
-
-    GST_DEBUG ("Wrote %" G_GUINT64_FORMAT " bytes of %" G_GSIZE_FORMAT ": %s",
-        bytes_written_local, left, gst_flow_get_name (flow_ret));
-
-    if (flow_ret != GST_FLOW_OK) {
-      g_assert (bytes_written_local == 0);
-      break;
-    }
-
-    if (bytes_written)
-      *bytes_written += bytes_written_local;
-
-    /* All done, no need for bookkeeping */
-    if (bytes_written_local == left)
-      break;
-
-    /* skip partially written vector data */
-    if (bytes_written_local < left) {
-      vec.iov_len -= bytes_written_local;
-      vec.iov_base = ((guint8 *) vec.iov_base) + bytes_written_local;
-      left -= bytes_written_local;
-    }
-  } while (left > 0);
-
-  return flow_ret;
-}
-
-GstFlowReturn
-gst_writev_buffer_list (GstObject * sink, gint fd, GstPoll * fdset,
-    GstBufferList * buffer_list,
-    guint64 * bytes_written, guint64 skip,
-    gint max_transient_error_timeout, guint64 current_position,
-    gboolean * flushing)
-{
-  GstFlowReturn flow_ret = GST_FLOW_OK;
-  struct iovec *vecs;
-  GstMapInfo *maps;
-  guint num_bufs, current_buf_idx = 0, current_buf_mem_idx = 0;
-  guint i, num_vecs;
-  gsize left = 0;
-
-  num_bufs = gst_buffer_list_length (buffer_list);
-  num_vecs = 0;
-
-  GST_DEBUG ("Writing buffer list %p with %u buffers", buffer_list, num_bufs);
-
-  vecs = g_newa (struct iovec, GST_IOV_MAX);
-  maps = g_newa (GstMapInfo, GST_IOV_MAX);
-
-  /* Map the first GST_IOV_MAX memories */
-  {
-    GstBuffer *buf;
-    GstMemory *mem;
-    guint j = 0;
-
-    for (i = 0; i < num_bufs && num_vecs < GST_IOV_MAX; i++) {
-      guint num_mem;
-
-      buf = gst_buffer_list_get (buffer_list, i);
-      num_mem = gst_buffer_n_memory (buf);
-
-      for (j = 0; j < num_mem && num_vecs < GST_IOV_MAX; j++) {
-        mem = gst_buffer_peek_memory (buf, j);
-        if (gst_memory_map (mem, &maps[num_vecs], GST_MAP_READ)) {
-          vecs[num_vecs].iov_base = maps[num_vecs].data;
-          vecs[num_vecs].iov_len = maps[num_vecs].size;
-        } else {
-          GST_WARNING ("Failed to map memory %p for reading", mem);
-          vecs[num_vecs].iov_base = (void *) "";
-          vecs[num_vecs].iov_len = 0;
-        }
-        left += vecs[num_vecs].iov_len;
-        num_vecs++;
-      }
-      current_buf_mem_idx = j;
-      if (j == num_mem)
-        current_buf_mem_idx = 0;
-    }
-    current_buf_idx = i;
-  }
-
-  do {
-    guint64 bytes_written_local = 0;
-    guint vecs_written = 0;
-
-    flow_ret =
-        gst_writev_iovecs (sink, fd, fdset, vecs, num_vecs, left,
-        &bytes_written_local, max_transient_error_timeout, current_position,
-        flushing);
-
-    GST_DEBUG ("Wrote %" G_GUINT64_FORMAT " bytes of %" G_GSIZE_FORMAT ": %s",
-        bytes_written_local, left, gst_flow_get_name (flow_ret));
-
-    if (flow_ret != GST_FLOW_OK) {
-      g_assert (bytes_written_local == 0);
-      break;
-    }
-
-    if (flow_ret != GST_FLOW_OK) {
-      g_assert (bytes_written_local == 0);
-      break;
-    }
-
-    if (bytes_written)
-      *bytes_written += bytes_written_local;
-
-    /* All done, no need for bookkeeping */
-    if (bytes_written_local == left && current_buf_idx == num_bufs)
-      break;
-
-    /* skip vectors that have been written in full */
-    while (vecs_written < num_vecs
-        && bytes_written_local >= vecs[vecs_written].iov_len) {
-      bytes_written_local -= vecs[vecs_written].iov_len;
-      left -= vecs[vecs_written].iov_len;
-      vecs_written++;
-    }
-    g_assert (vecs_written < num_vecs || bytes_written_local == 0);
-    /* skip partially written vector data */
-    if (bytes_written_local > 0) {
-      vecs[vecs_written].iov_len -= bytes_written_local;
-      vecs[vecs_written].iov_base =
-          ((guint8 *) vecs[0].iov_base) + bytes_written_local;
-      left -= bytes_written_local;
-    }
-
-    /* If we have buffers left, fill them in now */
-    if (current_buf_idx < num_bufs) {
-      GstBuffer *buf;
-      GstMemory *mem;
-      guint j = current_buf_mem_idx;
-
-      /* Unmap the first vecs_written memories now */
-      for (i = 0; i < vecs_written; i++)
-        gst_memory_unmap (maps[i].memory, &maps[i]);
-      /* Move upper remaining vecs and maps back to the beginning */
-      memmove (vecs, &vecs[vecs_written],
-          (num_vecs - vecs_written) * sizeof (vecs[0]));
-      memmove (maps, &maps[vecs_written],
-          (num_vecs - vecs_written) * sizeof (maps[0]));
-      num_vecs -= vecs_written;
-
-      /* And finally refill */
-      for (i = current_buf_idx; i < num_bufs && num_vecs < GST_IOV_MAX; i++) {
-        guint num_mem;
-
-        buf = gst_buffer_list_get (buffer_list, i);
-        num_mem = gst_buffer_n_memory (buf);
-
-        for (j = current_buf_mem_idx; j < num_mem && num_vecs < GST_IOV_MAX;
-            j++) {
-          mem = gst_buffer_peek_memory (buf, j);
-          if (gst_memory_map (mem, &maps[num_vecs], GST_MAP_READ)) {
-            vecs[num_vecs].iov_base = maps[num_vecs].data;
-            vecs[num_vecs].iov_len = maps[num_vecs].size;
-          } else {
-            GST_WARNING ("Failed to map memory %p for reading", mem);
-            vecs[num_vecs].iov_base = (void *) "";
-            vecs[num_vecs].iov_len = 0;
-          }
-          left += vecs[num_vecs].iov_len;
-          num_vecs++;
-        }
-        current_buf_mem_idx = j;
-        if (current_buf_mem_idx == num_mem)
-          current_buf_mem_idx = 0;
-      }
-      current_buf_idx = i;
-    }
-  } while (left > 0);
-
-  for (i = 0; i < num_vecs; i++)
-    gst_memory_unmap (maps[i].memory, &maps[i]);
-
-  return flow_ret;
 }

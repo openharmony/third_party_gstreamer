@@ -2,22 +2,22 @@
 # This file is put in the public domain.
 #
 # Kjartan Maraas <kmaraas@gnome.org>, 2004-2010.
-# Johnny A. Solbu <johnny@solbu.net>, 2012-2021
+# Johnny A. Solbu <johnny@solbu.net>, 2012-2019
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: gst-plugins-good 1.19.2\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2021-10-25 01:02+0100\n"
-"PO-Revision-Date: 2021-09-24 18:03+0200\n"
+"Project-Id-Version: gst-plugins-good 1.15.1\n"
+"Report-Msgid-Bugs-To: http://bugzilla.gnome.org/\n"
+"POT-Creation-Date: 2019-12-03 11:06+0000\n"
+"PO-Revision-Date: 2019-09-03 09:55+0200\n"
 "Last-Translator: Johnny A. Solbu <johnny@solbu.net>\n"
-"Language-Team: Norwegian Bokmaal <l10n-no@lister.huftis.org>\n"
+"Language-Team: Norwegian Bokmaal <i18n-nb@lister.ping.uio.no>\n"
 "Language: nb_NO\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "X-Bugs: Report translation errors to the Language-Team address.\n"
-"X-Generator: Poedit 2.2.3\n"
+"X-Generator: Poedit 1.8.7.1\n"
 
 msgid "Jack server not found"
 msgstr "Jack-server ikke funnet"
@@ -25,18 +25,11 @@ msgstr "Jack-server ikke funnet"
 msgid "Failed to decode JPEG image"
 msgstr "Klarte ikke å dekode JPEG-bilde"
 
-msgid "Failed to read memory"
-msgstr "Kunne ikke lese minne"
-
 msgid ""
 "Failed to configure LAME mp3 audio encoder. Check your encoding parameters."
 msgstr ""
 "Kunne ikke konfigurere LAME mp3-lydkoder. Sjekk kodingsparametrene dine."
 
-#. <php-emulation-mode>three underscores for ___rate is really really really
-#. * private as opposed to one underscore<php-emulation-mode>
-#. call this MACRO outside of the NULL state so that we have a higher chance
-#. * of actually having a pipeline and bus to get the message through
 #, c-format
 msgid ""
 "The requested bitrate %d kbit/s for property '%s' is not allowed. The "
@@ -171,9 +164,6 @@ msgstr "CoreAudio-enhet ikke funnet"
 msgid "CoreAudio device could not be opened"
 msgstr "CoreAudio-enhet kune ikke åpnes"
 
-msgid "Raspberry Pi Camera Module"
-msgstr "Raspberry Pi kameramodul"
-
 #, c-format
 msgid "Error reading %d bytes from device '%s'."
 msgstr "Feil ved lesing av% d bytes fra enheten '% s»."
@@ -193,9 +183,6 @@ msgstr "Driveren av enheten «%s» støtter ikke IO metoden %d"
 #, c-format
 msgid "The driver of device '%s' does not support any known IO method."
 msgstr "Driveren av enheten «%s» støtter ikke noen kjente IO-metoder."
-
-msgid "Invalid caps"
-msgstr "Ugyldig caps"
 
 #, c-format
 msgid "Device '%s' has no supported format"
@@ -398,18 +385,10 @@ msgid "Failed to set value %d for control %d on device '%s'."
 msgstr "Klarte ikke å sette verdi %d for kontroll %d på enheten «%s»."
 
 #, c-format
-msgid "Failed to set value %s for control %d on device '%s'."
-msgstr "Klarte ikke å sette verdi %s for kontroll %d på enheten «%s»."
-
-#, c-format
 msgid "Failed to get current input on device '%s'. May be it is a radio device"
 msgstr ""
 "Kunne ikke hente gjeldende inndata på enheten «%s». Kanskje det er en "
 "radioenhet"
-
-#, c-format
-msgid "Failed to set input %u on device %s."
-msgstr "Klarte ikke å sette inngang %u på enhet %s."
 
 #, c-format
 msgid ""
@@ -417,8 +396,8 @@ msgid ""
 msgstr "Kunne ikke hente utdata fra enheten «%s». Kanskje det er en radioenhet"
 
 #, c-format
-msgid "Failed to set output %u on device %s."
-msgstr "Klarte ikke å sette utgang %u på enhet %s."
+msgid "Failed to set output %d on device %s."
+msgstr "Klarte ikke å sette utgang %d på enhet %s."
 
 msgid "Changing resolution at runtime is not yet supported."
 msgstr "Endring av oppløsning under kjøring støttes ikke enda."

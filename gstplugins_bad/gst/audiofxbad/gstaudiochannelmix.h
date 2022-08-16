@@ -50,8 +50,6 @@ struct _GstAudioChannelMixClass
 
 GType gst_audio_channel_mix_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (audiochannelmix);
-
 G_END_DECLS
 
 #endif

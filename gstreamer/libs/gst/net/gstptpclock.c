@@ -772,7 +772,6 @@ select_best_master_clock (PtpDomainData * domain, GstClockTime now)
     if (!best || compare_announce_message (msg, best) < 0)
       best = msg;
   }
-  g_clear_pointer (&qualified_messages, g_list_free);
 
   if (domain->have_master_clock
       && compare_clock_identity (&domain->master_clock_identity,
@@ -1105,20 +1104,15 @@ update_ptp_time (PtpDomainData * domain, PtpPendingSync * sync)
    * we can get here without a delay response too. The tolerance on
    * accepting follow-up after a sync is high, because a PTP server
    * doesn't have to prioritise sending FOLLOW_UP - its purpose is
-   * just to give us the accurate timestamp of the preceding SYNC.
-   *
-   * For that reason also allow at least 100ms delay in case of delays smaller
-   * than 5ms. */
+   * just to give us the accurate timestamp of the preceding SYNC */
   if (sync->follow_up_recv_time_local != GST_CLOCK_TIME_NONE
       && sync->follow_up_recv_time_local >
-      sync->sync_recv_time_local + MAX (100 * GST_MSECOND,
-          20 * domain->mean_path_delay)) {
+      sync->sync_recv_time_local + 20 * domain->mean_path_delay) {
     GstClockTimeDiff delay =
         sync->follow_up_recv_time_local - sync->sync_recv_time_local;
     GST_WARNING ("Sync-follow-up delay for domain %u too big: %"
-        GST_STIME_FORMAT " > MAX(100ms, 20 * %" GST_TIME_FORMAT ")",
-        domain->domain, GST_STIME_ARGS (delay),
-        GST_TIME_ARGS (domain->mean_path_delay));
+        GST_STIME_FORMAT " > 20 * %" GST_TIME_FORMAT, domain->domain,
+        GST_STIME_ARGS (delay), GST_TIME_ARGS (domain->mean_path_delay));
     synced = FALSE;
     gst_clock_get_calibration (GST_CLOCK_CAST (domain->domain_clock),
         &internal_time, &external_time, &rate_num, &rate_den);
@@ -1378,17 +1372,13 @@ update_mean_path_delay (PtpDomainData * domain, PtpPendingSync * sync)
 #ifdef USE_MEASUREMENT_FILTERING
   /* The tolerance on accepting follow-up after a sync is high, because
    * a PTP server doesn't have to prioritise sending FOLLOW_UP - its purpose is
-   * just to give us the accurate timestamp of the preceding SYNC.
-   *
-   * For that reason also allow at least 100ms delay in case of delays smaller
-   * than 5ms. */
+   * just to give us the accurate timestamp of the preceding SYNC */
   if (sync->follow_up_recv_time_local != GST_CLOCK_TIME_NONE &&
       domain->mean_path_delay != 0
       && sync->follow_up_recv_time_local >
-      sync->sync_recv_time_local + MAX (100 * GST_MSECOND,
-          20 * domain->mean_path_delay)) {
+      sync->sync_recv_time_local + 20 * domain->mean_path_delay) {
     GST_WARNING ("Sync-follow-up delay for domain %u too big: %" GST_TIME_FORMAT
-        " > MAX(100ms, 20 * %" GST_TIME_FORMAT ")", domain->domain,
+        " > 20 * %" GST_TIME_FORMAT, domain->domain,
         GST_TIME_ARGS (sync->follow_up_recv_time_local -
             sync->sync_recv_time_local),
         GST_TIME_ARGS (domain->mean_path_delay));
@@ -1414,14 +1404,11 @@ update_mean_path_delay (PtpDomainData * domain, PtpPendingSync * sync)
    * hope for, but some PTP systems don't prioritise sending DELAY_RESP,
    * but they must still have placed an accurate reception timestamp.
    * That means we should be quite tolerant about late DELAY_RESP, and
-   * mostly rely on filtering out jumps in the mean-path-delay elsewhere.
-   *
-   * For that reason also allow at least 100ms delay in case of delays smaller
-   * than 5ms. */
-  if (delay_req_delay > MAX (100 * GST_MSECOND, 20 * domain->mean_path_delay)) {
+   * mostly rely on filtering out jumps in the mean-path-delay elsewhere  */
+  if (delay_req_delay > 20 * domain->mean_path_delay) {
     GST_WARNING ("Delay-request-response delay for domain %u too big: %"
-        GST_TIME_FORMAT " > MAX(100ms, 20 * %" GST_TIME_FORMAT ")",
-        domain->domain, GST_TIME_ARGS (delay_req_delay),
+        GST_TIME_FORMAT " > 20 * %" GST_TIME_FORMAT, domain->domain,
+        GST_TIME_ARGS (delay_req_delay),
         GST_TIME_ARGS (domain->mean_path_delay));
     ret = FALSE;
     goto out;

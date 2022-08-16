@@ -44,8 +44,6 @@ static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
 
 #define gst_asf_parse_parent_class parent_class
 G_DEFINE_TYPE (GstAsfParse, gst_asf_parse, GST_TYPE_BASE_PARSE);
-GST_ELEMENT_REGISTER_DEFINE (asfparse, "asfparse",
-    GST_RANK_NONE, GST_TYPE_ASF_PARSE);
 
 static gboolean
 gst_asf_parse_start (GstBaseParse * parse)
@@ -417,4 +415,11 @@ gst_asf_parse_init (GstAsfParse * asfparse)
 {
   asfparse->asfinfo = gst_asf_file_info_new ();
   asfparse->packetinfo = g_new0 (GstAsfPacketInfo, 1);
+}
+
+gboolean
+gst_asf_parse_plugin_init (GstPlugin * plugin)
+{
+  return gst_element_register (plugin, "asfparse",
+      GST_RANK_NONE, GST_TYPE_ASF_PARSE);
 }

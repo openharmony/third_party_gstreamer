@@ -272,8 +272,6 @@ gst_iir_equalizer_band_class_init (GstIirEqualizerBandClass * klass)
           "Filter type", GST_TYPE_IIR_EQUALIZER_BAND_TYPE,
           BAND_TYPE_PEAK,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | GST_PARAM_CONTROLLABLE));
-
-  gst_type_mark_as_plugin_api (GST_TYPE_IIR_EQUALIZER, 0);
 }
 
 static void
@@ -893,12 +891,29 @@ gst_iir_equalizer_setup (GstAudioFilter * audio, const GstAudioInfo * info)
   return TRUE;
 }
 
-void
-equalizer_element_init (GstPlugin * plugin)
+
+static gboolean
+plugin_init (GstPlugin * plugin)
 {
-  static gsize res = FALSE;
-  if (g_once_init_enter (&res)) {
-    GST_DEBUG_CATEGORY_INIT (equalizer_debug, "equalizer", 0, "equalizer");
-    g_once_init_leave (&res, TRUE);
-  }
+  GST_DEBUG_CATEGORY_INIT (equalizer_debug, "equalizer", 0, "equalizer");
+
+  if (!(gst_element_register (plugin, "equalizer-nbands", GST_RANK_NONE,
+              GST_TYPE_IIR_EQUALIZER_NBANDS)))
+    return FALSE;
+
+  if (!(gst_element_register (plugin, "equalizer-3bands", GST_RANK_NONE,
+              GST_TYPE_IIR_EQUALIZER_3BANDS)))
+    return FALSE;
+
+  if (!(gst_element_register (plugin, "equalizer-10bands", GST_RANK_NONE,
+              GST_TYPE_IIR_EQUALIZER_10BANDS)))
+    return FALSE;
+
+  return TRUE;
 }
+
+GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
+    GST_VERSION_MINOR,
+    equalizer,
+    "GStreamer audio equalizers",
+    plugin_init, VERSION, GST_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)

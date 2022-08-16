@@ -29,12 +29,6 @@
 
 #include "gstglcontext_eagl.h"
 #include "../gstglcontext_private.h"
-#include "gstglios_utils.h"
-
-#define GST_GL_CONTEXT_EAGL_CONTEXT(obj) \
-    ((__bridge EAGLContext *)(obj->priv->eagl_context))
-#define GST_GL_CONTEXT_EAGL_LAYER(obj) \
-    ((__bridge CAEAGLLayer *)(obj->priv->eagl_layer))
 
 #define GST_CAT_DEFAULT gst_gl_context_debug
 
@@ -50,7 +44,6 @@ static void gst_gl_context_eagl_swap_buffers (GstGLContext * context);
 static GstGLAPI gst_gl_context_eagl_get_gl_api (GstGLContext * context);
 static GstGLPlatform gst_gl_context_eagl_get_gl_platform (GstGLContext *
     context);
-GstStructure *gst_gl_context_eagl_get_config (GstGLContext * context);
 
 struct _GstGLContextEaglPrivate
 {
@@ -88,7 +81,6 @@ gst_gl_context_eagl_class_init (GstGLContextEaglClass * klass)
       GST_DEBUG_FUNCPTR (gst_gl_context_eagl_get_gl_api);
   context_class->get_gl_platform =
       GST_DEBUG_FUNCPTR (gst_gl_context_eagl_get_gl_platform);
-  context_class->get_config = GST_DEBUG_FUNCPTR (gst_gl_context_eagl_get_config);
 }
 
 static void
@@ -103,82 +95,11 @@ gst_gl_context_eagl_new (GstGLDisplay * display)
 {
   GstGLContextEagl *context;
 
-  if ((gst_gl_display_get_handle_type (display) & GST_GL_DISPLAY_TYPE_EAGL)
-      == GST_GL_DISPLAY_TYPE_NONE) {
-    GST_INFO ("Wrong display type %u for this context type %u", display->type,
-        GST_GL_DISPLAY_TYPE_EAGL);
-    return NULL;
-  }
-
+  /* there isn't actually a display type for eagl yet? */
   context = g_object_new (GST_TYPE_GL_CONTEXT_EAGL, NULL);
   gst_object_ref_sink (context);
 
   return context;
-}
-
-enum EAGLFormat
-{
-  FORMAT_RGBA8 = 1,
-  FORMAT_RGB565,
-};
-
-static GstStructure *
-layer_config_to_structure (GstGLContextEagl *eagl, CAEAGLLayer * layer)
-{
-  GstStructure *ret;
-  NSDictionary *drawableProps = [layer drawableProperties];
-  NSString *color_format;
-  enum EAGLFormat eagl_format = FORMAT_RGBA8;
-
-  ret = gst_structure_new (GST_GL_CONFIG_STRUCTURE_NAME,
-      GST_GL_CONFIG_STRUCTURE_SET_ARGS(PLATFORM, GstGLPlatform, GST_GL_PLATFORM_EAGL),
-      NULL);
-
-  color_format = [drawableProps objectForKey:kEAGLDrawablePropertyColorFormat];
-  if (!color_format)
-    color_format = [layer contentsFormat];
-
-  if (!color_format) {
-    GST_WARNING_OBJECT (eagl, "Could not retrieve color format from layer %p", layer);
-    goto failure;
-  }
-
-  if (color_format == kEAGLColorFormatRGBA8 || color_format == kCAContentsFormatRGBA8Uint) {
-    eagl_format = FORMAT_RGBA8;
-  } else if (color_format == kEAGLColorFormatRGB565) {
-    eagl_format = FORMAT_RGB565;
-  } else {
-    GST_WARNING_OBJECT (eagl, "unknown drawable format: %s", [color_format UTF8String]);
-    goto failure;
-  }
-
-  /* XXX: defaults chosen by _update_layer() */
-  gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS(DEPTH_SIZE, int, 16), NULL);
-  gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS(STENCIL_SIZE, int, 0), NULL);
-
-  switch (eagl_format) {
-    case FORMAT_RGBA8:
-      gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS(RED_SIZE, int, 8), NULL);
-      gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS(GREEN_SIZE, int, 8), NULL);
-      gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS(BLUE_SIZE, int, 8), NULL);
-      gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS(ALPHA_SIZE, int, 8), NULL);
-      break;
-    case FORMAT_RGB565:
-      gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS(RED_SIZE, int, 5), NULL);
-      gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS(GREEN_SIZE, int, 6), NULL);
-      gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS(BLUE_SIZE, int, 5), NULL);
-      gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS(ALPHA_SIZE, int, 0), NULL);
-      break;
-    default:
-      GST_WARNING_OBJECT (eagl, "Unhandled format!");
-      goto failure;
-  }
-
-  return ret;
-
-failure:
-  gst_structure_free (ret);
-  return NULL;
 }
 
 void
@@ -187,9 +108,7 @@ gst_gl_context_eagl_resize (GstGLContextEagl * eagl_context)
   int width, height;
 
   glBindRenderbuffer (GL_RENDERBUFFER, eagl_context->priv->color_renderbuffer);
-  [GST_GL_CONTEXT_EAGL_CONTEXT(eagl_context)
-      renderbufferStorage:GL_RENDERBUFFER
-      fromDrawable:GST_GL_CONTEXT_EAGL_LAYER(eagl_context)];
+  [GS_GL_CONTEXT_EAGL_CONTEXT(eagl_context) renderbufferStorage:GL_RENDERBUFFER fromDrawable:GS_GL_CONTEXT_EAGL_LAYER(eagl_context)];
   glGetRenderbufferParameteriv (GL_RENDERBUFFER,
       GL_RENDERBUFFER_WIDTH, &width);
   glGetRenderbufferParameteriv (GL_RENDERBUFFER,
@@ -209,9 +128,7 @@ gst_gl_context_eagl_release_layer (GstGLContext * context)
   if (context_eagl->priv->eagl_layer) {
     gst_gl_context_eagl_activate (context, TRUE);
 
-    [GST_GL_CONTEXT_EAGL_CONTEXT(context_eagl)
-        renderbufferStorage:GL_RENDERBUFFER
-        fromDrawable:nil];
+    [GS_GL_CONTEXT_EAGL_CONTEXT(context_eagl) renderbufferStorage: GL_RENDERBUFFER fromDrawable:nil];
 
     glDeleteFramebuffers (1, &context_eagl->priv->framebuffer);
     context_eagl->priv->framebuffer = 0;
@@ -221,14 +138,13 @@ gst_gl_context_eagl_release_layer (GstGLContext * context)
     glDeleteRenderbuffers (1, &context_eagl->priv->color_renderbuffer);
     context_eagl->priv->color_renderbuffer = 0;
 
-    CFRelease (context_eagl->priv->eagl_layer);
-    context_eagl->priv->eagl_layer = NULL;
+    context_eagl->priv->eagl_layer = nil;
     gst_gl_context_eagl_activate (context, FALSE);
   }
 }
 
 void
-gst_gl_context_eagl_update_layer (GstGLContext * context, gpointer layer)
+gst_gl_context_eagl_update_layer (GstGLContext * context)
 {
   GLuint framebuffer;
   GLuint color_renderbuffer;
@@ -239,19 +155,24 @@ gst_gl_context_eagl_update_layer (GstGLContext * context, gpointer layer)
   GLenum status;
   GstGLContextEagl *context_eagl = GST_GL_CONTEXT_EAGL (context);
   GstGLContextEaglPrivate *priv = context_eagl->priv;
+  UIView *window_handle = nil;
   GstGLWindow *window = gst_gl_context_get_window (context);
-  GstStructure *fmt;
+  if (window)
+    window_handle = (__bridge UIView *)((void *)gst_gl_window_get_window_handle (window));
 
-  if (!layer || !gst_gl_window_get_window_handle (window)) {
+  if (!window_handle) {
     GST_INFO_OBJECT (context, "window handle not set yet, not updating layer");
     goto out;
   }
 
+  GST_INFO_OBJECT (context, "updating layer, frame %fx%f",
+      window_handle.frame.size.width, window_handle.frame.size.height);
+
   if (priv->eagl_layer)
     gst_gl_context_eagl_release_layer (context);
 
-  eagl_layer = (__bridge CAEAGLLayer *) layer;
-  [EAGLContext setCurrentContext:GST_GL_CONTEXT_EAGL_CONTEXT(context_eagl)];
+  eagl_layer = (CAEAGLLayer *)[window_handle layer];
+  [EAGLContext setCurrentContext:GS_GL_CONTEXT_EAGL_CONTEXT(context_eagl)];
 
   /* Allocate framebuffer */
   glGenFramebuffers (1, &framebuffer);
@@ -259,7 +180,7 @@ gst_gl_context_eagl_update_layer (GstGLContext * context, gpointer layer)
   /* Allocate color render buffer */
   glGenRenderbuffers (1, &color_renderbuffer);
   glBindRenderbuffer (GL_RENDERBUFFER, color_renderbuffer);
-  [GST_GL_CONTEXT_EAGL_CONTEXT(context_eagl) renderbufferStorage: GL_RENDERBUFFER fromDrawable:eagl_layer];
+  [GS_GL_CONTEXT_EAGL_CONTEXT(context_eagl) renderbufferStorage: GL_RENDERBUFFER fromDrawable:eagl_layer];
   glFramebufferRenderbuffer (GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
       GL_RENDERBUFFER, color_renderbuffer);
   /* Get renderbuffer width/height */
@@ -284,22 +205,14 @@ gst_gl_context_eagl_update_layer (GstGLContext * context, gpointer layer)
   glBindRenderbuffer (GL_RENDERBUFFER, 0);
   glBindFramebuffer (GL_FRAMEBUFFER, 0);
 
-  priv->eagl_layer = (__bridge_retained gpointer) eagl_layer;
+  priv->eagl_layer = (__bridge_retained gpointer)eagl_layer;
   priv->framebuffer = framebuffer;
   priv->color_renderbuffer = color_renderbuffer;
   priv->depth_renderbuffer = depth_renderbuffer;
 
-  fmt = layer_config_to_structure (context_eagl, eagl_layer);
-  if (fmt) {
-    GST_DEBUG_OBJECT (context_eagl, "chosen config %" GST_PTR_FORMAT, fmt);
-    gst_structure_free (fmt);
-  }
-
 out:
   if (window)
     gst_object_unref (window);
-  if (layer)
-    CFRelease (layer);
 }
 
 static gboolean
@@ -308,9 +221,6 @@ gst_gl_context_eagl_create_context (GstGLContext * context, GstGLAPI gl_api,
 {
   GstGLContextEagl *context_eagl = GST_GL_CONTEXT_EAGL (context);
   GstGLContextEaglPrivate *priv = context_eagl->priv;
-  GstGLWindow *window;
-  GstGLWindowEagl *window_eagl;
-  gpointer layer;
   EAGLSharegroup *share_group;
 
   if (other_context) {
@@ -338,19 +248,7 @@ gst_gl_context_eagl_create_context (GstGLContext * context, GstGLAPI gl_api,
   priv->depth_renderbuffer = 0;
 
   GST_INFO_OBJECT (context, "context created, updating layer");
-  window = gst_gl_context_get_window (context);
-  if (!window) {
-    g_set_error_literal (error, GST_GL_CONTEXT_ERROR,
-        GST_GL_CONTEXT_ERROR_CREATE_CONTEXT,
-        "No window to render into");
-    return FALSE;
-  }
-
-  window_eagl = GST_GL_WINDOW_EAGL (window);
-  layer = gst_gl_window_eagl_get_layer (window_eagl);
-  gst_gl_context_eagl_update_layer (context, layer);
-
-  gst_object_unref (window);
+  gst_gl_context_eagl_update_layer (context);
 
   return TRUE;
 }
@@ -374,6 +272,35 @@ gst_gl_context_eagl_destroy_context (GstGLContext * context)
 static gboolean
 gst_gl_context_eagl_choose_format (GstGLContext * context, GError ** error)
 {
+  GstGLContextEagl *context_eagl;
+  GstGLWindow *window;
+  UIView *window_handle = nil;
+
+  context_eagl = GST_GL_CONTEXT_EAGL (context);
+  window = gst_gl_context_get_window (context);
+
+  if (!window)
+    return TRUE;
+
+  if (window)
+    window_handle = (__bridge UIView *)(void *)gst_gl_window_get_window_handle (window);
+
+  if (!window_handle) {
+    gst_object_unref (window);
+    return TRUE;
+  }
+  
+  CAEAGLLayer *eagl_layer;
+  NSDictionary * dict =[NSDictionary dictionaryWithObjectsAndKeys:
+      [NSNumber numberWithBool:NO], kEAGLDrawablePropertyRetainedBacking,
+      kEAGLColorFormatRGBA8, kEAGLDrawablePropertyColorFormat, nil];
+
+  eagl_layer = (CAEAGLLayer *)[window_handle layer];
+  [eagl_layer setOpaque:YES];
+  [eagl_layer setDrawableProperties:dict];
+
+  gst_object_unref (window);
+
   return TRUE;
 }
 
@@ -388,7 +315,7 @@ gst_gl_context_eagl_prepare_draw (GstGLContextEagl * context)
 {
   if (!context->priv->eagl_layer)
     return;
-
+  
   glBindFramebuffer (GL_FRAMEBUFFER, context->priv->framebuffer);
   glBindRenderbuffer (GL_RENDERBUFFER, context->priv->color_renderbuffer);
 }
@@ -413,7 +340,7 @@ gst_gl_context_eagl_swap_buffers (GstGLContext * context)
   if (!context_eagl->priv->eagl_layer)
     return;
 
-  [GST_GL_CONTEXT_EAGL_CONTEXT(context_eagl) presentRenderbuffer:GL_RENDERBUFFER];
+  [GS_GL_CONTEXT_EAGL_CONTEXT(context_eagl) presentRenderbuffer:GL_RENDERBUFFER];
 }
 
 static gboolean
@@ -432,7 +359,7 @@ gst_gl_context_eagl_activate (GstGLContext * context, gboolean activate)
     }
 
     GST_DEBUG ("Attaching context to thread %p", g_thread_self ());
-    if ([EAGLContext setCurrentContext:GST_GL_CONTEXT_EAGL_CONTEXT(context_eagl)] == NO) {
+    if ([EAGLContext setCurrentContext:GS_GL_CONTEXT_EAGL_CONTEXT(context_eagl)] == NO) {
       GST_ERROR ("Couldn't make context current");
       return FALSE;
     }
@@ -463,15 +390,4 @@ guintptr
 gst_gl_context_eagl_get_current_context (void)
 {
   return (guintptr) [EAGLContext currentContext];
-}
-
-GstStructure *
-gst_gl_context_eagl_get_config (GstGLContext * context)
-{
-  GstGLContextEagl *eagl = GST_GL_CONTEXT_EAGL (context);
-
-  if (!eagl->priv->eagl_layer)
-    return NULL;
-
-  return layer_config_to_structure (eagl, (__bridge CAEAGLLayer *) eagl->priv->eagl_layer);
 }

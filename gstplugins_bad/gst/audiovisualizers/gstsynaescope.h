@@ -52,8 +52,7 @@ struct _GstSynaeScopeClass
 };
 
 GType gst_synae_scope_get_type (void);
-
-GST_ELEMENT_REGISTER_DECLARE (synaescope);
+gboolean gst_synae_scope_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 #endif /* __GST_SYNAE_SCOPE_H__ */

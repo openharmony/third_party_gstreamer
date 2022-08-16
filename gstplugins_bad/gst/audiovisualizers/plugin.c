@@ -32,14 +32,13 @@
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  gboolean res = TRUE;
 
-  ret |= GST_ELEMENT_REGISTER (spacescope, plugin);
-  ret |= GST_ELEMENT_REGISTER (spectrascope, plugin);
-  ret |= GST_ELEMENT_REGISTER (synaescope, plugin);
-  ret |= GST_ELEMENT_REGISTER (wavescope, plugin);
-
-  return ret;
+  res &= gst_space_scope_plugin_init (plugin);
+  res &= gst_spectra_scope_plugin_init (plugin);
+  res &= gst_synae_scope_plugin_init (plugin);
+  res &= gst_wave_scope_plugin_init (plugin);
+  return res;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

@@ -337,10 +337,6 @@ GstFlowReturn        gst_video_encoder_finish_frame (GstVideoEncoder *encoder,
 						     GstVideoCodecFrame *frame);
 
 GST_VIDEO_API
-GstFlowReturn        gst_video_encoder_finish_subframe (GstVideoEncoder * encoder,
-						     GstVideoCodecFrame * frame);
-
-GST_VIDEO_API
 GstCaps *            gst_video_encoder_proxy_getcaps (GstVideoEncoder * enc,
 						      GstCaps         * caps,
                                                       GstCaps         * filter);
@@ -381,13 +377,9 @@ gboolean             gst_video_encoder_is_qos_enabled (GstVideoEncoder * encoder
 GST_VIDEO_API
 GstClockTimeDiff     gst_video_encoder_get_max_encode_time (GstVideoEncoder *encoder, GstVideoCodecFrame * frame);
 
-GST_VIDEO_API
-void                 gst_video_encoder_set_min_force_key_unit_interval (GstVideoEncoder * encoder,
-                                                                        GstClockTime      interval);
-GST_VIDEO_API
-GstClockTime         gst_video_encoder_get_min_force_key_unit_interval (GstVideoEncoder * encoder);
-
+#ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GstVideoEncoder, gst_object_unref)
+#endif
 
 G_END_DECLS
 

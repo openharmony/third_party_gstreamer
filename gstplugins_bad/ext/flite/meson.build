@@ -36,5 +36,4 @@ if flite_deps.length() == flite_libs.length() and have_flite_h
     install_dir : plugins_install_dir,
   )
   pkgconfig.generate(gstflite, install_dir : plugins_pkgconfig_install_dir)
-  plugins += [gstflite]
 endif

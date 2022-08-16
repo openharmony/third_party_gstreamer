@@ -57,7 +57,7 @@
  * serialized in a "packet" and sent over the socket. The sender then
  * performs a blocking wait for a reply, if a return code is needed.
  *
- * All objects that contain a GstStructure (messages, queries, events) are
+ * All objects that contan a GstStructure (messages, queries, events) are
  * serialized by serializing the GstStructure to a string
  * (gst_structure_to_string). This implies some limitations, of course.
  * All fields of this structures that are not serializable to strings (ex.
@@ -73,7 +73,6 @@
 #  include "config.h"
 #endif
 
-#include "gstipcpipelineelements.h"
 #include "gstipcpipelinesink.h"
 
 static GstStaticPadTemplate sinktemplate = GST_STATIC_PAD_TEMPLATE ("sink",
@@ -110,9 +109,6 @@ enum
 #define gst_ipc_pipeline_sink_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstIpcPipelineSink, gst_ipc_pipeline_sink,
     GST_TYPE_ELEMENT, _do_init);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (ipcpipelinesink, "ipcpipelinesink",
-    GST_RANK_NONE, GST_TYPE_IPC_PIPELINE_SINK,
-    icepipeline_element_init (plugin));
 
 static void gst_ipc_pipeline_sink_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -184,7 +180,7 @@ gst_ipc_pipeline_sink_class_init (GstIpcPipelineSinkClass * klass)
       G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
       G_STRUCT_OFFSET (GstIpcPipelineSinkClass, disconnect),
-      NULL, NULL, NULL, G_TYPE_NONE, 0);
+      NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE, 0);
 
   gst_element_class_set_static_metadata (gstelement_class,
       "Inter-process Pipeline Sink",
@@ -648,7 +644,7 @@ gst_ipc_pipeline_sink_change_state (GstElement * element,
 
   /* change the state of the peer first */
   /* If the fd out is -1, we do not actually call the peer. This will happen
-     when we explicitly disconnected, and in that case we want to be able
+     when we explicitely disconnected, and in that case we want to be able
      to bring the element down to NULL, so it can be restarted with a new
      slave pipeline. */
   if (sink->comm.fdout >= 0) {
@@ -718,7 +714,7 @@ gst_ipc_pipeline_sink_change_state (GstElement * element,
   }
 
   /* the parent's (GstElement) state change func won't return ASYNC or
-   * NO_PREROLL, so unless it has returned FAILURE, which we have caught above,
+   * NO_PREROLL, so unless it has returned FAILURE, which we have catched above,
    * we are not interested in its return code... just return the peer's */
   return peer_ret;
 }

@@ -29,10 +29,15 @@
  *
  * The design mandates that the subclasses implement the following features and
  * behaviour:
+ * <itemizedlist>
+ *   <listitem><para>
+ *     3 pads: viewfinder, image capture, video capture
+ *   </para></listitem>
+ *   <listitem><para>
+ *   </para></listitem>
+ * </itemizedlist>
  *
- * * 3 pads: viewfinder, image capture, video capture
- *
- * During `construct_pipeline()` vmethod a subclass can add several elements into
+ * During construct_pipeline() vmethod a subclass can add several elements into
  * the bin and expose 3 srcs pads as ghostpads implementing the 3 pad templates.
  *
  * However the subclass is responsible for adding the pad templates for the
@@ -46,13 +51,13 @@
  *   // pad templates should be a #GstStaticPadTemplate with direction
  *   // #GST_PAD_SRC and name "vidsrc", "imgsrc" and "vfsrc"
  *   gst_element_class_add_static_pad_template (gstelement_class,
- *       &vidsrc_template);
+ *       &amp;vidsrc_template);
  *   gst_element_class_add_static_pad_template (gstelement_class,
- *       &imgsrc_template);
+ *       &amp;imgsrc_template);
  *   gst_element_class_add_static_pad_template (gstelement_class,
- *       &vfsrc_template);
+ *       &amp;vfsrc_template);
  *   // see #GstElementDetails
- *   gst_element_class_set_details (gstelement_class, &details);
+ *   gst_element_class_set_details (gstelement_class, &amp;details);
  * }
  * ]|
  *
@@ -60,7 +65,7 @@
  * dataflow methods on these pads. This way all functionality can be implemented
  * directly in the subclass without extra elements.
  *
- * The src will receive the capture mode from `GstCameraBin2` on the
+ * The src will receive the capture mode from #GstCameraBin2 on the
  * #GstBaseCameraSrc:mode property. Possible capture modes are defined in
  * #GstCameraBinMode.
  */
@@ -72,14 +77,6 @@
 
 #include <gst/glib-compat-private.h>
 #include "gstbasecamerasrc.h"
-
-#define DEFAULT_WIDTH 640
-#define DEFAULT_HEIGHT 480
-#define DEFAULT_CAPTURE_WIDTH 800
-#define DEFAULT_CAPTURE_HEIGHT 600
-#define DEFAULT_FPS_N 0         /* makes it use the default */
-#define DEFAULT_FPS_D 1
-#define DEFAULT_ZOOM MIN_ZOOM
 
 enum
 {
@@ -540,14 +537,14 @@ gst_base_camera_src_class_init (GstBaseCameraSrcClass * klass)
       G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
       G_CALLBACK (gst_base_camera_src_start_capture),
-      NULL, NULL, NULL, G_TYPE_NONE, 0);
+      NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE, 0);
 
   basecamerasrc_signals[STOP_CAPTURE_SIGNAL] =
       g_signal_new_class_handler ("stop-capture",
       G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
       G_CALLBACK (gst_base_camera_src_stop_capture),
-      NULL, NULL, NULL, G_TYPE_NONE, 0);
+      NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE, 0);
 
   gstelement_class->change_state = gst_base_camera_src_change_state;
 

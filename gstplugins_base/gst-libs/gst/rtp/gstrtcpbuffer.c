@@ -84,7 +84,7 @@ gst_rtcp_buffer_new_take_data (gpointer data, guint len)
 GstBuffer *
 gst_rtcp_buffer_new_copy_data (gconstpointer data, guint len)
 {
-  return gst_rtcp_buffer_new_take_data (g_memdup2 (data, len), len);
+  return gst_rtcp_buffer_new_take_data (g_memdup (data, len), len);
 }
 
 static gboolean
@@ -109,7 +109,8 @@ gst_rtcp_buffer_validate_data_internal (guint8 * data, guint len,
   if (G_UNLIKELY (header_mask != GST_RTCP_VALID_VALUE))
     goto wrong_mask;
 
-  padding = data[0] & 0x20;
+  /* no padding when mask succeeds */
+  padding = FALSE;
 
   /* store len */
   data_len = len;
@@ -120,7 +121,7 @@ gst_rtcp_buffer_validate_data_internal (guint8 * data, guint len,
     if (data_len < header_len)
       goto wrong_length;
 
-    /* move to next compound packet */
+    /* move to next compount packet */
     data += header_len;
     data_len -= header_len;
 
@@ -128,7 +129,7 @@ gst_rtcp_buffer_validate_data_internal (guint8 * data, guint len,
     if (data_len < 4)
       break;
 
-    /* Version already checked for first packet through mask */
+    /* padding only allowed on last packet */
     if (padding)
       break;
 
@@ -554,21 +555,13 @@ gst_rtcp_buffer_add_packet (GstRTCPBuffer * rtcp, GstRTCPType type,
   g_return_val_if_fail (rtcp->map.flags & GST_MAP_WRITE, FALSE);
 
   /* find free space */
-  if (gst_rtcp_buffer_get_first_packet (rtcp, packet)) {
+  if (gst_rtcp_buffer_get_first_packet (rtcp, packet))
     while (gst_rtcp_packet_move_to_next (packet));
-
-    if (packet->padding) {
-      /* Last packet is a padding packet. Let's not replace it silently  */
-      /* and let the application know that it could not be added because */
-      /* it would involve replacing a packet */
-      return FALSE;
-    }
-  }
 
   maxsize = rtcp->map.maxsize;
 
   /* packet->offset is now pointing to the next free offset in the buffer to
-   * start a compound packet. Next we figure out if we have enough free space in
+   * start a compount packet. Next we figure out if we have enough free space in
    * the buffer to continue. */
   len = rtcp_packet_min_length (type);
   if (len == -1)
@@ -1075,8 +1068,6 @@ gst_rtcp_packet_set_rb (GstRTCPPacket * packet, guint nth, guint32 ssrc,
  * extension.
  *
  * Returns: %TRUE if the profile specific extension data was added.
- *
- * Since: 1.10
  */
 gboolean
 gst_rtcp_packet_add_profile_specific_ext (GstRTCPPacket * packet,
@@ -1117,8 +1108,6 @@ gst_rtcp_packet_add_profile_specific_ext (GstRTCPPacket * packet,
  *
  * Returns: The number of 32-bit words containing profile-specific extension
  *          data from @packet.
- *
- * Since: 1.10
  */
 guint16
 gst_rtcp_packet_get_profile_specific_ext_length (GstRTCPPacket * packet)
@@ -1149,8 +1138,6 @@ gst_rtcp_packet_get_profile_specific_ext_length (GstRTCPPacket * packet)
  * @len: (out): result length of the profile-specific data
  *
  * Returns: %TRUE if there was valid data.
- *
- * Since: 1.10
  */
 gboolean
 gst_rtcp_packet_get_profile_specific_ext (GstRTCPPacket * packet,
@@ -1190,8 +1177,6 @@ gst_rtcp_packet_get_profile_specific_ext (GstRTCPPacket * packet,
  * memory area @data. This must be freed with g_free() after usage.
  *
  * Returns: %TRUE if there was valid data.
- *
- * Since: 1.10
  */
 gboolean
 gst_rtcp_packet_copy_profile_specific_ext (GstRTCPPacket * packet,
@@ -1212,7 +1197,7 @@ gst_rtcp_packet_copy_profile_specific_ext (GstRTCPPacket * packet,
     if (data != NULL) {
       guint8 *ptr = packet->rtcp->map.data + packet->offset;
       ptr += ((packet->length + 1 - pse_len) * sizeof (guint32));
-      *data = g_memdup2 (ptr, pse_len * sizeof (guint32));
+      *data = g_memdup (ptr, pse_len * sizeof (guint32));
     }
 
     return TRUE;
@@ -2210,27 +2195,6 @@ gst_rtcp_sdes_type_to_name (GstRTCPSDESType type)
     case GST_RTCP_SDES_PRIV:
       result = "priv";
       break;
-    case GST_RTCP_SDES_H323_CADDR:
-      result = "h323-caddr";
-      break;
-    case GST_RTCP_SDES_APSI:
-      result = "apsi";
-      break;
-    case GST_RTCP_SDES_RGRP:
-      result = "rgrp";
-      break;
-    case GST_RTCP_SDES_REPAIRED_RTP_STREAM_ID:
-      result = "repaired-rtp-stream-id";
-      break;
-    case GST_RTCP_SDES_CCID:
-      result = "ccid";
-      break;
-    case GST_RTCP_SDES_RTP_STREAM_ID:
-      result = "rtp-stream-id";
-      break;
-    case GST_RTCP_SDES_MID:
-      result = "mid";
-      break;
     default:
       result = NULL;
       break;
@@ -2274,27 +2238,6 @@ gst_rtcp_sdes_name_to_type (const gchar * name)
 
   if (strcmp ("note", name) == 0)
     return GST_RTCP_SDES_NOTE;
-
-  if (strcmp ("h323-caddr", name) == 0)
-    return GST_RTCP_SDES_H323_CADDR;
-
-  if (strcmp ("apsi", name) == 0)
-    return GST_RTCP_SDES_APSI;
-
-  if (strcmp ("rgrp", name) == 0)
-    return GST_RTCP_SDES_RGRP;
-
-  if (strcmp ("rtp-stream-id", name) == 0)
-    return GST_RTCP_SDES_RTP_STREAM_ID;
-
-  if (strcmp ("repaired-rtp-stream-id", name) == 0)
-    return GST_RTCP_SDES_REPAIRED_RTP_STREAM_ID;
-
-  if (strcmp ("ccid", name) == 0)
-    return GST_RTCP_SDES_CCID;
-
-  if (strcmp ("mid", name) == 0)
-    return GST_RTCP_SDES_MID;
 
   return GST_RTCP_SDES_PRIV;
 }

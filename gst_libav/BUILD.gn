@@ -49,7 +49,6 @@ config("gstlibav_config") {
     "-DOHOS_OPT_MEMLEAK",
     "-DOHOS_EXT_FUNC",
     "-DOHOS_OPT_PERFORMANCE",
-    "-DG_LOG_DOMAIN=\"GStreamer\"",
   ]
 }
 
@@ -77,6 +76,7 @@ ohos_shared_library("gstlibav") {
     ":gstlibav_source",
     "//third_party/ffmpeg:libohosffmpeg",
     "//third_party/glib:glib",
+    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_base:gstaudio",
     "//third_party/gstreamer/gstplugins_base:gstpbutils",

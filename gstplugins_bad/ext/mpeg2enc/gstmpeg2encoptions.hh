@@ -38,8 +38,6 @@ public:
 		    GValue       *value);
   void setProperty (guint         prop_id,
 		    const GValue *value);
-
-  gboolean disable_encode_retries;
 };
 
 #endif /* __GST_MPEG2ENCOPTIONS_H__ */

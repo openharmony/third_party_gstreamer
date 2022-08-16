@@ -107,11 +107,6 @@ static GstStateChangeReturn gst_dvbsub_overlay_change_state (GstElement *
 
 #define gst_dvbsub_overlay_parent_class parent_class
 G_DEFINE_TYPE (GstDVBSubOverlay, gst_dvbsub_overlay, GST_TYPE_ELEMENT);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (dvbsuboverlay, "dvbsuboverlay",
-    GST_RANK_PRIMARY, GST_TYPE_DVBSUB_OVERLAY,
-    GST_DEBUG_CATEGORY_INIT (gst_dvbsub_overlay_debug, "dvbsuboverlay", 0,
-        "DVB subtitle overlay");
-    );
 
 static GstCaps *gst_dvbsub_overlay_get_videosink_caps (GstDVBSubOverlay *
     render, GstPad * pad, GstCaps * filter);
@@ -1308,7 +1303,11 @@ gst_dvbsub_overlay_event_text (GstPad * pad, GstObject * parent,
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (dvbsuboverlay, plugin);
+  GST_DEBUG_CATEGORY_INIT (gst_dvbsub_overlay_debug, "dvbsuboverlay",
+      0, "DVB subtitle overlay");
+
+  return gst_element_register (plugin, "dvbsuboverlay",
+      GST_RANK_PRIMARY, GST_TYPE_DVBSUB_OVERLAY);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

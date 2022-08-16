@@ -28,6 +28,8 @@
 
 G_END_DECLS
 
+#include "gsttcp.h"
+
 #define GST_TYPE_TCP_SERVER_SRC \
   (gst_tcp_server_src_get_type())
 #define GST_TCP_SERVER_SRC(obj) \
@@ -59,9 +61,6 @@ struct _GstTCPServerSrc {
   GCancellable *cancellable;
   GSocket *server_socket;
   GSocket *client_socket;
-
-  guint64 bytes_received;
-  GstStructure *stats;
 };
 
 struct _GstTCPServerSrcClass {

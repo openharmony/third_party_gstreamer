@@ -49,12 +49,6 @@
  *
  * The temp-location property will be used to notify the application of the
  * allocated filename.
- *
- * If the #GstQueue2:use-buffering property is set to TRUE, and any writable
- * property is modified, #GstQueue2 will attempt to post a buffering message
- * if the changes to the properties also cause the buffering percentage to be
- * changed (for example, because the queue's capacity was changed and it already
- * contains some data).
  */
 
 #ifdef HAVE_CONFIG_H
@@ -62,7 +56,6 @@
 #endif
 
 #include "gstqueue2.h"
-#include "gstcoreelementselements.h"
 
 #include <glib/gstdio.h>
 
@@ -152,7 +145,6 @@ enum
   PROP_BITRATE,
   PROP_LAST
 };
-static GParamSpec *obj_props[PROP_LAST] = { NULL, };
 
 /* Explanation for buffer levels and percentages:
  *
@@ -271,7 +263,6 @@ static GParamSpec *obj_props[PROP_LAST] = { NULL, };
         "dataflow inside the queue element");
 #define gst_queue2_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstQueue2, gst_queue2, GST_TYPE_ELEMENT, _do_init);
-GST_ELEMENT_REGISTER_DEFINE (queue2, "queue2", GST_RANK_NONE, GST_TYPE_QUEUE2);
 
 static void gst_queue2_finalize (GObject * object);
 
@@ -314,9 +305,7 @@ static gboolean gst_queue2_is_filled (GstQueue2 * queue);
 
 static void update_cur_level (GstQueue2 * queue, GstQueue2Range * range);
 static void update_in_rates (GstQueue2 * queue, gboolean force);
-static GstMessage *gst_queue2_get_buffering_message (GstQueue2 * queue,
-    gint * percent);
-static void update_buffering (GstQueue2 * queue);
+static GstMessage *gst_queue2_get_buffering_message (GstQueue2 * queue);
 static void gst_queue2_post_buffering (GstQueue2 * queue);
 
 typedef enum
@@ -346,93 +335,104 @@ gst_queue2_class_init (GstQueue2Class * klass)
   gobject_class->get_property = gst_queue2_get_property;
 
   /* properties */
-  obj_props[PROP_CUR_LEVEL_BYTES] = g_param_spec_uint ("current-level-bytes",
-      "Current level (kB)", "Current amount of data in the queue (bytes)",
-      0, G_MAXUINT, 0, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
-  obj_props[PROP_CUR_LEVEL_BUFFERS] =
+  g_object_class_install_property (gobject_class, PROP_CUR_LEVEL_BYTES,
+      g_param_spec_uint ("current-level-bytes", "Current level (kB)",
+          "Current amount of data in the queue (bytes)",
+          0, G_MAXUINT, 0, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_CUR_LEVEL_BUFFERS,
       g_param_spec_uint ("current-level-buffers", "Current level (buffers)",
-      "Current number of buffers in the queue",
-      0, G_MAXUINT, 0, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
-  obj_props[PROP_CUR_LEVEL_TIME] = g_param_spec_uint64 ("current-level-time",
-      "Current level (ns)", "Current amount of data in the queue (in ns)",
-      0, G_MAXUINT64, 0, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+          "Current number of buffers in the queue",
+          0, G_MAXUINT, 0, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_CUR_LEVEL_TIME,
+      g_param_spec_uint64 ("current-level-time", "Current level (ns)",
+          "Current amount of data in the queue (in ns)",
+          0, G_MAXUINT64, 0, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
-  obj_props[PROP_MAX_SIZE_BYTES] = g_param_spec_uint ("max-size-bytes",
-      "Max. size (kB)", "Max. amount of data in the queue (bytes, 0=disable)",
-      0, G_MAXUINT, DEFAULT_MAX_SIZE_BYTES,
-      G_PARAM_READWRITE | GST_PARAM_MUTABLE_PLAYING | G_PARAM_STATIC_STRINGS);
-  obj_props[PROP_MAX_SIZE_BUFFERS] = g_param_spec_uint ("max-size-buffers",
-      "Max. size (buffers)", "Max. number of buffers in the queue (0=disable)",
-      0, G_MAXUINT, DEFAULT_MAX_SIZE_BUFFERS,
-      G_PARAM_READWRITE | GST_PARAM_MUTABLE_PLAYING | G_PARAM_STATIC_STRINGS);
-  obj_props[PROP_MAX_SIZE_TIME] = g_param_spec_uint64 ("max-size-time",
-      "Max. size (ns)", "Max. amount of data in the queue (in ns, 0=disable)",
-      0, G_MAXUINT64, DEFAULT_MAX_SIZE_TIME,
-      G_PARAM_READWRITE | GST_PARAM_MUTABLE_PLAYING | G_PARAM_STATIC_STRINGS);
+  g_object_class_install_property (gobject_class, PROP_MAX_SIZE_BYTES,
+      g_param_spec_uint ("max-size-bytes", "Max. size (kB)",
+          "Max. amount of data in the queue (bytes, 0=disable)",
+          0, G_MAXUINT, DEFAULT_MAX_SIZE_BYTES,
+          G_PARAM_READWRITE | GST_PARAM_MUTABLE_PLAYING |
+          G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_MAX_SIZE_BUFFERS,
+      g_param_spec_uint ("max-size-buffers", "Max. size (buffers)",
+          "Max. number of buffers in the queue (0=disable)", 0, G_MAXUINT,
+          DEFAULT_MAX_SIZE_BUFFERS,
+          G_PARAM_READWRITE | GST_PARAM_MUTABLE_PLAYING |
+          G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_MAX_SIZE_TIME,
+      g_param_spec_uint64 ("max-size-time", "Max. size (ns)",
+          "Max. amount of data in the queue (in ns, 0=disable)", 0, G_MAXUINT64,
+          DEFAULT_MAX_SIZE_TIME, G_PARAM_READWRITE | GST_PARAM_MUTABLE_PLAYING |
+          G_PARAM_STATIC_STRINGS));
 
-  obj_props[PROP_USE_BUFFERING] = g_param_spec_boolean ("use-buffering",
-      "Use buffering",
-      "Emit GST_MESSAGE_BUFFERING based on low-/high-percent thresholds "
-      "(0% = low-watermark, 100% = high-watermark)",
-      DEFAULT_USE_BUFFERING,
-      G_PARAM_READWRITE | GST_PARAM_MUTABLE_PLAYING | G_PARAM_STATIC_STRINGS);
-  obj_props[PROP_USE_TAGS_BITRATE] = g_param_spec_boolean ("use-tags-bitrate",
-      "Use bitrate from tags",
-      "Use a bitrate from upstream tags to estimate buffer duration if not provided",
-      DEFAULT_USE_TAGS_BITRATE,
-      G_PARAM_READWRITE | GST_PARAM_MUTABLE_PLAYING | G_PARAM_STATIC_STRINGS);
-  obj_props[PROP_USE_RATE_ESTIMATE] = g_param_spec_boolean ("use-rate-estimate",
-      "Use Rate Estimate",
-      "Estimate the bitrate of the stream to calculate time level",
-      DEFAULT_USE_RATE_ESTIMATE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
-  obj_props[PROP_LOW_PERCENT] = g_param_spec_int ("low-percent", "Low percent",
-      "Low threshold for buffering to start. Only used if use-buffering is True "
-      "(Deprecated: use low-watermark instead)",
-      0, 100, DEFAULT_LOW_WATERMARK * 100,
-      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
-  obj_props[PROP_HIGH_PERCENT] = g_param_spec_int ("high-percent",
-      "High percent",
-      "High threshold for buffering to finish. Only used if use-buffering is True "
-      "(Deprecated: use high-watermark instead)",
-      0, 100, DEFAULT_HIGH_WATERMARK * 100,
-      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
-  obj_props[PROP_LOW_WATERMARK] = g_param_spec_double ("low-watermark",
-      "Low watermark",
-      "Low threshold for buffering to start. Only used if use-buffering is True",
-      0.0, 1.0, DEFAULT_LOW_WATERMARK,
-      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
-  obj_props[PROP_HIGH_WATERMARK] = g_param_spec_double ("high-watermark",
-      "High watermark",
-      "High threshold for buffering to finish. Only used if use-buffering is True",
-      0.0, 1.0, DEFAULT_HIGH_WATERMARK,
-      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+  g_object_class_install_property (gobject_class, PROP_USE_BUFFERING,
+      g_param_spec_boolean ("use-buffering", "Use buffering",
+          "Emit GST_MESSAGE_BUFFERING based on low-/high-percent thresholds",
+          DEFAULT_USE_BUFFERING, G_PARAM_READWRITE | GST_PARAM_MUTABLE_PLAYING |
+          G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_USE_TAGS_BITRATE,
+      g_param_spec_boolean ("use-tags-bitrate", "Use bitrate from tags",
+          "Use a bitrate from upstream tags to estimate buffer duration if not provided",
+          DEFAULT_USE_TAGS_BITRATE,
+          G_PARAM_READWRITE | GST_PARAM_MUTABLE_PLAYING |
+          G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_USE_RATE_ESTIMATE,
+      g_param_spec_boolean ("use-rate-estimate", "Use Rate Estimate",
+          "Estimate the bitrate of the stream to calculate time level",
+          DEFAULT_USE_RATE_ESTIMATE,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_LOW_PERCENT,
+      g_param_spec_int ("low-percent", "Low percent",
+          "Low threshold for buffering to start. Only used if use-buffering is True "
+          "(Deprecated: use low-watermark instead)",
+          0, 100, DEFAULT_LOW_WATERMARK * 100,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_HIGH_PERCENT,
+      g_param_spec_int ("high-percent", "High percent",
+          "High threshold for buffering to finish. Only used if use-buffering is True "
+          "(Deprecated: use high-watermark instead)",
+          0, 100, DEFAULT_HIGH_WATERMARK * 100,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_LOW_WATERMARK,
+      g_param_spec_double ("low-watermark", "Low watermark",
+          "Low threshold for buffering to start. Only used if use-buffering is True",
+          0.0, 1.0, DEFAULT_LOW_WATERMARK,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_HIGH_WATERMARK,
+      g_param_spec_double ("high-watermark", "High watermark",
+          "High threshold for buffering to finish. Only used if use-buffering is True",
+          0.0, 1.0, DEFAULT_HIGH_WATERMARK,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  obj_props[PROP_TEMP_TEMPLATE] = g_param_spec_string ("temp-template",
-      "Temporary File Template",
-      "File template to store temporary files in, should contain directory "
-      "and XXXXXX. (NULL == disabled)",
-      NULL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+  g_object_class_install_property (gobject_class, PROP_TEMP_TEMPLATE,
+      g_param_spec_string ("temp-template", "Temporary File Template",
+          "File template to store temporary files in, should contain directory "
+          "and XXXXXX. (NULL == disabled)",
+          NULL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  obj_props[PROP_TEMP_LOCATION] = g_param_spec_string ("temp-location",
-      "Temporary File Location",
-      "Location to store temporary files in (Only read this property, "
-      "use temp-template to configure the name template)",
-      NULL, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
-
-  obj_props[PROP_USE_BITRATE_QUERY] = g_param_spec_boolean ("use-bitrate-query",
-      "Use bitrate from downstream query",
-      "Use a bitrate from a downstream query to estimate buffer duration if not provided",
-      DEFAULT_USE_BITRATE_QUERY,
-      G_PARAM_READWRITE | GST_PARAM_MUTABLE_PLAYING | G_PARAM_STATIC_STRINGS);
+  g_object_class_install_property (gobject_class, PROP_TEMP_LOCATION,
+      g_param_spec_string ("temp-location", "Temporary File Location",
+          "Location to store temporary files in (Only read this property, "
+          "use temp-template to configure the name template)",
+          NULL, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_USE_BITRATE_QUERY,
+      g_param_spec_boolean ("use-bitrate-query",
+          "Use bitrate from downstream query",
+          "Use a bitrate from a downstream query to estimate buffer duration if not provided",
+          DEFAULT_USE_BITRATE_QUERY,
+          G_PARAM_READWRITE | GST_PARAM_MUTABLE_PLAYING |
+          G_PARAM_STATIC_STRINGS));
 
   /**
    * GstQueue2:temp-remove
    *
    * When temp-template is set, remove the temporary file when going to READY.
    */
-  obj_props[PROP_TEMP_REMOVE] = g_param_spec_boolean ("temp-remove",
-      "Remove the Temporary File", "Remove the temp-location after use",
-      DEFAULT_TEMP_REMOVE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+  g_object_class_install_property (gobject_class, PROP_TEMP_REMOVE,
+      g_param_spec_boolean ("temp-remove", "Remove the Temporary File",
+          "Remove the temp-location after use",
+          DEFAULT_TEMP_REMOVE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /**
    * GstQueue2:ring-buffer-max-size
@@ -440,21 +440,22 @@ gst_queue2_class_init (GstQueue2Class * klass)
    * The maximum size of the ring buffer in bytes. If set to 0, the ring
    * buffer is disabled. Default 0.
    */
-  obj_props[PROP_RING_BUFFER_MAX_SIZE] =
+  g_object_class_install_property (gobject_class, PROP_RING_BUFFER_MAX_SIZE,
       g_param_spec_uint64 ("ring-buffer-max-size",
-      "Max. ring buffer size (bytes)",
-      "Max. amount of data in the ring buffer (bytes, 0 = disabled)",
-      0, G_MAXUINT64, DEFAULT_RING_BUFFER_MAX_SIZE,
-      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+          "Max. ring buffer size (bytes)",
+          "Max. amount of data in the ring buffer (bytes, 0 = disabled)",
+          0, G_MAXUINT64, DEFAULT_RING_BUFFER_MAX_SIZE,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /**
    * GstQueue2:avg-in-rate
    *
    * The average input data rate.
    */
-  obj_props[PROP_AVG_IN_RATE] = g_param_spec_int64 ("avg-in-rate",
-      "Input data rate (bytes/s)", "Average input data rate (bytes/s)",
-      0, G_MAXINT64, 0, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+  g_object_class_install_property (gobject_class, PROP_AVG_IN_RATE,
+      g_param_spec_int64 ("avg-in-rate", "Input data rate (bytes/s)",
+          "Average input data rate (bytes/s)",
+          0, G_MAXINT64, 0, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   /**
    * GstQueue2:bitrate
@@ -463,11 +464,10 @@ gst_queue2_class_init (GstQueue2Class * klass)
    * the size of the queue.  Values are taken from either the upstream tags
    * or from the downstream bitrate query.
    */
-  obj_props[PROP_BITRATE] = g_param_spec_uint64 ("bitrate", "Bitrate (bits/s)",
-      "Conversion value between data size and time",
-      0, G_MAXUINT64, 0, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
-
-  g_object_class_install_properties (gobject_class, PROP_LAST, obj_props);
+  g_object_class_install_property (gobject_class, PROP_BITRATE,
+      g_param_spec_uint64 ("bitrate", "Bitrate (bits/s)",
+          "Conversion value between data size and time",
+          0, G_MAXUINT64, 0, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   /* set several parent class virtual functions */
   gobject_class->finalize = gst_queue2_finalize;
@@ -836,7 +836,6 @@ query_downstream_bitrate (GstQueue2 * queue)
 {
   GstQuery *query = gst_query_new_bitrate ();
   guint downstream_bitrate = 0;
-  gboolean changed;
 
   if (gst_pad_peer_query (queue->srcpad, query)) {
     gst_query_parse_bitrate (query, &downstream_bitrate);
@@ -849,17 +848,10 @@ query_downstream_bitrate (GstQueue2 * queue)
   gst_query_unref (query);
 
   GST_QUEUE2_MUTEX_LOCK (queue);
-  changed = queue->downstream_bitrate != downstream_bitrate;
   queue->downstream_bitrate = downstream_bitrate;
   GST_QUEUE2_MUTEX_UNLOCK (queue);
 
-  if (changed) {
-    if (queue->use_buffering)
-      update_buffering (queue);
-    gst_queue2_post_buffering (queue);
-
-    g_object_notify_by_pspec (G_OBJECT (queue), obj_props[PROP_BITRATE]);
-  }
+  g_object_notify (G_OBJECT (queue), "bitrate");
 }
 
 /* take a buffer and update segment, updating the time level of the queue. */
@@ -1126,7 +1118,7 @@ get_buffering_stats (GstQueue2 * queue, gint percent, GstBufferingMode * mode,
 
 /* Called with the lock taken */
 static GstMessage *
-gst_queue2_get_buffering_message (GstQueue2 * queue, gint * percent)
+gst_queue2_get_buffering_message (GstQueue2 * queue)
 {
   GstMessage *msg = NULL;
   if (queue->percent_changed) {
@@ -1143,14 +1135,17 @@ gst_queue2_get_buffering_message (GstQueue2 * queue, gint * percent)
      * the queue becomes empty for a short period of time. */
     if (!queue->waiting_del
         && queue->last_posted_buffering_percent != queue->buffering_percent) {
-      *percent = queue->buffering_percent;
+      gint percent = queue->buffering_percent;
 
-      GST_DEBUG_OBJECT (queue, "Going to post buffering: %d%%", *percent);
-      msg = gst_message_new_buffering (GST_OBJECT_CAST (queue), *percent);
+      GST_DEBUG_OBJECT (queue, "Going to post buffering: %d%%", percent);
+      msg = gst_message_new_buffering (GST_OBJECT_CAST (queue), percent);
 
       gst_message_set_buffering_stats (msg, queue->mode, queue->avg_in,
           queue->avg_out, queue->buffering_left);
+
+      queue->last_posted_buffering_percent = percent;
     }
+    queue->percent_changed = FALSE;
   }
 
   return msg;
@@ -1160,29 +1155,14 @@ static void
 gst_queue2_post_buffering (GstQueue2 * queue)
 {
   GstMessage *msg = NULL;
-  gint percent = -1;
 
   g_mutex_lock (&queue->buffering_post_lock);
   GST_QUEUE2_MUTEX_LOCK (queue);
-  msg = gst_queue2_get_buffering_message (queue, &percent);
+  msg = gst_queue2_get_buffering_message (queue);
   GST_QUEUE2_MUTEX_UNLOCK (queue);
 
-  if (msg != NULL) {
-    if (gst_element_post_message (GST_ELEMENT_CAST (queue), msg)) {
-      GST_QUEUE2_MUTEX_LOCK (queue);
-      /* Set these states only if posting the message succeeded. Otherwise,
-       * this post attempt failed, and the next one won't be done, because
-       * gst_queue2_get_buffering_message() checks these states and decides
-       * based on their values that it won't produce a message. */
-      queue->last_posted_buffering_percent = percent;
-      if (percent == queue->buffering_percent)
-        queue->percent_changed = FALSE;
-      GST_QUEUE2_MUTEX_UNLOCK (queue);
-      GST_DEBUG_OBJECT (queue, "successfully posted %d%% buffering message",
-          percent);
-    } else
-      GST_DEBUG_OBJECT (queue, "could not post buffering message");
-  }
+  if (msg != NULL)
+    gst_element_post_message (GST_ELEMENT_CAST (queue), msg);
 
   g_mutex_unlock (&queue->buffering_post_lock);
 }
@@ -1792,7 +1772,7 @@ gst_queue2_open_temp_location_file (GstQueue2 * queue)
   GST_QUEUE2_MUTEX_UNLOCK (queue);
 
   /* we can't emit the notify with the lock */
-  g_object_notify_by_pspec (G_OBJECT (queue), obj_props[PROP_TEMP_LOCATION]);
+  g_object_notify (G_OBJECT (queue), "temp-location");
 
   GST_QUEUE2_MUTEX_LOCK (queue);
 
@@ -2201,33 +2181,14 @@ gst_queue2_create_write (GstQueue2 * queue, GstBuffer * buffer)
     /* update the buffering status */
     if (queue->use_buffering) {
       GstMessage *msg;
-      gint percent = -1;
       update_buffering (queue);
-      msg = gst_queue2_get_buffering_message (queue, &percent);
+      msg = gst_queue2_get_buffering_message (queue);
       if (msg) {
-        gboolean post_ok;
-
         GST_QUEUE2_MUTEX_UNLOCK (queue);
-
         g_mutex_lock (&queue->buffering_post_lock);
-        post_ok = gst_element_post_message (GST_ELEMENT_CAST (queue), msg);
-
-        GST_QUEUE2_MUTEX_LOCK (queue);
-
-        if (post_ok) {
-          /* Set these states only if posting the message succeeded. Otherwise,
-           * this post attempt failed, and the next one won't be done, because
-           * gst_queue2_get_buffering_message() checks these states and decides
-           * based on their values that it won't produce a message. */
-          queue->last_posted_buffering_percent = percent;
-          if (percent == queue->buffering_percent)
-            queue->percent_changed = FALSE;
-          GST_DEBUG_OBJECT (queue, "successfully posted %d%% buffering message",
-              percent);
-        } else {
-          GST_DEBUG_OBJECT (queue, "could not post buffering message");
-        }
+        gst_element_post_message (GST_ELEMENT_CAST (queue), msg);
         g_mutex_unlock (&queue->buffering_post_lock);
+        GST_QUEUE2_MUTEX_LOCK (queue);
       }
     }
 
@@ -2645,7 +2606,7 @@ gst_queue2_handle_sink_event (GstPad * pad, GstObject * parent,
 
         gst_event_unref (event);
       }
-      g_object_notify_by_pspec (G_OBJECT (queue), obj_props[PROP_BITRATE]);
+      g_object_notify (G_OBJECT (queue), "bitrate");
       break;
     }
     case GST_EVENT_TAG:{
@@ -2660,7 +2621,7 @@ gst_queue2_handle_sink_event (GstPad * pad, GstObject * parent,
           queue->sink_tags_bitrate = bitrate;
           GST_QUEUE2_MUTEX_UNLOCK (queue);
           GST_LOG_OBJECT (queue, "Sink pad bitrate from tags now %u", bitrate);
-          g_object_notify_by_pspec (G_OBJECT (queue), obj_props[PROP_BITRATE]);
+          g_object_notify (G_OBJECT (queue), "bitrate");
         }
       }
       /* Fall-through */
@@ -2729,7 +2690,7 @@ gst_queue2_handle_sink_event (GstPad * pad, GstObject * parent,
         GST_QUEUE2_MUTEX_UNLOCK (queue);
         gst_queue2_post_buffering (queue);
         if (bitrate_changed)
-          g_object_notify_by_pspec (G_OBJECT (queue), obj_props[PROP_BITRATE]);
+          g_object_notify (G_OBJECT (queue), "bitrate");
       } else {
         /* non-serialized events are passed downstream. */
         ret = gst_pad_push_event (queue->srcpad, event);
@@ -2788,14 +2749,10 @@ gst_queue2_handle_sink_query (GstPad * pad, GstObject * parent,
          * be pushed for sure) or we are not buffering. If we are buffering,
          * the pipeline waits to unblock downstream until our queue fills up
          * completely, which can not happen if we block on the query..
-         * Therefore we only potentially block when we are not buffering.
-         *
-         * Update: Edward Hervey 2021: Realistically when posting buffering
-         * messages there are no safe places where we can block and forward a
-         * serialized query due to the potential of causing deadlocks. We
-         * therefore refuse any serialized queries in such cases. */
+         * Therefore we only potentially block when we are not buffering. */
         GST_QUEUE2_MUTEX_LOCK_CHECK (queue, queue->sinkresult, out_flushing);
-        if (QUEUE_IS_USING_QUEUE (queue) && !queue->use_buffering) {
+        if (QUEUE_IS_USING_QUEUE (queue) && (gst_queue2_is_empty (queue)
+                || !queue->use_buffering)) {
           if (!g_atomic_int_get (&queue->downstream_may_block)) {
             gst_queue2_locked_enqueue (queue, query,
                 GST_QUEUE2_ITEM_TYPE_QUERY);
@@ -2814,7 +2771,7 @@ gst_queue2_handle_sink_query (GstPad * pad, GstObject * parent,
           }
         } else {
           GST_DEBUG_OBJECT (queue,
-              "refusing query, we are not using the queue or we are posting buffering messages");
+              "refusing query, we are not using the queue");
           res = FALSE;
         }
         GST_QUEUE2_MUTEX_UNLOCK (queue);
@@ -2862,11 +2819,7 @@ gst_queue2_is_filled (GstQueue2 * queue)
   if (queue->is_eos)
     return TRUE;
 
-  /* Check the levels if non-null */
-#define CHECK_FILLED_REAL(format) \
-  ((queue->max_level.format) > 0 && (queue->cur_level.format) >= ((queue->max_level.format)))
-  /* Check the levels if non-null (use the alternative max if non-zero) */
-#define CHECK_FILLED_ALT(format,alt_max) ((queue->max_level.format) > 0 && \
+#define CHECK_FILLED(format,alt_max) ((queue->max_level.format) > 0 && \
     (queue->cur_level.format) >= ((alt_max) ? \
       MIN ((queue->max_level.format), (alt_max)) : (queue->max_level.format)))
 
@@ -2877,7 +2830,7 @@ gst_queue2_is_filled (GstQueue2 * queue)
     GST_DEBUG_OBJECT (queue,
         "max bytes %u, rb size %" G_GUINT64_FORMAT ", cur bytes %u",
         queue->max_level.bytes, rb_size, queue->cur_level.bytes);
-    return CHECK_FILLED_ALT (bytes, rb_size);
+    return CHECK_FILLED (bytes, rb_size);
   }
 
   /* if using file, we're never filled if we don't have EOS */
@@ -2889,16 +2842,15 @@ gst_queue2_is_filled (GstQueue2 * queue)
     return FALSE;
 
   /* we are filled if one of the current levels exceeds the max */
-  res = CHECK_FILLED_REAL (buffers) || CHECK_FILLED_REAL (bytes)
-      || CHECK_FILLED_REAL (time);
+  res = CHECK_FILLED (buffers, 0) || CHECK_FILLED (bytes, 0)
+      || CHECK_FILLED (time, 0);
 
   /* if we need to, use the rate estimate to check against the max time we are
    * allowed to queue */
   if (queue->use_rate_estimate)
-    res |= CHECK_FILLED_REAL (rate_time);
+    res |= CHECK_FILLED (rate_time, 0);
 
-#undef CHECK_FILLED_REAL
-#undef CHECK_FILLED_ALT
+#undef CHECK_FILLED
   return res;
 }
 
@@ -3070,11 +3022,6 @@ next:
   GST_QUEUE2_MUTEX_UNLOCK (queue);
   gst_queue2_post_buffering (queue);
 
-  if (gst_pad_check_reconfigure (queue->srcpad)) {
-    /* If the pad was reconfigured, do a new bitrate query */
-    query_downstream_bitrate (queue);
-  }
-
   if (item_type == GST_QUEUE2_ITEM_TYPE_BUFFER) {
     GstBuffer *buffer;
 
@@ -3109,7 +3056,7 @@ next:
           queue->src_tags_bitrate = bitrate;
           GST_QUEUE2_MUTEX_UNLOCK (queue);
           GST_LOG_OBJECT (queue, "src pad bitrate from tags now %u", bitrate);
-          g_object_notify_by_pspec (G_OBJECT (queue), obj_props[PROP_BITRATE]);
+          g_object_notify (G_OBJECT (queue), "bitrate");
         }
       }
     }
@@ -3297,10 +3244,6 @@ gst_queue2_handle_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
       GST_QUEUE2_MUTEX_LOCK (queue);
       /* assume downstream is linked now and try to push again */
       if (queue->srcresult == GST_FLOW_NOT_LINKED) {
-        /* Mark the pad as needing reconfiguration, and
-         * the loop will re-query downstream bitrate
-         */
-        gst_pad_mark_reconfigure (pad);
         queue->srcresult = GST_FLOW_OK;
         queue->sinkresult = GST_FLOW_OK;
         if (GST_PAD_MODE (pad) == GST_PAD_MODE_PUSH) {
@@ -3310,6 +3253,9 @@ gst_queue2_handle_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
 
       }
       GST_QUEUE2_MUTEX_UNLOCK (queue);
+
+      /* force a new bitrate query to be performed */
+      query_downstream_bitrate (queue);
 
       res = gst_pad_push_event (queue->sinkpad, event);
       break;
@@ -3499,16 +3445,11 @@ gst_queue2_handle_src_query (GstPad * pad, GstObject * parent, GstQuery * query)
     {
       gboolean pull_mode;
       GstSchedulingFlags flags = 0;
-      GstQuery *upstream;
 
-      upstream = gst_query_new_scheduling ();
-      if (!gst_pad_peer_query (queue->sinkpad, upstream)) {
-        gst_query_unref (upstream);
+      if (!gst_pad_peer_query (queue->sinkpad, query))
         goto peer_failed;
-      }
 
-      gst_query_parse_scheduling (upstream, &flags, NULL, NULL, NULL);
-      gst_query_unref (upstream);
+      gst_query_parse_scheduling (query, &flags, NULL, NULL, NULL);
 
       /* we can operate in pull mode when we are using a tempfile */
       pull_mode = !QUEUE_IS_USING_QUEUE (queue);
@@ -3816,10 +3757,7 @@ gst_queue2_change_state (GstElement * element, GstStateChange transition)
       queue->starting_segment = NULL;
       gst_event_replace (&queue->stream_start_event, NULL);
       GST_QUEUE2_MUTEX_UNLOCK (queue);
-
-      /* Mark the srcpad as reconfigured to trigger querying
-       * the downstream bitrate next time it tries to push */
-      gst_pad_mark_reconfigure (queue->srcpad);
+      query_downstream_bitrate (queue);
       break;
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
       break;

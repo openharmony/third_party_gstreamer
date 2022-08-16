@@ -72,9 +72,6 @@ struct _GstRetinex
   double *weights;
   double *sigmas;
 
-  double sigma;
-  int gain, offset;
-
   cv::Mat cvA;
   cv::Mat cvB;
   cv::Mat cvC;
@@ -88,7 +85,7 @@ struct _GstRetinexClass
 
 GType gst_retinex_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (retinex);
+gboolean gst_retinex_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 #endif /* __GST_RETINEX_H__ */

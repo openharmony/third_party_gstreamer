@@ -78,7 +78,6 @@ core_tests = [
   [ 'libs/typefindhelper.c' ],
   [ 'libs/queuearray.c' ],
   [ 'elements/capsfilter.c', not gst_registry ],
-  [ 'elements/clocksync.c', not gst_registry or not gst_parse ],
   [ 'elements/concat.c', not gst_registry ],
   [ 'elements/dataurisrc.c', not gst_registry ],
   [ 'elements/fakesrc.c', not gst_registry ],
@@ -88,7 +87,6 @@ core_tests = [
   [ 'elements/filesrc.c', not gst_registry ],
   [ 'elements/funnel.c', not gst_registry ],
   [ 'elements/identity.c', not gst_registry or not gst_parse ],
-  [ 'elements/leaks.c', not tracer_hooks or not gst_debug ],
   [ 'elements/multiqueue.c', not gst_registry ],
   [ 'elements/selector.c', not gst_registry ],
   [ 'elements/streamiddemux.c', not gst_registry ],
@@ -113,7 +111,7 @@ core_tests = [
 ]
 
 # Make sure our headers are C++ clean
-if add_languages('cpp', native: false, required: false)
+if add_languages('cpp', required : false)
   core_tests += [
     [ 'gst/gstcpp.cc', not gst_registry ],
     [ 'libs/gstlibscpp.cc', false ],
@@ -125,6 +123,7 @@ test_defines = [
   '-UG_DISABLE_CAST_CHECKS',
   '-DGST_CHECK_TEST_ENVIRONMENT_BEACON="GST_STATE_IGNORE_ELEMENTS"',
   '-DTESTFILE="' + meson.current_source_dir() + '/meson.build"',
+  '-DGST_USE_UNSTABLE_API',
   '-DGST_DISABLE_DEPRECATED',
 ]
 
@@ -154,7 +153,7 @@ foreach t : core_tests
     )
 
     env = environment()
-    env.set('GST_PLUGIN_PATH_1_0', meson.project_build_root())
+    env.set('GST_PLUGIN_PATH_1_0', meson.build_root())
     env.set('GST_PLUGIN_SYSTEM_PATH_1_0', '')
     env.set('GST_STATE_IGNORE_ELEMENTS', '')
     env.set('CK_DEFAULT_TIMEOUT', '20')

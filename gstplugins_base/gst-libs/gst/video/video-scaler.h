@@ -31,7 +31,7 @@ G_BEGIN_DECLS
 /**
  * GST_VIDEO_SCALER_OPT_DITHER_METHOD:
  *
- * #GstVideoDitherMethod, The dither method to use for propagating
+ * #GST_TYPE_VIDEO_DITHER_METHOD, The dither method to use for propagating
  * quatization errors.
  */
 #define GST_VIDEO_SCALER_OPT_DITHER_METHOD   "GstVideoScaler.dither-method"

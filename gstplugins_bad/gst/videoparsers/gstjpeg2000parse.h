@@ -121,10 +121,7 @@ struct _GstJPEG2000Parse
 
   GstJPEG2000Sampling sampling;
   GstJPEG2000Colorspace colorspace;
-  GstJPEG2000ParseFormats src_codec_format;
-  GstJPEG2000ParseFormats sink_codec_format;
-  gboolean parsed_j2c_box;
-  guint frame_size;
+  GstJPEG2000ParseFormats codec_format;
 };
 
 struct _GstJPEG2000ParseClass

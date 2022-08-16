@@ -1,10 +1,10 @@
-app_sources = files(['gstappsrc.c', 'gstappsink.c'])
+app_sources = ['gstappsrc.c', 'gstappsink.c']
 
-app_mkenum_headers = files([
+app_mkenum_headers = [
   'gstappsrc.h',
-])
+]
 
-app_headers = app_mkenum_headers + files([ 'app.h', 'app-prelude.h', 'gstappsrc.h', 'gstappsink.h' ])
+app_headers = app_mkenum_headers + [ 'app.h', 'app-prelude.h', 'gstappsink.h' ]
 install_headers(app_headers, subdir : 'gstreamer-1.0/gst/app/')
 
 app_enums = gnome.mkenums_simple('app-enumtypes',
@@ -21,7 +21,7 @@ app_gen_sources = [gstapp_h]
 
 gstapp = library('gstapp-@0@'.format(api_version),
   app_sources, gstapp_h, gstapp_c,
-  c_args : gst_plugins_base_args + ['-DBUILDING_GST_APP', '-DG_LOG_DOMAIN="GStreamer-App"'],
+  c_args : gst_plugins_base_args + ['-DBUILDING_GST_APP'],
   include_directories: [configinc, libsinc],
   version : libversion,
   soversion : soversion,
@@ -30,41 +30,23 @@ gstapp = library('gstapp-@0@'.format(api_version),
   dependencies : [gst_base_dep],
 )
 
-pkg_name = 'gstreamer-app-1.0'
-pkgconfig.generate(gstapp,
-  libraries : [gst_dep, gst_base_dep],
-  variables : pkgconfig_variables,
-  subdirs : pkgconfig_subdirs,
-  name : pkg_name,
-  description : 'Helper functions and base classes for application integration',
-)
-
-library_def = {'lib': gstapp}
 if build_gir
   gst_gir_extra_args = gir_init_section + [ '--c-include=gst/app/app.h' ]
-  gir = {
-    'sources' : app_sources + app_headers + [gstapp_c] + [gstapp_h],
-    'namespace' : 'GstApp',
-    'nsversion' : api_version,
-    'identifier_prefix' : 'Gst',
-    'symbol_prefix' : 'gst',
-    'export_packages' : pkg_name,
-    'includes' : ['Gst-1.0', 'GstBase-1.0'],
-    'install' : true,
-    'extra_args' : gst_gir_extra_args,
-    'dependencies' : [gst_dep, gst_base_dep]
-  }
-  library_def += {'gir': [gir]}
-  if not static_build
-    app_gir = gnome.generate_gir(gstapp, kwargs: gir)
-    app_gen_sources += app_gir
-  endif
+  app_gen_sources += [gnome.generate_gir(gstapp,
+    sources : app_sources + app_headers + [gstapp_c] + [gstapp_h],
+    namespace : 'GstApp',
+    nsversion : api_version,
+    identifier_prefix : 'Gst',
+    symbol_prefix : 'gst',
+    export_packages : 'gstreamer-app-1.0',
+    includes : ['Gst-1.0', 'GstBase-1.0'],
+    install : true,
+    extra_args : gst_gir_extra_args,
+    dependencies : [gst_dep, gst_base_dep]
+  )]
 endif
-libraries += [[pkg_name, library_def]]
 
 app_dep = declare_dependency(link_with: gstapp,
   include_directories : [libsinc],
   dependencies : [gst_base_dep],
   sources : app_gen_sources)
-
-meson.override_dependency(pkg_name, app_dep)

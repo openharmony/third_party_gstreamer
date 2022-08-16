@@ -53,12 +53,6 @@ gst_wl_display_init (GstWlDisplay * self)
 }
 
 static void
-gst_wl_ref_wl_buffer (gpointer key, gpointer value, gpointer user_data)
-{
-  g_object_ref (value);
-}
-
-static void
 gst_wl_display_finalize (GObject * gobject)
 {
   GstWlDisplay *self = GST_WL_DISPLAY (gobject);
@@ -71,7 +65,7 @@ gst_wl_display_finalize (GObject * gobject)
    * at the same time, take their ownership */
   g_mutex_lock (&self->buffers_mutex);
   self->shutting_down = TRUE;
-  g_hash_table_foreach (self->buffers, gst_wl_ref_wl_buffer, NULL);
+  g_hash_table_foreach (self->buffers, (GHFunc) g_object_ref, NULL);
   g_mutex_unlock (&self->buffers_mutex);
 
   g_hash_table_foreach (self->buffers,
@@ -214,7 +208,7 @@ registry_handle_global (void *data, struct wl_registry *registry,
 
   if (g_strcmp0 (interface, "wl_compositor") == 0) {
     self->compositor = wl_registry_bind (registry, id, &wl_compositor_interface,
-        MIN (version, 4));
+        MIN (version, 3));
   } else if (g_strcmp0 (interface, "wl_subcompositor") == 0) {
     self->subcompositor =
         wl_registry_bind (registry, id, &wl_subcompositor_interface, 1);
@@ -240,16 +234,8 @@ registry_handle_global (void *data, struct wl_registry *registry,
   }
 }
 
-static void
-registry_handle_global_remove (void *data, struct wl_registry *registry,
-    uint32_t name)
-{
-  /* temporarily do nothing */
-}
-
 static const struct wl_registry_listener registry_listener = {
-  registry_handle_global,
-  registry_handle_global_remove
+  registry_handle_global
 };
 
 static gpointer
@@ -385,36 +371,24 @@ gst_wl_display_new_existing (struct wl_display * display,
 }
 
 void
-gst_wl_display_register_buffer (GstWlDisplay * self, gpointer gstmem,
-    gpointer wlbuffer)
+gst_wl_display_register_buffer (GstWlDisplay * self, gpointer buf)
 {
   g_assert (!self->shutting_down);
 
-  GST_TRACE_OBJECT (self, "registering GstWlBuffer %p to GstMem %p",
-      wlbuffer, gstmem);
+  GST_TRACE_OBJECT (self, "registering GstWlBuffer %p", buf);
 
   g_mutex_lock (&self->buffers_mutex);
-  g_hash_table_replace (self->buffers, gstmem, wlbuffer);
+  g_hash_table_add (self->buffers, buf);
   g_mutex_unlock (&self->buffers_mutex);
-}
-
-gpointer
-gst_wl_display_lookup_buffer (GstWlDisplay * self, gpointer gstmem)
-{
-  gpointer wlbuffer;
-  g_mutex_lock (&self->buffers_mutex);
-  wlbuffer = g_hash_table_lookup (self->buffers, gstmem);
-  g_mutex_unlock (&self->buffers_mutex);
-  return wlbuffer;
 }
 
 void
-gst_wl_display_unregister_buffer (GstWlDisplay * self, gpointer gstmem)
+gst_wl_display_unregister_buffer (GstWlDisplay * self, gpointer buf)
 {
-  GST_TRACE_OBJECT (self, "unregistering GstWlBuffer owned by %p", gstmem);
+  GST_TRACE_OBJECT (self, "unregistering GstWlBuffer %p", buf);
 
   g_mutex_lock (&self->buffers_mutex);
   if (G_LIKELY (!self->shutting_down))
-    g_hash_table_remove (self->buffers, gstmem);
+    g_hash_table_remove (self->buffers, buf);
   g_mutex_unlock (&self->buffers_mutex);
 }

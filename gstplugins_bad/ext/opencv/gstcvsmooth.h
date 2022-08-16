@@ -88,7 +88,7 @@ struct _GstCvSmoothClass
 
 GType gst_cv_smooth_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (cvsmooth);
+gboolean gst_cv_smooth_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 

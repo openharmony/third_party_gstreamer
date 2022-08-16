@@ -1,5 +1,4 @@
-plugins = []
 subdir('elements')
-if not get_option('coretracers').disabled()
+if tracer_hooks
   subdir('tracers')
 endif

@@ -104,8 +104,6 @@ static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
 #define gst_remove_silence_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstRemoveSilence, gst_remove_silence,
     GST_TYPE_BASE_TRANSFORM, DEBUG_INIT (0));
-GST_ELEMENT_REGISTER_DEFINE (removesilence, "removesilence", GST_RANK_NONE,
-    gst_remove_silence_get_type ());
 
 static void gst_remove_silence_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -139,7 +137,7 @@ gst_remove_silence_class_init (GstRemoveSilenceClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_REMOVE,
       g_param_spec_boolean ("remove", "Remove",
-          "Set to true to remove silence from the stream, false otherwise",
+          "Set to true to remove silence from the stream, false otherwhise",
           FALSE, G_PARAM_READWRITE));
 
   g_object_class_install_property (gobject_class, PROP_HYSTERESIS,
@@ -208,7 +206,7 @@ gst_remove_silence_reset (GstRemoveSilence * filter)
 
 /* initialize the new element
  * instantiate pads and add them to element
- * set pad callback functions
+ * set pad calback functions
  * initialize instance structure
  */
 static void
@@ -418,7 +416,7 @@ gst_remove_silence_transform_ip (GstBaseTransform * trans, GstBuffer * inbuf)
       inbuf = gst_buffer_make_writable (inbuf);
       GST_BUFFER_PTS (inbuf) -= filter->ts_offset;
     } else {
-      GST_WARNING ("Invalid buffer pts, update not possible");
+      GST_WARNING ("Invalid buffer pts, update not possibile");
     }
   }
 
@@ -429,7 +427,8 @@ gst_remove_silence_transform_ip (GstBaseTransform * trans, GstBuffer * inbuf)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (removesilence, plugin);
+  return gst_element_register (plugin, "removesilence", GST_RANK_NONE,
+      gst_remove_silence_get_type ());
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

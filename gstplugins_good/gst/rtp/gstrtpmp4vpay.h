@@ -56,7 +56,7 @@ struct _GstRtpMP4VPay
 
   /* naming might be confusing with send_config; but naming matches h264
    * payloader */
-  gint         config_interval;
+  guint         config_interval;
   GstClockTime  last_config;
 };
 
@@ -66,6 +66,8 @@ struct _GstRtpMP4VPayClass
 };
 
 GType gst_rtp_mp4v_pay_get_type (void);
+
+gboolean gst_rtp_mp4v_pay_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 

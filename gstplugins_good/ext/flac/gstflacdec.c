@@ -21,20 +21,21 @@
 
 /**
  * SECTION:element-flacdec
- * @title: flacdec
  * @see_also: #GstFlacEnc
  *
  * flacdec decodes FLAC streams.
- * [FLAC](http://flac.sourceforge.net/) is a Free Lossless Audio Codec.
+ * <ulink url="http://flac.sourceforge.net/">FLAC</ulink>
+ * is a Free Lossless Audio Codec.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 filesrc location=media/small/dark.441-16-s.flac ! flacparse ! flacdec ! audioconvert ! audioresample ! autoaudiosink
  * ]|
  * |[
  * gst-launch-1.0 souphttpsrc location=http://gstreamer.freedesktop.org/media/small/dark.441-16-s.flac ! flacparse ! flacdec ! audioconvert ! audioresample ! queue min-threshold-buffers=10 ! autoaudiosink
  * ]|
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -46,8 +47,6 @@
 #include "gstflacdec.h"
 #include <gst/gst-i18n-plugin.h>
 #include <gst/tag/tag.h>
-
-#include "gstflacelements.h"
 
 /* Taken from http://flac.sourceforge.net/format.html#frame_header */
 static const GstAudioChannelPosition channel_positions[8][8] = {
@@ -116,9 +115,6 @@ static GstFlowReturn gst_flac_dec_handle_frame (GstAudioDecoder * audio_dec,
     GstBuffer * buf);
 
 G_DEFINE_TYPE (GstFlacDec, gst_flac_dec, GST_TYPE_AUDIO_DECODER);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (flacdec, "flacdec", GST_RANK_PRIMARY,
-    GST_TYPE_FLAC_DEC, flac_element_init (plugin));
-
 
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
 #define FORMATS "{ S8, S16LE, S24_32LE, S32LE } "

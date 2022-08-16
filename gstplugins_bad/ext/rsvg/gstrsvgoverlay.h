@@ -73,7 +73,6 @@ struct _GstRsvgOverlayClass
 };
 
 GType gst_rsvg_overlay_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (rsvgoverlay);
 
 G_END_DECLS
 #endif /* __GST_RSVG_OVERLAY_H__ */

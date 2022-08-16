@@ -55,8 +55,6 @@ struct _GstFdkAacDecClass {
 
 GType gst_fdkaacdec_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (fdkaacdec);
-
 G_END_DECLS
 
 #endif /* __GST_FDKAACDEC_H__ */

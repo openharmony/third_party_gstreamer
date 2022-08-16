@@ -27,8 +27,8 @@
 
 G_BEGIN_DECLS
 
-guint ttml_parse (const gchar * file, GstClockTime begin,
-    GstClockTime duration, GList **parsed);
+GList *ttml_parse (const gchar * file, GstClockTime begin,
+    GstClockTime duration);
 
 G_END_DECLS
 #endif /* _TTML_PARSE_H_ */

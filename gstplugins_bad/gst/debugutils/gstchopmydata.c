@@ -17,7 +17,7 @@
  * Boston, MA 02110-1301, USA.
  */
 /**
- * SECTION:element-chopmydata
+ * SECTION:element-gstchopmydata
  * @title: gstchopmydata
  *
  * The chopmydata element takes an incoming stream and chops it up
@@ -45,7 +45,6 @@
 
 #include <gst/gst.h>
 #include <gst/gst.h>
-#include "gstdebugutilsbadelements.h"
 #include "gstchopmydata.h"
 
 /* prototypes */
@@ -96,8 +95,6 @@ GST_STATIC_PAD_TEMPLATE ("src",
 
 #define gst_chop_my_data_parent_class parent_class
 G_DEFINE_TYPE (GstChopMyData, gst_chop_my_data, GST_TYPE_ELEMENT);
-GST_ELEMENT_REGISTER_DEFINE (chopmydata, "chopmydata",
-    GST_RANK_NONE, gst_chop_my_data_get_type ());
 
 static void
 gst_chop_my_data_class_init (GstChopMyDataClass * klass)
@@ -128,9 +125,8 @@ gst_chop_my_data_class_init (GstChopMyDataClass * klass)
   gst_element_class_add_static_pad_template (element_class,
       &gst_chop_my_data_sink_template);
 
-  gst_element_class_set_static_metadata (element_class, "Chop my data",
-      "Generic", "Split up a stream into randomly-sized buffers",
-      "David Schleef <ds@schleef.org>");
+  gst_element_class_set_static_metadata (element_class, "FIXME",
+      "Generic", "FIXME", "David Schleef <ds@schleef.org>");
 }
 
 static void

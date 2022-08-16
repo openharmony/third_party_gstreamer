@@ -30,13 +30,14 @@
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  if (!gst_viewfinder_bin_plugin_init (plugin))
+    return FALSE;
+  if (!gst_wrapper_camera_bin_src_plugin_init (plugin))
+    return FALSE;
+  if (!gst_camera_bin2_plugin_init (plugin))
+    return FALSE;
 
-  ret |= GST_ELEMENT_REGISTER (viewfinderbin, plugin);
-  ret |= GST_ELEMENT_REGISTER (wrappercamerabinsrc, plugin);
-  ret |= GST_ELEMENT_REGISTER (camerabin, plugin);
-
-  return ret;
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

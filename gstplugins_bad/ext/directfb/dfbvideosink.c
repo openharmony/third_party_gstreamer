@@ -23,21 +23,19 @@
  * @title: dfbvideosink
  *
  * DfbVideoSink renders video frames using the
- * [DirectFB](http://www.directfb.org/) library.
+ * <ulink url="http://www.directfb.org/">DirectFB</ulink> library.
  * Rendering can happen in two different modes :
  *
  * * Standalone: this mode will take complete control of the monitor forcing
- *   DirectFB to fullscreen layout.
- *
+ *   <ulink url="http://www.directfb.org/">DirectFB</ulink> to fullscreen layout.
  *   This is convenient to test using the  gst-launch-1.0 command line tool or
  *   other simple applications. It is possible to interrupt playback while
  *   being in this mode by pressing the Escape key.
  *   This mode handles navigation events for every input device supported by
- *   the DirectFB library, it will look for available video modes in the fb.modes
- *   file and try to switch the framebuffer video mode to the most suitable one.
- *   Depending on hardware acceleration capabilities the element will handle
- *   scaling or not.
- *
+ *   the <ulink url="http://www.directfb.org/">DirectFB</ulink> library, it will
+ *   look for available video modes in the fb.modes file and try to switch
+ *   the framebuffer video mode to the most suitable one. Depending on
+ *   hardware acceleration capabilities the element will handle scaling or not.
  *   If no acceleration is available it will do clipping or centering of the
  *   video frames respecting the original aspect ratio.
  *
@@ -45,14 +43,13 @@
  *   #GstDfbVideoSink:surface provided by the
  *   application developer. This is a more advanced usage of the element and
  *   it is required to integrate video playback in existing
- *   DirectFB applications.
- *
+ *   <ulink url="http://www.directfb.org/">DirectFB</ulink> applications.
  *   When using this mode the element just renders to the
  *   #GstDfbVideoSink:surface provided by the
  *   application, that means it won't handle navigation events and won't resize
  *   the #GstDfbVideoSink:surface to fit video
  *   frames geometry. Application has to implement the necessary code to grab
- *   information about the negotiated geometry and resize there
+ *   informations about the negotiated geometry and resize there
  *   #GstDfbVideoSink:surface accordingly.
  *
  * For both modes the element implements a buffer pool allocation system to
@@ -147,7 +144,7 @@ gst_dfbvideosink_layer_mode_get_type (void)
 GType
 gst_meta_dfbsurface_api_get_type (void)
 {
-  static GType type;
+  static volatile GType type;
   static const gchar *tags[] = { "memory", NULL };
 
   if (g_once_init_enter (&type)) {
@@ -512,12 +509,8 @@ G_DEFINE_TYPE_WITH_CODE (GstDfbVideoSink, gst_dfbvideosink, GST_TYPE_VIDEO_SINK,
     G_IMPLEMENT_INTERFACE (GST_TYPE_NAVIGATION,
         gst_dfbvideosink_navigation_init);
     G_IMPLEMENT_INTERFACE (GST_TYPE_COLOR_BALANCE,
-        gst_dfbvideosink_colorbalance_init);
-    GST_DEBUG_CATEGORY_INIT (dfbvideosink_debug, "dfbvideosink", 0,
-        "DirectFB video sink element");
-    );
-GST_ELEMENT_REGISTER_DEFINE (dfbvideosink, "dfbvideosink", GST_RANK_MARGINAL,
-    GST_TYPE_DFBVIDEOSINK);
+        gst_dfbvideosink_colorbalance_init));
+
 #ifndef GST_DISABLE_GST_DEBUG
 static const char *
 gst_dfbvideosink_get_format_name (DFBSurfacePixelFormat format)
@@ -2442,8 +2435,6 @@ gst_dfbvideosink_class_init (GstDfbVideoSinkClass * klass)
           gst_dfbvideosink_layer_mode_get_type (), DEFAULT_LAYER_MODE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  gst_type_mark_as_plugin_api (gst_dfbvideosink_layer_mode_get_type (), 0);
-
   gst_element_class_set_static_metadata (gstelement_class,
       "DirectFB video sink", "Sink/Video", "A DirectFB based videosink",
       "Julien Moutte <julien@moutte.net>");
@@ -2464,11 +2455,18 @@ gst_dfbvideosink_class_init (GstDfbVideoSinkClass * klass)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (dfbvideosink, plugin);
+  if (!gst_element_register (plugin, "dfbvideosink", GST_RANK_MARGINAL,
+          GST_TYPE_DFBVIDEOSINK))
+    return FALSE;
+
+  GST_DEBUG_CATEGORY_INIT (dfbvideosink_debug, "dfbvideosink", 0,
+      "DirectFB video sink element");
+
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    directfb,
+    dfbvideosink,
     "DirectFB video output plugin",
     plugin_init, VERSION, GST_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)

@@ -33,5 +33,4 @@ if dsound_dep.found() and winmm_dep.found() and ole32_dep.found() and have_dsoun
     install : true,
     install_dir : plugins_install_dir)
   pkgconfig.generate(gstdirectsoundsrc, install_dir : plugins_pkgconfig_install_dir)
-  plugins += [gstdirectsoundsrc]
 endif

@@ -47,16 +47,12 @@ static GstClockTime last_ts = G_GUINT64_CONSTANT (0);
 static guint total_cpuload = 0;
 static gboolean have_cpuload = FALSE;
 
-static GPtrArray *plugin_stats = NULL;
-
 static gboolean have_latency = FALSE;
 static gboolean have_element_latency = FALSE;
 static gboolean have_element_reported_latency = FALSE;
 
 typedef struct
 {
-  /* display name of the element */
-  gchar *name;
   /* the number of latencies counted  */
   guint64 count;
   /* the total of all latencies */
@@ -65,7 +61,6 @@ typedef struct
   guint64 min;
   /* the max of all latencies */
   guint64 max;
-  GstClockTime first_latency_ts;
 } GstLatencyStats;
 
 typedef struct
@@ -124,56 +119,26 @@ typedef struct
   guint cpuload;
 } GstThreadStats;
 
-static const gchar *FACTORY_TYPES[] = {
-  "element",
-  "device-provider",
-  "typefind",
-  "dynamic-type",
-};
-
-#define N_FACTORY_TYPES G_N_ELEMENTS(FACTORY_TYPES)
-
-typedef struct
-{
-  gchar *name;
-
-  GPtrArray *factories[N_FACTORY_TYPES];
-} GstPluginStats;
-
 /* stats helper */
 
-static gint
-sort_latency_stats_by_first_ts (gconstpointer a, gconstpointer b)
-{
-  const GstLatencyStats *ls1 = a, *ls2 = b;
-
-  return (GST_CLOCK_DIFF (ls2->first_latency_ts, ls1->first_latency_ts));
-}
-
 static void
-print_latency_stats (gpointer value, gpointer user_data)
+latencies_foreach_print_stats (gchar * key, GstLatencyStats * ls, gpointer data)
 {
-  GstLatencyStats *ls = value;
-
-  printf ("\t%s: mean=%" GST_TIME_FORMAT " min=%" GST_TIME_FORMAT " max=%"
-      GST_TIME_FORMAT "\n", ls->name, GST_TIME_ARGS (ls->total / ls->count),
-      GST_TIME_ARGS (ls->min), GST_TIME_ARGS (ls->max));
+  printf ("\t%s: mean=%" G_GUINT64_FORMAT " min=%" G_GUINT64_FORMAT " max=%"
+      G_GUINT64_FORMAT "\n", key, ls->total / ls->count, ls->min, ls->max);
 }
 
 static void
 reported_latencies_foreach_print_stats (GstReportedLatency * rl, gpointer data)
 {
-  printf ("\t%s: min=%" GST_TIME_FORMAT " max=%" GST_TIME_FORMAT " ts=%"
-      GST_TIME_FORMAT "\n", rl->element, GST_TIME_ARGS (rl->min),
-      GST_TIME_ARGS (rl->max), GST_TIME_ARGS (rl->ts));
+  printf ("\t%s: min=%" G_GUINT64_FORMAT " max=%" G_GUINT64_FORMAT " ts=%"
+      GST_TIME_FORMAT "\n", rl->element, rl->min,
+      rl->max, GST_TIME_ARGS (rl->ts));
 }
 
 static void
 free_latency_stats (gpointer data)
 {
-  GstLatencyStats *ls = data;
-
-  g_free (ls->name);
   g_slice_free (GstLatencyStats, data);
 }
 
@@ -299,36 +264,6 @@ static void
 free_thread_stats (gpointer data)
 {
   g_slice_free (GstThreadStats, data);
-}
-
-static GstPluginStats *
-new_plugin_stats (const gchar * plugin_name)
-{
-  GstPluginStats *plugin = g_slice_new (GstPluginStats);
-  guint i;
-
-  plugin->name = g_strdup (plugin_name);
-
-  for (i = 0; i < N_FACTORY_TYPES; i++)
-    plugin->factories[i] = g_ptr_array_new_with_free_func (g_free);
-
-  g_ptr_array_add (plugin_stats, plugin);
-
-  return plugin;
-}
-
-static void
-free_plugin_stats (gpointer data)
-{
-  GstPluginStats *plugin = data;
-  guint i;
-
-  g_free (plugin->name);
-
-  for (i = 0; i < N_FACTORY_TYPES; i++)
-    g_ptr_array_unref (plugin->factories[i]);
-
-  g_slice_free (GstPluginStats, data);
 }
 
 static void
@@ -539,20 +474,17 @@ do_proc_rusage_stats (GstStructure * s)
 }
 
 static void
-update_latency_table (GHashTable * table, const gchar * key, guint64 time,
-    GstClockTime ts)
+update_latency_table (GHashTable * table, const gchar * key, guint64 time)
 {
   /* Find the values in the hash table */
   GstLatencyStats *ls = g_hash_table_lookup (table, key);
   if (!ls) {
     /* Insert the new key if the value does not exist */
     ls = g_new0 (GstLatencyStats, 1);
-    ls->name = g_strdup (key);
     ls->count = 1;
     ls->total = time;
     ls->min = time;
     ls->max = time;
-    ls->first_latency_ts = ts;
     g_hash_table_insert (table, g_strdup (key), ls);
   } else {
     /* Otherwise update the existing value */
@@ -591,7 +523,7 @@ do_latency_stats (GstStructure * s)
       src, sink_element_id, sink_element, sink);
 
   /* Update the latency in the table */
-  update_latency_table (latencies, key, time, ts);
+  update_latency_table (latencies, key, time);
 
   /* Clean up */
   g_free (key);
@@ -620,7 +552,7 @@ do_element_latency_stats (GstStructure * s)
   key = g_strdup_printf ("%s.%s.%s", element_id, element, src);
 
   /* Update the latency in the table */
-  update_latency_table (element_latencies, key, time, ts);
+  update_latency_table (element_latencies, key, time);
 
   /* Clean up */
   g_free (key);
@@ -654,48 +586,6 @@ do_element_reported_latency (GstStructure * s)
   g_queue_push_tail (element_reported_latencies, rl);
 
   have_element_reported_latency = TRUE;
-}
-
-static void
-do_factory_used (GstStructure * s)
-{
-  const gchar *factory = NULL;
-  const gchar *factory_type = NULL;
-  const gchar *plugin_name = NULL;
-  GstPluginStats *plugin = NULL;
-  guint i, f;
-
-  factory = gst_structure_get_string (s, "factory");
-  factory_type = gst_structure_get_string (s, "factory-type");
-  plugin_name = gst_structure_get_string (s, "plugin");
-
-  if (!g_strcmp0 (plugin_name, "staticelements"))
-    return;
-
-  if (plugin_name == NULL || plugin_name[0] == 0)
-    plugin_name = "built-in";
-
-  for (f = 0; f < N_FACTORY_TYPES; f++)
-    if (!g_strcmp0 (factory_type, FACTORY_TYPES[f]))
-      break;
-  if (f == N_FACTORY_TYPES)
-    return;
-
-  for (i = 0; i < plugin_stats->len; i++) {
-    GstPluginStats *tmp_plugin = g_ptr_array_index (plugin_stats, i);
-    if (!strcmp (tmp_plugin->name, plugin_name)) {
-      plugin = tmp_plugin;
-      break;
-    }
-  }
-
-  if (plugin == NULL)
-    plugin = new_plugin_stats (plugin_name);
-
-  if (factory && factory[0] &&
-      !g_ptr_array_find_with_equal_func (plugin->factories[f], factory,
-          g_str_equal, NULL))
-    g_ptr_array_add (plugin->factories[f], g_strdup (factory));
 }
 
 /* reporting */
@@ -783,22 +673,22 @@ print_element_stats (gpointer value, gpointer user_data)
 
     printf ("  %-45s:", fullname);
     if (stats->recv_buffers)
-      g_print (" buffers in/out %7u", stats->recv_buffers);
+      printf (" buffers in/out %7u", stats->recv_buffers);
     else
-      g_print (" buffers in/out %7s", "-");
+      printf (" buffers in/out %7s", "-");
     if (stats->sent_buffers)
-      g_print ("/%7u", stats->sent_buffers);
+      printf ("/%7u", stats->sent_buffers);
     else
-      g_print ("/%7s", "-");
+      printf ("/%7s", "-");
     if (stats->recv_bytes)
-      g_print (" bytes in/out %12" G_GUINT64_FORMAT, stats->recv_bytes);
+      printf (" bytes in/out %12" G_GUINT64_FORMAT, stats->recv_bytes);
     else
-      g_print (" bytes in/out %12s", "-");
+      printf (" bytes in/out %12s", "-");
     if (stats->sent_bytes)
-      g_print ("/%12" G_GUINT64_FORMAT, stats->sent_bytes);
+      printf ("/%12" G_GUINT64_FORMAT, stats->sent_bytes);
     else
       printf ("/%12s", "-");
-    g_print (" first activity %" GST_TIME_FORMAT ", "
+    printf (" first activity %" GST_TIME_FORMAT ", "
         " ev/msg/qry sent %5u/%5u/%5u\n", GST_TIME_ARGS (stats->first_ts),
         stats->num_events, stats->num_messages, stats->num_queries);
   }
@@ -863,7 +753,7 @@ sort_element_stats_by_first_activity (gconstpointer es1, gconstpointer es2)
 static void
 sort_bin_stats (gpointer value, gpointer user_data)
 {
-  if (value != NULL && ((GstElementStats *) value)->is_bin) {
+  if (((GstElementStats *) value)->is_bin) {
     GSList **list = user_data;
 
     *list =
@@ -875,7 +765,7 @@ sort_bin_stats (gpointer value, gpointer user_data)
 static void
 sort_element_stats (gpointer value, gpointer user_data)
 {
-  if (value != NULL && !(((GstElementStats *) value)->is_bin)) {
+  if (!(((GstElementStats *) value)->is_bin)) {
     GSList **list = user_data;
 
     *list =
@@ -912,16 +802,14 @@ static gboolean
 init (void)
 {
   /* compile the parser regexps */
-  /* 0:00:00.004925027 31586      0x1c5c600 DEBUG           GST_REGISTRY gstregistry.c:463:gst_registry_add_plugin:<registry0> adding plugin 0x1c79160 for filename "/usr/lib/gstreamer-1.0/libgstxxx.so"
-   * 0:00:02.719599000 35292 000001C031A49C60 DEBUG             GST_TRACER gsttracer.c:162:gst_tracer_register:<registry0> update existing feature 000001C02F9843C0 (latency)
-   */
+  /* 0:00:00.004925027 31586      0x1c5c600 DEBUG           GST_REGISTRY gstregistry.c:463:gst_registry_add_plugin:<registry0> adding plugin 0x1c79160 for filename "/usr/lib/gstreamer-1.0/libgstxxx.so" */
   raw_log = g_regex_new (
       /* 1: ts */
       "^([0-9:.]+) +"
       /* 2: pid */
       "([0-9]+) +"
       /* 3: thread */
-      "(0?x?[0-9a-fA-F]+) +"
+      "(0x[0-9a-fA-F]+) +"
       /* 4: level */
       "([A-Z]+) +"
       /* 5: category */
@@ -964,8 +852,6 @@ init (void)
       free_latency_stats);
   element_reported_latencies = g_queue_new ();
 
-  plugin_stats = g_ptr_array_new_with_free_func (free_plugin_stats);
-
   return TRUE;
 }
 
@@ -994,30 +880,10 @@ done (void)
     element_reported_latencies = NULL;
   }
 
-  g_clear_pointer (&plugin_stats, g_ptr_array_unref);
-
   if (raw_log)
     g_regex_unref (raw_log);
   if (ansi_log)
     g_regex_unref (ansi_log);
-}
-
-static gint
-compare_plugin_stats (gconstpointer a, gconstpointer b)
-{
-  const GstPluginStats *plugin_a = *(GstPluginStats **) a;
-  const GstPluginStats *plugin_b = *(GstPluginStats **) b;
-
-  return strcmp (plugin_a->name, plugin_b->name);
-}
-
-static gint
-compare_string (gconstpointer a, gconstpointer b)
-{
-  const char *str_a = *(const char **) a;
-  const char *str_b = *(const char **) b;
-
-  return strcmp (str_a, str_b);
 }
 
 static void
@@ -1026,21 +892,21 @@ print_stats (void)
   guint num_threads = g_hash_table_size (threads);
 
   /* print overall stats */
-  g_print ("\nOverall Statistics:\n");
-  g_print ("Number of Threads: %u\n", num_threads);
-  g_print ("Number of Elements: %u\n", num_elements - num_bins);
-  g_print ("Number of Bins: %u\n", num_bins);
-  g_print ("Number of Pads: %u\n", num_pads - num_ghostpads);
-  g_print ("Number of GhostPads: %u\n", num_ghostpads);
-  g_print ("Number of Buffers passed: %" G_GUINT64_FORMAT "\n", num_buffers);
-  g_print ("Number of Events sent: %" G_GUINT64_FORMAT "\n", num_events);
-  g_print ("Number of Message sent: %" G_GUINT64_FORMAT "\n", num_messages);
-  g_print ("Number of Queries sent: %" G_GUINT64_FORMAT "\n", num_queries);
-  g_print ("Time: %" GST_TIME_FORMAT "\n", GST_TIME_ARGS (last_ts));
+  puts ("\nOverall Statistics:");
+  printf ("Number of Threads: %u\n", num_threads);
+  printf ("Number of Elements: %u\n", num_elements - num_bins);
+  printf ("Number of Bins: %u\n", num_bins);
+  printf ("Number of Pads: %u\n", num_pads - num_ghostpads);
+  printf ("Number of GhostPads: %u\n", num_ghostpads);
+  printf ("Number of Buffers passed: %" G_GUINT64_FORMAT "\n", num_buffers);
+  printf ("Number of Events sent: %" G_GUINT64_FORMAT "\n", num_events);
+  printf ("Number of Message sent: %" G_GUINT64_FORMAT "\n", num_messages);
+  printf ("Number of Queries sent: %" G_GUINT64_FORMAT "\n", num_queries);
+  printf ("Time: %" GST_TIME_FORMAT "\n", GST_TIME_ARGS (last_ts));
   if (have_cpuload) {
-    g_print ("Avg CPU load: %4.1f %%\n", (gfloat) total_cpuload / 10.0);
+    printf ("Avg CPU load: %4.1f %%\n", (gfloat) total_cpuload / 10.0);
   }
-  g_print ("\n");
+  puts ("");
 
   /* thread stats */
   if (num_threads) {
@@ -1076,7 +942,7 @@ print_stats (void)
     /* attribute bin stats to parent-bins */
     for (i = 0; i < num_elements; i++) {
       GstElementStats *stats = g_ptr_array_index (elements, i);
-      if (stats != NULL && stats->is_bin) {
+      if (stats->is_bin) {
         g_hash_table_insert (accum_bins, GUINT_TO_POINTER (i), stats);
       }
     }
@@ -1093,28 +959,18 @@ print_stats (void)
 
   /* latency stats */
   if (have_latency) {
-    GList *list = NULL;
-
     puts ("Latency Statistics:");
-    list = g_hash_table_get_values (latencies);
-    /* Sort by first activity */
-    list = g_list_sort (list, sort_latency_stats_by_first_ts);
-    g_list_foreach (list, print_latency_stats, NULL);
+    g_hash_table_foreach (latencies, (GHFunc) latencies_foreach_print_stats,
+        NULL);
     puts ("");
-    g_list_free (list);
   }
 
   /* element latency stats */
   if (have_element_latency) {
-    GList *list = NULL;
-
     puts ("Element Latency Statistics:");
-    list = g_hash_table_get_values (element_latencies);
-    /* Sort by first activity */
-    list = g_list_sort (list, sort_latency_stats_by_first_ts);
-    g_list_foreach (list, print_latency_stats, NULL);
+    g_hash_table_foreach (element_latencies,
+        (GHFunc) latencies_foreach_print_stats, NULL);
     puts ("");
-    g_list_free (list);
   }
 
   /* element reported latency stats */
@@ -1123,43 +979,6 @@ print_stats (void)
     g_queue_foreach (element_reported_latencies,
         (GFunc) reported_latencies_foreach_print_stats, NULL);
     puts ("");
-  }
-
-  if (plugin_stats->len > 0) {
-    guint i, j, f;
-
-    g_ptr_array_sort (plugin_stats, compare_plugin_stats);
-
-    printf ("Plugins used: ");
-    for (i = 0; i < plugin_stats->len; i++) {
-      GstPluginStats *ps = g_ptr_array_index (plugin_stats, i);
-      printf ("%s%s", i == 0 ? "" : ";", ps->name);
-    }
-    printf ("\n");
-
-    for (f = 0; f < N_FACTORY_TYPES; f++) {
-      gboolean first = TRUE;
-
-      printf ("%c%ss: ", g_ascii_toupper (FACTORY_TYPES[f][0]),
-          FACTORY_TYPES[f] + 1);
-      for (i = 0; i < plugin_stats->len; i++) {
-        GstPluginStats *ps = g_ptr_array_index (plugin_stats, i);
-
-        if (ps->factories[f]->len > 0) {
-          printf ("%s%s:", first ? "" : ";", ps->name);
-          first = FALSE;
-
-          g_ptr_array_sort (ps->factories[f], compare_string);
-
-          for (j = 0; j < ps->factories[f]->len; j++) {
-            const gchar *factory = g_ptr_array_index (ps->factories[f], j);
-
-            printf ("%s%s", j == 0 ? "" : ",", factory);
-          }
-        }
-      }
-      printf ("\n");
-    }
   }
 }
 
@@ -1221,8 +1040,6 @@ collect_stats (const gchar * filename)
                   do_element_latency_stats (s);
                 } else if (!strcmp (name, "element-reported-latency")) {
                   do_element_reported_latency (s);
-                } else if (!strcmp (name, "factory-used")) {
-                  do_factory_used (s);
                 } else {
                   // TODO(ensonic): parse the xxx.class log lines
                   if (!g_str_has_suffix (data, ".class")) {
@@ -1233,9 +1050,7 @@ collect_stats (const gchar * filename)
               } else {
                 GST_WARNING ("unknown log entry: '%s'", data);
               }
-              g_free (data);
             }
-            g_free (level);
           } else {
             if (*line) {
               GST_WARNING ("foreign log entry: %s:%d:'%s'", filename, lnr,

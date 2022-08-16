@@ -22,17 +22,17 @@
 
 /**
  * SECTION:element-goom
- * @title: goom
  * @see_also: synaesthesia
  *
  * Goom is an audio visualisation element. It creates warping structures
  * based on the incoming audio signal.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 -v audiotestsrc ! goom ! videoconvert ! xvimagesink
  * ]|
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -99,10 +99,8 @@ static void gst_goom_finalize (GObject * object);
 static gboolean gst_goom_setup (GstAudioVisualizer * base);
 static gboolean gst_goom_render (GstAudioVisualizer * base, GstBuffer * audio,
     GstVideoFrame * video);
-static gboolean goom_element_init (GstPlugin * plugin);
 
 G_DEFINE_TYPE (GstGoom, gst_goom, GST_TYPE_AUDIO_VISUALIZER);
-GST_ELEMENT_REGISTER_DEFINE_CUSTOM (goom, goom_element_init);
 
 static void
 gst_goom_class_init (GstGoomClass * klass)
@@ -194,7 +192,7 @@ gst_goom_render (GstAudioVisualizer * base, GstBuffer * audio,
 }
 
 static gboolean
-goom_element_init (GstPlugin * plugin)
+plugin_init (GstPlugin * plugin)
 {
   GST_DEBUG_CATEGORY_INIT (goom_debug, "goom", 0, "goom visualisation element");
 
@@ -203,12 +201,6 @@ goom_element_init (GstPlugin * plugin)
 #endif
 
   return gst_element_register (plugin, "goom", GST_RANK_NONE, GST_TYPE_GOOM);
-}
-
-static gboolean
-plugin_init (GstPlugin * plugin)
-{
-  return GST_ELEMENT_REGISTER (goom, plugin);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

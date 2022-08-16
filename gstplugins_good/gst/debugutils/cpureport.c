@@ -26,7 +26,6 @@
 #include <math.h>
 #include <time.h>
 
-#include "gstdebugutilselements.h"
 #include "cpureport.h"
 
 
@@ -53,8 +52,6 @@ static gboolean gst_cpu_report_stop (GstBaseTransform * trans);
 
 #define gst_cpu_report_parent_class parent_class
 G_DEFINE_TYPE (GstCpuReport, gst_cpu_report, GST_TYPE_BASE_TRANSFORM);
-GST_ELEMENT_REGISTER_DEFINE (cpureport, "cpureport",
-    GST_RANK_NONE, gst_cpu_report_get_type ());
 
 static void
 gst_cpu_report_finalize (GObject * obj)
@@ -102,19 +99,21 @@ static GstFlowReturn
 gst_cpu_report_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
 {
   GstCpuReport *filter;
-  GstClockTime cur_time;
+  GTimeVal cur_time;
   clock_t cur_cpu_time;
   GstMessage *msg;
   GstStructure *s;
-  GstClockTimeDiff time_taken;
+  gint64 time_taken;
 
-  cur_time = g_get_real_time () * GST_USECOND;
+
+  g_get_current_time (&cur_time);
   cur_cpu_time = clock ();
 
   filter = GST_CPU_REPORT (trans);
 
 
-  time_taken = cur_time - filter->last_time;
+  time_taken = GST_TIMEVAL_TO_TIME (cur_time) -
+      GST_TIMEVAL_TO_TIME (filter->last_time);
 
   s = gst_structure_new ("cpu-report", "cpu-time", G_TYPE_DOUBLE,
       ((gdouble) (cur_cpu_time - filter->last_cpu_time)),
@@ -136,7 +135,8 @@ gst_cpu_report_start (GstBaseTransform * trans)
 
   filter = GST_CPU_REPORT (trans);
 
-  filter->start_time = filter->last_time = g_get_real_time () * GST_USECOND;
+  g_get_current_time (&filter->last_time);
+  filter->start_time = filter->last_time;
   filter->last_cpu_time = clock ();
   return TRUE;
 }

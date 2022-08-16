@@ -44,8 +44,6 @@ typedef struct _GstDtlsSrtpEncClass GstDtlsSrtpEncClass;
 struct _GstDtlsSrtpEnc {
     GstDtlsSrtpBin bin;
 
-    gboolean rtp_sync;
-
     GstElement *srtp_enc;
     GstElement *funnel;
 };

@@ -1,8 +1,7 @@
 alsa_sources = [
   'gstalsa.c',
-  'gstalsadeviceprovider.c',
+  'gstalsadeviceprobe.c',
   'gstalsamidisrc.c',
-  'gstalsaelement.c',
   'gstalsaplugin.c',
   'gstalsasink.c',
   'gstalsasrc.c',
@@ -20,5 +19,4 @@ if alsa_dep.found()
     install_dir : plugins_install_dir,
   )
   pkgconfig.generate(gstalsa, install_dir : plugins_pkgconfig_install_dir)
-  plugins += [gstalsa]
 endif

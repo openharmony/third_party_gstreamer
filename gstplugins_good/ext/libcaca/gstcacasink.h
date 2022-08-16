@@ -32,8 +32,19 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_CACASINK (gst_cacasink_get_type())
-G_DECLARE_FINAL_TYPE (GstCACASink, gst_cacasink, GST, CACASINK, GstBaseSink)
+#define GST_TYPE_CACASINK \
+  (gst_cacasink_get_type())
+#define GST_CACASINK(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_CACASINK,GstCACASink))
+#define GST_CACASINK_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_CACASINK,GstCACASinkClass))
+#define GST_IS_CACASINK(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_CACASINK))
+#define GST_IS_CACASINK_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_CACASINK))
+
+typedef struct _GstCACASink GstCACASink;
+typedef struct _GstCACASinkClass GstCACASinkClass;
 
 struct _GstCACASink {
   GstBaseSink parent;
@@ -47,7 +58,13 @@ struct _GstCACASink {
   struct caca_bitmap *bitmap;
 };
 
-GST_ELEMENT_REGISTER_DECLARE (cacasink);
+struct _GstCACASinkClass {
+  GstBaseSinkClass parent_class;
+
+  /* signals */
+};
+
+GType gst_cacasink_get_type(void);
 
 G_END_DECLS
 

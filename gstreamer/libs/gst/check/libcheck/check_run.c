@@ -29,8 +29,6 @@
 #include <signal.h>
 #include <setjmp.h>
 
-#include <glib.h>
-
 #include "internal-check.h"
 #include "check_error.h"
 #include "check_list.h"
@@ -468,7 +466,6 @@ tcase_run_tfun_fork (SRunner * sr, TCase * tc, TF * tfun, int i)
     clock_gettime (check_get_clockid (), &ts_end);
     tcase_run_checked_teardown (tc);
     send_duration_info (DIFF_IN_USEC (ts_start, ts_end));
-    g_thread_pool_stop_unused_threads ();
     exit (EXIT_SUCCESS);
   } else {
     group_pid = pid;
@@ -787,11 +784,9 @@ check_waitpid_and_exit (pid_t pid CK_ATTRIBUTE_UNUSED)
     }
     while (pid_w == -1);
     if (waserror (status, 0)) {
-      g_thread_pool_stop_unused_threads ();
       exit (EXIT_FAILURE);
     }
   }
-  g_thread_pool_stop_unused_threads ();
   exit (EXIT_SUCCESS);
 #else /* HAVE_FORK */
   eprintf ("This version does not support fork", __FILE__, __LINE__);

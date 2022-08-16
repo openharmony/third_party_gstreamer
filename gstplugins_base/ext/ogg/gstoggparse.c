@@ -36,7 +36,7 @@
 #include <ogg/ogg.h>
 #include <string.h>
 
-#include "gstoggelements.h"
+#include "gstogg.h"
 #include "gstoggstream.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_ogg_parse_debug);
@@ -81,12 +81,34 @@ struct _GstOggParseClass
   GstElementClass parent_class;
 };
 
-
+static void gst_ogg_parse_base_init (gpointer g_class);
+static void gst_ogg_parse_class_init (GstOggParseClass * klass);
+static void gst_ogg_parse_init (GstOggParse * ogg);
 static GstElementClass *parent_class = NULL;
-G_DEFINE_TYPE (GstOggParse, gst_ogg_parse, GST_TYPE_ELEMENT);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (oggparse, "oggparse", GST_RANK_NONE,
-    GST_TYPE_OGG_PARSE, GST_DEBUG_CATEGORY_INIT (gst_ogg_parse_debug,
-        "oggparse", 0, "ogg parser"));
+
+static GType
+gst_ogg_parse_get_type (void)
+{
+  static GType ogg_parse_type = 0;
+
+  if (!ogg_parse_type) {
+    static const GTypeInfo ogg_parse_info = {
+      sizeof (GstOggParseClass),
+      gst_ogg_parse_base_init,
+      NULL,
+      (GClassInitFunc) gst_ogg_parse_class_init,
+      NULL,
+      NULL,
+      sizeof (GstOggParse),
+      0,
+      (GInstanceInitFunc) gst_ogg_parse_init,
+    };
+
+    ogg_parse_type = g_type_register_static (GST_TYPE_ELEMENT, "GstOggParse",
+        &ogg_parse_info, 0);
+  }
+  return ogg_parse_type;
+}
 
 static void
 free_stream (GstOggStream * stream)
@@ -201,20 +223,26 @@ static GstFlowReturn gst_ogg_parse_chain (GstPad * pad, GstObject * parent,
     GstBuffer * buffer);
 
 static void
-gst_ogg_parse_class_init (GstOggParseClass * klass)
+gst_ogg_parse_base_init (gpointer g_class)
 {
-  GstElementClass *gstelement_class = GST_ELEMENT_CLASS (klass);
-  GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
+  GstElementClass *element_class = GST_ELEMENT_CLASS (g_class);
 
-  gst_element_class_set_static_metadata (gstelement_class,
+  gst_element_class_set_static_metadata (element_class,
       "Ogg parser", "Codec/Parser",
       "parse ogg streams into pages (info about ogg: http://xiph.org)",
       "Michael Smith <msmith@fluendo.com>");
 
-  gst_element_class_add_static_pad_template (gstelement_class,
+  gst_element_class_add_static_pad_template (element_class,
       &ogg_parse_sink_template_factory);
-  gst_element_class_add_static_pad_template (gstelement_class,
+  gst_element_class_add_static_pad_template (element_class,
       &ogg_parse_src_template_factory);
+}
+
+static void
+gst_ogg_parse_class_init (GstOggParseClass * klass)
+{
+  GstElementClass *gstelement_class = GST_ELEMENT_CLASS (klass);
+  GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
 
   parent_class = g_type_class_peek_parent (klass);
 
@@ -718,4 +746,13 @@ gst_ogg_parse_change_state (GstElement * element, GstStateChange transition)
       break;
   }
   return result;
+}
+
+gboolean
+gst_ogg_parse_plugin_init (GstPlugin * plugin)
+{
+  GST_DEBUG_CATEGORY_INIT (gst_ogg_parse_debug, "oggparse", 0, "ogg parser");
+
+  return gst_element_register (plugin, "oggparse", GST_RANK_NONE,
+      GST_TYPE_OGG_PARSE);
 }

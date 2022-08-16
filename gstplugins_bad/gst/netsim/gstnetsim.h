@@ -96,7 +96,6 @@ struct _GstNetSimClass
 };
 
 GType gst_net_sim_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (netsim);
 
 G_END_DECLS
 

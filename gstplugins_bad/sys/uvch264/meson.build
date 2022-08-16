@@ -2,7 +2,6 @@ uvch264_sources = [
   'gstuvch264.c',
   'gstuvch264_mjpgdemux.c',
   'gstuvch264_src.c',
-  'gstuvch264deviceprovider.c',
   'uvc_h264.c',
 ]
 
@@ -24,5 +23,4 @@ if libgudev_dep.found() and libusb_dep.found() and has_uvcvideo_h
     install_dir : plugins_install_dir,
   )
   pkgconfig.generate(gstuvch264, install_dir : plugins_pkgconfig_install_dir)
-  plugins += [gstuvch264]
 endif

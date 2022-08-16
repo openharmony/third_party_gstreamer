@@ -150,8 +150,6 @@ static GstStateChangeReturn gst_audio_mix_matrix_change_state (GstElement *
 
 G_DEFINE_TYPE (GstAudioMixMatrix, gst_audio_mix_matrix,
     GST_TYPE_BASE_TRANSFORM);
-GST_ELEMENT_REGISTER_DEFINE (audiomixmatrix, "audiomixmatrix", GST_RANK_NONE,
-    GST_TYPE_AUDIO_MIX_MATRIX);
 
 static void
 gst_audio_mix_matrix_class_init (GstAudioMixMatrixClass * klass)
@@ -218,8 +216,6 @@ gst_audio_mix_matrix_class_init (GstAudioMixMatrixClass * klass)
 
   element_class->change_state =
       GST_DEBUG_FUNCPTR (gst_audio_mix_matrix_change_state);
-
-  gst_type_mark_as_plugin_api (GST_TYPE_AUDIO_MIX_MATRIX_MODE, 0);
 }
 
 static void
@@ -745,7 +741,8 @@ beach:
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (audiomixmatrix, plugin);
+  return gst_element_register (plugin, "audiomixmatrix", GST_RANK_NONE,
+      GST_TYPE_AUDIO_MIX_MATRIX);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

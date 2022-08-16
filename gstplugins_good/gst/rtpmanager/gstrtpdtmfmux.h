@@ -61,8 +61,7 @@ struct _GstRTPDTMFMuxClass
 };
 
 GType gst_rtp_dtmf_mux_get_type (void);
-
-GST_ELEMENT_REGISTER_DECLARE (rtpdtmfmux);
+gboolean gst_rtp_dtmf_mux_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 #endif /* __GST_RTP_DTMF_MUX_H__ */

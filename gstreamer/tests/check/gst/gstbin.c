@@ -42,22 +42,7 @@ pop_async_done (GstBus * bus)
 }
 
 static void
-pop_latency (GstBus * bus)
-{
-  GstMessage *message;
-
-  GST_DEBUG ("popping async-done message");
-  message = gst_bus_poll (bus, GST_MESSAGE_LATENCY, -1);
-
-  fail_unless (message && GST_MESSAGE_TYPE (message)
-      == GST_MESSAGE_LATENCY, "did not get GST_MESSAGE_LATENCY");
-
-  gst_message_unref (message);
-  GST_DEBUG ("popped message");
-}
-
-static void
-pop_state_changed (GstBus * bus, int count)
+pop_messages (GstBus * bus, int count)
 {
   GstMessage *message;
 
@@ -168,82 +153,6 @@ GST_START_TEST (test_interface)
 
 GST_END_TEST;
 
-GST_START_TEST (test_iterate_all_by_element_factory_name)
-{
-  GstBin *bin, *bin2;
-  GstElement *filesrc;
-  GstIterator *it;
-  GValue item = { 0, };
-
-  bin = GST_BIN (gst_bin_new (NULL));
-  fail_unless (bin != NULL, "Could not create bin");
-
-  filesrc = gst_element_factory_make ("filesrc", NULL);
-  fail_unless (filesrc != NULL, "Could not create filesrc");
-  gst_bin_add (bin, filesrc);
-
-  /* Test bin with single element */
-  it = gst_bin_iterate_all_by_element_factory_name (bin, "filesrc");
-  fail_unless (it != NULL);
-  fail_unless (gst_iterator_next (it, &item) == GST_ITERATOR_OK);
-  fail_unless (g_value_get_object (&item) == (gpointer) filesrc);
-  g_value_reset (&item);
-  fail_unless (gst_iterator_next (it, &item) == GST_ITERATOR_DONE);
-  gst_iterator_free (it);
-
-  /* Negative test bin with single element */
-  it = gst_bin_iterate_all_by_element_factory_name (bin, "filesink");
-  fail_unless (it != NULL);
-  fail_unless (gst_iterator_next (it, &item) == GST_ITERATOR_DONE);
-  gst_iterator_free (it);
-
-  /* Test bin with multiple other elements, 1 layer */
-  gst_bin_add_many (bin,
-      gst_element_factory_make ("identity", NULL),
-      gst_element_factory_make ("identity", NULL),
-      gst_element_factory_make ("identity", NULL), NULL);
-  it = gst_bin_iterate_all_by_element_factory_name (bin, "filesrc");
-  fail_unless (it != NULL);
-  fail_unless (gst_iterator_next (it, &item) == GST_ITERATOR_OK);
-  fail_unless (g_value_get_object (&item) == (gpointer) filesrc);
-  g_value_reset (&item);
-  fail_unless (gst_iterator_next (it, &item) == GST_ITERATOR_DONE);
-  gst_iterator_free (it);
-
-  /* Test bin with multiple other elements in subbins */
-  bin2 = bin;
-  bin = GST_BIN (gst_bin_new (NULL));
-  fail_unless (bin != NULL);
-  gst_bin_add_many (bin,
-      gst_element_factory_make ("identity", NULL),
-      gst_element_factory_make ("identity", NULL),
-      GST_ELEMENT (bin2), gst_element_factory_make ("identity", NULL), NULL);
-  it = gst_bin_iterate_all_by_element_factory_name (bin, "filesrc");
-  fail_unless (gst_iterator_next (it, &item) == GST_ITERATOR_OK);
-  fail_unless (g_value_get_object (&item) == (gpointer) filesrc);
-  g_value_reset (&item);
-  fail_unless (gst_iterator_next (it, &item) == GST_ITERATOR_DONE);
-  gst_iterator_free (it);
-
-  /* Test bin with multiple other elements, multiple occurrences in subbins */
-  gst_bin_add (bin, gst_element_factory_make ("filesrc", NULL));
-  gst_bin_add (bin2, gst_element_factory_make ("filesrc", NULL));
-  it = gst_bin_iterate_all_by_element_factory_name (bin, "filesrc");
-  fail_unless (gst_iterator_next (it, &item) == GST_ITERATOR_OK);
-  g_value_reset (&item);
-  fail_unless (gst_iterator_next (it, &item) == GST_ITERATOR_OK);
-  g_value_reset (&item);
-  fail_unless (gst_iterator_next (it, &item) == GST_ITERATOR_OK);
-  g_value_reset (&item);
-  fail_unless (gst_iterator_next (it, &item) == GST_ITERATOR_DONE);
-  g_value_unset (&item);
-  gst_iterator_free (it);
-
-  gst_object_unref (bin);
-}
-
-GST_END_TEST;
-
 GST_START_TEST (test_eos)
 {
   GstBus *bus;
@@ -295,68 +204,6 @@ GST_START_TEST (test_eos)
   gst_pad_set_active (pad2, FALSE);
   gst_check_teardown_src_pad (sink1);
   gst_check_teardown_src_pad (sink2);
-  gst_object_unref (bus);
-  gst_object_unref (pipeline);
-}
-
-GST_END_TEST;
-
-GST_START_TEST (test_eos_recheck)
-{
-  GstBus *bus;
-  GstElement *pipeline, *sink1, *sink2;
-  GstMessage *message;
-  GstPad *pad1;
-  GThread *thread1;
-
-  pipeline = gst_pipeline_new ("test_eos_recheck");
-  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
-
-  sink1 = gst_element_factory_make ("fakesink", "sink1");
-  sink2 = gst_element_factory_make ("fakesink", "sink2");
-
-  gst_bin_add_many (GST_BIN (pipeline), sink1, sink2, NULL);
-
-  /* Set async=FALSE so we don't wait for preroll */
-  g_object_set (sink1, "async", FALSE, NULL);
-  g_object_set (sink2, "async", FALSE, NULL);
-
-  pad1 = gst_check_setup_src_pad_by_name (sink1, &srctemplate, "sink");
-
-  gst_pad_set_active (pad1, TRUE);
-
-  fail_if (gst_element_set_state (GST_ELEMENT (pipeline),
-          GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE);
-  fail_unless (gst_element_get_state (GST_ELEMENT (pipeline), NULL, NULL,
-          GST_CLOCK_TIME_NONE) == GST_STATE_CHANGE_SUCCESS);
-
-  /* Send one EOS to sink1 */
-  thread1 = g_thread_new ("thread1", (GThreadFunc) push_one_eos, pad1);
-
-  /* Make sure the EOS message is not sent */
-  message =
-      gst_bus_poll (bus, GST_MESSAGE_ERROR | GST_MESSAGE_EOS, 2 * GST_SECOND);
-  fail_if (message != NULL);
-
-  /* Remove sink2 without it EOSing, which should trigger an EOS re-check */
-  gst_object_ref (sink2);
-  gst_bin_remove (GST_BIN (pipeline), sink2);
-  gst_element_set_state (GST_ELEMENT (sink2), GST_STATE_NULL);
-
-  /* Make sure the EOS message is sent then */
-  message =
-      gst_bus_poll (bus, GST_MESSAGE_ERROR | GST_MESSAGE_EOS, 20 * GST_SECOND);
-  fail_if (message == NULL);
-  fail_unless (GST_MESSAGE_TYPE (message) == GST_MESSAGE_EOS);
-  gst_message_unref (message);
-
-  /* Cleanup */
-  g_thread_join (thread1);
-
-  gst_element_set_state (GST_ELEMENT (pipeline), GST_STATE_NULL);
-  gst_pad_set_active (pad1, FALSE);
-  gst_check_teardown_src_pad (sink1);
-  gst_object_unref (sink2);
   gst_object_unref (bus);
   gst_object_unref (pipeline);
 }
@@ -576,7 +423,7 @@ GST_START_TEST (test_message_state_changed_children)
   ASSERT_OBJECT_REFCOUNT (sink, "sink", 2);
   ASSERT_OBJECT_REFCOUNT (pipeline, "pipeline", 2);
 
-  pop_state_changed (bus, 3);
+  pop_messages (bus, 3);
   fail_if (gst_bus_have_pending (bus), "unexpected pending messages");
 
   ASSERT_OBJECT_REFCOUNT (bus, "bus", 2);
@@ -614,19 +461,18 @@ GST_START_TEST (test_message_state_changed_children)
   ASSERT_OBJECT_REFCOUNT (src, "src", 4);
   /* refcount can be 4 if the bin is still processing the async_done message of
    * the sink. */
-  ASSERT_OBJECT_REFCOUNT_BETWEEN (sink, "sink", 2, 4);
+  ASSERT_OBJECT_REFCOUNT_BETWEEN (sink, "sink", 2, 3);
   /* 3 or 4 is valid, because the pipeline might still be posting 
    * its state_change message */
   ASSERT_OBJECT_REFCOUNT_BETWEEN (pipeline, "pipeline", 3, 4);
 
-  pop_state_changed (bus, 3);
+  pop_messages (bus, 3);
   pop_async_done (bus);
-  pop_latency (bus);
   fail_if ((gst_bus_pop (bus)) != NULL);
 
-  ASSERT_OBJECT_REFCOUNT_BETWEEN (bus, "bus", 2, 3);
+  ASSERT_OBJECT_REFCOUNT (bus, "bus", 2);
   ASSERT_OBJECT_REFCOUNT (src, "src", 1);
-  ASSERT_OBJECT_REFCOUNT_BETWEEN (sink, "sink", 2, 3);
+  ASSERT_OBJECT_REFCOUNT (sink, "sink", 2);
   ASSERT_OBJECT_REFCOUNT (pipeline, "pipeline", 1);
 
   /* change state to PLAYING, spawning three messages */
@@ -648,7 +494,7 @@ GST_START_TEST (test_message_state_changed_children)
   ASSERT_OBJECT_REFCOUNT_BETWEEN (sink, "sink", 2, 4);
   ASSERT_OBJECT_REFCOUNT (pipeline, "pipeline", 3);
 
-  pop_state_changed (bus, 3);
+  pop_messages (bus, 3);
   fail_if ((gst_bus_pop (bus)) != NULL);
 
   ASSERT_OBJECT_REFCOUNT (bus, "bus", 2);
@@ -666,10 +512,10 @@ GST_START_TEST (test_message_state_changed_children)
   /* each object is referenced by two messages, the source also has the
    * stream-status message referencing it */
   ASSERT_OBJECT_REFCOUNT (src, "src", 4);
-  ASSERT_OBJECT_REFCOUNT_BETWEEN (sink, "sink", 3, 4);
+  ASSERT_OBJECT_REFCOUNT (sink, "sink", 3);
   ASSERT_OBJECT_REFCOUNT (pipeline, "pipeline", 3);
 
-  pop_state_changed (bus, 6);
+  pop_messages (bus, 6);
   fail_if ((gst_bus_pop (bus)) != NULL);
 
   ASSERT_OBJECT_REFCOUNT (src, "src", 1);
@@ -722,9 +568,8 @@ GST_START_TEST (test_watch_for_state_change)
       GST_CLOCK_TIME_NONE);
   fail_unless (ret == GST_STATE_CHANGE_SUCCESS);
 
-  pop_state_changed (bus, 6);
+  pop_messages (bus, 6);
   pop_async_done (bus);
-  pop_latency (bus);
 
   fail_unless (gst_bus_have_pending (bus) == FALSE,
       "Unexpected messages on bus");
@@ -732,17 +577,15 @@ GST_START_TEST (test_watch_for_state_change)
   ret = gst_element_set_state (GST_ELEMENT (bin), GST_STATE_PLAYING);
   fail_unless (ret == GST_STATE_CHANGE_SUCCESS);
 
-  pop_state_changed (bus, 3);
+  pop_messages (bus, 3);
 
   /* this one might return either SUCCESS or ASYNC, likely SUCCESS */
   ret = gst_element_set_state (GST_ELEMENT (bin), GST_STATE_PAUSED);
   gst_element_get_state (GST_ELEMENT (bin), NULL, NULL, GST_CLOCK_TIME_NONE);
 
-  pop_state_changed (bus, 3);
-  if (ret == GST_STATE_CHANGE_ASYNC) {
+  pop_messages (bus, 3);
+  if (ret == GST_STATE_CHANGE_ASYNC)
     pop_async_done (bus);
-    pop_latency (bus);
-  }
 
   fail_unless (gst_bus_have_pending (bus) == FALSE,
       "Unexpected messages on bus");
@@ -951,7 +794,7 @@ GST_START_TEST (test_children_state_change_order_flagged_sink)
   ASSERT_STATE_CHANGE_MSG (bus, sink, GST_STATE_READY, GST_STATE_PAUSED, 107);
 #else
 
-  pop_state_changed (bus, 2);   /* pop remaining ready => paused messages off the bus */
+  pop_messages (bus, 2);        /* pop remaining ready => paused messages off the bus */
   ASSERT_STATE_CHANGE_MSG (bus, pipeline, GST_STATE_READY, GST_STATE_PAUSED,
       108);
   pop_async_done (bus);
@@ -972,8 +815,8 @@ GST_START_TEST (test_children_state_change_order_flagged_sink)
   fail_if (ret != GST_STATE_CHANGE_SUCCESS, "State change to READY failed");
 
   /* TODO: do we need to check downwards state change order as well? */
-  pop_state_changed (bus, 4);   /* pop playing => paused messages off the bus */
-  pop_state_changed (bus, 4);   /* pop paused => ready messages off the bus */
+  pop_messages (bus, 4);        /* pop playing => paused messages off the bus */
+  pop_messages (bus, 4);        /* pop paused => ready messages off the bus */
 
   while (GST_OBJECT_REFCOUNT_VALUE (pipeline) > 1)
     THREAD_SWITCH ();
@@ -1056,7 +899,7 @@ GST_START_TEST (test_children_state_change_order_semi_sink)
   ASSERT_STATE_CHANGE_MSG (bus, src, GST_STATE_READY, GST_STATE_PAUSED, 206);
   ASSERT_STATE_CHANGE_MSG (bus, sink, GST_STATE_READY, GST_STATE_PAUSED, 207);
 #else
-  pop_state_changed (bus, 2);   /* pop remaining ready => paused messages off the bus */
+  pop_messages (bus, 2);        /* pop remaining ready => paused messages off the bus */
   ASSERT_STATE_CHANGE_MSG (bus, pipeline, GST_STATE_READY, GST_STATE_PAUSED,
       208);
   pop_async_done (bus);
@@ -1076,8 +919,8 @@ GST_START_TEST (test_children_state_change_order_semi_sink)
   fail_if (ret != GST_STATE_CHANGE_SUCCESS, "State change to READY failed");
 
   /* TODO: do we need to check downwards state change order as well? */
-  pop_state_changed (bus, 4);   /* pop playing => paused messages off the bus */
-  pop_state_changed (bus, 4);   /* pop paused => ready messages off the bus */
+  pop_messages (bus, 4);        /* pop playing => paused messages off the bus */
+  pop_messages (bus, 4);        /* pop paused => ready messages off the bus */
 
   GST_DEBUG ("waiting for pipeline to reach refcount 1");
   while (GST_OBJECT_REFCOUNT_VALUE (pipeline) > 1)
@@ -1861,7 +1704,7 @@ GST_END_TEST;
     expected_flags) \
 G_STMT_START { \
   GstBin *bin = GST_BIN (gst_bin_new ("test-bin")); \
-  GstElement *element = gst_element_factory_make ("queue", "test-q"); \
+  GstElement *element = gst_element_factory_make ("identity", "test-i"); \
   GstElementFlags natural_flags = GST_OBJECT_FLAGS (bin); \
   GST_OBJECT_FLAG_SET (element, element_flags); \
   gst_bin_set_suppressed_flags (bin, suppressed_flags); \
@@ -1946,9 +1789,7 @@ gst_bin_suite (void)
 
   suite_add_tcase (s, tc_chain);
   tcase_add_test (tc_chain, test_interface);
-  tcase_add_test (tc_chain, test_iterate_all_by_element_factory_name);
   tcase_add_test (tc_chain, test_eos);
-  tcase_add_test (tc_chain, test_eos_recheck);
   tcase_add_test (tc_chain, test_stream_start);
   tcase_add_test (tc_chain, test_children_state_change_order_flagged_sink);
   tcase_add_test (tc_chain, test_children_state_change_order_semi_sink);

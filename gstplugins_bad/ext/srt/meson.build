@@ -1,7 +1,5 @@
 srt_sources = [
   'gstsrt.c',
-  'gstsrtelement.c',
-  'gstsrtplugin.c',
   'gstsrtobject.c',
   'gstsrtsink.c',
   'gstsrtsrc.c'
@@ -11,7 +9,7 @@ if srt_option.disabled()
   subdir_done()
 endif
 
-srt_dep = dependency('srt', version : '>=1.3.0', required : false)
+srt_dep = dependency('srt', required : false)
 if not srt_dep.found() and cc.has_header_symbol('srt/srt.h', 'srt_startup')
   srt_dep = cc.find_library('srt', required : false)
 endif
@@ -35,5 +33,4 @@ if srt_dep.found()
     install_dir : plugins_install_dir,
   )
   pkgconfig.generate(gstsrt, install_dir : plugins_pkgconfig_install_dir)
-  plugins += [gstsrt]
 endif

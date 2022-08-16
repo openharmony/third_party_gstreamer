@@ -18,8 +18,8 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef __GST_GL_CONTEXT_EGL_H__
-#define __GST_GL_CONTEXT_EGL_H__
+#ifndef __GST_GL_EGL_H__
+#define __GST_GL_EGL_H__
 
 #include <gst/gl/gstglcontext.h>
 #include <gst/gl/egl/gstgldisplay_egl.h>
@@ -38,7 +38,9 @@ G_GNUC_INTERNAL GType gst_gl_context_egl_get_type (void);
 #define GST_IS_GL_CONTEXT_EGL_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE((k), GST_TYPE_GL_CONTEXT_EGL))
 #define GST_GL_CONTEXT_EGL_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS((o), GST_TYPE_GL_CONTEXT_EGL, GstGLContextEGLClass))
 
+#ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GstGLContextEGL, gst_object_unref)
+#endif
 
 
 /**
@@ -48,7 +50,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(GstGLContextEGL, gst_object_unref)
  */
 struct _GstGLContextEGL
 {
-  /*< private >*/
+  /* <private> */
   GstGLContext context;
 
   GstGLDisplayEGL *display_egl;
@@ -67,9 +69,6 @@ struct _GstGLContextEGL
 
   /* Cached handle */
   guintptr window_handle;
-  gulong window_handle_signal;
-
-  GstStructure *requested_config;
 };
 
 /**
@@ -79,7 +78,7 @@ struct _GstGLContextEGL
  */
 struct _GstGLContextEGLClass
 {
-  /*< private >*/
+  /* <private> */
   GstGLContextClass parent;
 };
 
@@ -92,9 +91,6 @@ guintptr            gst_gl_context_egl_get_current_context  (void);
 G_GNUC_INTERNAL
 gpointer            gst_gl_context_egl_get_proc_address     (GstGLAPI gl_api, const gchar * name);
 
-G_GNUC_INTERNAL
-gboolean            gst_gl_context_egl_fill_info            (GstGLContext * context, GError ** error);
-
 G_END_DECLS
 
-#endif /* __GST_GL_CONTEXT_EGL_H__ */
+#endif /* __GST_GL_EGL_H__ */

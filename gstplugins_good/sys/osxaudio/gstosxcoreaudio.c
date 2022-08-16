@@ -477,7 +477,7 @@ gst_core_audio_asbd_to_caps (AudioStreamBasicDescription * asbd,
   GstAudioFormat format = GST_AUDIO_FORMAT_UNKNOWN;
   guint rate, channels, bps, endianness;
   guint64 channel_mask;
-  gboolean sign;
+  gboolean sign, interleaved;
   GstAudioChannelPosition pos[GST_OSX_AUDIO_MAX_CHANNEL];
 
   if (asbd->mFormatID != kAudioFormatLinearPCM) {
@@ -505,6 +505,8 @@ gst_core_audio_asbd_to_caps (AudioStreamBasicDescription * asbd,
   endianness = asbd->mFormatFlags & kAudioFormatFlagIsBigEndian ?
       G_BIG_ENDIAN : G_LITTLE_ENDIAN;
   sign = asbd->mFormatFlags & kAudioFormatFlagIsSignedInteger ? TRUE : FALSE;
+  interleaved = asbd->mFormatFlags & kAudioFormatFlagIsNonInterleaved ?
+      TRUE : FALSE;
 
   if (asbd->mFormatFlags & kAudioFormatFlagIsFloat) {
     if (bps == 32) {
@@ -636,7 +638,7 @@ gst_core_audio_probe_caps (GstCoreAudio * core_audio, GstCaps * in_caps)
   got_outer_asbd =
       _core_audio_get_stream_format (core_audio, &outer_asbd, TRUE);
 
-  /* Collect info about the HW capabilities and preferences */
+  /* Collect info about the HW capabilites and preferences */
   spdif_allowed =
       gst_core_audio_audio_device_is_spdif_avail (core_audio->device_id);
   if (!core_audio->is_src)
@@ -738,7 +740,7 @@ gst_core_audio_probe_caps (GstCoreAudio * core_audio, GstCaps * in_caps)
         gst_caps_append_structure (caps, out_s);
         gst_caps_append_structure (caps, mono);
       } else {
-        /* Otherwise just add the caps */
+        /* Otherwhise just add the caps */
         gst_caps_append_structure (caps, out_s);
       }
     }

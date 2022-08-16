@@ -73,11 +73,7 @@ static gboolean gst_synae_scope_render (GstAudioVisualizer * scope,
     GstBuffer * audio, GstVideoFrame * video);
 
 
-G_DEFINE_TYPE_WITH_CODE (GstSynaeScope, gst_synae_scope,
-    GST_TYPE_AUDIO_VISUALIZER, GST_DEBUG_CATEGORY_INIT (synae_scope_debug,
-        "synaescope", 0, "synaescope"););
-GST_ELEMENT_REGISTER_DEFINE (synaescope, "synaescope", GST_RANK_NONE,
-    GST_TYPE_SYNAE_SCOPE);
+G_DEFINE_TYPE (GstSynaeScope, gst_synae_scope, GST_TYPE_AUDIO_VISUALIZER);
 
 static void
 gst_synae_scope_class_init (GstSynaeScopeClass * g_class)
@@ -272,7 +268,7 @@ gst_synae_scope_render (GstAudioVisualizer * bscope, GstBuffer * audio,
     fc = r + l;
 
     x = (guint) (r * w / fc);
-    /* the brightness scaling factor was picked by experimenting */
+    /* the brighness scaling factor was picked by experimenting */
     br = b * fc * 0.01;
 
     br1 = br * (clarity + 128) >> 8;
@@ -312,4 +308,13 @@ gst_synae_scope_render (GstAudioVisualizer * bscope, GstBuffer * audio,
   gst_buffer_unmap (audio, &amap);
 
   return TRUE;
+}
+
+gboolean
+gst_synae_scope_plugin_init (GstPlugin * plugin)
+{
+  GST_DEBUG_CATEGORY_INIT (synae_scope_debug, "synaescope", 0, "synaescope");
+
+  return gst_element_register (plugin, "synaescope", GST_RANK_NONE,
+      GST_TYPE_SYNAE_SCOPE);
 }

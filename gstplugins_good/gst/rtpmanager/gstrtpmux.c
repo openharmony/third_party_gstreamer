@@ -27,13 +27,13 @@
 
 /**
  * SECTION:element-rtpmux
- * @title: rtpmux
  * @see_also: rtpdtmfmux
  *
  * The rtp muxer takes multiple RTP streams having the same clock-rate and
  * muxes into a single stream with a single SSRC.
  *
- * ## Example pipelines
+ * <refsect2>
+ * <title>Example pipelines</title>
  * |[
  * gst-launch-1.0 rtpmux name=mux ! udpsink host=127.0.0.1 port=8888        \
  *              alsasrc ! alawenc ! rtppcmapay !                        \
@@ -45,7 +45,7 @@
  * In this example, an audio stream is captured from ALSA and another is
  * generated, both are encoded into different payload types and muxed together
  * so they can be sent on the same port.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -112,9 +112,8 @@ static void gst_rtp_mux_dispose (GObject * object);
 static gboolean gst_rtp_mux_src_event_real (GstRTPMux * rtp_mux,
     GstEvent * event);
 
-G_DEFINE_TYPE_WITH_CODE (GstRTPMux, gst_rtp_mux, GST_TYPE_ELEMENT,
-    GST_DEBUG_CATEGORY_INIT (gst_rtp_mux_debug, "rtpmux", 0, "rtp muxer"));
-GST_ELEMENT_REGISTER_DEFINE (rtpmux, "rtpmux", GST_RANK_NONE, GST_TYPE_RTP_MUX);
+G_DEFINE_TYPE (GstRTPMux, gst_rtp_mux, GST_TYPE_ELEMENT);
+
 
 static void
 gst_rtp_mux_class_init (GstRTPMuxClass * klass)
@@ -1013,4 +1012,13 @@ gst_rtp_mux_change_state (GstElement * element, GstStateChange transition)
   }
 
   return ret;
+}
+
+gboolean
+gst_rtp_mux_plugin_init (GstPlugin * plugin)
+{
+  GST_DEBUG_CATEGORY_INIT (gst_rtp_mux_debug, "rtpmux", 0, "rtp muxer");
+
+  return gst_element_register (plugin, "rtpmux", GST_RANK_NONE,
+      GST_TYPE_RTP_MUX);
 }

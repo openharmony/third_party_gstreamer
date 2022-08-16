@@ -31,7 +31,7 @@
  * The above mentioned pipeline should dump data packets to the console.
  *
  * If the #GstFdSrc:timeout property is set to a value bigger than 0, fdsrc will
- * generate an element message named `GstFdSrcTimeout`
+ * generate an element message named <classname>&quot;GstFdSrcTimeout&quot;</classname>
  * if no data was received in the given timeout.
  *
  * The message's structure contains one field:
@@ -79,16 +79,11 @@
 #include <errno.h>
 
 #include "gstfdsrc.h"
-#include "gstcoreelementselements.h"
-
-#define struct_stat struct stat
 
 #ifdef __BIONIC__               /* Android */
 #if defined(__ANDROID_API__) && __ANDROID_API__ >= 21
 #undef fstat
 #define fstat fstat64
-#undef struct_stat
-#define struct_stat struct stat64
 #endif
 #endif
 
@@ -120,9 +115,6 @@ static void gst_fd_src_uri_handler_init (gpointer g_iface, gpointer iface_data);
   GST_DEBUG_CATEGORY_INIT (gst_fd_src_debug, "fdsrc", 0, "fdsrc element");
 #define gst_fd_src_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstFdSrc, gst_fd_src, GST_TYPE_PUSH_SRC, _do_init);
-#if defined(HAVE_SYS_SOCKET_H) || defined(_MSC_VER)
-GST_ELEMENT_REGISTER_DEFINE (fdsrc, "fdsrc", GST_RANK_NONE, GST_TYPE_FD_SRC);
-#endif
 
 static void gst_fd_src_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -142,6 +134,7 @@ static gboolean gst_fd_src_query (GstBaseSrc * src, GstQuery * query);
 // ohos.ext.func.0021
 static GstFlowReturn gst_fd_src_create_base (GstBaseSrc * bsrc, guint64 offset, guint length, GstBuffer ** ret);
 #endif
+
 static GstFlowReturn gst_fd_src_create (GstPushSrc * psrc, GstBuffer ** outbuf);
 
 static void
@@ -193,6 +186,7 @@ gst_fd_src_class_init (GstFdSrcClass * klass)
   // ohos.ext.func.0021
   gstbasesrc_class->create = GST_DEBUG_FUNCPTR (gst_fd_src_create_base);
 #endif
+
   gstpush_src_class->create = GST_DEBUG_FUNCPTR (gst_fd_src_create);
 }
 
@@ -229,7 +223,7 @@ gst_fd_src_dispose (GObject * obj)
 static void
 gst_fd_src_update_fd (GstFdSrc * src, guint64 size)
 {
-  struct_stat stat_results;
+  struct stat stat_results;
 
   GST_DEBUG_OBJECT (src, "fdset %p, old_fd %d, new_fd %d", src->fdset, src->fd,
       src->new_fd);
@@ -744,7 +738,7 @@ static gboolean
 gst_fd_src_get_size (GstBaseSrc * bsrc, guint64 * size)
 {
   GstFdSrc *src = GST_FD_SRC (bsrc);
-  struct_stat stat_results;
+  struct stat stat_results;
 
   if (src->size != -1) {
     *size = src->size;
@@ -809,10 +803,6 @@ gst_fd_src_do_seek (GstBaseSrc * bsrc, GstSegment * segment)
   if (G_UNLIKELY (res < 0 || res != offset))
     goto seek_failed;
 #endif
-
-  res = lseek (src->fd, offset, SEEK_SET);
-  if (G_UNLIKELY (res < 0 || res != offset))
-    goto seek_failed;
 
   segment->position = segment->start;
   segment->time = segment->start;

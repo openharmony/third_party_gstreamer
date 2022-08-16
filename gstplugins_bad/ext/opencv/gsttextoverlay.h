@@ -87,7 +87,7 @@ struct _GstOpencvTextOverlayClass
 };
 
 GType gst_opencv_text_overlay_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (opencvtextoverlay);
+gboolean gst_opencv_text_overlay_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 

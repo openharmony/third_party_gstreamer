@@ -26,38 +26,46 @@
  *
  * Waveform specific notes:
  *
- * ## Gaussian white noise
- * 
- * This waveform produces white (zero mean) Gaussian noise.
- * Volume sets the standard deviation of the noise in units of the range
- * of values of the sample type, e.g. volume=0.1 produces noise with a
- * standard deviation of 0.1*32767=3277 with 16-bit integer samples,
- * or 0.1*1.0=0.1 with floating-point samples.
+ * <orderedlist>
+ *   <listitem>
+ *     <itemizedlist><title>Gaussian white noise</title>
  *     
- * ## Ticks
+ *     This waveform produces white (zero mean) Gaussian noise.
+ *     Volume sets the standard deviation of the noise in units of the range
+ *     of values of the sample type, e.g. volume=0.1 produces noise with a
+ *     standard deviation of 0.1*32767=3277 with 16-bit integer samples,
+ *     or 0.1*1.0=0.1 with floating-point samples.
  *     
- * This waveform is special in that it does not produce one continuous
- * signal. Instead, it produces finite-length sine wave pulses (the "ticks").
- * It is useful for detecting time shifts between audio signal, for example
- * between RTSP audio clients that shall play synchronized. It is also useful
- * for generating a signal that feeds the trigger of an oscilloscope.
+ *     </itemizedlist>
+ *   </listitem>
+ *   <listitem>
+ *     <itemizedlist><title>Ticks</title>
+ *     
+ *     This waveform is special in that it does not produce one continuous
+ *     signal. Instead, it produces finite-length sine wave pulses (the "ticks").
+ *     It is useful for detecting time shifts between audio signal, for example
+ *     between RTSP audio clients that shall play synchronized. It is also useful
+ *     for generating a signal that feeds the trigger of an oscilloscope.
  *
- * To further help with oscilloscope triggering and time offset detection,
- * the waveform can apply a different volume to every Nth tick (this is then
- * called the "marker tick"). For instance, one could generate a tick every
- * 100ms, and make every 20th tick a marker tick (meaning that every 2 seconds
- * there is a marker tick). This is useful for detecting large time offsets
- * while still frequently triggering an oscilloscope.
+ *     To further help with oscilloscope triggering and time offset detection,
+ *     the waveform can apply a different volume to every Nth tick (this is then
+ *     called the "marker tick"). For instance, one could generate a tick every
+ *     100ms, and make every 20th tick a marker tick (meaning that every 2 seconds
+ *     there is a marker tick). This is useful for detecting large time offsets
+ *     while still frequently triggering an oscilloscope.
  *
- * Also, a "ramp" can be applied to the begin & end of ticks. The sudden
- * start of the sine tick is a discontinuity, even if the sine wave starts
- * at 0. The* resulting artifacts can often make it more difficult to use the
- * ticks for an oscilloscope's trigger. To that end, an initial "ramp" can
- * be applied. The first few samples are modulated by a cubic function to
- * reduce the impact of the discontinuity, resulting in smaller artifacts.
- * The number of samples equals floor(samplerate / sine-wave-frequency).
- * Example: with a sample rate of 48 kHz and a sine wave frequency of 10 kHz,
- * the first 4 samples are modulated by the cubic function.
+ *     Also, a "ramp" can be applied to the begin & end of ticks. The sudden
+ *     start of the sine tick is a discontinuity, even if the sine wave starts
+ *     at 0. The* resulting artifacts can often make it more difficult to use the
+ *     ticks for an oscilloscope's trigger. To that end, an initial "ramp" can
+ *     be applied. The first few samples are modulated by a cubic function to
+ *     reduce the impact of the discontinuity, resulting in smaller artifacts.
+ *     The number of samples equals floor(samplerate / sine-wave-frequency).
+ *     Example: with a sample rate of 48 kHz and a sine wave frequency of 10 kHz,
+ *     the first 4 samples are modulated by the cubic function.
+ *     </itemizedlist>
+ *   </listitem>
+ * </orderedlist>
  *
  * ## Example launch line
  * |[
@@ -154,10 +162,6 @@ GST_STATIC_PAD_TEMPLATE ("src",
 
 #define gst_audio_test_src_parent_class parent_class
 G_DEFINE_TYPE (GstAudioTestSrc, gst_audio_test_src, GST_TYPE_BASE_SRC);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (audiotestsrc, "audiotestsrc",
-    GST_RANK_NONE, GST_TYPE_AUDIO_TEST_SRC,
-    GST_DEBUG_CATEGORY_INIT (audio_test_src_debug, "audiotestsrc", 0,
-        "Audio Test Source"));
 
 #define GST_TYPE_AUDIO_TEST_SRC_WAVE (gst_audiostestsrc_wave_get_type())
 static GType
@@ -241,8 +245,8 @@ gst_audio_test_src_class_init (GstAudioTestSrcClass * klass)
           G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_FREQ,
       g_param_spec_double ("freq", "Frequency", "Frequency of test signal. "
-          "The sample rate needs to be at least 2 times higher.",
-          0.0, (gdouble) G_MAXINT / 2, DEFAULT_FREQ,
+          "The sample rate needs to be at least 4 times higher.",
+          0.0, (gdouble) G_MAXINT / 4, DEFAULT_FREQ,
           G_PARAM_READWRITE | GST_PARAM_CONTROLLABLE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_VOLUME,
       g_param_spec_double ("volume", "Volume", "Volume of test signal", 0.0,
@@ -311,8 +315,6 @@ gst_audio_test_src_class_init (GstAudioTestSrcClass * klass)
   gstbasesrc_class->start = GST_DEBUG_FUNCPTR (gst_audio_test_src_start);
   gstbasesrc_class->stop = GST_DEBUG_FUNCPTR (gst_audio_test_src_stop);
   gstbasesrc_class->fill = GST_DEBUG_FUNCPTR (gst_audio_test_src_fill);
-
-  gst_type_mark_as_plugin_api (GST_TYPE_AUDIO_TEST_SRC_WAVE, 0);
 }
 
 static void
@@ -370,7 +372,7 @@ gst_audio_test_src_fixate (GstBaseSrc * bsrc, GstCaps * caps)
 
   GST_DEBUG_OBJECT (src, "fixating samplerate to %d", GST_AUDIO_DEF_RATE);
 
-  rate = MAX (GST_AUDIO_DEF_RATE, src->freq * 2);
+  rate = MAX (GST_AUDIO_DEF_RATE, src->freq * 4);
   gst_structure_fixate_field_nearest_int (structure, "rate", rate);
 
   gst_structure_fixate_field_string (structure, "format", DEFAULT_FORMAT_STR);
@@ -382,11 +384,9 @@ gst_audio_test_src_fixate (GstBaseSrc * bsrc, GstCaps * caps)
 
   if (gst_structure_get_int (structure, "channels", &channels) && channels > 2) {
     if (!gst_structure_has_field_typed (structure, "channel-mask",
-            GST_TYPE_BITMASK)) {
-      guint64 mask = gst_audio_channel_get_fallback_mask (channels);
-      gst_structure_set (structure, "channel-mask", GST_TYPE_BITMASK, mask,
+            GST_TYPE_BITMASK))
+      gst_structure_set (structure, "channel-mask", GST_TYPE_BITMASK, 0ULL,
           NULL);
-    }
   }
 
   caps = GST_BASE_SRC_CLASS (parent_class)->fixate (bsrc, caps);
@@ -1000,7 +1000,7 @@ static const ProcessFunc tick_funcs[] = {
 
 /* Gaussian white noise using Box-Muller algorithm.  unit variance
  * normally-distributed random numbers are generated in pairs as the real
- * and imaginary parts of a complex random variable with
+ * and imaginary parts of a compex random variable with
  * uniformly-distributed argument and \chi^{2}-distributed modulus.
  */
 
@@ -1497,10 +1497,10 @@ gst_audio_test_src_fill (GstBaseSrc * basesrc, guint64 offset,
     next_sample = src->sample_stop;
     src->eos_reached = TRUE;
   } else if (src->check_seek_stop && src->reverse &&
-      (src->sample_stop >= (src->next_sample - samples))
+      (src->sample_stop > src->next_sample)
       ) {
     /* calculate only partial buffer */
-    src->generate_samples_per_buffer = src->next_sample - src->sample_stop;
+    src->generate_samples_per_buffer = src->sample_stop - src->next_sample;
     next_sample = src->sample_stop;
     src->eos_reached = TRUE;
   } else {
@@ -1685,7 +1685,11 @@ gst_audio_test_src_get_property (GObject * object, guint prop_id,
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (audiotestsrc, plugin);
+  GST_DEBUG_CATEGORY_INIT (audio_test_src_debug, "audiotestsrc", 0,
+      "Audio Test Source");
+
+  return gst_element_register (plugin, "audiotestsrc",
+      GST_RANK_NONE, GST_TYPE_AUDIO_TEST_SRC);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

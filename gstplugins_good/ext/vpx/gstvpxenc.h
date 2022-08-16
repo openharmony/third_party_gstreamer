@@ -61,21 +61,17 @@ struct _GstVPXEnc
 {
   GstVideoEncoder base_video_encoder;
 
-  /* < protected > */
+  /* < private > */
   vpx_codec_ctx_t encoder;
   GMutex encoder_lock;
 
   /* properties */
   vpx_codec_enc_cfg_t cfg;
   gboolean have_default_config;
-  gboolean rc_target_bitrate_auto;
+  gboolean rc_target_bitrate_set;
   gint n_ts_target_bitrate;
   gint n_ts_rate_decimator;
   gint n_ts_layer_id;
-  gint n_ts_layer_flags;
-  gint *ts_layer_flags;
-  gint n_ts_layer_sync_flags;
-  gboolean *ts_layer_sync_flags;
   /* Global two-pass options */
   gchar *multipass_cache_file;
   gchar *multipass_cache_prefix;
@@ -104,13 +100,8 @@ struct _GstVPXEnc
   unsigned int timebase_n;
   unsigned int timebase_d;
 
-  /* Bits per Pixel */
-  gfloat bits_per_pixel;
-
   /* state */
   gboolean inited;
-  guint8 tl0picidx;
-  gboolean prev_was_keyframe;
 
   vpx_image_t image;
 
@@ -126,8 +117,6 @@ struct _GstVPXEncClass
   vpx_codec_iface_t* (*get_algo) (GstVPXEnc *enc);
   /*enabled scaling*/
   gboolean (*enable_scaling) (GstVPXEnc *enc);
-  /*called from set_format with lock taken*/
-  gboolean (*configure_encoder) (GstVPXEnc *enc, GstVideoCodecState *state);
   /*set image format info*/
   void (*set_image_format) (GstVPXEnc *enc, vpx_image_t *image);
   /*get new simple caps*/
@@ -137,28 +126,12 @@ struct _GstVPXEncClass
   /*process user data*/
   void* (*process_frame_user_data) (GstVPXEnc *enc, GstVideoCodecFrame* frame);
   /*set frame user data*/
-  void (*set_frame_user_data) (GstVPXEnc *enc, GstVideoCodecFrame* frame,
-      vpx_image_t *image);
+  void (*set_frame_user_data) (GstVPXEnc *enc, GstVideoCodecFrame* frame, vpx_image_t *image);
   /*Handle invisible frame*/
-  GstFlowReturn (*handle_invisible_frame_buffer) (GstVPXEnc *enc,
-      void* user_data, GstBuffer* buffer);
-  /*apply temporal settings -- called with encoder lock*/
-  void (*apply_frame_temporal_settings) (GstVPXEnc *enc,
-      GstVideoCodecFrame* frame, guint layer_id, guint8 tl0picidx,
-      gboolean layer_sync);
-  /*get temporal settings*/
-  void (*get_frame_temporal_settings) (GstVPXEnc *enc,
-      GstVideoCodecFrame *frame, guint * layer_id, guint8 *tl0picidx,
-      gboolean *layer_sync);
-  /* preflight buffer */
-  void (*preflight_buffer) (GstVPXEnc *enc,
-      GstVideoCodecFrame *frame, GstBuffer *buffer,
-      gboolean layer_sync, guint layer_id, guint8 tl0picidx);
+  GstFlowReturn (*handle_invisible_frame_buffer) (GstVPXEnc *enc, void* user_data, GstBuffer* buffer);
 };
 
 GType gst_vpx_enc_get_type (void);
-
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (GstVPXEnc, gst_object_unref)
 
 G_END_DECLS
 

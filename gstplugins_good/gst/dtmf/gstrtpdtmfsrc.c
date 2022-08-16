@@ -25,7 +25,6 @@
 
 /**
  * SECTION:element-rtpdtmfsrc
- * @title: rtpdtmfsrc
  * @see_also: dtmfsrc, rtpdtmfdepay, rtpdtmfmux
  *
  * The RTPDTMFSrc element generates RTP DTMF (RFC 2833) event packets on request
@@ -35,28 +34,70 @@
  * structure of name "dtmf-event" with fields set according to the following
  * table:
  *
- * * `type` (G_TYPE_INT, 0-1): The application uses this field to specify which of the two methods
- *   specified in RFC 2833 to use. The value should be 0 for tones and 1 for
- *   named events. Tones are specified by their frequencies and events are specified
- *   by their number. This element can only take events as input. Do not confuse
- *   with "method" which specified the output.
- *
- * * `number` (G_TYPE_INT, 0-15): The event number.
- *
- * * `volume` (G_TYPE_INT, 0-36): This field describes the power level of the tone, expressed in dBm0
- *   after dropping the sign. Power levels range from 0 to -63 dBm0. The range of
- *   valid DTMF is from 0 to -36 dBm0. Can be omitted if start is set to FALSE.
- *
- * * `start` (G_TYPE_BOOLEAN, True or False): Whether the event is starting or ending.
- *
- * * `method` (G_TYPE_INT, 1): The method used for sending event, this element will react if this
- *   field is absent or 1.
+ * <informaltable>
+ * <tgroup cols='4'>
+ * <colspec colname='Name' />
+ * <colspec colname='Type' />
+ * <colspec colname='Possible values' />
+ * <colspec colname='Purpose' />
+ * <thead>
+ * <row>
+ * <entry>Name</entry>
+ * <entry>GType</entry>
+ * <entry>Possible values</entry>
+ * <entry>Purpose</entry>
+ * </row>
+ * </thead>
+ * <tbody>
+ * <row>
+ * <entry>type</entry>
+ * <entry>G_TYPE_INT</entry>
+ * <entry>0-1</entry>
+ * <entry>The application uses this field to specify which of the two methods
+ * specified in RFC 2833 to use. The value should be 0 for tones and 1 for
+ * named events. Tones are specified by their frequencies and events are specied
+ * by their number. This element can only take events as input. Do not confuse
+ * with "method" which specified the output.
+ * </entry>
+ * </row>
+ * <row>
+ * <entry>number</entry>
+ * <entry>G_TYPE_INT</entry>
+ * <entry>0-15</entry>
+ * <entry>The event number.</entry>
+ * </row>
+ * <row>
+ * <entry>volume</entry>
+ * <entry>G_TYPE_INT</entry>
+ * <entry>0-36</entry>
+ * <entry>This field describes the power level of the tone, expressed in dBm0
+ * after dropping the sign. Power levels range from 0 to -63 dBm0. The range of
+ * valid DTMF is from 0 to -36 dBm0. Can be omitted if start is set to FALSE.
+ * </entry>
+ * </row>
+ * <row>
+ * <entry>start</entry>
+ * <entry>G_TYPE_BOOLEAN</entry>
+ * <entry>True or False</entry>
+ * <entry>Whether the event is starting or ending.</entry>
+ * </row>
+ * <row>
+ * <entry>method</entry>
+ * <entry>G_TYPE_INT</entry>
+ * <entry>1</entry>
+ * <entry>The method used for sending event, this element will react if this
+ * field is absent or 1.
+ * </entry>
+ * </row>
+ * </tbody>
+ * </tgroup>
+ * </informaltable>
  *
  * For example, the following code informs the pipeline (and in turn, the
  * RTPDTMFSrc element inside the pipeline) about the start of an RTP DTMF named
  * event '1' of volume -25 dBm0:
  *
- * |[
+ * <programlisting>
  * structure = gst_structure_new ("dtmf-event",
  *                    "type", G_TYPE_INT, 1,
  *                    "number", G_TYPE_INT, 1,
@@ -65,7 +106,7 @@
  *
  * event = gst_event_new_custom (GST_EVENT_CUSTOM_UPSTREAM, structure);
  * gst_element_send_event (pipeline, event);
- * ]|
+ * </programlisting>
  *
  * When a DTMF tone actually starts or stop, a "dtmf-event-processed"
  * element #GstMessage with the same fields as the "dtmf-event"
@@ -85,7 +126,6 @@
 #include <glib.h>
 
 #include "gstrtpdtmfsrc.h"
-#include <gst/base/gstbitwriter.h>
 
 #define GST_RTP_DTMF_TYPE_EVENT  1
 #define DEFAULT_PTIME            40     /* ms */
@@ -136,8 +176,6 @@ GST_STATIC_PAD_TEMPLATE ("src",
 
 
 G_DEFINE_TYPE (GstRTPDTMFSrc, gst_rtp_dtmf_src, GST_TYPE_BASE_SRC);
-GST_ELEMENT_REGISTER_DEFINE (rtpdtmfsrc, "rtpdtmfsrc", GST_RANK_NONE,
-    GST_TYPE_RTP_DTMF_SRC);
 
 static void gst_rtp_dtmf_src_finalize (GObject * object);
 
@@ -538,6 +576,8 @@ gst_rtp_dtmf_prepare_rtp_headers (GstRTPDTMFSrc * dtmfsrc,
   /* Only the very first packet gets a marker */
   if (dtmfsrc->first_packet) {
     gst_rtp_buffer_set_marker (rtpbuf, TRUE);
+  } else if (dtmfsrc->last_packet) {
+    dtmfsrc->payload->e = 1;
   }
 
   dtmfsrc->seqnum++;
@@ -551,12 +591,10 @@ static GstBuffer *
 gst_rtp_dtmf_src_create_next_rtp_packet (GstRTPDTMFSrc * dtmfsrc)
 {
   GstBuffer *buf;
+  GstRTPDTMFPayload *payload;
   GstRTPBuffer rtpbuffer = GST_RTP_BUFFER_INIT;
-  GstBitWriter bitwriter;
-  guint8 *payload;
-  guint8 end = dtmfsrc->last_packet ? 0x02 : 0;
 
-  buf = gst_rtp_buffer_new_allocate (4, 0, 0);
+  buf = gst_rtp_buffer_new_allocate (sizeof (GstRTPDTMFPayload), 0, 0);
 
   gst_rtp_buffer_map (buf, GST_MAP_READWRITE, &rtpbuffer);
 
@@ -570,14 +608,12 @@ gst_rtp_dtmf_src_create_next_rtp_packet (GstRTPDTMFSrc * dtmfsrc)
     GST_BUFFER_DURATION (buf) = dtmfsrc->ptime * GST_MSECOND;
   GST_BUFFER_PTS (buf) = dtmfsrc->timestamp;
 
-  payload = gst_rtp_buffer_get_payload (&rtpbuffer);
+  payload = (GstRTPDTMFPayload *) gst_rtp_buffer_get_payload (&rtpbuffer);
 
-  memset (payload, 0, 4);
-  gst_bit_writer_init_with_data (&bitwriter, payload, 4, FALSE);
-  gst_bit_writer_put_bits_uint8 (&bitwriter, dtmfsrc->payload->event, 8);
-  gst_bit_writer_put_bits_uint8 (&bitwriter, end, 2);
-  gst_bit_writer_put_bits_uint8 (&bitwriter, dtmfsrc->payload->volume, 6);
-  gst_bit_writer_put_bits_uint16 (&bitwriter, dtmfsrc->payload->duration, 16);
+  /* copy payload and convert to network-byte order */
+  memmove (payload, dtmfsrc->payload, sizeof (GstRTPDTMFPayload));
+
+  payload->duration = g_htons (payload->duration);
 
   if (dtmfsrc->redundancy_count <= 1 && dtmfsrc->last_packet) {
     GstClockTime inter_digit_interval = MIN_INTER_DIGIT_INTERVAL;
@@ -1141,4 +1177,11 @@ gst_rtp_dtmf_src_unlock_stop (GstBaseSrc * src)
   GST_OBJECT_UNLOCK (dtmfsrc);
 
   return TRUE;
+}
+
+gboolean
+gst_rtp_dtmf_src_plugin_init (GstPlugin * plugin)
+{
+  return gst_element_register (plugin, "rtpdtmfsrc",
+      GST_RANK_NONE, GST_TYPE_RTP_DTMF_SRC);
 }

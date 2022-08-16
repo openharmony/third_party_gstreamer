@@ -51,6 +51,8 @@ struct _GstRtpMPVDepayClass
 
 GType gst_rtp_mpv_depay_get_type (void);
 
+gboolean gst_rtp_mpv_depay_plugin_init (GstPlugin * plugin);
+
 G_END_DECLS
 
 #endif /* __GST_RTP_MPV_DEPAY_H__ */

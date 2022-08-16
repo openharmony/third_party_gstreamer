@@ -22,7 +22,7 @@
 #  include "config.h"
 #endif
 
-#include <gst/gl/gl.h>
+#include <gst/gl/gstglutils.c>
 #undef GST_CAT_DEFAULT
 #include <gst/check/gstcheck.h>
 
@@ -304,7 +304,7 @@ GST_START_TEST (test_matrix_vertex_y_invert)
         expected[i]);
   }
 
-  /* now test the [0, 1]^3 matrix and update the test values accordingly */
+  /* now test the [0, 1]^3 matrix and update the test values acoordingly */
   gst_gl_set_affine_transformation_meta_from_ndc (aff_meta, y_invert);
   expected[1] = 0.;
 

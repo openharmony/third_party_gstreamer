@@ -30,18 +30,18 @@
 
 /**
  * SECTION:element-gamma
- * @title: gamma
  *
  * Performs gamma correction on a video stream.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 videotestsrc ! gamma gamma=2.0 ! videoconvert ! ximagesink
  * ]| This pipeline will make the image "brighter".
  * |[
  * gst-launch-1.0 videotestsrc ! gamma gamma=0.5 ! videoconvert ! ximagesink
  * ]| This pipeline will make the image "darker".
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -102,7 +102,6 @@ static void gst_gamma_before_transform (GstBaseTransform * transform,
 static void gst_gamma_calculate_tables (GstGamma * gamma);
 
 G_DEFINE_TYPE (GstGamma, gst_gamma, GST_TYPE_VIDEO_FILTER);
-GST_ELEMENT_REGISTER_DEFINE (gamma, "gamma", GST_RANK_NONE, GST_TYPE_GAMMA);
 
 static void
 gst_gamma_class_init (GstGammaClass * g_class)

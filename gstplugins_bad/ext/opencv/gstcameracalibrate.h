@@ -107,7 +107,7 @@ struct _GstCameraCalibrateClass
 
 GType gst_camera_calibrate_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (cameracalibrate);
+gboolean gst_camera_calibrate_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 #endif /* __GST_CAMERA_CALIBRATE_H__ */

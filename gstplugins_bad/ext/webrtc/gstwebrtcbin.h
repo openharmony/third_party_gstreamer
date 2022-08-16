@@ -24,7 +24,6 @@
 #include "fwd.h"
 #include "gstwebrtcice.h"
 #include "transportstream.h"
-#include "webrtcsctptransport.h"
 
 G_BEGIN_DECLS
 
@@ -43,10 +42,10 @@ struct _GstWebRTCBinPad
 {
   GstGhostPad           parent;
 
+  guint                 mlineindex;
+
   GstWebRTCRTPTransceiver *trans;
   gulong                block_id;
-
-  guint32               last_ssrc;
 
   GstCaps              *received_caps;
 };
@@ -97,26 +96,20 @@ struct _GstWebRTCBinPrivate
   guint max_sink_pad_serial;
 
   gboolean bundle;
-  GPtrArray *transceivers;
-  GPtrArray *transports;
-  GPtrArray *data_channels;
+  GArray *transceivers;
+  GArray *session_mid_map;
+  GArray *transports;
+  GArray *data_channels;
   /* list of data channels we've received a sctp stream for but no data
    * channel protocol for */
-  GPtrArray *pending_data_channels;
-  /* dc_lock protects data_channels and pending_data_channels */
-  /* lock ordering is pc_lock first, then dc_lock */
-  GMutex dc_lock;
+  GArray *pending_data_channels;
 
-  guint jb_latency;
-
-  WebRTCSCTPTransport *sctp_transport;
+  GstWebRTCSCTPTransport *sctp_transport;
   TransportStream *data_channel_transport;
 
   GstWebRTCICE *ice;
   GArray *ice_stream_map;
-  GMutex ice_lock;
-  GArray *pending_remote_ice_candidates;
-  GArray *pending_local_ice_candidates;
+  GArray *pending_ice_candidates;
 
   /* peerconnection variables */
   gboolean is_closed;
@@ -138,15 +131,11 @@ struct _GstWebRTCBinPrivate
   /* count of the number of media streams we've offered for uniqueness */
   /* FIXME: overflow? */
   guint media_counter;
-  /* the number of times create_offer has been called for the version field */
-  guint offer_count;
-  GstWebRTCSessionDescription *last_generated_offer;
-  GstWebRTCSessionDescription *last_generated_answer;
 
-  gboolean tos_attached;
+  GstStructure *stats;
 };
 
-typedef GstStructure *(*GstWebRTCBinFunc) (GstWebRTCBin * webrtc, gpointer data);
+typedef void (*GstWebRTCBinFunc) (GstWebRTCBin * webrtc, gpointer data);
 
 typedef struct
 {
@@ -154,14 +143,13 @@ typedef struct
   GstWebRTCBinFunc op;
   gpointer data;
   GDestroyNotify notify;
-  GstPromise *promise;
+//  GstPromise *promise;      /* FIXME */
 } GstWebRTCBinTask;
 
-gboolean        gst_webrtc_bin_enqueue_task             (GstWebRTCBin * pc,
+void            gst_webrtc_bin_enqueue_task             (GstWebRTCBin * pc,
                                                          GstWebRTCBinFunc func,
                                                          gpointer data,
-                                                         GDestroyNotify notify,
-                                                         GstPromise *promise);
+                                                         GDestroyNotify notify);
 
 G_END_DECLS
 

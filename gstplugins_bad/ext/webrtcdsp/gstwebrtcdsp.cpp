@@ -40,13 +40,13 @@
  * a single probe and DSP.
  *
  * The probe can only be used within the same top level GstPipeline.
- * Additionally, to simplify the code, the probe element must be created
+ * Additonally, to simplify the code, the probe element must be created
  * before the DSP sink pad is activated. It does not need to be in any
  * particular state and does not even need to be added to the pipeline yet.
  *
  * # Example launch line
  *
- * As a convenience, the echo canceller can be tested using an echo loop. In
+ * As a conveniance, the echo canceller can be tested using an echo loop. In
  * this configuration, one would expect a single echo to be heard.
  *
  * |[
@@ -274,16 +274,12 @@ struct _GstWebrtcDsp
   webrtc::VoiceDetection::Likelihood voice_detection_likelihood;
 };
 
-G_DEFINE_TYPE_WITH_CODE (GstWebrtcDsp, gst_webrtc_dsp, GST_TYPE_AUDIO_FILTER,
-    GST_DEBUG_CATEGORY_INIT (webrtc_dsp_debug, "webrtcdsp", 0,
-        "libwebrtcdsp wrapping elements"););
-GST_ELEMENT_REGISTER_DEFINE (webrtcdsp, "webrtcdsp", GST_RANK_NONE,
-    GST_TYPE_WEBRTC_DSP);
+G_DEFINE_TYPE (GstWebrtcDsp, gst_webrtc_dsp, GST_TYPE_AUDIO_FILTER);
 
 static const gchar *
 webrtc_error_to_string (gint err)
 {
-  const gchar *str = "unknown error";
+  const gchar *str = "unkown error";
 
   switch (err) {
     case webrtc::AudioProcessing::kNoError:
@@ -442,24 +438,12 @@ done:
 }
 
 static void
-gst_webrtc_vad_post_activity (GstWebrtcDsp *self, GstBuffer *buffer,
+gst_webrtc_vad_post_message (GstWebrtcDsp *self, GstClockTime timestamp,
     gboolean stream_has_voice)
 {
-  GstClockTime timestamp = GST_BUFFER_PTS (buffer);
   GstBaseTransform *trans = GST_BASE_TRANSFORM_CAST (self);
   GstStructure *s;
   GstClockTime stream_time;
-  GstAudioLevelMeta *meta;
-  guint8 level;
-
-  level = self->apm->level_estimator ()->RMS ();
-  meta = gst_buffer_get_audio_level_meta (buffer);
-  if (meta) {
-    meta->voice_activity = stream_has_voice;
-    meta->level = level;
-  } else {
-    gst_buffer_add_audio_level_meta (buffer, level, stream_has_voice);
-  }
 
   stream_time = gst_segment_to_stream_time (&trans->segment, GST_FORMAT_TIME,
       timestamp);
@@ -514,7 +498,7 @@ gst_webrtc_dsp_process_stream (GstWebrtcDsp * self,
       gboolean stream_has_voice = apm->voice_detection ()->stream_has_voice ();
 
       if (stream_has_voice != self->stream_has_voice)
-        gst_webrtc_vad_post_activity (self, buffer, stream_has_voice);
+        gst_webrtc_vad_post_message (self, GST_BUFFER_PTS (buffer), stream_has_voice);
 
       self->stream_has_voice = stream_has_voice;
     }
@@ -728,7 +712,6 @@ gst_webrtc_dsp_setup (GstAudioFilter * filter, const GstAudioInfo * info)
     apm->voice_detection ()->set_likelihood (self->voice_detection_likelihood);
     apm->voice_detection ()->set_frame_size_ms (
         self->voice_detection_frame_size_ms);
-    apm->level_estimator ()->Enable (true);
   }
 
   GST_OBJECT_UNLOCK (self);
@@ -1130,8 +1113,28 @@ gst_webrtc_dsp_class_init (GstWebrtcDspClass * klass)
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               G_PARAM_CONSTRUCT)));
 
-  gst_type_mark_as_plugin_api (GST_TYPE_WEBRTC_GAIN_CONTROL_MODE, (GstPluginAPIFlags) 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_WEBRTC_NOISE_SUPPRESSION_LEVEL, (GstPluginAPIFlags) 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_WEBRTC_ECHO_SUPPRESSION_LEVEL, (GstPluginAPIFlags) 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_WEBRTC_VOICE_DETECTION_LIKELIHOOD, (GstPluginAPIFlags) 0);
 }
+
+static gboolean
+plugin_init (GstPlugin * plugin)
+{
+  GST_DEBUG_CATEGORY_INIT
+      (webrtc_dsp_debug, "webrtcdsp", 0, "libwebrtcdsp wrapping elements");
+
+  if (!gst_element_register (plugin, "webrtcdsp", GST_RANK_NONE,
+          GST_TYPE_WEBRTC_DSP)) {
+    return FALSE;
+  }
+  if (!gst_element_register (plugin, "webrtcechoprobe", GST_RANK_NONE,
+          GST_TYPE_WEBRTC_ECHO_PROBE)) {
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
+    GST_VERSION_MINOR,
+    webrtcdsp,
+    "Voice pre-processing using WebRTC Audio Processing Library",
+    plugin_init, VERSION, "LGPL", GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)

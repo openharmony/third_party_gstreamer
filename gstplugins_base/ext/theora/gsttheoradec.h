@@ -70,7 +70,7 @@ struct _GstTheoraDec
   GstVideoCodecState *input_state;
   GstVideoCodecState *output_state;
 
-  /* telemetry debugging options */
+  /* telemetry debuging options */
   gint telemetry_mv;
   gint telemetry_mbmode;
   gint telemetry_qi;
@@ -86,8 +86,6 @@ struct _GstTheoraDecClass
 };
 
 GType gst_theora_dec_get_type (void);
-
-GST_ELEMENT_REGISTER_DECLARE (theoradec);
 
 G_END_DECLS
 

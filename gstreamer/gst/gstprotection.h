@@ -70,9 +70,6 @@ struct _GstProtectionMeta
   GstStructure *info;
 };
 
-/**
- * gst_protection_meta_api_get_type: (attributes doc.skip=true)
- */
 GST_API
 GType gst_protection_meta_api_get_type (void);
 

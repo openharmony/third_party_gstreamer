@@ -8,6 +8,6 @@ foreach example : examples
     src_file,
     include_directories: [configinc],
     dependencies: [glib_dep, gst_dep, gstbase_dep],
-    c_args : gst_plugins_bad_args,
+    c_args: ['-DHAVE_CONFIG_H=1'],
     install: false)
 endforeach

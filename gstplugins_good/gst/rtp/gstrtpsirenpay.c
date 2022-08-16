@@ -23,7 +23,6 @@
 #include "config.h"
 #endif
 
-#include "gstrtpelements.h"
 #include "gstrtpsirenpay.h"
 #include <gst/rtp/gstrtpbuffer.h>
 
@@ -54,8 +53,6 @@ static gboolean gst_rtp_siren_pay_setcaps (GstRTPBasePayload * payload,
 
 G_DEFINE_TYPE (GstRTPSirenPay, gst_rtp_siren_pay,
     GST_TYPE_RTP_BASE_AUDIO_PAYLOAD);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpsirenpay, "rtpsirenpay",
-    GST_RANK_SECONDARY, GST_TYPE_RTP_SIREN_PAY, rtp_element_init (plugin));
 
 static void
 gst_rtp_siren_pay_class_init (GstRTPSirenPayClass * klass)
@@ -140,4 +137,11 @@ wrong_caps:
         payload_name);
     return FALSE;
   }
+}
+
+gboolean
+gst_rtp_siren_pay_plugin_init (GstPlugin * plugin)
+{
+  return gst_element_register (plugin, "rtpsirenpay",
+      GST_RANK_SECONDARY, GST_TYPE_RTP_SIREN_PAY);
 }

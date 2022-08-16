@@ -65,10 +65,6 @@ struct _GstGtkBaseSink
   gint                  par_d;
   GBinding             *bind_pixel_aspect_ratio;
 
-  gint                  video_par_n;
-  gint                  video_par_d;
-  GBinding             *bind_video_aspect_ratio;
-
   gboolean              ignore_alpha;
   GBinding             *bind_ignore_alpha;
 
@@ -92,11 +88,6 @@ struct _GstGtkBaseSinkClass
   /* virtuals */
   GtkWidget* (*create_widget) (void);
 };
-
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (GstGtkBaseSink, gst_object_unref)
-
-GtkWidget *
-gst_gtk_base_sink_acquire_widget (GstGtkBaseSink * gtk_sink);
 
 G_END_DECLS
 

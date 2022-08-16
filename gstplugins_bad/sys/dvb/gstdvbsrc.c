@@ -93,7 +93,6 @@
 #include "config.h"
 #endif
 
-#include "gstdvbelements.h"
 #include "gstdvbsrc.h"
 #include <gst/gst.h>
 #include <gst/glib-compat-private.h>
@@ -602,11 +601,6 @@ static GstStaticPadTemplate ts_src_factory = GST_STATIC_PAD_TEMPLATE ("src",
 
 #define gst_dvbsrc_parent_class parent_class
 G_DEFINE_TYPE (GstDvbSrc, gst_dvbsrc, GST_TYPE_PUSH_SRC);
-#define _do_init \
-  GST_DEBUG_CATEGORY_INIT (gstdvbsrc_debug, "dvbsrc", 0, "DVB Source Element");\
-  dvb_element_init (plugin);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (dvbsrc, "dvbsrc", GST_RANK_NONE,
-    GST_TYPE_DVBSRC, _do_init);
 
 static guint gst_dvbsrc_signals[LAST_SIGNAL] = { 0 };
 
@@ -665,7 +659,7 @@ gst_dvbsrc_class_init (GstDvbSrcClass * klass)
   g_object_class_install_property (gobject_class, ARG_DVBSRC_FREQUENCY,
       g_param_spec_uint ("frequency", "Center frequency",
           "Center frequency to tune into. Measured in kHz for the satellite "
-          "distribution standards and Hz for all the rest",
+          "distribution standars and Hz for all the rest",
           0, G_MAXUINT, DEFAULT_FREQUENCY,
           GST_PARAM_MUTABLE_PLAYING | G_PARAM_READWRITE));
 
@@ -979,7 +973,7 @@ gst_dvbsrc_class_init (GstDvbSrcClass * klass)
    * GstDvbSrc::tuning-start:
    * @gstdvbsrc: the element on which the signal is emitted
    *
-   * Signal emitted when the element first attempts to tune the
+   * Signal emited when the element first attempts to tune the
    * frontend tunner to a given frequency.
    */
   gst_dvbsrc_signals[SIGNAL_TUNING_START] =
@@ -989,7 +983,7 @@ gst_dvbsrc_class_init (GstDvbSrcClass * klass)
    * GstDvbSrc::tuning-done:
    * @gstdvbsrc: the element on which the signal is emitted
    *
-   * Signal emitted when the tunner has successfully got a lock on a signal.
+   * Signal emited when the tunner has successfully got a lock on a signal.
    */
   gst_dvbsrc_signals[SIGNAL_TUNING_DONE] =
       g_signal_new ("tuning-done", G_TYPE_FROM_CLASS (klass),
@@ -998,7 +992,7 @@ gst_dvbsrc_class_init (GstDvbSrcClass * klass)
    * GstDvbSrc::tuning-fail:
    * @gstdvbsrc: the element on which the signal is emitted
    *
-   * Signal emitted when the tunner failed to get a lock on the
+   * Signal emited when the tunner failed to get a lock on the
    * signal.
    */
   gst_dvbsrc_signals[SIGNAL_TUNING_FAIL] =
@@ -1009,26 +1003,15 @@ gst_dvbsrc_class_init (GstDvbSrcClass * klass)
    * GstDvbSrc::tune:
    * @gstdvbsrc: the element on which the signal is emitted
    *
-   * Signal emitted from the application to the element, instructing it
+   * Signal emited from the application to the element, instructing it
    * to tune.
    */
   gst_dvbsrc_signals[SIGNAL_TUNE] =
       g_signal_new ("tune", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
-      G_STRUCT_OFFSET (GstDvbSrcClass, do_tune), NULL, NULL, NULL,
-      G_TYPE_NONE, 0);
+      G_STRUCT_OFFSET (GstDvbSrcClass, do_tune),
+      NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE, 0);
 
-  gst_type_mark_as_plugin_api (GST_TYPE_DVBSRC_BANDWIDTH, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_DVBSRC_CODE_RATE, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_DVBSRC_DELSYS, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_DVBSRC_GUARD, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_DVBSRC_HIERARCHY, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_INTERLEAVING, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_DVBSRC_INVERSION, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_DVBSRC_MODULATION, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_DVBSRC_PILOT, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_DVBSRC_ROLLOFF, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_DVBSRC_TRANSMISSION_MODE, 0);
 }
 
 /* initialize the new element
@@ -1865,6 +1848,14 @@ gst_dvbsrc_finalize (GObject * _object)
  * register the element factories and pad templates
  * register the features
  */
+gboolean
+gst_dvbsrc_plugin_init (GstPlugin * plugin)
+{
+  GST_DEBUG_CATEGORY_INIT (gstdvbsrc_debug, "dvbsrc", 0, "DVB Source Element");
+
+  return gst_element_register (plugin, "dvbsrc", GST_RANK_NONE,
+      GST_TYPE_DVBSRC);
+}
 
 static GstFlowReturn
 gst_dvbsrc_read_device (GstDvbSrc * object, int size, GstBuffer ** buffer)
@@ -2341,7 +2332,7 @@ gst_dvbsrc_tune_fe (GstDvbSrc * object)
     return FALSE;
   }
 
-  /* If set, confirm the chosen delivery system is actually
+  /* If set, confirm the choosen delivery system is actually
    * supported by the hardware */
   if (object->delsys != SYS_UNDEFINED) {
     GST_DEBUG_OBJECT (object, "Confirming delivery system '%u' is supported",

@@ -29,12 +29,10 @@
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  gst_multipart_demux_plugin_init (plugin);
+  gst_multipart_mux_plugin_init (plugin);
 
-  ret |= GST_ELEMENT_REGISTER (multipartdemux, plugin);
-  ret |= GST_ELEMENT_REGISTER (multipartmux, plugin);
-
-  return ret;
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

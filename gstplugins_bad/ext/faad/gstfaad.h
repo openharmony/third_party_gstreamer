@@ -66,8 +66,6 @@ typedef struct _GstFaadClass {
 
 GType gst_faad_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (faad);
-
 G_END_DECLS
 
 #endif /* __GST_FAAD_H__ */

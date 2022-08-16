@@ -58,7 +58,6 @@ struct _GstSrtEnc
 };
 
 GType gst_srt_enc_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (srtenc);
 
 G_END_DECLS
 #endif

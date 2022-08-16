@@ -54,7 +54,6 @@ struct _GstRtpOnvifParseClass {
 };
 
 GType gst_rtp_onvif_parse_get_type(void);
-GST_ELEMENT_REGISTER_DECLARE (rtponvifparse);
 
 #ifdef __cplusplus
 }

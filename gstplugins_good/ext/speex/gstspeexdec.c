@@ -20,26 +20,26 @@
 
 /**
  * SECTION:element-speexdec
- * @title: speexdec
  * @see_also: speexenc, oggdemux
  *
  * This element decodes a Speex stream to raw integer audio.
- * [Speex](http://www.speex.org/) is a royalty-free
- * audio codec maintained by the [Xiph.org Foundation](http://www.xiph.org/).
+ * <ulink url="http://www.speex.org/">Speex</ulink> is a royalty-free
+ * audio codec maintained by the <ulink url="http://www.xiph.org/">Xiph.org
+ * Foundation</ulink>.
  *
- * ## Example pipelines
+ * <refsect2>
+ * <title>Example pipelines</title>
  * |[
  * gst-launch-1.0 -v filesrc location=speex.ogg ! oggdemux ! speexdec ! audioconvert ! audioresample ! alsasink
  * ]| Decode an Ogg/Speex file. To create an Ogg/Speex file refer to the
  * documentation of speexenc.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
 #  include "config.h"
 #endif
 
-#include "gstspeexelements.h"
 #include "gstspeexdec.h"
 #include <stdlib.h>
 #include <string.h>
@@ -78,8 +78,6 @@ GST_STATIC_PAD_TEMPLATE ("sink",
 
 #define gst_speex_dec_parent_class parent_class
 G_DEFINE_TYPE (GstSpeexDec, gst_speex_dec, GST_TYPE_AUDIO_DECODER);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (speexdec, "speexdec",
-    GST_RANK_PRIMARY, GST_TYPE_SPEEX_DEC, speex_element_init (plugin));
 
 static gboolean gst_speex_dec_start (GstAudioDecoder * dec);
 static gboolean gst_speex_dec_stop (GstAudioDecoder * dec);
@@ -135,7 +133,7 @@ gst_speex_dec_reset (GstSpeexDec * dec)
   dec->frame_size = 0;
   dec->frame_duration = 0;
   dec->mode = NULL;
-  speex_header_free (dec->header);
+  free (dec->header);
   dec->header = NULL;
   speex_bits_destroy (&dec->bits);
   speex_bits_set_bit_buffer (&dec->bits, NULL, 0);

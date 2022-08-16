@@ -9,5 +9,4 @@ if aom_dep.found()
     install_dir : plugins_install_dir,
   )
   pkgconfig.generate(gstaom, install_dir : plugins_pkgconfig_install_dir)
-  plugins += [gstaom]
 endif

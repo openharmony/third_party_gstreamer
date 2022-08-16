@@ -39,12 +39,12 @@
  *
  * ## Using an element factory
  * |[<!-- language="C" -->
- *   #include <gst/gst.h>
+ *   #include &lt;gst/gst.h&gt;
  *
  *   GstElement *src;
  *   GstElementFactory *srcfactory;
  *
- *   gst_init (&argc, &argv);
+ *   gst_init (&amp;argc, &amp;argv);
  *
  *   srcfactory = gst_element_factory_find ("filesrc");
  *   g_return_if_fail (srcfactory != NULL);
@@ -65,8 +65,6 @@
 
 #include "glib-compat-private.h"
 
-#include <gobject/gvaluecollector.h>
-
 GST_DEBUG_CATEGORY_STATIC (element_factory_debug);
 #define GST_CAT_DEFAULT element_factory_debug
 
@@ -77,7 +75,6 @@ static void gst_element_factory_cleanup (GstElementFactory * factory);
 
 /* this is defined in gstelement.c */
 extern GQuark __gst_elementclass_factory;
-extern GQuark __gst_elementclass_skip_doc;
 
 #define _do_init \
 { \
@@ -222,7 +219,7 @@ gst_element_register (GstPlugin * plugin, const gchar * name, guint rank,
    * features are removed and readded.
    */
   existing_feature = gst_registry_lookup_feature (registry, name);
-  if (existing_feature && existing_feature->plugin == plugin) {
+  if (existing_feature) {
     GST_DEBUG_OBJECT (registry, "update existing feature %p (%s)",
         existing_feature, name);
     factory = GST_ELEMENT_FACTORY_CAST (existing_feature);
@@ -231,8 +228,6 @@ gst_element_register (GstPlugin * plugin, const gchar * name, guint rank,
     g_type_set_qdata (type, __gst_elementclass_factory, factory);
     gst_object_unref (existing_feature);
     return TRUE;
-  } else if (existing_feature) {
-    gst_object_unref (existing_feature);
   }
 
   factory = g_object_new (GST_TYPE_ELEMENT_FACTORY, NULL);
@@ -329,147 +324,20 @@ detailserror:
 }
 
 /**
- * gst_element_type_set_skip_documentation:
- * @type: a #GType of element
- *
- * Marks @type as "documentation should be skipped".
- * Can be useful for dynamically registered element to be excluded from
- * plugin documentation system.
- *
- * Example:
- * ```c
- * GType my_type;
- * GTypeInfo my_type_info;
- *
- * // Fill "my_type_info"
- * ...
- *
- * my_type = g_type_register_static (GST_TYPE_MY_ELEMENT, "my-type-name",
- *    &my_type_info, 0);
- * gst_element_type_set_skip_documentation (my_type);
- * gst_element_register (plugin, "my-plugin-feature-name", rank, my_type);
- * ```
- *
- * Since: 1.20
- */
-void
-gst_element_type_set_skip_documentation (GType type)
-{
-  g_return_if_fail (g_type_is_a (type, GST_TYPE_ELEMENT));
-
-  g_type_set_qdata (type, __gst_elementclass_skip_doc, GINT_TO_POINTER (1));
-}
-
-/**
- * gst_element_factory_get_skip_documentation:
- * @factory: a #GstElementFactory to query documentation skip
- *
- * Queries whether registered element managed by @factory needs to
- * be excluded from documentation system or not.
- *
- * Returns: %TRUE if documentation should be skipped
- *
- * Since: 1.20
- */
-gboolean
-gst_element_factory_get_skip_documentation (GstElementFactory * factory)
-{
-  g_return_val_if_fail (GST_IS_ELEMENT_FACTORY (factory), TRUE);
-
-  if (g_type_get_qdata (factory->type, __gst_elementclass_skip_doc))
-    return TRUE;
-
-  return FALSE;
-}
-
-static gboolean
-gst_element_factory_property_valist_to_array (const gchar * first,
-    va_list properties, GType object_type, guint * n, const gchar ** names[],
-    GValue ** values)
-{
-  GObjectClass *class;
-  const gchar *name;
-  guint n_params = 0;
-  guint n_params_alloc = 16;
-  GValue *values_array;
-  const gchar **names_array;
-
-  if (!first)
-    return FALSE;
-
-  g_return_val_if_fail (G_TYPE_IS_OBJECT (object_type), FALSE);
-
-  class = g_type_class_ref (object_type);
-  if (!class)
-    return FALSE;
-
-  name = first;
-  names_array = g_new0 (const gchar *, n_params_alloc);
-  values_array = g_new0 (GValue, n_params_alloc);
-
-  do {
-    gchar *error = NULL;
-    GParamSpec *pspec;
-
-    pspec = g_object_class_find_property (class, name);
-    if (!pspec)
-      goto cleanup;
-
-    if (G_UNLIKELY (n_params == n_params_alloc)) {
-      n_params_alloc *= 2u;
-      names_array =
-          g_realloc (names_array, sizeof (const gchar *) * n_params_alloc);
-      values_array = g_realloc (values_array, sizeof (GValue) * n_params_alloc);
-      memset (&values_array[n_params], 0,
-          sizeof (GValue) * (n_params_alloc - n_params));
-    }
-
-    names_array[n_params] = name;
-
-    G_VALUE_COLLECT_INIT (&values_array[n_params], pspec->value_type,
-        properties, 0, &error);
-
-    if (error) {
-      g_critical ("%s", error);
-      g_free (error);
-      goto cleanup;
-    }
-
-    ++n_params;
-    name = va_arg (properties, const gchar *);
-  } while (name);
-
-  *n = n_params;
-  *names = names_array;
-  *values = values_array;
-  g_type_class_unref (class);
-  return TRUE;
-
-cleanup:
-  g_free (names_array);
-  g_free (values_array);
-  g_type_class_unref (class);
-  return FALSE;
-}
-
-/**
- * gst_element_factory_create_with_properties:
+ * gst_element_factory_create:
  * @factory: factory to instantiate
- * @n: count of properties
- * @names: (nullable) (array length=n): array of properties names
- * @values: (nullable) (array length=n): array of associated properties values
+ * @name: (allow-none): name of new element, or %NULL to automatically create
+ *    a unique name
  *
  * Create a new element of the type defined by the given elementfactory.
- * The supplied list of properties, will be passed at object construction.
+ * It will be given the name supplied, since all elements require a name as
+ * their first argument.
  *
  * Returns: (transfer floating) (nullable): new #GstElement or %NULL
  *     if the element couldn't be created
- *
- * Since: 1.20
  */
 GstElement *
-gst_element_factory_create_with_properties (GstElementFactory * factory,
-    guint n, const gchar * names[], const GValue values[])
+gst_element_factory_create (GstElementFactory * factory, const gchar * name)
 {
   GstElement *element;
   GstElementClass *oclass;
@@ -486,14 +354,22 @@ gst_element_factory_create_with_properties (GstElementFactory * factory,
 
   factory = newfactory;
 
-  GST_INFO ("creating element \"%s\"", GST_OBJECT_NAME (factory));
+  if (name)
+    GST_INFO ("creating element \"%s\" named \"%s\"",
+        GST_OBJECT_NAME (factory), GST_STR_NULL (name));
+  else
+    GST_INFO ("creating element \"%s\"", GST_OBJECT_NAME (factory));
 
   if (factory->type == 0)
     goto no_type;
 
-  element = (GstElement *) g_object_new_with_properties (factory->type, n,
-      names, values);
-
+  /* create an instance of the element, cast so we don't assert on NULL
+   * also set name as early as we can
+   */
+  if (name)
+    element = g_object_new (factory->type, "name", name, NULL);
+  else
+    element = g_object_new (factory->type, NULL);
   if (G_UNLIKELY (element == NULL))
     goto no_element;
 
@@ -503,21 +379,18 @@ gst_element_factory_create_with_properties (GstElementFactory * factory,
    * an element at the same moment
    */
   oclass = GST_ELEMENT_GET_CLASS (element);
-  if (!g_atomic_pointer_compare_and_exchange (&oclass->elementfactory,
-          (GstElementFactory *) NULL, factory))
+  if (!g_atomic_pointer_compare_and_exchange (&oclass->elementfactory, NULL,
+          factory))
     gst_object_unref (factory);
   else
     /* This ref will never be dropped as the class is never destroyed */
     GST_OBJECT_FLAG_SET (factory, GST_OBJECT_FLAG_MAY_BE_LEAKED);
 
-  if (!g_object_is_floating ((GObject *) element)) {
-    /* The reference we receive here should be floating, but we can't force
-     * it at our level. Simply raise a critical to make the issue obvious to bindings
-     * users / developers */
-    g_critical ("The created element should be floating, "
-        "this is probably caused by faulty bindings");
-  }
-
+  /* Ensure that the reference is floating. Bindings might have a hard time
+   * making sure that the reference is indeed still floating after returning
+   * here */
+  if (element)
+    g_object_force_floating ((GObject *) element);
 
   GST_DEBUG ("created element \"%s\"", GST_OBJECT_NAME (factory));
 
@@ -526,7 +399,8 @@ gst_element_factory_create_with_properties (GstElementFactory * factory,
   /* ERRORS */
 load_failed:
   {
-    GST_WARNING_OBJECT (factory, "loading plugin returned NULL!");
+    GST_WARNING_OBJECT (factory,
+        "loading plugin containing feature %s returned NULL!", name);
     return NULL;
   }
 no_type:
@@ -544,257 +418,9 @@ no_element:
 }
 
 /**
- * gst_element_factory_create_valist:
- * @factory: factory to instantiate
- * @first: (nullable): name of the first property
- * @properties: (nullable): list of properties
- *
- * Create a new element of the type defined by the given elementfactory.
- * The supplied list of properties, will be passed at object construction.
- *
- * Returns: (transfer floating) (nullable): new #GstElement or %NULL
- *     if the element couldn't be created
- *
- * Since: 1.20
- */
-GstElement *
-gst_element_factory_create_valist (GstElementFactory * factory,
-    const gchar * first, va_list properties)
-{
-  GstElementFactory *newfactory;
-  GstElement *element;
-  const gchar **names = NULL;
-  GValue *values = NULL;
-  guint n = 0;
-
-  g_return_val_if_fail (factory != NULL, NULL);
-
-  newfactory =
-      GST_ELEMENT_FACTORY (gst_plugin_feature_load (GST_PLUGIN_FEATURE
-          (factory)));
-
-  g_return_val_if_fail (newfactory != NULL, NULL);
-  g_return_val_if_fail (newfactory->type != 0, NULL);
-
-  factory = newfactory;
-
-  if (!first) {
-    element =
-        gst_element_factory_create_with_properties (factory, 0, NULL, NULL);
-    goto out;
-  }
-
-  if (!gst_element_factory_property_valist_to_array (first, properties,
-          factory->type, &n, &names, &values)) {
-    GST_ERROR_OBJECT (factory, "property parsing failed");
-    element = NULL;
-    goto out;
-  }
-
-  element = gst_element_factory_create_with_properties (factory, n, names,
-      values);
-
-  g_free (names);
-  while (n--)
-    g_value_unset (&values[n]);
-  g_free (values);
-
-out:
-  gst_object_unref (factory);
-  return element;
-}
-
-/**
- * gst_element_factory_create_full:
- * @factory: factory to instantiate
- * @first: (nullable): name of the first property
- * @...: (nullable): %NULL terminated list of properties
- *
- * Create a new element of the type defined by the given elementfactory.
- * The supplied list of properties, will be passed at object construction.
- *
- * Returns: (transfer floating) (nullable): new #GstElement or %NULL
- *     if the element couldn't be created
- *
- * Since: 1.20
- */
-GstElement *
-gst_element_factory_create_full (GstElementFactory * factory,
-    const gchar * first, ...)
-{
-  GstElement *element;
-  va_list properties;
-
-  va_start (properties, first);
-  element = gst_element_factory_create_valist (factory, first, properties);
-  va_end (properties);
-
-  return element;
-}
-
-/**
- * gst_element_factory_create:
- * @factory: factory to instantiate
- * @name: (nullable): name of new element, or %NULL to automatically create
- *    a unique name
- *
- * Create a new element of the type defined by the given elementfactory.
- * It will be given the name supplied, since all elements require a name as
- * their first argument.
- *
- * Returns: (transfer floating) (nullable): new #GstElement or %NULL
- *     if the element couldn't be created
- */
-GstElement *
-gst_element_factory_create (GstElementFactory * factory, const gchar * name)
-{
-  if (name)
-    return gst_element_factory_create_full (factory, "name", name, NULL);
-  else
-    return gst_element_factory_create_with_properties (factory, 0, NULL, NULL);
-}
-
-/**
- * gst_element_factory_make_with_properties:
- * @factoryname: a named factory to instantiate
- * @n: count of properties
- * @names: (nullable) (array length=n): array of properties names
- * @values: (nullable) (array length=n): array of associated properties values
- *
- * Create a new element of the type defined by the given elementfactory.
- * The supplied list of properties, will be passed at object construction.
- *
- * Returns: (transfer floating) (nullable): new #GstElement or %NULL
- *     if the element couldn't be created
- *
- * Since: 1.20
- */
-GstElement *
-gst_element_factory_make_with_properties (const gchar * factoryname,
-    guint n, const gchar * names[], const GValue values[])
-{
-  GstElementFactory *factory;
-  GstElement *element;
-
-  g_return_val_if_fail (factoryname != NULL, NULL);
-  g_return_val_if_fail (gst_is_initialized (), NULL);
-
-  GST_LOG ("gstelementfactory: make \"%s\"", factoryname);
-
-  factory = gst_element_factory_find (factoryname);
-  if (factory == NULL)
-    goto no_factory;
-
-  GST_LOG_OBJECT (factory, "found factory %p", factory);
-  element = gst_element_factory_create_with_properties (factory, n, names,
-      values);
-  if (element == NULL)
-    goto create_failed;
-
-  gst_object_unref (factory);
-
-  return element;
-
-  /* ERRORS */
-no_factory:
-  {
-    GST_WARNING ("no such element factory \"%s\"!", factoryname);
-    return NULL;
-  }
-create_failed:
-  {
-    GST_INFO_OBJECT (factory, "couldn't create instance!");
-    gst_object_unref (factory);
-    return NULL;
-  }
-}
-
-/**
- * gst_element_factory_make_valist:
- * @factoryname: a named factory to instantiate
- * @first: (nullable): name of first property
- * @properties: (nullable): list of properties
- *
- * Create a new element of the type defined by the given element factory.
- * The supplied list of properties, will be passed at object construction.
- *
- * Returns: (transfer floating) (nullable): new #GstElement or %NULL
- * if unable to create element
- *
- * Since: 1.20
- */
-GstElement *
-gst_element_factory_make_valist (const gchar * factoryname,
-    const gchar * first, va_list properties)
-{
-  GstElementFactory *factory;
-  GstElement *element;
-
-  g_return_val_if_fail (factoryname != NULL, NULL);
-  g_return_val_if_fail (gst_is_initialized (), NULL);
-
-  GST_LOG ("gstelementfactory: make \"%s\"", factoryname);
-
-  factory = gst_element_factory_find (factoryname);
-  if (factory == NULL)
-    goto no_factory;
-
-  GST_LOG_OBJECT (factory, "found factory %p", factory);
-  element = gst_element_factory_create_valist (factory, first, properties);
-  if (element == NULL)
-    goto create_failed;
-
-  gst_object_unref (factory);
-
-  return element;
-
-  /* ERRORS */
-no_factory:
-  {
-    GST_WARNING ("no such element factory \"%s\"!", factoryname);
-    return NULL;
-  }
-create_failed:
-  {
-    GST_INFO_OBJECT (factory, "couldn't create instance!");
-    gst_object_unref (factory);
-    return NULL;
-  }
-}
-
-/**
- * gst_element_factory_make_full:
- * @factoryname: a named factory to instantiate
- * @first: (nullable): name of first property
- * @...: (nullable): %NULL terminated list of properties
- *
- * Create a new element of the type defined by the given element factory.
- * The supplied list of properties, will be passed at object construction.
- *
- * Returns: (transfer floating) (nullable): new #GstElement or %NULL
- * if unable to create element
- *
- * Since: 1.20
- */
-GstElement *
-gst_element_factory_make_full (const gchar * factoryname,
-    const gchar * first, ...)
-{
-  GstElement *element;
-  va_list properties;
-
-  va_start (properties, first);
-
-  element = gst_element_factory_make_valist (factoryname, first, properties);
-
-  va_end (properties);
-  return element;
-}
-
-/**
  * gst_element_factory_make:
  * @factoryname: a named factory to instantiate
- * @name: (nullable): name of new element, or %NULL to automatically create
+ * @name: (allow-none): name of new element, or %NULL to automatically create
  *    a unique name
  *
  * Create a new element of the type defined by the given element factory.
@@ -808,11 +434,40 @@ gst_element_factory_make_full (const gchar * factoryname,
 GstElement *
 gst_element_factory_make (const gchar * factoryname, const gchar * name)
 {
-  if (name)
-    return gst_element_factory_make_full (factoryname, "name", name, NULL);
-  else
-    return gst_element_factory_make_with_properties (factoryname, 0, NULL,
-        NULL);
+  GstElementFactory *factory;
+  GstElement *element;
+
+  g_return_val_if_fail (factoryname != NULL, NULL);
+  g_return_val_if_fail (gst_is_initialized (), NULL);
+
+  GST_LOG ("gstelementfactory: make \"%s\" \"%s\"",
+      factoryname, GST_STR_NULL (name));
+
+  factory = gst_element_factory_find (factoryname);
+  if (factory == NULL)
+    goto no_factory;
+
+  GST_LOG_OBJECT (factory, "found factory %p", factory);
+  element = gst_element_factory_create (factory, name);
+  if (element == NULL)
+    goto create_failed;
+
+  gst_object_unref (factory);
+
+  return element;
+
+  /* ERRORS */
+no_factory:
+  {
+    GST_WARNING ("no such element factory \"%s\"!", factoryname);
+    return NULL;
+  }
+create_failed:
+  {
+    GST_INFO_OBJECT (factory, "couldn't create instance!");
+    gst_object_unref (factory);
+    return NULL;
+  }
 }
 
 void
@@ -1087,9 +742,6 @@ gst_element_factory_list_is_type (GstElementFactory * factory,
 
   if (!res && (type & GST_ELEMENT_FACTORY_TYPE_ENCRYPTOR))
     res = (strstr (klass, "Encryptor") != NULL);
-
-  if (!res && (type & GST_ELEMENT_FACTORY_TYPE_HARDWARE))
-    res = (strstr (klass, "Hardware") != NULL);
 
   /* Filter by media type now, we only test if it
    * matched any of the types above or only checking the media

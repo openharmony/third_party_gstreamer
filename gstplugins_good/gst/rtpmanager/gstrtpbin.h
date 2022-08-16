@@ -88,12 +88,6 @@ struct _GstRtpBin {
   /* the default SDES items for sessions */
   GstStructure   *sdes;
 
-  /* the default FEC decoder factories for sessions */
-  GstStructure   *fec_decoders;
-
-  /* the default FEC encoder factories for sessions */
-  GstStructure   *fec_encoders;
-
   /*< private >*/
   GstRtpBinPrivate *priv;
 };
@@ -117,7 +111,6 @@ struct _GstRtpBinClass {
   RTPSession* (*get_internal_session) (GstRtpBin *rtpbin, guint session);
   GstElement* (*get_storage)          (GstRtpBin *rtpbin, guint session);
   GObject*    (*get_internal_storage) (GstRtpBin *rtpbin, guint session);
-  void        (*clear_ssrc)           (GstRtpBin *rtpbin, guint session, guint32 ssrc);
 
   /* session manager signals */
   void     (*on_new_ssrc)       (GstRtpBin *rtpbin, guint session, guint32 ssrc);
@@ -142,14 +135,10 @@ struct _GstRtpBinClass {
   GstElement* (*request_fec_encoder)  (GstRtpBin *rtpbin, guint session);
   GstElement* (*request_fec_decoder)  (GstRtpBin *rtpbin, guint session);
 
-  GstElement* (*request_jitterbuffer) (GstRtpBin *rtpbin, guint session);
-
   void     (*on_new_sender_ssrc)      (GstRtpBin *rtpbin, guint session, guint32 ssrc);
   void     (*on_sender_ssrc_active)   (GstRtpBin *rtpbin, guint session, guint32 ssrc);
 };
 
 GType gst_rtp_bin_get_type (void);
-
-GST_ELEMENT_REGISTER_DECLARE (rtpbin);
 
 #endif /* __GST_RTP_BIN_H__ */

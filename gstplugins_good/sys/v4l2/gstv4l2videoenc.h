@@ -29,7 +29,6 @@
 
 #include <gstv4l2object.h>
 #include <gstv4l2bufferpool.h>
-#include <gstv4l2codec.h>
 
 G_BEGIN_DECLS
 #define GST_TYPE_V4L2_VIDEO_ENC \
@@ -74,7 +73,14 @@ struct _GstV4l2VideoEncClass
 
   gchar *default_device;
   const char *codec_name;
-  const GstV4l2Codec *codec;
+
+  guint32 profile_cid;
+  const gchar * (*profile_to_string) (gint v4l2_profile);
+  gint (*profile_from_string) (const gchar * profile);
+
+  guint32 level_cid;
+  const gchar * (*level_to_string) (gint v4l2_level);
+  gint (*level_from_string) (const gchar * level);
 };
 
 GType gst_v4l2_video_enc_get_type (void);
@@ -84,8 +90,7 @@ gboolean gst_v4l2_is_video_enc (GstCaps * sink_caps, GstCaps * src_caps,
     GstCaps * codec_caps);
 
 void gst_v4l2_video_enc_register (GstPlugin * plugin, GType type,
-    const char *codec_name, const gchar * basename, const gchar * device_path,
-    const GstV4l2Codec * codec, gint video_fd,
+    const char *codec, const gchar * basename, const gchar * device_path,
     GstCaps * sink_caps, GstCaps *codec_caps, GstCaps * src_caps);
 
 G_END_DECLS

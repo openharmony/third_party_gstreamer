@@ -41,7 +41,6 @@ G_BEGIN_DECLS
 #define GST_SRT_DEFAULT_POLL_TIMEOUT -1
 #define GST_SRT_DEFAULT_LATENCY 125
 #define GST_SRT_DEFAULT_MSG_SIZE 1316
-#define GST_SRT_DEFAULT_WAIT_FOR_CONNECTION (TRUE)
 
 typedef struct _GstSRTObject GstSRTObject;
 
@@ -56,24 +55,26 @@ struct _GstSRTObject
   gint                          poll_id;
   gboolean                      sent_headers;
 
+  GCond                         sock_cond;
+
   GTask                        *listener_task;
   SRTSOCKET                     listener_sock;
   gint                          listener_poll_id;
 
   GThread                      *thread;
 
-  /* Protects the list of callers */
-  GMutex                        sock_lock;
-  GCond                         sock_cond;
-
   GList                        *callers;
 
-  gboolean                     wait_for_connection;
+  GClosure                     *caller_added_closure;
+  GClosure                     *caller_removed_closure;
 
-  gboolean                     authentication;
-
-  guint64                      previous_bytes;
+  gchar                        *passphrase;
 };
+
+
+typedef void (*GstSRTObjectCallerAdded)         (int sock, GSocketAddress *addr, GstSRTObject * srtobject);
+
+typedef void (*GstSRTObjectCallerRemoved)       (int sock, GSocketAddress *addr, GstSRTObject * srtobject);
 
 GstSRTObject   *gst_srt_object_new              (GstElement *element);
 
@@ -83,13 +84,19 @@ gboolean        gst_srt_object_open             (GstSRTObject *srtobject,
                                                  GCancellable *cancellable,
                                                  GError **error);
 
+gboolean        gst_srt_object_open_full        (GstSRTObject *srtobject,
+                                                 GstSRTObjectCallerAdded caller_added_func,
+                                                 GstSRTObjectCallerRemoved caller_removed_func,
+                                                 GCancellable *cancellable,
+                                                 GError **error);
+
 void            gst_srt_object_close            (GstSRTObject *srtobject);
 
-gboolean        gst_srt_object_set_property_helper (GstSRTObject *srtobject,
+gboolean        gst_srt_object_set_property_helper (GstSRTObject *srtobject, 
                                                     guint prop_id, const GValue * value,
                                                     GParamSpec * pspec);
 
-gboolean        gst_srt_object_get_property_helper (GstSRTObject *srtobject,
+gboolean        gst_srt_object_get_property_helper (GstSRTObject *srtobject, 
                                                     guint prop_id, GValue * value,
                                                     GParamSpec * pspec);
 
@@ -97,13 +104,12 @@ void            gst_srt_object_install_properties_helper (GObjectClass *gobject_
 
 gboolean        gst_srt_object_set_uri (GstSRTObject * srtobject, const gchar *uri, GError ** err);
 
-gssize          gst_srt_object_read     (GstSRTObject * srtobject,
+gssize          gst_srt_object_read     (GstSRTObject * srtobject, 
                                          guint8 *data, gsize size,
                                          GCancellable *cancellable,
-                                         GError **err,
-					 SRT_MSGCTRL *mctrl);
+                                         GError **err);
 
-gssize          gst_srt_object_write    (GstSRTObject * srtobject,
+gssize          gst_srt_object_write    (GstSRTObject * srtobject, 
                                          GstBufferList * headers,
                                          const GstMapInfo * mapinfo,
                                          GCancellable *cancellable,

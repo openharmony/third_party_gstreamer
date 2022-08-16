@@ -22,6 +22,7 @@
  * SECTION:gstglquery
  * @short_description: OpenGL query abstraction
  * @title: GstGLQuery
+ * @see_also:
  *
  * A #GstGLQuery represents and holds an OpenGL query object.  Various types of
  * queries can be run or counters retrieved.
@@ -58,7 +59,7 @@ GST_DEBUG_CATEGORY_STATIC (GST_CAT_DEFAULT);
 static void
 _init_debug (void)
 {
-  static gsize _init = 0;
+  static volatile gsize _init = 0;
 
   if (g_once_init_enter (&_init)) {
     GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "glquery", 0, "glquery element");
@@ -114,7 +115,7 @@ static gchar *
 _log_time (gpointer user_data)
 {
   GstGLQuery *query = user_data;
-  guint64 result = 0;
+  gint64 result;
 
   result = gst_gl_query_result (query);
 
@@ -338,11 +339,10 @@ gst_gl_query_result (GstGLQuery * query)
 
   gl = query->context->gl_vtable;
   if (gl->GetQueryObjectui64v) {
-    GLuint64 tmp = 0;
-    gl->GetQueryObjectui64v (query->query_id, GL_QUERY_RESULT, &tmp);
-    ret = tmp;
+    gl->GetQueryObjectui64v (query->query_id, GL_QUERY_RESULT,
+        (GLuint64 *) & ret);
   } else {
-    guint tmp = 0;
+    guint tmp;
     gl->GetQueryObjectuiv (query->query_id, GL_QUERY_RESULT, &tmp);
     ret = tmp;
   }

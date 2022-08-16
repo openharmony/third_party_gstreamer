@@ -19,22 +19,16 @@
 
 /**
  * SECTION:gsterror
- * @title: GstGError
+ * @title: GstError
  * @short_description: Categorized error messages
  * @see_also: #GstMessage
- * @symbols:
- * - gst_error_get_message
- * - gst_stream_error_quark
- * - gst_core_error_quark
- * - gst_resource_error_quark
- * - gst_library_error_quark
  *
  * GStreamer elements can throw non-fatal warnings and fatal errors.
  * Higher-level elements and applications can programmatically filter
  * the ones they are interested in or can recover from,
  * and have a default handler handle the rest of them.
  *
- * The rest of this section will use the term "error"
+ * The rest of this section will use the term <quote>error</quote>
  * to mean both (non-fatal) warnings and (fatal) errors; they are treated
  * similarly.
  *

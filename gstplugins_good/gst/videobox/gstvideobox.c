@@ -20,22 +20,21 @@
  */
 /**
  * SECTION:element-videobox
- * @title: videobox
  * @see_also: #GstVideoCrop
  *
  * This plugin crops or enlarges the image. It takes 4 values as input, a
  * top, bottom, left and right offset. Positive values will crop that much
  * pixels from the respective border of the image, negative values will add
- * that much pixels. When pixels are added, you can specify their color.
+ * that much pixels. When pixels are added, you can specify their color. 
  * Some predefined colors are usable with an enum property.
- *
+ * 
  * The plugin is alpha channel aware and will try to negotiate with a format
  * that supports alpha channels first. When alpha channel is active two
  * other properties, alpha and border_alpha can be used to set the alpha
  * values of the inner picture and the border respectively. an alpha value of
  * 0.0 means total transparency, 1.0 is opaque.
- *
- * The videobox plugin has many uses such as doing a mosaic of pictures,
+ * 
+ * The videobox plugin has many uses such as doing a mosaic of pictures, 
  * letterboxing video, cutting out pieces of video, picture in picture, etc..
  *
  * Setting autocrop to true changes the behavior of the plugin so that
@@ -43,11 +42,11 @@
  * input and output dimensions, the crop values are selected so that the
  * smaller frame is effectively centered in the larger frame.  This
  * involves either cropping or padding.
- *
+ * 
  * If you use autocrop there is little point in setting the other
- * properties manually because they will be overridden if the caps change,
+ * properties manually because they will be overriden if the caps change,
  * but nothing stops you from doing so.
- *
+ * 
  * Sample pipeline:
  * |[
  * gst-launch-1.0 videotestsrc ! videobox autocrop=true ! \
@@ -147,7 +146,7 @@ fill_ayuv (GstVideoBoxFill fill_type, guint b_alpha,
   width = GST_VIDEO_FRAME_WIDTH (frame);
   height = GST_VIDEO_FRAME_HEIGHT (frame);
 
-  b_alpha = MIN (b_alpha, 255);
+  b_alpha = CLAMP (b_alpha, 0, 255);
 
   if (sdtv)
     empty_pixel = GUINT32_FROM_BE ((b_alpha << 24) |
@@ -1695,7 +1694,7 @@ copy_i420_ayuv (guint i_alpha, GstVideoFrame * dest_frame,
   srcU = srcU + (src_y / 2) * src_strideU + src_x / 2;
   srcV = srcV + (src_y / 2) * src_strideV + src_x / 2;
 
-  i_alpha = MIN (i_alpha, 255);
+  i_alpha = CLAMP (i_alpha, 0, 255);
 
   if (src_sdtv != dest_sdtv) {
     gint i, j, uv_idx;
@@ -1779,7 +1778,7 @@ fill_rgb32 (GstVideoBoxFill fill_type, guint b_alpha,
   p[2] = GST_VIDEO_FRAME_COMP_OFFSET (frame, 1);
   p[3] = GST_VIDEO_FRAME_COMP_OFFSET (frame, 2);
 
-  b_alpha = MIN (b_alpha, 255);
+  b_alpha = CLAMP (b_alpha, 0, 255);
 
   if (GST_VIDEO_FRAME_N_COMPONENTS (frame) == 4) {
     empty_pixel = GUINT32_FROM_LE ((b_alpha << (p[0] * 8)) |
@@ -1886,7 +1885,7 @@ copy_rgb32 (guint i_alpha, GstVideoFrame * dest_frame,
     }
   } else if (out_alpha && !packed_in) {
     w *= 4;
-    i_alpha = MIN (i_alpha, 255);
+    i_alpha = CLAMP (i_alpha, 0, 255);
 
     for (i = 0; i < h; i++) {
       for (j = 0; j < w; j += 4) {
@@ -1899,7 +1898,7 @@ copy_rgb32 (guint i_alpha, GstVideoFrame * dest_frame,
       src += src_stride;
     }
   } else if (out_alpha && packed_in) {
-    i_alpha = MIN (i_alpha, 255);
+    i_alpha = CLAMP (i_alpha, 0, 255);
 
     for (i = 0; i < h; i++) {
       for (j = 0; j < w; j++) {
@@ -1995,7 +1994,7 @@ copy_rgb32_ayuv (guint i_alpha, GstVideoFrame * dest_frame,
     }
   } else if (!packed_in) {
     w *= 4;
-    i_alpha = MIN (i_alpha, 255);
+    i_alpha = CLAMP (i_alpha, 0, 255);
 
     for (i = 0; i < h; i++) {
       for (j = 0; j < w; j += 4) {
@@ -2017,7 +2016,7 @@ copy_rgb32_ayuv (guint i_alpha, GstVideoFrame * dest_frame,
       src += src_stride;
     }
   } else {
-    i_alpha = MIN (i_alpha, 255);
+    i_alpha = CLAMP (i_alpha, 0, 255);
 
     for (i = 0; i < h; i++) {
       for (j = 0; j < w; j++) {
@@ -2409,9 +2408,6 @@ GST_STATIC_PAD_TEMPLATE ("sink",
 
 #define gst_video_box_parent_class parent_class
 G_DEFINE_TYPE (GstVideoBox, gst_video_box, GST_TYPE_VIDEO_FILTER);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (videobox, "videobox", GST_RANK_NONE,
-    GST_TYPE_VIDEO_BOX, GST_DEBUG_CATEGORY_INIT (videobox_debug, "videobox", 0,
-        "Resizes a video by adding borders or cropping"));
 
 static void gst_video_box_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -2536,8 +2532,6 @@ gst_video_box_class_init (GstVideoBoxClass * klass)
       &gst_video_box_sink_template);
   gst_element_class_add_static_pad_template (element_class,
       &gst_video_box_src_template);
-
-  gst_type_mark_as_plugin_api (GST_TYPE_VIDEO_BOX_FILL, 0);
 }
 
 static void
@@ -2834,7 +2828,7 @@ gst_video_box_transform_caps (GstBaseTransform * trans,
       v = gst_structure_get_value (structure, "width");
       if (!gst_video_box_transform_dimension_value (v, dw, &w_val)) {
         GST_WARNING_OBJECT (video_box,
-            "could not transform width value with dw=%d" ", caps structure=%"
+            "could not tranform width value with dw=%d" ", caps structure=%"
             GST_PTR_FORMAT, dw, structure);
         goto bail;
       }
@@ -2844,7 +2838,7 @@ gst_video_box_transform_caps (GstBaseTransform * trans,
       if (!gst_video_box_transform_dimension_value (v, dh, &h_val)) {
         g_value_unset (&w_val);
         GST_WARNING_OBJECT (video_box,
-            "could not transform height value with dh=%d" ", caps structure=%"
+            "could not tranform height value with dh=%d" ", caps structure=%"
             GST_PTR_FORMAT, dh, structure);
         goto bail;
       }
@@ -3339,7 +3333,11 @@ gst_video_box_transform_frame (GstVideoFilter * vfilter,
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (videobox, plugin);
+  GST_DEBUG_CATEGORY_INIT (videobox_debug, "videobox", 0,
+      "Resizes a video by adding borders or cropping");
+
+  return gst_element_register (plugin, "videobox", GST_RANK_NONE,
+      GST_TYPE_VIDEO_BOX);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

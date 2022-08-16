@@ -34,7 +34,7 @@
 #include <gst/video/gstvideopool.h>
 
 
-GST_DEBUG_CATEGORY (gst_debug_xv_image_pool);
+GST_DEBUG_CATEGORY_EXTERN (gst_debug_xv_image_pool);
 #define GST_CAT_DEFAULT gst_debug_xv_image_pool
 
 /* bufferpool */
@@ -221,15 +221,11 @@ xvimage_buffer_pool_alloc (GstBufferPool * pool, GstBuffer ** buffer,
   gst_buffer_append_memory (xvimage, mem);
 
   if (xvpool->add_metavideo) {
-    GstVideoMeta *meta;
-
     GST_DEBUG_OBJECT (pool, "adding GstVideoMeta");
-    meta = gst_buffer_add_video_meta_full (xvimage, GST_VIDEO_FRAME_FLAG_NONE,
+    gst_buffer_add_video_meta_full (xvimage, GST_VIDEO_FRAME_FLAG_NONE,
         GST_VIDEO_INFO_FORMAT (info), GST_VIDEO_INFO_WIDTH (info),
         GST_VIDEO_INFO_HEIGHT (info), GST_VIDEO_INFO_N_PLANES (info),
         info->offset, info->stride);
-
-    gst_video_meta_set_alignment (meta, xvpool->align);
   }
 
   *buffer = xvimage;

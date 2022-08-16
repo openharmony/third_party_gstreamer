@@ -20,16 +20,16 @@
 
 /**
  * SECTION:element-audiokaraoke
- * @title: audiokaraoke
  *
  * Remove the voice from audio by filtering the center channel.
  * This plugin is useful for karaoke applications.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 filesrc location=song.ogg ! oggdemux ! vorbisdec ! audiokaraoke ! audioconvert ! alsasink
  * ]|
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -78,8 +78,6 @@ enum
     " layout=(string) interleaved"
 
 G_DEFINE_TYPE (GstAudioKaraoke, gst_audio_karaoke, GST_TYPE_AUDIO_FILTER);
-GST_ELEMENT_REGISTER_DEFINE (audiokaraoke, "audiokaraoke",
-    GST_RANK_NONE, GST_TYPE_AUDIO_KARAOKE);
 
 static void gst_audio_karaoke_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);

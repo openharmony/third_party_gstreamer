@@ -54,9 +54,6 @@ struct _GstMsdkBufferPoolPrivate
   mfxFrameAllocResponse *alloc_response;
   GstMsdkMemoryType memory_type;
   gboolean add_videometa;
-  gboolean need_alignment;
-  GstVideoAlignment alignment;
-
 };
 
 #define gst_msdk_buffer_pool_parent_class parent_class
@@ -134,13 +131,13 @@ gst_msdk_buffer_pool_set_config (GstBufferPool * pool, GstStructure * config)
   priv->add_videometa = gst_buffer_pool_config_has_option (config,
       GST_BUFFER_POOL_OPTION_VIDEO_META);
 
-  priv->need_alignment = gst_buffer_pool_config_has_option (config,
-      GST_BUFFER_POOL_OPTION_VIDEO_ALIGNMENT);
+  if (priv->add_videometa && gst_buffer_pool_config_has_option (config,
+          GST_BUFFER_POOL_OPTION_VIDEO_ALIGNMENT)) {
+    GstVideoAlignment alignment;
 
-  if (priv->add_videometa && priv->need_alignment) {
-    gst_msdk_set_video_alignment (&video_info, 0, 0, &priv->alignment);
-    gst_video_info_align (&video_info, &priv->alignment);
-    gst_buffer_pool_config_set_video_alignment (config, &priv->alignment);
+    gst_msdk_set_video_alignment (&video_info, &alignment);
+    gst_video_info_align (&video_info, &alignment);
+    gst_buffer_pool_config_set_video_alignment (config, &alignment);
   }
 
   priv->memory_type = _msdk_get_memory_type (config);
@@ -249,13 +246,6 @@ gst_msdk_buffer_pool_alloc_buffer (GstBufferPool * pool,
         GST_VIDEO_INFO_WIDTH (info), GST_VIDEO_INFO_HEIGHT (info),
         GST_VIDEO_INFO_N_PLANES (info), info->offset, info->stride);
 
-    if (priv->need_alignment) {
-      if (!gst_video_meta_set_alignment (vmeta, priv->alignment)) {
-        GST_ERROR_OBJECT (pool, "failed to set alignment");
-        return GST_FLOW_ERROR;
-      }
-    }
-
     if (priv->memory_type == GST_MSDK_MEMORY_TYPE_VIDEO) {
       vmeta->map = gst_video_meta_map_msdk_memory;
       vmeta->unmap = gst_video_meta_unmap_msdk_memory;
@@ -281,6 +271,7 @@ gst_msdk_buffer_pool_acquire_buffer (GstBufferPool * pool,
   GstBuffer *buf = NULL;
   GstFlowReturn ret;
   mfxFrameSurface1 *surface;
+  gint fd;
 
   ret =
       GST_BUFFER_POOL_CLASS (parent_class)->acquire_buffer (pool, &buf, params);
@@ -306,12 +297,11 @@ gst_msdk_buffer_pool_acquire_buffer (GstBufferPool * pool,
     }
   }
 #ifndef _WIN32
-  /* When using dmabuf, we should confirm that the fd of memory and
+  /* When using dmabuf, we should confirm that the fd of memeory and
    * the fd of surface match, since there is no guarantee that fd matches
    * between surface and memory.
    */
   if (priv->memory_type == GST_MSDK_MEMORY_TYPE_DMABUF) {
-    gint fd;
     surface = gst_msdk_get_surface_from_buffer (buf);
     gst_msdk_get_dmabuf_info_from_surface (surface, &fd, NULL);
 

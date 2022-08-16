@@ -6,8 +6,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: gst-plugins-good 1.15.1\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2021-10-25 01:02+0100\n"
+"Report-Msgid-Bugs-To: http://bugzilla.gnome.org/\n"
+"POT-Creation-Date: 2019-12-03 11:06+0000\n"
 "PO-Revision-Date: 2019-03-05 16:27+0100\n"
 "Last-Translator: Tianze Wang <zwpwjwtz@126.com>\n"
 "Language-Team: Chinese (simplified) <i18n-zh@googlegroups.com>\n"
@@ -24,18 +24,10 @@ msgstr "未找到插口设备"
 msgid "Failed to decode JPEG image"
 msgstr "解码 JPEG 图像出错"
 
-#, fuzzy
-msgid "Failed to read memory"
-msgstr "分配请求的内存失败。"
-
 msgid ""
 "Failed to configure LAME mp3 audio encoder. Check your encoding parameters."
 msgstr "配置 LAMP mp3 音频编码器失败。请检查编码所需的参数。"
 
-#. <php-emulation-mode>three underscores for ___rate is really really really
-#. * private as opposed to one underscore<php-emulation-mode>
-#. call this MACRO outside of the NULL state so that we have a higher chance
-#. * of actually having a pipeline and bus to get the message through
 #, c-format
 msgid ""
 "The requested bitrate %d kbit/s for property '%s' is not allowed. The "
@@ -160,9 +152,6 @@ msgstr "未找到 CoreAudio 设备"
 msgid "CoreAudio device could not be opened"
 msgstr "无法打开 CoreAudio 设备"
 
-msgid "Raspberry Pi Camera Module"
-msgstr ""
-
 #, c-format
 msgid "Error reading %d bytes from device '%s'."
 msgstr "从设备“%2$s”中读取 %1$d 个字节时出错。"
@@ -182,10 +171,6 @@ msgstr "设备“%s”的驱动不支持I/O方式 %d。"
 #, c-format
 msgid "The driver of device '%s' does not support any known IO method."
 msgstr "设备“%s”的驱动不支持任何已知的I/O方式。"
-
-#, fuzzy
-msgid "Invalid caps"
-msgstr "无效的原子尺寸。"
 
 #, c-format
 msgid "Device '%s' has no supported format"
@@ -384,25 +369,17 @@ msgstr "获取设备“%2$s”的控制器 %1$d 的值出错。"
 msgid "Failed to set value %d for control %d on device '%s'."
 msgstr "设置设备“%3$s”的控制器 %2$d 的值为 %1$d 时出错。"
 
-#, fuzzy, c-format
-msgid "Failed to set value %s for control %d on device '%s'."
-msgstr "设置设备“%3$s”的控制器 %2$d 的值为 %1$d 时出错。"
-
 #, c-format
 msgid "Failed to get current input on device '%s'. May be it is a radio device"
 msgstr "获取设备“%s”上的当前输入出错。也许它是一个广播设备"
-
-#, fuzzy, c-format
-msgid "Failed to set input %u on device %s."
-msgstr "设置设备 %2$s 上的输入 %1$d 时出错。"
 
 #, c-format
 msgid ""
 "Failed to get current output on device '%s'. May be it is a radio device"
 msgstr "获取设备“%s”上的当前输入出错。它可能是一个广播设备"
 
-#, fuzzy, c-format
-msgid "Failed to set output %u on device %s."
+#, c-format
+msgid "Failed to set output %d on device %s."
 msgstr "将输出 %d 设置到设备 %s 上失败。"
 
 msgid "Changing resolution at runtime is not yet supported."

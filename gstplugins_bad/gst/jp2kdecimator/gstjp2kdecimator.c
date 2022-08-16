@@ -18,7 +18,7 @@
  * Boston, MA 02110-1301, USA.
  */
 /**
- * SECTION:element-jp2kdecimator
+ * SECTION:element-gstjp2kdecimator
  * @title: gstjp2kdecimator
  *
  * The jp2kdecimator element removes information from JPEG2000 images without reencoding.
@@ -79,10 +79,7 @@ GST_DEBUG_CATEGORY (gst_jp2k_decimator_debug);
 #define GST_CAT_DEFAULT gst_jp2k_decimator_debug
 
 G_DEFINE_TYPE (GstJP2kDecimator, gst_jp2k_decimator, GST_TYPE_ELEMENT);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (jp2kdecimator, "jp2kdecimator",
-    GST_RANK_NONE, GST_TYPE_JP2K_DECIMATOR,
-    GST_DEBUG_CATEGORY_INIT (gst_jp2k_decimator_debug, "jp2kdecimator", 0,
-        "JPEG2000 decimator"));
+
 static void
 gst_jp2k_decimator_class_init (GstJP2kDecimatorClass * klass)
 {
@@ -261,7 +258,13 @@ gst_jp2k_decimator_sink_chain (GstPad * pad, GstObject * parent,
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (jp2kdecimator, plugin);
+  GST_DEBUG_CATEGORY_INIT (gst_jp2k_decimator_debug, "jp2kdecimator", 0,
+      "JPEG2000 decimator");
+
+  gst_element_register (plugin, "jp2kdecimator", GST_RANK_NONE,
+      GST_TYPE_JP2K_DECIMATOR);
+
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

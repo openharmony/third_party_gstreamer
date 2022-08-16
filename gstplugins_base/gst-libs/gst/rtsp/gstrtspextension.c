@@ -49,7 +49,7 @@ static guint gst_rtsp_extension_signals[LAST_SIGNAL] = { 0 };
 GType
 gst_rtsp_extension_get_type (void)
 {
-  static gsize gst_rtsp_extension_type = 0;
+  static volatile gsize gst_rtsp_extension_type = 0;
   static const GTypeInfo gst_rtsp_extension_info = {
     sizeof (GstRTSPExtensionInterface),
     (GBaseInitFunc) gst_rtsp_extension_iface_init,
@@ -79,8 +79,8 @@ gst_rtsp_extension_iface_init (GstRTSPExtension * iface)
     gst_rtsp_extension_signals[SIGNAL_SEND] =
         g_signal_new ("send", G_TYPE_FROM_CLASS (iface),
         G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstRTSPExtensionInterface,
-            send), NULL, NULL, NULL, GST_TYPE_RTSP_RESULT, 2, G_TYPE_POINTER,
-        G_TYPE_POINTER);
+            send), NULL, NULL, g_cclosure_marshal_generic,
+        GST_TYPE_RTSP_RESULT, 2, G_TYPE_POINTER, G_TYPE_POINTER);
     initialized = TRUE;
   }
 }

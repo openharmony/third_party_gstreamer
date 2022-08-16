@@ -43,7 +43,7 @@
 #endif
 #include <gst/gst-i18n-plugin.h>
 
-#include "gsttcpelements.h"
+#include "gsttcp.h"
 #include "gsttcpclientsink.h"
 
 /* TCPClientSink signals and args */
@@ -90,8 +90,6 @@ static void gst_tcp_client_sink_get_property (GObject * object, guint prop_id,
 
 #define gst_tcp_client_sink_parent_class parent_class
 G_DEFINE_TYPE (GstTCPClientSink, gst_tcp_client_sink, GST_TYPE_BASE_SINK);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (tcpclientsink, "tcpclientsink",
-    GST_RANK_NONE, GST_TYPE_TCP_CLIENT_SINK, tcp_element_init (plugin));
 
 static void
 gst_tcp_client_sink_class_init (GstTCPClientSinkClass * klass)
@@ -242,7 +240,7 @@ gst_tcp_client_sink_set_property (GObject * object, guint prop_id,
         break;
       }
       g_free (tcpclientsink->host);
-      tcpclientsink->host = g_value_dup_string (value);
+      tcpclientsink->host = g_strdup (g_value_get_string (value));
       break;
     case PROP_PORT:
       tcpclientsink->port = g_value_get_int (value);
@@ -283,53 +281,56 @@ gst_tcp_client_sink_start (GstBaseSink * bsink)
 {
   GstTCPClientSink *this = GST_TCP_CLIENT_SINK (bsink);
   GError *err = NULL;
-  GList *addrs;
-  GList *cur_addr;
-  GSocketAddress *saddr = NULL;
+  GInetAddress *addr;
+  GSocketAddress *saddr;
+  GResolver *resolver;
 
   if (GST_OBJECT_FLAG_IS_SET (this, GST_TCP_CLIENT_SINK_OPEN))
     return TRUE;
 
-  addrs =
-      tcp_get_addresses (GST_ELEMENT (this), this->host, this->cancellable,
-      &err);
-  if (!addrs)
-    goto name_resolve;
+  /* look up name if we need to */
+  addr = g_inet_address_new_from_string (this->host);
+  if (!addr) {
+    GList *results;
 
+    resolver = g_resolver_get_default ();
+
+    results =
+        g_resolver_lookup_by_name (resolver, this->host, this->cancellable,
+        &err);
+    if (!results)
+      goto name_resolve;
+    addr = G_INET_ADDRESS (g_object_ref (results->data));
+
+    g_resolver_free_addresses (results);
+    g_object_unref (resolver);
+  }
+#ifndef GST_DISABLE_GST_DEBUG
+  {
+    gchar *ip = g_inet_address_to_string (addr);
+
+    GST_DEBUG_OBJECT (this, "IP address for host %s is %s", this->host, ip);
+    g_free (ip);
+  }
+#endif
+  saddr = g_inet_socket_address_new (addr, this->port);
+  g_object_unref (addr);
+
+  /* create sending client socket */
   GST_DEBUG_OBJECT (this, "opening sending client socket to %s:%d", this->host,
       this->port);
+  this->socket =
+      g_socket_new (g_socket_address_get_family (saddr), G_SOCKET_TYPE_STREAM,
+      G_SOCKET_PROTOCOL_TCP, &err);
+  if (!this->socket)
+    goto no_socket;
 
-  cur_addr = addrs;
-  while (cur_addr) {
-    /* clean up from possible previous iterations */
-    g_clear_error (&err);
-    g_clear_object (&this->socket);
+  GST_DEBUG_OBJECT (this, "opened sending client socket");
 
-    /* iterate over addresses until one works */
-    this->socket =
-        tcp_create_socket (GST_ELEMENT (this), &cur_addr, this->port, &saddr,
-        &err);
-    if (!this->socket)
-      goto no_socket;
-
-    GST_DEBUG_OBJECT (this, "opened sending client socket");
-
-    /* connect to server */
-    if (g_socket_connect (this->socket, saddr, this->cancellable, &err))
-      break;
-
-    /* failed to connect, release and try next address... */
-    g_clear_object (&saddr);
-    if (g_error_matches (err, G_IO_ERROR, G_IO_ERROR_CANCELLED))
-      goto connect_failed;
-  }
-
-  /* final connect attempt failed */
-  if (err)
+  /* connect to server */
+  if (!g_socket_connect (this->socket, saddr, this->cancellable, &err))
     goto connect_failed;
 
-  GST_DEBUG_OBJECT (this, "connected to %s:%d", this->host, this->port);
-  g_list_free_full (g_steal_pointer (&addrs), g_object_unref);
   g_object_unref (saddr);
 
   GST_OBJECT_FLAG_SET (this, GST_TCP_CLIENT_SINK_OPEN);
@@ -337,29 +338,28 @@ gst_tcp_client_sink_start (GstBaseSink * bsink)
   this->data_written = 0;
 
   return TRUE;
-
+no_socket:
+  {
+    GST_ELEMENT_ERROR (this, RESOURCE, OPEN_READ, (NULL),
+        ("Failed to create socket: %s", err->message));
+    g_clear_error (&err);
+    g_object_unref (saddr);
+    return FALSE;
+  }
 name_resolve:
   {
     if (g_error_matches (err, G_IO_ERROR, G_IO_ERROR_CANCELLED)) {
-      GST_DEBUG_OBJECT (this, "Cancelled name resolution");
+      GST_DEBUG_OBJECT (this, "Cancelled name resolval");
     } else {
       GST_ELEMENT_ERROR (this, RESOURCE, OPEN_READ, (NULL),
           ("Failed to resolve host '%s': %s", this->host, err->message));
     }
     g_clear_error (&err);
-    return FALSE;
-  }
-no_socket:
-  {
-    g_list_free_full (g_steal_pointer (&addrs), g_object_unref);
-    GST_ELEMENT_ERROR (this, RESOURCE, OPEN_READ, (NULL),
-        ("Failed to create socket: %s", err->message));
-    g_clear_error (&err);
+    g_object_unref (resolver);
     return FALSE;
   }
 connect_failed:
   {
-    g_list_free_full (g_steal_pointer (&addrs), g_object_unref);
     if (g_error_matches (err, G_IO_ERROR, G_IO_ERROR_CANCELLED)) {
       GST_DEBUG_OBJECT (this, "Cancelled connecting");
     } else {
@@ -368,6 +368,7 @@ connect_failed:
               err->message));
     }
     g_clear_error (&err);
+    g_object_unref (saddr);
     /* pretend we opened ok for proper cleanup to happen */
     GST_OBJECT_FLAG_SET (this, GST_TCP_CLIENT_SINK_OPEN);
     gst_tcp_client_sink_stop (GST_BASE_SINK (this));

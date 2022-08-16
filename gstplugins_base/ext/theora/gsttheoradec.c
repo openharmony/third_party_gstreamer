@@ -26,9 +26,9 @@
  * @see_also: theoraenc, oggdemux
  *
  * This element decodes theora streams into raw video
- * [Theora](http://www.theora.org/) is a royalty-free
- * video codec maintained by the [Xiph.org Foundation](http://www.xiph.org/),
- * based on the VP3 codec.
+ * <ulink url="http://www.theora.org/">Theora</ulink> is a royalty-free
+ * video codec maintained by the <ulink url="http://www.xiph.org/">Xiph.org
+ * Foundation</ulink>, based on the VP3 codec.
  *
  * ## Example pipeline
  * |[
@@ -91,8 +91,6 @@ GST_STATIC_PAD_TEMPLATE ("sink",
 
 #define gst_theora_dec_parent_class parent_class
 G_DEFINE_TYPE (GstTheoraDec, gst_theora_dec, GST_TYPE_VIDEO_DECODER);
-GST_ELEMENT_REGISTER_DEFINE (theoradec, "theoradec",
-    GST_RANK_PRIMARY, GST_TYPE_THEORA_DEC);
 
 static void theora_dec_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
@@ -473,23 +471,19 @@ theora_handle_type_packet (GstTheoraDec * dec)
   /* done */
   dec->decoder = th_decode_alloc (&dec->info, dec->setup);
 
-  if (dec->telemetry_mv &&
-      th_decode_ctl (dec->decoder, TH_DECCTL_SET_TELEMETRY_MV,
+  if (th_decode_ctl (dec->decoder, TH_DECCTL_SET_TELEMETRY_MV,
           &dec->telemetry_mv, sizeof (dec->telemetry_mv)) != TH_EIMPL) {
     GST_WARNING_OBJECT (dec, "Could not enable MV visualisation");
   }
-  if (dec->telemetry_mbmode &&
-      th_decode_ctl (dec->decoder, TH_DECCTL_SET_TELEMETRY_MBMODE,
+  if (th_decode_ctl (dec->decoder, TH_DECCTL_SET_TELEMETRY_MBMODE,
           &dec->telemetry_mbmode, sizeof (dec->telemetry_mbmode)) != TH_EIMPL) {
     GST_WARNING_OBJECT (dec, "Could not enable MB mode visualisation");
   }
-  if (dec->telemetry_qi &&
-      th_decode_ctl (dec->decoder, TH_DECCTL_SET_TELEMETRY_QI,
+  if (th_decode_ctl (dec->decoder, TH_DECCTL_SET_TELEMETRY_QI,
           &dec->telemetry_qi, sizeof (dec->telemetry_qi)) != TH_EIMPL) {
     GST_WARNING_OBJECT (dec, "Could not enable QI mode visualisation");
   }
-  if (dec->telemetry_bits &&
-      th_decode_ctl (dec->decoder, TH_DECCTL_SET_TELEMETRY_BITS,
+  if (th_decode_ctl (dec->decoder, TH_DECCTL_SET_TELEMETRY_BITS,
           &dec->telemetry_bits, sizeof (dec->telemetry_bits)) != TH_EIMPL) {
     GST_WARNING_OBJECT (dec, "Could not enable BITS mode visualisation");
   }
@@ -574,7 +568,7 @@ theora_handle_header_packet (GstTheoraDec * dec, ogg_packet * packet)
       break;
     default:
       /* ignore */
-      GST_WARNING_OBJECT (dec, "unknown theora header packet found");
+      g_warning ("unknown theora header packet found");
     case 0x80:
       /* nothing special, this is the identification header */
       res = GST_FLOW_OK;

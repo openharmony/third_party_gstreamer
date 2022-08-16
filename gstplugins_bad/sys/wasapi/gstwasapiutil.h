@@ -29,7 +29,6 @@
 #include <audioclient.h>
 
 #include "gstaudioclient3.h"
-#include "gstmmdeviceenumerator.h"
 
 /* Static Caps shared between source, sink, and device provider */
 #define GST_WASAPI_STATIC_CAPS "audio/x-raw, " \
@@ -93,16 +92,12 @@ gint gst_wasapi_erole_to_device_role (gint erole);
 
 gchar *gst_wasapi_util_hresult_to_string (HRESULT hr);
 
-gboolean gst_wasapi_util_get_devices (GstMMDeviceEnumerator * enumerator,
-                                      gboolean active,
-                                      GList ** devices);
+gboolean gst_wasapi_util_get_devices (GstObject * element, gboolean active,
+    GList ** devices);
 
-gboolean gst_wasapi_util_get_device (GstMMDeviceEnumerator * enumerator,
+gboolean gst_wasapi_util_get_device_client (GstElement * element,
     gint data_flow, gint role, const wchar_t * device_strid,
-    IMMDevice ** ret_device);
-
-gboolean gst_wasapi_util_get_audio_client (GstElement * self,
-    IMMDevice * device, IAudioClient ** ret_client);
+    IMMDevice ** ret_device, IAudioClient ** ret_client);
 
 gboolean gst_wasapi_util_get_device_format (GstElement * element,
     gint device_mode, IMMDevice * device, IAudioClient * client,

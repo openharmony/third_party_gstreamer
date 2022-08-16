@@ -458,7 +458,7 @@ gst_gl_filter_fixate_caps (GstBaseTransform * bt,
         goto done;
       }
 
-      /* If all this failed, keep the height that was nearest to the original
+      /* If all this failed, keep the height that was nearest to the orignal
        * height and the nearest possible width. This changes the DAR but
        * there's not much else to do here.
        */
@@ -831,14 +831,14 @@ gst_gl_filter_propose_allocation (GstBaseTransform * trans,
     gst_buffer_pool_config_set_params (config, caps, size, 0, 0);
 
     if (!gst_buffer_pool_set_config (pool, config)) {
-      gst_object_unref (pool);
+      g_object_unref (pool);
       goto config_failed;
     }
   }
 
   gst_query_add_allocation_pool (query, pool, size, 1, 0);
   if (pool)
-    gst_object_unref (pool);
+    g_object_unref (pool);
 
   if (context->gl_vtable->FenceSync)
     gst_query_add_allocation_meta (query, GST_GL_SYNC_META_API_TYPE, 0);
@@ -927,8 +927,8 @@ gst_gl_filter_decide_allocation (GstBaseTransform * trans, GstQuery * query)
 /**
  * gst_gl_filter_filter_texture:
  * @filter: a #GstGLFilter
- * @input: an input buffer
- * @output: an output buffer
+ * @inbuf: an input buffer
+ * @outbuf: an output buffer
  *
  * Calls filter_texture vfunc with correctly mapped #GstGLMemorys
  *
@@ -937,8 +937,8 @@ gst_gl_filter_decide_allocation (GstBaseTransform * trans, GstQuery * query)
  * Since: 1.4
  */
 gboolean
-gst_gl_filter_filter_texture (GstGLFilter * filter, GstBuffer * input,
-    GstBuffer * output)
+gst_gl_filter_filter_texture (GstGLFilter * filter, GstBuffer * inbuf,
+    GstBuffer * outbuf)
 {
   GstGLFilterClass *filter_class;
   GstMemory *in_tex, *out_tex;
@@ -947,7 +947,7 @@ gst_gl_filter_filter_texture (GstGLFilter * filter, GstBuffer * input,
 
   filter_class = GST_GL_FILTER_GET_CLASS (filter);
 
-  if (!gst_video_frame_map (&gl_frame, &filter->in_info, input,
+  if (!gst_video_frame_map (&gl_frame, &filter->in_info, inbuf,
           GST_MAP_READ | GST_MAP_GL)) {
     ret = FALSE;
     goto inbuf_error;
@@ -960,7 +960,7 @@ gst_gl_filter_filter_texture (GstGLFilter * filter, GstBuffer * input,
     goto unmap_out_error;
   }
 
-  if (!gst_video_frame_map (&out_frame, &filter->out_info, output,
+  if (!gst_video_frame_map (&out_frame, &filter->out_info, outbuf,
           GST_MAP_WRITE | GST_MAP_GL)) {
     ret = FALSE;
     goto unmap_out_error;

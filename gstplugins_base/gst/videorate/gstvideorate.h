@@ -24,10 +24,18 @@
 #include <gst/base/gstbasetransform.h>
 
 G_BEGIN_DECLS
-
-#define GST_TYPE_VIDEO_RATE (gst_video_rate_get_type())
-G_DECLARE_FINAL_TYPE (GstVideoRate, gst_video_rate, GST, VIDEO_RATE,
-    GstBaseTransform)
+#define GST_TYPE_VIDEO_RATE \
+  (gst_video_rate_get_type())
+#define GST_VIDEO_RATE(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_VIDEO_RATE,GstVideoRate))
+#define GST_VIDEO_RATE_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_VIDEO_RATE,GstVideoRateClass))
+#define GST_IS_VIDEO_RATE(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_VIDEO_RATE))
+#define GST_IS_VIDEO_RATE_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_VIDEO_RATE))
+typedef struct _GstVideoRate GstVideoRate;
+typedef struct _GstVideoRateClass GstVideoRateClass;
 
 /**
  * GstVideoRate:
@@ -70,12 +78,16 @@ struct _GstVideoRate
   gboolean drop_only;
   guint64 average_period_set;
 
-  int max_rate;
+  volatile int max_rate;
   gdouble rate;
-  gdouble pending_rate;
 };
 
-GST_ELEMENT_REGISTER_DECLARE (videorate);
+struct _GstVideoRateClass
+{
+  GstBaseTransformClass parent_class;
+};
+
+GType gst_video_rate_get_type (void);
 
 G_END_DECLS
 #endif /* __GST_VIDEO_RATE_H__ */

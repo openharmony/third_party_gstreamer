@@ -21,13 +21,13 @@
 
 /**
  * SECTION:element-wavpackenc
- * @title: wavpackenc
  *
  * WavpackEnc encodes raw audio into a framed Wavpack stream.
- * [Wavpack](http://www.wavpack.com/) is an open-source audio codec that
- * features both lossless and lossy encoding.
+ * <ulink url="http://www.wavpack.com/">Wavpack</ulink> is an open-source
+ * audio codec that features both lossless and lossy encoding.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 audiotestsrc num-buffers=500 ! audioconvert ! wavpackenc ! filesink location=sinewave.wv
  * ]| This pipeline encodes audio from audiotestsrc into a Wavpack file. The audioconvert element is needed
@@ -40,7 +40,7 @@
  * gst-launch-1.0 cdda://1 ! audioconvert ! wavpackenc bitrate=128000 ! filesink location=track1.wv
  * ]| This pipeline encodes audio from an audio CD into a Wavpack file using
  * lossy encoding at a certain bitrate (the file will be fairly small).
- *
+ * </refsect2>
  */
 
 /*
@@ -54,7 +54,6 @@
 #include <wavpack/wavpack.h>
 #include "gstwavpackenc.h"
 #include "gstwavpackcommon.h"
-#include "gstwavpackelements.h"
 
 static gboolean gst_wavpack_enc_start (GstAudioEncoder * enc);
 static gboolean gst_wavpack_enc_stop (GstAudioEncoder * enc);
@@ -201,12 +200,6 @@ gst_wavpack_enc_joint_stereo_mode_get_type (void)
 
 #define gst_wavpack_enc_parent_class parent_class
 G_DEFINE_TYPE (GstWavpackEnc, gst_wavpack_enc, GST_TYPE_AUDIO_ENCODER);
-#define _do_init \
-  GST_DEBUG_CATEGORY_INIT (gst_wavpack_enc_debug, "wavpackenc", 0, \
-      "Wavpack encoder"); \
-  wavpack_element_init (plugin);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (wavpackenc, "wavpackenc", GST_RANK_NONE,
-    GST_TYPE_WAVPACK_ENC, _do_init);
 
 static void
 gst_wavpack_enc_class_init (GstWavpackEncClass * klass)
@@ -270,10 +263,6 @@ gst_wavpack_enc_class_init (GstWavpackEncClass * klass)
           "Use this joint-stereo mode.", GST_TYPE_WAVPACK_ENC_JOINT_STEREO_MODE,
           GST_WAVPACK_JS_MODE_AUTO,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  gst_type_mark_as_plugin_api (GST_TYPE_WAVPACK_ENC_MODE, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_WAVPACK_ENC_CORRECTION_MODE, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_WAVPACK_ENC_JOINT_STEREO_MODE, 0);
 }
 
 static void
@@ -447,7 +436,7 @@ static void
 gst_wavpack_enc_set_wp_config (GstWavpackEnc * enc)
 {
   enc->wp_config = g_new0 (WavpackConfig, 1);
-  /* set general stream information in the WavpackConfig */
+  /* set general stream informations in the WavpackConfig */
   enc->wp_config->bytes_per_sample = GST_ROUND_UP_8 (enc->depth) / 8;
   enc->wp_config->bits_per_sample = enc->depth;
   enc->wp_config->num_channels = enc->channels;
@@ -619,7 +608,7 @@ gst_wavpack_enc_push_block (void *id, void *data, int32_t count)
           GstMapInfo map;
 
           gst_buffer_map (buffer, &map, GST_MAP_READ);
-          enc->first_block = g_memdup2 (map.data, map.size);
+          enc->first_block = g_memdup (map.data, map.size);
           enc->first_block_size = map.size;
           gst_buffer_unmap (buffer, &map);
         }
@@ -719,7 +708,7 @@ gst_wavpack_enc_handle_frame (GstAudioEncoder * benc, GstBuffer * buf)
       WavpackCloseFile (enc->wp_context);
       goto config_failed;
     }
-    GST_DEBUG_OBJECT (enc, "setup of encoding context successful");
+    GST_DEBUG_OBJECT (enc, "setup of encoding context successfull");
   }
 
   if (enc->need_channel_remap) {
@@ -1000,4 +989,17 @@ gst_wavpack_enc_get_property (GObject * object, guint prop_id, GValue * value,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+}
+
+gboolean
+gst_wavpack_enc_plugin_init (GstPlugin * plugin)
+{
+  if (!gst_element_register (plugin, "wavpackenc",
+          GST_RANK_NONE, GST_TYPE_WAVPACK_ENC))
+    return FALSE;
+
+  GST_DEBUG_CATEGORY_INIT (gst_wavpack_enc_debug, "wavpackenc", 0,
+      "Wavpack encoder");
+
+  return TRUE;
 }

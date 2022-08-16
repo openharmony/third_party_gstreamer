@@ -21,9 +21,6 @@
  * Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
  * Boston, MA 02110-1301, USA.
  */
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
 
 #include <string.h>
 #include <stdlib.h>
@@ -157,7 +154,7 @@ find_subtable (GSList * subtables, guint8 table_id, guint16 subtable_extension)
 static gboolean
 seen_section_before (MpegTSPacketizerStream * stream, guint8 table_id,
     guint16 subtable_extension, guint8 version_number, guint8 section_number,
-    guint8 last_section_number, guint8 * data_start, gsize to_read)
+    guint8 last_section_number)
 {
   MpegTSPacketizerStreamSubtable *subtable;
 
@@ -178,17 +175,7 @@ seen_section_before (MpegTSPacketizerStream * stream, guint8 table_id,
     return FALSE;
   }
   /* Finally return whether we saw that section or not */
-  if (!MPEGTS_BIT_IS_SET (subtable->seen_section, section_number)) {
-    GST_DEBUG ("Different section_number");
-    return FALSE;
-  }
-
-  if (stream->section_data) {
-    /* Everything else is the same, fall back to memcmp */
-    return (memcmp (stream->section_data, data_start, to_read) != 0);
-  }
-
-  return FALSE;
+  return MPEGTS_BIT_IS_SET (subtable->seen_section, section_number);
 }
 
 static MpegTSPacketizerStreamSubtable *
@@ -283,9 +270,6 @@ mpegts_packetizer_init (MpegTSPacketizer2 * packetizer)
   packetizer->refoffset = -1;
   packetizer->last_in_time = GST_CLOCK_TIME_NONE;
   packetizer->pcr_discont_threshold = GST_SECOND;
-  packetizer->last_pts = GST_CLOCK_TIME_NONE;
-  packetizer->last_dts = GST_CLOCK_TIME_NONE;
-  packetizer->extra_shift = 0;
 }
 
 static void
@@ -370,17 +354,6 @@ mpegts_packetizer_parse_adaptation_field_control (MpegTSPacketizer2 *
       GST_MEMDUMP ("Unknown payload", packet->data + length,
           packet->data_end - packet->data - length);
     }
-  } else if (length == 183) {
-    /* Note: According to the specification, the adaptation field length
-     * must be 183 if there is no payload data and < 183 if the packet
-     * contains an adaptation field and payload data.
-     * Some payloaders always set the flag for payload data, even if the
-     * adaptation field length is 183. This just means a zero length
-     * payload so we clear the payload flag here and continue.
-     */
-    GST_WARNING ("PID 0x%04x afc == 0x%02x and length %d == 183 (ignored)",
-        packet->pid, packet->scram_afc_cc & 0x30, length);
-    packet->scram_afc_cc &= ~0x10;
   } else if (length > 182) {
     GST_WARNING ("PID 0x%04x afc == 0x%02x and length %d > 182",
         packet->pid, packet->scram_afc_cc & 0x30, length);
@@ -509,7 +482,7 @@ mpegts_packetizer_parse_packet (MpegTSPacketizer2 * packetizer,
       return FALSE;
   }
 
-  if (FLAGS_HAS_PAYLOAD (packet->scram_afc_cc))
+  if (FLAGS_HAS_PAYLOAD (tmp))
     packet->payload = packet->data;
   else
     packet->payload = NULL;
@@ -606,8 +579,6 @@ mpegts_packetizer_clear (MpegTSPacketizer2 * packetizer)
   packetizer->map_size = 0;
   packetizer->map_offset = 0;
   packetizer->last_in_time = GST_CLOCK_TIME_NONE;
-  packetizer->last_pts = GST_CLOCK_TIME_NONE;
-  packetizer->last_dts = GST_CLOCK_TIME_NONE;
 
   pcrtable = packetizer->observations[packetizer->pcrtablelut[0x1fff]];
   if (pcrtable)
@@ -648,8 +619,6 @@ mpegts_packetizer_flush (MpegTSPacketizer2 * packetizer, gboolean hard)
   packetizer->map_size = 0;
   packetizer->map_offset = 0;
   packetizer->last_in_time = GST_CLOCK_TIME_NONE;
-  packetizer->last_pts = GST_CLOCK_TIME_NONE;
-  packetizer->last_dts = GST_CLOCK_TIME_NONE;
 
   pcrtable = packetizer->observations[packetizer->pcrtablelut[0x1fff]];
   if (pcrtable)
@@ -711,8 +680,6 @@ mpegts_packetizer_push (MpegTSPacketizer2 * packetizer, GstBuffer * buffer)
   ts = GST_BUFFER_DTS_OR_PTS (buffer);
   if (GST_CLOCK_TIME_IS_VALID (ts))
     packetizer->last_in_time = ts;
-  packetizer->last_pts = GST_BUFFER_PTS (buffer);
-  packetizer->last_dts = GST_BUFFER_DTS (buffer);
 }
 
 static void
@@ -1016,7 +983,7 @@ mpegts_packetizer_push_section (MpegTSPacketizer2 * packetizer,
    *  If it is not a PUSI
    *    Accumulate the expected data and check for complete section
    *    (loop)
-   *
+   *    
    **/
 
   if (packet->payload_unit_start_indicator) {
@@ -1125,9 +1092,9 @@ section_start:
     GST_DEBUG ("Short packet");
     section_length = (GST_READ_UINT16_BE (data + 1) & 0xfff) + 3;
     /* Only do fast-path if we have enough byte */
-    if (data + section_length <= packet->data_end) {
+    if (section_length < packet->data_end - data) {
       if ((section =
-              gst_mpegts_section_new (packet->pid, g_memdup2 (data,
+              gst_mpegts_section_new (packet->pid, g_memdup (data,
                       section_length), section_length))) {
         GST_DEBUG ("PID 0x%04x Short section complete !", packet->pid);
         section->offset = packet->offset;
@@ -1203,8 +1170,7 @@ section_start:
    * * same section_number was seen
    */
   if (seen_section_before (stream, table_id, subtable_extension,
-          version_number, section_number, last_section_number, data_start,
-          to_read)) {
+          version_number, section_number, last_section_number)) {
     GST_DEBUG
         ("PID 0x%04x Already processed table_id:0x%02x subtable_extension:0x%04x, version_number:%d, section_number:%d",
         packet->pid, table_id, subtable_extension, version_number,
@@ -1314,7 +1280,7 @@ mpegts_packetizer_resync (MpegTSPCR * pcr, GstClockTime time,
  *    Cri    : The time of the clock at the receiver for packet i
  *    D + ni : The jitter when receiving packet i
  *
- * We see that the network delay is irrelevant here as we can eliminate D:
+ * We see that the network delay is irrelevant here as we can elliminate D:
  *
  *  recv_diff(i) = (Cri + ni) - (Cr0 + n0))
  *
@@ -1409,19 +1375,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
       /* Small jumps backward, assume some arrival jitter and skip it */
       send_diff = 0;
 
-      /* The following code are the different ways we deal with small-ish
-       * jitter, ranging in severity from "can be ignored" to "this needs a full
-       * resync" */
-
-      if (time == pcr->base_time) {
-        /* If this comes from a non-fully-timestamped source (i.e. adaptive
-         * streams), then cope with the fact that some producers generate utter
-         * PCR garbage on fragment ends.
-         *
-         * We detect this comes from a non-fully-timestamped source by the fact
-         * that the buffer time never changes */
-        GST_DEBUG ("Ignoring PCR resets on non-fully timestamped stream");
-      } else if (pcr->last_pcrtime - gstpcrtime < GST_SECOND) {
+      if (pcr->last_pcrtime - gstpcrtime < GST_SECOND) {
         GST_WARNING
             ("(small) backward timestamps at server or no buffer timestamps. Ignoring.");
         /* This will trigger the no_skew logic before but leave other state
@@ -1479,8 +1433,8 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
    * changed too quickly we have to resync because the server likely restarted
    * its timestamps. */
   if (ABS (delta - pcr->skew) > packetizer->pcr_discont_threshold) {
-    GST_WARNING ("delta - skew: %" GST_STIME_FORMAT " too big, reset skew",
-        GST_STIME_ARGS (delta - pcr->skew));
+    GST_WARNING ("delta - skew: %" GST_TIME_FORMAT " too big, reset skew",
+        GST_TIME_ARGS (delta - pcr->skew));
     mpegts_packetizer_resync (pcr, time, gstpcrtime, TRUE);
     send_diff = 0;
     delta = 0;
@@ -1659,7 +1613,7 @@ _reevaluate_group_pcr_offset (MpegTSPCR * pcrtable, PCROffsetGroup * group)
        * We will use raw (non-corrected/non-absolute) PCR values in a first time
        * to detect wraparound/resets/gaps...
        *
-       * We will use the corrected/absolute PCR values to calculate
+       * We will use the corrected/asolute PCR values to calculate
        * bitrate and estimate the target group pcr_offset.
        * */
 
@@ -1985,7 +1939,7 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
     GList *tmp;
     /* No current estimator. This happens for the initial value, or after
      * discont and flushes. Figure out where we need to record this position.
-     *
+     * 
      * Possible choices:
      * 1) No groups at all:
      *    Create a new group with pcr/offset
@@ -2278,24 +2232,23 @@ mpegts_packetizer_pts_to_ts (MpegTSPacketizer2 * packetizer,
         GST_TIME_ARGS (pcrtable->base_pcrtime),
         GST_TIME_ARGS (pcrtable->base_time),
         GST_TIME_ARGS (pcrtable->pcroffset));
-    res = pts + pcrtable->pcroffset + packetizer->extra_shift;
+    res = pts + pcrtable->pcroffset;
 
     /* Don't return anything if we differ too much against last seen PCR */
+    /* FIXME : Ideally we want to figure out whether we have a wraparound or
+     * a reset so we can provide actual values.
+     * That being said, this will only happen for the small interval of time
+     * where PTS/DTS are wrapping just before we see the first reset/wrap PCR
+     */
     if (G_UNLIKELY (pcr_pid != 0x1fff &&
             ABSDIFF (res, pcrtable->last_pcrtime) > 15 * GST_SECOND))
       res = GST_CLOCK_TIME_NONE;
     else {
       GstClockTime tmp = pcrtable->base_time + pcrtable->skew;
-      if (tmp + res >= pcrtable->base_pcrtime) {
+      if (tmp + res > pcrtable->base_pcrtime)
         res += tmp - pcrtable->base_pcrtime;
-      } else if (ABSDIFF (tmp + res + PCR_GST_MAX_VALUE,
-              pcrtable->base_pcrtime) < PCR_GST_MAX_VALUE / 2) {
-        /* Handle wrapover */
-        res += tmp + PCR_GST_MAX_VALUE - pcrtable->base_pcrtime;
-      } else {
-        /* Fallback for values that differ way too much */
+      else
         res = GST_CLOCK_TIME_NONE;
-      }
     }
   } else if (packetizer->calculate_offset && pcrtable->groups) {
     gint64 refpcr = G_MAXINT64, refpcroffset;

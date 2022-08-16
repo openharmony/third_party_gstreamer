@@ -1,5 +1,5 @@
 /* -LICENSE-START-
-** Copyright (c) 2019 Blackmagic Design
+** Copyright (c) 2016 Blackmagic Design
 **
 ** Permission is hereby granted, free of charge, to any person or organization
 ** obtaining a copy of the software and accompanying documentation covered by
@@ -35,10 +35,6 @@
     #else
         #define BMD_CONST static const
     #endif
-#endif
-
-#ifndef BMD_PUBLIC
-	#define BMD_PUBLIC
 #endif
 
 // Type Declarations
@@ -153,7 +149,7 @@ class IDeckLinkDeckControl;
 
 /* Interface IDeckLinkDeckControlStatusCallback - Deck control state change callback. */
 
-class BMD_PUBLIC IDeckLinkDeckControlStatusCallback : public IUnknown
+class IDeckLinkDeckControlStatusCallback : public IUnknown
 {
 public:
     virtual HRESULT TimecodeUpdate (/* in */ BMDTimecodeBCD currentTimecode) = 0;
@@ -167,7 +163,7 @@ protected:
 
 /* Interface IDeckLinkDeckControl - Deck Control main interface */
 
-class BMD_PUBLIC IDeckLinkDeckControl : public IUnknown
+class IDeckLinkDeckControl : public IUnknown
 {
 public:
     virtual HRESULT Open (/* in */ BMDTimeScale timeScale, /* in */ BMDTimeValue timeValue, /* in */ bool timecodeIsDropFrame, /* out */ BMDDeckControlError *error) = 0;

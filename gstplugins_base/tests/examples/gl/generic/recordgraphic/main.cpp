@@ -65,23 +65,23 @@ static gboolean bus_call (GstBus *bus, GstMessage *msg, gpointer data)
 }
 
 //client draw callback
-static gboolean drawCallback (void *filter, GLuint texture, GLuint width, GLuint height, gpointer data)
+static gboolean drawCallback (void *filter, void *context, GLuint texture, GLuint width, GLuint height, gpointer data)
 {
     static GLfloat	xrot = 0;
     static GLfloat	yrot = 0;
     static GLfloat	zrot = 0;
-    static GstClockTime current_time;
-    static GstClockTime last_time = gst_util_get_timestamp();
+    static GTimeVal current_time;
+    static glong last_sec = current_time.tv_sec;
     static gint nbFrames = 0;
 
-    current_time = gst_util_get_timestamp ();
+    g_get_current_time (&current_time);
     nbFrames++ ;
 
-    if ((current_time - last_time) >= GST_SECOND)
+    if ((current_time.tv_sec - last_sec) >= 1)
     {
-        std::cout << "GRAPHIC FPS = " << nbFrames << std::endl;
+        std::cout << "GRPHIC FPS = " << nbFrames << std::endl;
         nbFrames = 0;
-	last_time = current_time;
+        last_sec = current_time.tv_sec;
     }
 
     glEnable(GL_DEPTH_TEST);
@@ -98,7 +98,7 @@ static gboolean drawCallback (void *filter, GLuint texture, GLuint width, GLuint
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
-    glScalef (0.5f, 0.5f, 0.5f);
+    glTranslatef(0.0f,0.0f,-5.0f);
 
     glRotatef(xrot,1.0f,0.0f,0.0f);
     glRotatef(yrot,0.0f,1.0f,0.0f);
@@ -138,9 +138,6 @@ static gboolean drawCallback (void *filter, GLuint texture, GLuint width, GLuint
 	      glTexCoord2f(1.0f, 1.0f); glVertex3f(-1.0f,  1.0f, -1.0f);
     glEnd();
 
-    glDisable (GL_DEPTH_TEST);
-    glDisable (GL_TEXTURE_2D);
-
     xrot+=0.3f;
     yrot+=0.2f;
     zrot+=0.4f;
@@ -159,12 +156,9 @@ static gboolean drawCallback (void *filter, GLuint texture, GLuint width, GLuint
 gint main (gint argc, gchar *argv[])
 {
     GstStateChangeReturn ret;
-    GstElement *pipeline, *videosrc, *glupload, *glfilterapp, *glcolorconvert, *gldownload, *avenc_mpeg4, *avimux, *filesink;
+    GstElement *pipeline, *videosrc, *glfilterapp, *avenc_mpeg4, *avimux, *filesink;
     GMainLoop *loop;
     GstBus *bus;
-
-    /* FIXME: remove once the example supports gl3 and/or gles2 */
-    g_setenv ("GST_GL_API", "opengl", FALSE);
 
     /* initialization */
     gst_init (&argc, &argv);
@@ -181,15 +175,13 @@ gint main (gint argc, gchar *argv[])
 
     /* create elements */
     videosrc = gst_element_factory_make ("videotestsrc", "videotestsrc0");
-    glupload = gst_element_factory_make("glupload", "glupload0");
     glfilterapp = gst_element_factory_make ("glfilterapp", "glfilterapp0");
-    glcolorconvert = gst_element_factory_make ("glcolorconvert", "glcolorconvert0");
-    gldownload = gst_element_factory_make("gldownload", "gldownload0");
     avenc_mpeg4  = gst_element_factory_make ("avenc_mpeg4", "avenc_mpeg40");
     avimux  = gst_element_factory_make ("avimux", "avimux0");
     filesink  = gst_element_factory_make ("filesink", "filesink0");
 
-    if (!videosrc || !glupload || !glfilterapp || !glcolorconvert || !gldownload || !avenc_mpeg4 || !avimux || !filesink)
+
+    if (!videosrc || !glfilterapp || !avenc_mpeg4 || !avimux || !filesink)
     {
         g_print ("one element could not be found \n");
         return -1;
@@ -197,6 +189,7 @@ gint main (gint argc, gchar *argv[])
 
     /* change video source caps */
     GstCaps *caps = gst_caps_new_simple("video/x-raw",
+                                        "format", G_TYPE_STRING, "UYVY",
                                         "width", G_TYPE_INT, 320,
                                         "height", G_TYPE_INT, 240,
                                         "framerate", GST_TYPE_FRACTION, 25, 1,
@@ -214,43 +207,31 @@ gint main (gint argc, gchar *argv[])
     g_object_set(G_OBJECT(filesink), "location", "record.avi", NULL);
 
     /* add elements */
-    gst_bin_add_many (GST_BIN (pipeline), videosrc, glupload, glfilterapp,
-        glcolorconvert, gldownload, avenc_mpeg4, avimux, filesink, NULL);
+    gst_bin_add_many (GST_BIN (pipeline), videosrc, glfilterapp,
+        avenc_mpeg4, avimux, filesink, NULL);
 
     /* link elements */
-    gboolean link_ok = gst_element_link_filtered(videosrc, glupload, caps) ;
+    gboolean link_ok = gst_element_link_filtered(videosrc, glfilterapp, caps) ;
     gst_caps_unref(caps) ;
     if(!link_ok)
     {
-        g_warning("Failed to link videosrc to glfilterapp!") ;
+        g_warning("Failed to link videosrc to glfilterapp!\n") ;
         return -1 ;
     }
 
-    if (!gst_element_link (glupload, glfilterapp)) {
-        g_warning("Failed to link glupload to glfilterapp!") ;
-        return -1 ;
-    }
-    if (!gst_element_link (glfilterapp, glcolorconvert)) {
-        g_warning("Failed to link glfilterapp to glcolorconvert!") ;
-        return -1 ;
-    }
-    if (!gst_element_link (glcolorconvert, gldownload)) {
-        g_warning("Failed to link glfilterapp to glcolorconvert!") ;
-        return -1 ;
-    }
-
-    link_ok = gst_element_link_filtered(gldownload, avenc_mpeg4, outcaps);
+    link_ok = gst_element_link_filtered(glfilterapp, avenc_mpeg4, outcaps) ;
     gst_caps_unref(outcaps) ;
     if(!link_ok)
     {
-        g_warning("Failed to link glfilterapp to avenc_mpeg4!") ;
+        g_warning("Failed to link glfilterapp to avenc_mpeg4!\n") ;
         return -1 ;
     }
     if (!gst_element_link_many(avenc_mpeg4, avimux, filesink, NULL))
     {
-        g_warning ("Failed to link one or more elements!");
+        g_print ("Failed to link one or more elements!\n");
         return -1;
     }
+
 
     /* run */
     ret = gst_element_set_state (pipeline, GST_STATE_PLAYING);
@@ -265,7 +246,7 @@ gint main (gint argc, gchar *argv[])
           GError *err = NULL;
 
           gst_message_parse_error (msg, &err, NULL);
-          g_warning ("ERROR: %s", err->message);
+          g_print ("ERROR: %s\n", err->message);
           g_error_free (err);
           gst_message_unref (msg);
         }

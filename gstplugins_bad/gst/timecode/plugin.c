@@ -30,10 +30,13 @@
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  gboolean ret;
 
-  ret |= GST_ELEMENT_REGISTER (timecodestamper, plugin);
-  ret |= GST_ELEMENT_REGISTER (avwait, plugin);
+  ret = gst_element_register (plugin, "timecodestamper", GST_RANK_NONE,
+      GST_TYPE_TIME_CODE_STAMPER);
+
+  ret &= gst_element_register (plugin, "avwait", GST_RANK_NONE,
+      GST_TYPE_AVWAIT);
 
   return ret;
 }

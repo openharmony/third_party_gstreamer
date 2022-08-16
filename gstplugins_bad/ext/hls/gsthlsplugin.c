@@ -1,27 +1,36 @@
-
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
 
-#include "gsthlselements.h"
+#include <gst/gst.h>
 
+#include "gsthls.h"
+#include "gsthlsdemux.h"
+#include "gsthlssink.h"
+#include "gsthlssink2.h"
+
+GST_DEBUG_CATEGORY (hls_debug);
 
 static gboolean
-plugin_init (GstPlugin * plugin)
+hls_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  GST_DEBUG_CATEGORY_INIT (hls_debug, "hls", 0, "HTTP Live Streaming (HLS)");
 
-  ret |= GST_ELEMENT_REGISTER (hlsdemux, plugin);
-#ifndef OHOS_EXT_FUNC
-  /* ohos.ext.func.0032 remove the unused features */
-  ret |= GST_ELEMENT_REGISTER (hlssink, plugin);
-  ret |= GST_ELEMENT_REGISTER (hlssink2, plugin);
-#endif
-  return ret;
+  if (!gst_element_register (plugin, "hlsdemux", GST_RANK_PRIMARY,
+          GST_TYPE_HLS_DEMUX) || FALSE)
+    return FALSE;
+
+  if (!gst_hls_sink_plugin_init (plugin))
+    return FALSE;
+
+  if (!gst_hls_sink2_plugin_init (plugin))
+    return FALSE;
+
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     hls,
     "HTTP Live Streaming (HLS)",
-    plugin_init, VERSION, GST_LICENSE, PACKAGE_NAME, GST_PACKAGE_ORIGIN)
+    hls_init, VERSION, GST_LICENSE, PACKAGE_NAME, GST_PACKAGE_ORIGIN)

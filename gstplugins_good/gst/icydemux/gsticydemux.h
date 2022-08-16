@@ -82,8 +82,6 @@ struct _GstICYDemuxClass
 
 GType gst_icydemux_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (icydemux);
-
 G_END_DECLS
 
 #endif /* __GST_ICYDEMUX_H__ */

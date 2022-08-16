@@ -70,8 +70,7 @@ struct _GstWebpEncClass
 };
 
 GType gst_webp_enc_get_type (void);
-
-GST_ELEMENT_REGISTER_DECLARE (webpenc);
+gboolean gst_webp_enc_register (GstPlugin * plugin);
 
 G_END_DECLS
 #endif /* __GST_WEBPENC_H__ */

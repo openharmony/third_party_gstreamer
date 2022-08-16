@@ -22,22 +22,26 @@
 #include "config.h"
 #endif
 
-#include "gstqtelements.h"
-#include "qtitem.h"
+#include "gstqtsink.h"
+#include "gstqtsrc.h"
 #include <QtQml/QQmlApplicationEngine>
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  if (!gst_element_register (plugin, "qmlglsink",
+          GST_RANK_NONE, GST_TYPE_QT_SINK)) {
+    return FALSE;
+  }
+  
+  if (!gst_element_register (plugin, "qmlglsrc",
+          GST_RANK_NONE, GST_TYPE_QT_SRC)) {
+    return FALSE;
+  }
+  /* this means the plugin must be loaded before the qml engine is loaded */
+  qmlRegisterType<QtGLVideoItem> ("org.freedesktop.gstreamer.GLVideoItem", 1, 0, "GstGLVideoItem");
 
-  ret |= GST_ELEMENT_REGISTER (qmlglsink, plugin);
-
-  ret |= GST_ELEMENT_REGISTER (qmlglsrc, plugin);
-
-  ret |= GST_ELEMENT_REGISTER (qmlgloverlay, plugin);
-
-  return ret;
+  return TRUE;
 }
 
 #ifndef GST_PACKAGE_NAME

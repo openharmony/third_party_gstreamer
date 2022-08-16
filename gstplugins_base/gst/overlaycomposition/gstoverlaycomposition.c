@@ -23,9 +23,99 @@
  * The overlaycomposition element renders an overlay using an application
  * provided draw function.
  *
- * ## Example code
+ * A more interesting example can be found at
+ * https://cgit.freedesktop.org/gstreamer/gst-plugins-base/tree/tests/examples/overlaycomposition/overlaycomposition.c
  *
- * {{ ../../tests/examples/overlaycomposition/overlaycomposition.c[23:341] }}
+ * <refsect2>
+ * <title>Example code</title>
+ * |[
+ *
+ * #include &lt;gst/gst.h&gt;
+ * #include &lt;gst/video/video.h&gt;
+ *
+ * ...
+ *
+ * typedef struct {
+ *   gboolean valid;
+ *   GstVideoInfo info;
+ * } OverlayState;
+ *
+ * ...
+ *
+ * static void
+ * prepare_overlay (GstElement * overlay, GstCaps * caps, gint window_width,
+ *     gint window_height, gpointer user_data)
+ * {
+ *   OverlayState *s = (OverlayState *)user_data;
+ *
+ *   if (gst_video_info_from_caps (&amp;s-&gt;info, caps))
+ *     s-&gt;valid = TRUE;
+ * }
+ *
+ * static GstVideoOverlayComposition *
+ * draw_overlay (GstElement * overlay, GstSample * sample, gpointer user_data)
+ * {
+ *   OverlayState *s = (OverlayState *)user_data;
+ *   GstBuffer *buffer;
+ *   GstVideoOverlayRectangle *rect;
+ *   GstVideoOverlayComposition *comp;
+ *   GstVideoInfo info;
+ *   GstVideoFrame frame;
+ *   gint x, y;
+ *   guint8 *data;
+ *
+ *   if (!s-&gt;valid)
+ *     return NULL;
+ *
+ *   gst_video_info_set_format (&amp;info, GST_VIDEO_FORMAT_BGRA, 16, 16);
+ *   buffer = gst_buffer_new_and_alloc (info.size);
+ *   gst_buffer_add_video_meta (buffer, GST_VIDEO_FRAME_FLAG_NONE,
+ *       GST_VIDEO_INFO_FORMAT(&amp;info),
+ *       GST_VIDEO_INFO_WIDTH(&amp;info),
+ *       GST_VIDEO_INFO_HEIGHT(&amp;info));
+ *
+ *   gst_video_frame_map (&amp;frame, &amp;info, buffer, GST_MAP_WRITE);
+ *
+ *   // Overlay a half-transparent blue 16x16 rectangle in the middle
+ *   // of the frame
+ *   data = GST_VIDEO_FRAME_PLANE_DATA(&amp;frame, 0);
+ *   for (y = 0; y < 16; y++) {
+ *     guint8 *line = &amp;data[y * GST_VIDEO_FRAME_PLANE_STRIDE (&amp;frame, 0)];
+ *     for (x = 0; x < 16; x++) {
+ *       guint8 *pixel = &amp;line[x * 4];
+ *
+ *       pixel[0] = 255;
+ *       pixel[1] = 0;
+ *       pixel[2] = 0;
+ *       pixel[3] = 127;
+ *     }
+ *   }
+ *
+ *   gst_video_frame_unmap (&amp;frame);
+ *   rect = gst_video_overlay_rectangle_new_raw (buffer,
+ *       s->info.width / 2 - 8,
+ *       s->info.height / 2 - 8,
+ *       16, 16,
+ *       GST_VIDEO_OVERLAY_FORMAT_FLAG_NONE);
+ *   comp = gst_video_overlay_composition_new (rect);
+ *   gst_video_overlay_rectangle_unref (rect);
+ *   gst_buffer_unref (buffer);
+ *
+ *   return comp;
+ * }
+ *
+ * ...
+ *
+ * overlay = gst_element_factory_make (&quot;overlaycomposition&quot;, &quot;overlay&quot;);
+ *
+ * g_signal_connect (overlay, &quot;draw&quot;, G_CALLBACK (draw_overlay),
+ *   overlay_state);
+ * g_signal_connect (overlay, &quot;caps-changed&quot;, 
+ *   G_CALLBACK (prepare_overlay), overlay_state);
+ * ...
+ *
+ * ]|
+ * </refsect2>
  */
 
 #if HAVE_CONFIG_H
@@ -84,8 +174,6 @@ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
 #define parent_class gst_overlay_composition_parent_class
 G_DEFINE_TYPE (GstOverlayComposition, gst_overlay_composition,
     GST_TYPE_ELEMENT);
-GST_ELEMENT_REGISTER_DEFINE (overlaycomposition, "overlaycomposition",
-    GST_RANK_NONE, GST_TYPE_OVERLAY_COMPOSITION);
 
 static GstFlowReturn gst_overlay_composition_sink_chain (GstPad * pad,
     GstObject * parent, GstBuffer * buffer);
@@ -129,7 +217,12 @@ gst_overlay_composition_class_init (GstOverlayCompositionClass * klass)
    */
   overlay_composition_signals[SIGNAL_DRAW] =
       g_signal_new ("draw",
-      G_TYPE_FROM_CLASS (klass), 0, 0, NULL, NULL, NULL,
+      G_TYPE_FROM_CLASS (klass),
+      0,
+      0,
+      NULL,
+      NULL,
+      g_cclosure_marshal_generic,
       GST_TYPE_VIDEO_OVERLAY_COMPOSITION, 1, GST_TYPE_SAMPLE);
 
   /**
@@ -147,8 +240,10 @@ gst_overlay_composition_class_init (GstOverlayCompositionClass * klass)
    */
   overlay_composition_signals[SIGNAL_CAPS_CHANGED] =
       g_signal_new ("caps-changed",
-      G_TYPE_FROM_CLASS (klass), 0, 0, NULL, NULL, NULL, G_TYPE_NONE, 3,
-      GST_TYPE_CAPS, G_TYPE_UINT, G_TYPE_UINT);
+      G_TYPE_FROM_CLASS (klass),
+      0,
+      0, NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 3, GST_TYPE_CAPS,
+      G_TYPE_UINT, G_TYPE_UINT);
 }
 
 static void
@@ -161,7 +256,6 @@ gst_overlay_composition_init (GstOverlayComposition * self)
       GST_DEBUG_FUNCPTR (gst_overlay_composition_sink_event));
   gst_pad_set_query_function (self->sinkpad,
       GST_DEBUG_FUNCPTR (gst_overlay_composition_sink_query));
-  GST_PAD_SET_PROXY_ALLOCATION (self->sinkpad);
   gst_element_add_pad (GST_ELEMENT (self), self->sinkpad);
 
   self->srcpad = gst_pad_new_from_static_template (&src_template, "src");
@@ -275,7 +369,7 @@ gst_overlay_composition_negotiate (GstOverlayComposition * self, GstCaps * caps)
   }
 
   if (upstream_has_meta || caps_has_meta) {
-    /* Send caps immediately, it's needed by GstBaseTransform to get a reply
+    /* Send caps immediatly, it's needed by GstBaseTransform to get a reply
      * from allocation query */
     ret = gst_pad_set_caps (self->srcpad, overlay_caps);
 
@@ -776,7 +870,8 @@ map_failed:
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (overlaycomposition, plugin);
+  return gst_element_register (plugin, "overlaycomposition", GST_RANK_NONE,
+      GST_TYPE_OVERLAY_COMPOSITION);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

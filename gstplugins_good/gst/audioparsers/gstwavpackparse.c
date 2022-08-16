@@ -20,17 +20,17 @@
  */
 /**
  * SECTION:element-wavpackparse
- * @title: wavpackparse
  * @short_description: Wavpack parser
  * @see_also: #GstAmrParse, #GstAACParse
  *
  * This is an Wavpack parser.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 filesrc location=abc.wavpack ! wavpackparse ! wavpackdec ! audioresample ! audioconvert ! autoaudiosink
  * ]|
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -39,7 +39,6 @@
 
 #include <string.h>
 
-#include "gstaudioparserselements.h"
 #include "gstwavpackparse.h"
 
 #include <gst/base/base.h>
@@ -77,8 +76,6 @@ static GstFlowReturn gst_wavpack_parse_pre_push_frame (GstBaseParse * parse,
 
 #define gst_wavpack_parse_parent_class parent_class
 G_DEFINE_TYPE (GstWavpackParse, gst_wavpack_parse, GST_TYPE_BASE_PARSE);
-GST_ELEMENT_REGISTER_DEFINE (wavpackparse, "wavpackparse",
-    GST_RANK_PRIMARY + 1, GST_TYPE_WAVPACK_PARSE);
 
 static void
 gst_wavpack_parse_class_init (GstWavpackParseClass * klass)
@@ -706,8 +703,6 @@ gst_wavpack_parse_pre_push_frame (GstBaseParse * parse,
     /* also signals the end of first-frame processing */
     wavpackparse->sent_codec_tag = TRUE;
   }
-
-  frame->flags |= GST_BASE_PARSE_FRAME_FLAG_CLIP;
 
   return GST_FLOW_OK;
 }

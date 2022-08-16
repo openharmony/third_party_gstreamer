@@ -1,7 +1,7 @@
 /* GStreamer wavpack plugin
  * (c) 2004 Arwed v. Merkatz <v.merkatz@gmx.net>
  *
- * gstwavpackplugin.c: plugin loader
+ * gstwavpack.c: plugin loader
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -23,17 +23,28 @@
 #include "config.h"
 #endif
 
-#include "gstwavpackelements.h"
+#include <gst/gst-i18n-plugin.h>
+
+#include "gstwavpackdec.h"
+#include "gstwavpackenc.h"
+
+/* debug category for common code */
+GST_DEBUG_CATEGORY (wavpack_debug);
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  GST_DEBUG_CATEGORY_INIT (wavpack_debug, "wavpack", 0, "Wavpack elements");
 
-  ret |= GST_ELEMENT_REGISTER (wavpackdec, plugin);
-  ret |= GST_ELEMENT_REGISTER (wavpackenc, plugin);
+#ifdef ENABLE_NLS
+  GST_DEBUG ("binding text domain %s to locale dir %s", GETTEXT_PACKAGE,
+      LOCALEDIR);
+  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
+  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
+#endif
 
-  return ret;
+  return (gst_wavpack_dec_plugin_init (plugin)
+      && gst_wavpack_enc_plugin_init (plugin));
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

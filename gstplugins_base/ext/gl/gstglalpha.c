@@ -45,7 +45,6 @@
 #include "config.h"
 #endif
 
-#include "gstglelements.h"
 #include "gstglalpha.h"
 #include <string.h>
 #include <math.h>
@@ -198,7 +197,7 @@ static const gchar *chroma_key_frag =
   "void main () {\n"
   "  vec4 yuva;\n"
   /* operations translated from alpha and tested with glvideomixer
-   * with one pad's parameters blend-equation-rgb={subtract,reverse-subtract},
+   * with one pad's paremeters blend-equation-rgb={subtract,reverse-subtract},
    * blend-function-src-rgb=src-color and blend-function-dst-rgb=dst-color */
   "  vec4 rgba = texture2D (tex, v_texcoord);\n"
   "  yuva.xyz = rgb_to_yuv (rgba.rgb);\n"
@@ -223,8 +222,6 @@ static void gst_gl_alpha_get_property (GObject * object, guint prop_id,
 
 #define gst_gl_alpha_parent_class parent_class
 G_DEFINE_TYPE (GstGLAlpha, gst_gl_alpha, GST_TYPE_GL_FILTER);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (glalpha, "glalpha",
-    GST_RANK_NONE, GST_TYPE_GL_ALPHA, gl_element_init (plugin));
 
 static gboolean
 gst_gl_alpha_is_passthrough (GstGLAlpha * glalpha)
@@ -548,8 +545,6 @@ gst_gl_alpha_class_init (GstGLAlphaClass * klass)
 
   filter_class->filter_texture =
       GST_DEBUG_FUNCPTR (gst_gl_alpha_filter_texture);
-
-  gst_type_mark_as_plugin_api (GST_TYPE_GL_ALPHA_METHOD, 0);
 }
 
 static void

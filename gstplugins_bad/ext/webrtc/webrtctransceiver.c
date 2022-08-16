@@ -25,15 +25,9 @@
 #include "utils.h"
 #include "webrtctransceiver.h"
 
-#define GST_CAT_DEFAULT webrtc_transceiver_debug
-GST_DEBUG_CATEGORY_STATIC (GST_CAT_DEFAULT);
-
 #define webrtc_transceiver_parent_class parent_class
-G_DEFINE_TYPE_WITH_CODE (WebRTCTransceiver, webrtc_transceiver,
-    GST_TYPE_WEBRTC_RTP_TRANSCEIVER,
-    GST_DEBUG_CATEGORY_INIT (webrtc_transceiver_debug,
-        "webrtctransceiver", 0, "webrtctransceiver");
-    );
+G_DEFINE_TYPE (WebRTCTransceiver, webrtc_transceiver,
+    GST_TYPE_WEBRTC_RTP_TRANSCEIVER);
 
 #define DEFAULT_FEC_TYPE GST_WEBRTC_FEC_TYPE_NONE
 #define DEFAULT_DO_NACK FALSE
@@ -60,17 +54,19 @@ webrtc_transceiver_set_transport (WebRTCTransceiver * trans,
 
   gst_object_replace ((GstObject **) & trans->stream, (GstObject *) stream);
 
-  if (rtp_trans->sender) {
+  if (rtp_trans->sender)
     gst_object_replace ((GstObject **) & rtp_trans->sender->transport,
         (GstObject *) stream->transport);
-    g_object_notify (G_OBJECT (rtp_trans->sender), "transport");
-  }
-
-  if (rtp_trans->receiver) {
+  if (rtp_trans->receiver)
     gst_object_replace ((GstObject **) & rtp_trans->receiver->transport,
         (GstObject *) stream->transport);
-    g_object_notify (G_OBJECT (rtp_trans->receiver), "transport");
-  }
+
+  if (rtp_trans->sender)
+    gst_object_replace ((GstObject **) & rtp_trans->sender->rtcp_transport,
+        (GstObject *) stream->rtcp_transport);
+  if (rtp_trans->receiver)
+    gst_object_replace ((GstObject **) & rtp_trans->receiver->rtcp_transport,
+        (GstObject *) stream->rtcp_transport);
 }
 
 GstWebRTCDTLSTransport *
@@ -82,6 +78,20 @@ webrtc_transceiver_get_dtls_transport (GstWebRTCRTPTransceiver * trans)
     return trans->sender->transport;
   } else if (trans->receiver) {
     return trans->receiver->transport;
+  }
+
+  return NULL;
+}
+
+GstWebRTCDTLSTransport *
+webrtc_transceiver_get_rtcp_dtls_transport (GstWebRTCRTPTransceiver * trans)
+{
+  g_return_val_if_fail (WEBRTC_IS_TRANSCEIVER (trans), NULL);
+
+  if (trans->sender) {
+    return trans->sender->rtcp_transport;
+  } else if (trans->receiver) {
+    return trans->receiver->rtcp_transport;
   }
 
   return NULL;
@@ -155,10 +165,6 @@ webrtc_transceiver_finalize (GObject * object)
   if (trans->local_rtx_ssrc_map)
     gst_structure_free (trans->local_rtx_ssrc_map);
   trans->local_rtx_ssrc_map = NULL;
-
-  gst_caps_replace (&trans->last_configured_caps, NULL);
-
-  gst_event_replace (&trans->ssrc_event, NULL);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }

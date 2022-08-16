@@ -27,15 +27,15 @@
  * @see_also: #GstPluginFeature, #GstElementFactory
  *
  * GStreamer is extensible, so #GstElement instances can be loaded at runtime.
- * A plugin system can provide one or more of the basic GStreamer
- * #GstPluginFeature subclasses.
+ * A plugin system can provide one or more of the basic
+ * <application>GStreamer</application> #GstPluginFeature subclasses.
  *
- * A plugin should export a symbol `gst_plugin_desc` that is a
+ * A plugin should export a symbol <symbol>gst_plugin_desc</symbol> that is a
  * struct of type #GstPluginDesc.
  * the plugin loader will check the version of the core library the plugin was
  * linked against and will create a new #GstPlugin. It will then call the
  * #GstPluginInitFunc function that was provided in the
- * `gst_plugin_desc`.
+ * <symbol>gst_plugin_desc</symbol>.
  *
  * Once you have a handle to a #GstPlugin (e.g. from the #GstRegistry), you
  * can add any object that subclasses #GstPluginFeature.
@@ -69,13 +69,6 @@
 
 #include <gst/gst.h>
 
-#ifdef G_OS_WIN32
-#include <windows.h>
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_APP) && !WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
-#define GST_WINAPI_ONLY_APP
-#endif
-#endif
-
 #define GST_CAT_DEFAULT GST_CAT_PLUGIN_LOADING
 
 static guint _num_static_plugins;       /* 0    */
@@ -86,31 +79,32 @@ static gchar **_plugin_loading_whitelist;       /* NULL */
 /* static variables for segfault handling of plugin loading */
 static char *_gst_plugin_fault_handler_filename = NULL;
 
-/* List of known licenses:
- * GPL: https://opensource.org/licenses/gpl-license
- * LGPL: https://opensource.org/licenses/lgpl-license
- * QPL: https://opensource.org/licenses/QPL-1.0
- * MPL: https://opensource.org/licenses/MPL-1.1
- * MPL-2.0: https://opensource.org/licenses/MPL-2.0
- * MIT/X11: https://opensource.org/licenses/MIT
+/* list of valid licenses.
+ * One of these must be specified or the plugin won't be loaded
+ * Please file a bug to request any additional license be added.
+ *
+ * GPL: http://www.gnu.org/copyleft/gpl.html
+ * LGPL: http://www.gnu.org/copyleft/lesser.html
+ * QPL: http://www.trolltech.com/licenses/qpl.html
+ * MPL: http://www.opensource.org/licenses/mozilla1.1.php
+ * MIT/X11: http://www.opensource.org/licenses/mit-license.php
  * 3-clause BSD: https://opensource.org/licenses/BSD-3-Clause
  * Zero-Clause BSD: https://opensource.org/licenses/0BSD
- * Apache License 2.0: http://www.apache.org/licenses/LICENSE-2.0 (Since: 1.22)
-
- * FIXME: update to use SPDX identifiers, or just remove entirely
  */
-static const gchar known_licenses[] = "LGPL\000"        /* GNU Lesser General Public License */
+static const gchar valid_licenses[] = "LGPL\000"        /* GNU Lesser General Public License */
     "GPL\000"                   /* GNU General Public License */
     "QPL\000"                   /* Trolltech Qt Public License */
     "GPL/QPL\000"               /* Combi-license of GPL + QPL */
     "MPL\000"                   /* MPL 1.1 license */
-    "MPL-2.0\000"               /* MPL 2.0 license */
     "BSD\000"                   /* 3-clause BSD license */
     "MIT/X11\000"               /* MIT/X11 license */
     "0BSD\000"                  /* Zero-Clause BSD */
-    "Apache 2.0\000"            /* Apache License 2.0 */
     "Proprietary\000"           /* Proprietary license */
     GST_LICENSE_UNKNOWN;        /* some other license */
+
+static const guint8 valid_licenses_idx[] = { 0, 5, 9, 13, 21, 25, 29, 37, 42,
+  54
+};
 
 static GstPlugin *gst_plugin_register_func (GstPlugin * plugin,
     const GstPluginDesc * desc, gpointer user_data);
@@ -461,13 +455,12 @@ priv_gst_plugin_loading_get_whitelist_hash (void)
 static gboolean
 gst_plugin_check_license (const gchar * license)
 {
-  const gchar *l, *end = known_licenses + sizeof (known_licenses);
+  gint i;
 
-  for (l = known_licenses; l < end; l += strlen (l) + 1) {
-    if (strcmp (license, l) == 0)
+  for (i = 0; i < G_N_ELEMENTS (valid_licenses_idx); ++i) {
+    if (strcmp (license, valid_licenses + valid_licenses_idx[i]) == 0)
       return TRUE;
   }
-
   return FALSE;
 }
 
@@ -489,7 +482,7 @@ gst_plugin_register_func (GstPlugin * plugin, const GstPluginDesc * desc,
   if (!gst_plugin_check_version (desc->major_version, desc->minor_version)) {
     if (GST_CAT_DEFAULT)
       GST_WARNING ("plugin \"%s\" has incompatible version "
-          "(plugin: %d.%d, gst: %d.%d), not loading",
+          "(plugin: %d.%d, gst: %d,%d), not loading",
           GST_STR_NULL (plugin->filename), desc->major_version,
           desc->minor_version, GST_VERSION_MAJOR, GST_VERSION_MINOR);
     return NULL;
@@ -505,9 +498,9 @@ gst_plugin_register_func (GstPlugin * plugin, const GstPluginDesc * desc,
 
   if (!gst_plugin_check_license (desc->license)) {
     if (GST_CAT_DEFAULT)
-      GST_WARNING ("plugin \"%s\" has unknown license \"%s\"",
+      GST_WARNING ("plugin \"%s\" has invalid license \"%s\", not loading",
           GST_STR_NULL (plugin->filename), desc->license);
-    /* We still want to load the plugin, it's not our job to validate licenses */
+    return NULL;
   }
 
   if (GST_CAT_DEFAULT)
@@ -727,70 +720,6 @@ extract_symname (const char *filename)
   return symname;
 }
 
-#ifdef G_OS_WIN32
-/*
- * It is an extremely common mistake on Windows to have incorrect PATH values
- * when loading a plugin, and the error message is very confusing in this case:
- * 'The specified module could not be found.' which implies the plugin itself
- * could not be found. The actual issue is that a DLL dependency could not be
- * found. We need to detect this case and print a more useful error message.
- *
- * Unfortunately, g_module_open() doesn't actually give us the GetLastError()
- * code from LoadLibraryW() and only gives us a literal message from
- * FormatMessageW(). We can't do a string comparison on that because it is
- * locale-dependent.
- *
- * The only way out is for us to try loading the module ourselves on failure and
- * get the error DWORD again from GetLastError().
- */
-static char *
-get_better_module_load_error (const char *filename, const char *orig_err_msg)
-{
-  BOOL ret = 0;
-  DWORD mode;
-  wchar_t *wfilename;
-  HMODULE handle;
-  char *err_msg = NULL;
-
-  wfilename = g_utf8_to_utf16 (filename, -1, NULL, NULL, NULL);
-#ifdef GST_WINAPI_ONLY_APP
-  handle = LoadPackagedLibrary (wfilename, 0);
-#else
-  ret = SetThreadErrorMode (SEM_NOOPENFILEERRORBOX | SEM_FAILCRITICALERRORS,
-      &mode);
-
-  handle = LoadLibraryW (wfilename);
-#endif
-  g_free (wfilename);
-
-  if (handle == NULL) {
-    DWORD err = GetLastError ();
-    char *win32_err_msg = g_win32_error_message (err);
-    if (err == ERROR_MOD_NOT_FOUND) {
-      err_msg = g_strdup_printf ("%s\nThis usually means Windows was unable "
-          "to find a DLL dependency of the plugin. Please check that PATH is "
-          "correct.\nYou can run 'dumpbin -dependents' (provided by the "
-          "Visual Studio developer prompt) to list the DLL deps of any DLL.\n"
-          "There are also some third-party GUIs to list and debug DLL "
-          "dependencies recursively.", win32_err_msg);
-      g_free (win32_err_msg);
-    } else {
-      err_msg = win32_err_msg;
-    }
-  } else {
-    err_msg = g_strdup_printf ("g_module_open() failed on %s with \"%s\" but "
-        "manual loading succeeded; this should be impossible! Please "
-        "report this as a GStreamer bug.", filename, orig_err_msg);
-    FreeLibrary (handle);
-  }
-
-  if (ret > 0)
-    SetThreadErrorMode (mode, NULL);
-
-  return err_msg;
-}
-#endif /* G_OS_WIN32 */
-
 /* Note: The return value is (transfer full) although we work with floating
  * references here. If a new plugin instance is created, it is always sinked
  * in the registry first and a new reference is returned
@@ -822,7 +751,7 @@ _priv_gst_plugin_load_file_for_registry (const gchar * filename,
       /* already loaded */
       g_mutex_unlock (&gst_plugin_loading_mutex);
       return plugin;
-    } else if (g_strcmp0 (plugin->filename, filename) == 0) {
+    } else {
       /* load plugin and update fields */
       new_plugin = FALSE;
     }
@@ -838,12 +767,7 @@ _priv_gst_plugin_load_file_for_registry (const gchar * filename,
         GST_PLUGIN_ERROR_MODULE, "Dynamic loading not supported");
     goto return_error;
   }
-#if defined(GST_WINAPI_ONLY_APP)
-  /* plugins loaded by filename by Universal Windows Platform apps do not use
-   * an actual file with a path, they use a packaged (asset) library */
-  file_status.st_mtime = 0;
-  file_status.st_size = 0;
-#else
+
   if (g_stat (filename, &file_status)) {
     GST_CAT_DEBUG (GST_CAT_PLUGIN_LOADING, "problem accessing file");
     g_set_error (error,
@@ -852,7 +776,6 @@ _priv_gst_plugin_load_file_for_registry (const gchar * filename,
         g_strerror (errno));
     goto return_error;
   }
-#endif
 
   flags = G_MODULE_BIND_LOCAL;
   /* libgstpython.so is the gst-python plugin loader. It needs to be loaded with
@@ -866,23 +789,15 @@ _priv_gst_plugin_load_file_for_registry (const gchar * filename,
 
   module = g_module_open (filename, flags);
   if (module == NULL) {
-#ifdef G_OS_WIN32
-    /* flags are meaningless / ignored on Windows */
-    char *err_msg = get_better_module_load_error (filename, g_module_error ());
-#else
-    const char *err_msg = g_module_error ();
-#endif
-    GST_CAT_WARNING (GST_CAT_PLUGIN_LOADING, "module_open failed: %s", err_msg);
+    GST_CAT_WARNING (GST_CAT_PLUGIN_LOADING, "module_open failed: %s",
+        g_module_error ());
     g_set_error (error,
         GST_PLUGIN_ERROR, GST_PLUGIN_ERROR_MODULE, "Opening module failed: %s",
-        err_msg);
+        g_module_error ());
     /* If we failed to open the shared object, then it's probably because a
      * plugin is linked against the wrong libraries. Print out an easy-to-see
      * message in this case. */
-    g_warning ("Failed to load plugin '%s': %s", filename, err_msg);
-#ifdef G_OS_WIN32
-    g_free (err_msg);
-#endif
+    g_warning ("Failed to load plugin '%s': %s", filename, g_module_error ());
     goto return_error;
   }
 
@@ -1057,7 +972,7 @@ gst_plugin_get_description (GstPlugin * plugin)
  *
  * get the filename of the plugin
  *
- * Returns: (type filename) (nullable): the filename of the plugin
+ * Returns: (type filename): the filename of the plugin
  */
 const gchar *
 gst_plugin_get_filename (GstPlugin * plugin)
@@ -1490,19 +1405,19 @@ gst_plugin_list_free (GList * list)
  * ENV + *xyz   same as above, but xyz acts as suffix filter
  * ENV + xyz*   same as above, but xyz acts as prefix filter (is this needed?)
  * ENV + *xyz*  same as above, but xyz acts as strstr filter (is this needed?)
- *
+ * 
  * same as above, with additional paths hard-coded at compile-time:
  *   - only check paths + ... if ENV is not set or yields not paths
  *   - always check paths + ... in addition to ENV
  *
  * When user specifies set of environment variables, he/she may also use e.g.
  * "HOME/.mystuff/plugins", and we'll expand the content of $HOME with the
- * remainder
+ * remainder 
  */
 
 /* we store in registry:
  *  sets of:
- *   {
+ *   { 
  *     - environment variables (array of strings)
  *     - last hash of env variable contents (uint) (so we can avoid doing stats
  *       if one of the env vars has changed; premature optimisation galore)

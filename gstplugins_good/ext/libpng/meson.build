@@ -17,5 +17,4 @@ if libpng_dep.found()
     install_dir : plugins_install_dir,
   )
   pkgconfig.generate(gstpng, install_dir : plugins_pkgconfig_install_dir)
-  plugins += [gstpng]
 endif

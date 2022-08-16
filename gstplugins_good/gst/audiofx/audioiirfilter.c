@@ -21,12 +21,10 @@
 
 /**
  * SECTION:element-audioiirfilter
- * @title: audioiirfilter
  *
- * audioiirfilter implements a generic audio
- * [IIR filter](http://en.wikipedia.org/wiki/Infinite_impulse_response).
- * Before usage the "a" and "b" properties have to be set to the filter
- * coefficients that should be used.
+ * audioiirfilter implements a generic audio <ulink url="http://en.wikipedia.org/wiki/Infinite_impulse_response">IIR filter</ulink>. Before usage the
+ * "a" and "b" properties have to be set to the filter coefficients that
+ * should be used.
  *
  * The filter coefficients describe the numerator and denominator of the
  * transfer function.
@@ -35,11 +33,12 @@
  * "rate-changed" signal can be used. This should be done for most
  * IIR filters as they're depending on the sampling rate.
  *
- * ## Example application
- * <programlisting language="C">
+ * <refsect2>
+ * <title>Example application</title>
+ * <informalexample><programlisting language="C">
  * <xi:include xmlns:xi="http://www.w3.org/2003/XInclude" parse="text" href="../../../../tests/examples/audiofx/iirfilter-example.c" />
- * ]|
- *
+ * </programlisting></informalexample>
+ * </refsect2>
  */
 
 /* FIXME 0.11: suppress warnings for deprecated API such as GValueArray
@@ -80,8 +79,6 @@ static guint gst_audio_iir_filter_signals[LAST_SIGNAL] = { 0, };
 #define gst_audio_iir_filter_parent_class parent_class
 G_DEFINE_TYPE (GstAudioIIRFilter, gst_audio_iir_filter,
     GST_TYPE_AUDIO_FX_BASE_IIR_FILTER);
-GST_ELEMENT_REGISTER_DEFINE (audioiirfilter, "audioiirfilter",
-    GST_RANK_NONE, GST_TYPE_AUDIO_IIR_FILTER);
 
 static void gst_audio_iir_filter_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);

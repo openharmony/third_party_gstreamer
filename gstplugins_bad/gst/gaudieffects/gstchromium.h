@@ -79,7 +79,6 @@ struct _GstChromiumClass
 };
 
 GType gst_chromium_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (chromium);
 
 G_END_DECLS
 

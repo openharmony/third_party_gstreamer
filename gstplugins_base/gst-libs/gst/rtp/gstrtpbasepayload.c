@@ -30,7 +30,6 @@
 
 #include "gstrtpbasepayload.h"
 #include "gstrtpmeta.h"
-#include "gstrtphdrext.h"
 
 GST_DEBUG_CATEGORY_STATIC (rtpbasepayload_debug);
 #define GST_CAT_DEFAULT (rtpbasepayload_debug)
@@ -53,8 +52,6 @@ struct _GstRTPBasePayloadPrivate
   gint64 base_rtime;
   guint64 base_rtime_hz;
   guint64 running_time;
-  gboolean scale_rtptime;
-  gboolean auto_hdr_ext;
 
   gint64 prop_max_ptime;
   gint64 caps_max_ptime;
@@ -63,34 +60,19 @@ struct _GstRTPBasePayloadPrivate
 
   gboolean negotiated;
 
-  /* We need to know whether negotiate was called in order to decide
-   * whether we should store the input buffer as input meta in case
-   * negotiate() gets called from the subclass' handle_buffer() implementation,
-   * as negotiate() is where we instantiate header extensions.
-   */
-  gboolean negotiate_called;
-
   gboolean delay_segment;
   GstEvent *pending_segment;
 
   GstCaps *subclass_srccaps;
   GstCaps *sinkcaps;
-
-  /* array of GstRTPHeaderExtension's * */
-  GPtrArray *header_exts;
 };
 
 /* RTPBasePayload signals and args */
 enum
 {
-  SIGNAL_0,
-  SIGNAL_REQUEST_EXTENSION,
-  SIGNAL_ADD_EXTENSION,
-  SIGNAL_CLEAR_EXTENSIONS,
+  /* FILL ME */
   LAST_SIGNAL
 };
-
-static guint gst_rtp_base_payload_signals[LAST_SIGNAL] = { 0 };
 
 /* FIXME 0.11, a better default is the Ethernet MTU of
  * 1500 - sizeof(headers) as pointed out by marcelm in IRC:
@@ -110,13 +92,6 @@ static guint gst_rtp_base_payload_signals[LAST_SIGNAL] = { 0 };
 #define DEFAULT_RUNNING_TIME            GST_CLOCK_TIME_NONE
 #define DEFAULT_SOURCE_INFO             FALSE
 #define DEFAULT_ONVIF_NO_RATE_CONTROL   FALSE
-#define DEFAULT_SCALE_RTPTIME           TRUE
-#define DEFAULT_AUTO_HEADER_EXTENSION   TRUE
-
-#define RTP_HEADER_EXT_ONE_BYTE_MAX_SIZE 16
-#define RTP_HEADER_EXT_TWO_BYTE_MAX_SIZE 256
-#define RTP_HEADER_EXT_ONE_BYTE_MAX_ID 14
-#define RTP_HEADER_EXT_TWO_BYTE_MAX_ID 255
 
 enum
 {
@@ -135,8 +110,6 @@ enum
   PROP_STATS,
   PROP_SOURCE_INFO,
   PROP_ONVIF_NO_RATE_CONTROL,
-  PROP_SCALE_RTPTIME,
-  PROP_AUTO_HEADER_EXTENSION,
   PROP_LAST
 };
 
@@ -173,9 +146,6 @@ static GstStateChangeReturn gst_rtp_base_payload_change_state (GstElement *
 
 static gboolean gst_rtp_base_payload_negotiate (GstRTPBasePayload * payload);
 
-static void gst_rtp_base_payload_add_extension (GstRTPBasePayload * payload,
-    GstRTPHeaderExtension * ext);
-static void gst_rtp_base_payload_clear_extensions (GstRTPBasePayload * payload);
 
 static GstElementClass *parent_class = NULL;
 static gint private_offset = 0;
@@ -214,45 +184,6 @@ static inline GstRTPBasePayloadPrivate *
 gst_rtp_base_payload_get_instance_private (GstRTPBasePayload * self)
 {
   return (G_STRUCT_MEMBER_P (self, private_offset));
-}
-
-static GstRTPHeaderExtension *
-gst_rtp_base_payload_request_extension_default (GstRTPBasePayload * payload,
-    guint ext_id, const gchar * uri)
-{
-  GstRTPHeaderExtension *ext = NULL;
-
-  if (!payload->priv->auto_hdr_ext)
-    return NULL;
-
-  ext = gst_rtp_header_extension_create_from_uri (uri);
-  if (ext) {
-    GST_DEBUG_OBJECT (payload,
-        "Automatically enabled extension %s for uri \'%s\'",
-        GST_ELEMENT_NAME (ext), uri);
-
-    gst_rtp_header_extension_set_id (ext, ext_id);
-  } else {
-    GST_DEBUG_OBJECT (payload,
-        "Didn't find any extension implementing uri \'%s\'", uri);
-  }
-
-  return ext;
-}
-
-static gboolean
-extension_accumulator (GSignalInvocationHint * ihint,
-    GValue * return_accu, const GValue * handler_return, gpointer data)
-{
-  gpointer ext;
-
-  /* Call default handler if user callback didn't create the extension */
-  ext = g_value_get_object (handler_return);
-  if (!ext)
-    return TRUE;
-
-  g_value_set_object (return_accu, ext);
-  return FALSE;
 }
 
 static void
@@ -406,92 +337,6 @@ gst_rtp_base_payload_class_init (GstRTPBasePayloadClass * klass)
           DEFAULT_ONVIF_NO_RATE_CONTROL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  /**
-   * GstRTPBasePayload:scale-rtptime:
-   *
-   * Make the RTP packets' timestamps be scaled with the segment's rate
-   * (corresponding to RTSP speed parameter). Disabling this property means
-   * the timestamps will not be affected by the set delivery speed (RTSP speed).
-   * 
-   * Example: A server wants to allow streaming a recorded video in double 
-   * speed but still have the timestamps correspond to the position in the 
-   * video. This is achieved by the client setting RTSP Speed to 2 while the 
-   * server has this property disabled.
-   * 
-   * Since: 1.18
-   */
-  g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_SCALE_RTPTIME,
-      g_param_spec_boolean ("scale-rtptime", "Scale RTP time",
-          "Whether the RTP timestamp should be scaled with the rate (speed)",
-          DEFAULT_SCALE_RTPTIME, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  /**
-   * GstRTPBasePayload:auto-header-extension:
-   *
-   * If enabled, the payloader will automatically try to enable all the
-   * RTP header extensions provided in the src caps, saving the application
-   * the need to handle these extensions manually using the
-   * GstRTPBasePayload::request-extension: signal.
-   *
-   * Since: 1.20
-   */
-  g_object_class_install_property (G_OBJECT_CLASS (klass),
-      PROP_AUTO_HEADER_EXTENSION, g_param_spec_boolean ("auto-header-extension",
-          "Automatic RTP header extension",
-          "Whether RTP header extensions should be automatically enabled, if an implementation is available",
-          DEFAULT_AUTO_HEADER_EXTENSION,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  /**
-   * GstRTPBasePayload::add-extension:
-   * @object: the #GstRTPBasePayload
-   * @ext: (transfer full): the #GstRTPHeaderExtension
-   *
-   * Add @ext as an extension for writing part of an RTP header extension onto
-   * outgoing RTP packets.
-   *
-   * Since: 1.20
-   */
-  gst_rtp_base_payload_signals[SIGNAL_ADD_EXTENSION] =
-      g_signal_new_class_handler ("add-extension", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
-      G_CALLBACK (gst_rtp_base_payload_add_extension), NULL, NULL, NULL,
-      G_TYPE_NONE, 1, GST_TYPE_RTP_HEADER_EXTENSION);
-
-  /**
-   * GstRTPBasePayload::request-extension:
-   * @object: the #GstRTPBasePayload
-   * @ext_id: the extension id being requested
-   * @ext_uri: the extension URI being requested
-   *
-   * The returned @ext must be configured with the correct @ext_id and with the
-   * necessary attributes as required by the extension implementation.
-   *
-   * Returns: (transfer full): the #GstRTPHeaderExtension for @ext_id, or %NULL
-   *
-   * Since: 1.20
-   */
-  gst_rtp_base_payload_signals[SIGNAL_REQUEST_EXTENSION] =
-      g_signal_new_class_handler ("request-extension",
-      G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
-      G_CALLBACK (gst_rtp_base_payload_request_extension_default),
-      extension_accumulator, NULL, NULL,
-      GST_TYPE_RTP_HEADER_EXTENSION, 2, G_TYPE_UINT, G_TYPE_STRING);
-
-  /**
-   * GstRTPBasePayload::clear-extensions:
-   * @object: the #GstRTPBasePayload
-   *
-   * Clear all RTP header extensions used by this payloader.
-   *
-   * Since: 1.20
-   */
-  gst_rtp_base_payload_signals[SIGNAL_CLEAR_EXTENSIONS] =
-      g_signal_new_class_handler ("clear-extensions", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
-      G_CALLBACK (gst_rtp_base_payload_clear_extensions), NULL, NULL, NULL,
-      G_TYPE_NONE, 0);
-
   gstelement_class->change_state = gst_rtp_base_payload_change_state;
 
   klass->get_caps = gst_rtp_base_payload_getcaps_default;
@@ -553,8 +398,6 @@ gst_rtp_base_payload_init (GstRTPBasePayload * rtpbasepayload, gpointer g_class)
   rtpbasepayload->priv->base_offset = GST_BUFFER_OFFSET_NONE;
   rtpbasepayload->priv->base_rtime_hz = GST_BUFFER_OFFSET_NONE;
   rtpbasepayload->priv->onvif_no_rate_control = DEFAULT_ONVIF_NO_RATE_CONTROL;
-  rtpbasepayload->priv->scale_rtptime = DEFAULT_SCALE_RTPTIME;
-  rtpbasepayload->priv->auto_hdr_ext = DEFAULT_AUTO_HEADER_EXTENSION;
 
   rtpbasepayload->media = NULL;
   rtpbasepayload->encoding_name = NULL;
@@ -563,8 +406,6 @@ gst_rtp_base_payload_init (GstRTPBasePayload * rtpbasepayload, gpointer g_class)
 
   rtpbasepayload->priv->caps_max_ptime = DEFAULT_MAX_PTIME;
   rtpbasepayload->priv->prop_max_ptime = DEFAULT_MAX_PTIME;
-  rtpbasepayload->priv->header_exts =
-      g_ptr_array_new_with_free_func ((GDestroyNotify) gst_object_unref);
 }
 
 static void
@@ -581,9 +422,6 @@ gst_rtp_base_payload_finalize (GObject * object)
 
   gst_caps_replace (&rtpbasepayload->priv->subclass_srccaps, NULL);
   gst_caps_replace (&rtpbasepayload->priv->sinkcaps, NULL);
-
-  g_ptr_array_unref (rtpbasepayload->priv->header_exts);
-  rtpbasepayload->priv->header_exts = NULL;
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -662,17 +500,6 @@ gst_rtp_base_payload_sink_event_default (GstRTPBasePayload * rtpbasepayload,
       } else {
         res = gst_pad_event_default (rtpbasepayload->sinkpad, parent, event);
       }
-      break;
-    }
-    case GST_EVENT_GAP:
-    {
-      if (G_UNLIKELY (rtpbasepayload->priv->pending_segment)) {
-        gst_pad_push_event (rtpbasepayload->srcpad,
-            rtpbasepayload->priv->pending_segment);
-        rtpbasepayload->priv->pending_segment = FALSE;
-        rtpbasepayload->priv->delay_segment = FALSE;
-      }
-      res = gst_pad_event_default (rtpbasepayload->sinkpad, parent, event);
       break;
     }
     default:
@@ -846,15 +673,13 @@ gst_rtp_base_payload_chain (GstPad * pad, GstObject * parent,
   if (!rtpbasepayload->priv->negotiated)
     goto not_negotiated;
 
-  if (rtpbasepayload->priv->source_info
-      || rtpbasepayload->priv->header_exts->len > 0
-      || !rtpbasepayload->priv->negotiate_called) {
+  if (rtpbasepayload->priv->source_info) {
     /* Save a copy of meta (instead of taking an extra reference before
      * handle_buffer) to make the meta available when allocating a output
      * buffer. */
     rtpbasepayload->priv->input_meta_buffer = gst_buffer_new ();
     gst_buffer_copy_into (rtpbasepayload->priv->input_meta_buffer, buffer,
-        GST_BUFFER_COPY_METADATA, 0, -1);
+        GST_BUFFER_COPY_META, 0, -1);
   }
 
   if (gst_pad_check_reconfigure (GST_RTP_BASE_PAYLOAD_SRCPAD (rtpbasepayload))) {
@@ -956,51 +781,6 @@ update_max_ptime (GstRTPBasePayload * rtpbasepayload)
     rtpbasepayload->max_ptime = DEFAULT_MAX_PTIME;
 }
 
-static gboolean
-_set_caps (GQuark field_id, const GValue * value, GstCaps * caps)
-{
-  gst_caps_set_value (caps, g_quark_to_string (field_id), value);
-
-  return TRUE;
-}
-
-/**
- * gst_rtp_base_payload_set_outcaps_structure:
- * @payload: a #GstRTPBasePayload
- * @s: (nullable): a #GstStructure with the caps fields
- *
- * Configure the output caps with the optional fields.
- *
- * Returns: %TRUE if the caps could be set.
- *
- * Since: 1.20
- */
-gboolean
-gst_rtp_base_payload_set_outcaps_structure (GstRTPBasePayload * payload,
-    GstStructure * s)
-{
-  GstCaps *srccaps;
-
-  /* fill in the defaults, their properties cannot be negotiated. */
-  srccaps = gst_caps_new_simple ("application/x-rtp",
-      "media", G_TYPE_STRING, payload->media,
-      "clock-rate", G_TYPE_INT, payload->clock_rate,
-      "encoding-name", G_TYPE_STRING, payload->encoding_name, NULL);
-
-  GST_DEBUG_OBJECT (payload, "defaults: %" GST_PTR_FORMAT, srccaps);
-
-  if (s && gst_structure_n_fields (s) > 0) {
-    gst_structure_foreach (s, (GstStructureForeachFunc) _set_caps, srccaps);
-
-    GST_DEBUG_OBJECT (payload, "custom added: %" GST_PTR_FORMAT, srccaps);
-  }
-
-  gst_caps_replace (&payload->priv->subclass_srccaps, srccaps);
-  gst_caps_unref (srccaps);
-
-  return gst_rtp_base_payload_negotiate (payload);
-}
-
 /**
  * gst_rtp_base_payload_set_outcaps:
  * @payload: a #GstRTPBasePayload
@@ -1018,51 +798,31 @@ gboolean
 gst_rtp_base_payload_set_outcaps (GstRTPBasePayload * payload,
     const gchar * fieldname, ...)
 {
-  gboolean result;
-  GstStructure *s = NULL;
+  GstCaps *srccaps;
+
+  /* fill in the defaults, their properties cannot be negotiated. */
+  srccaps = gst_caps_new_simple ("application/x-rtp",
+      "media", G_TYPE_STRING, payload->media,
+      "clock-rate", G_TYPE_INT, payload->clock_rate,
+      "encoding-name", G_TYPE_STRING, payload->encoding_name, NULL);
+
+  GST_DEBUG_OBJECT (payload, "defaults: %" GST_PTR_FORMAT, srccaps);
 
   if (fieldname) {
     va_list varargs;
 
-    s = gst_structure_new_empty ("unused");
-
     /* override with custom properties */
     va_start (varargs, fieldname);
-    gst_structure_set_valist (s, fieldname, varargs);
+    gst_caps_set_simple_valist (srccaps, fieldname, varargs);
     va_end (varargs);
+
+    GST_DEBUG_OBJECT (payload, "custom added: %" GST_PTR_FORMAT, srccaps);
   }
 
-  result = gst_rtp_base_payload_set_outcaps_structure (payload, s);
+  gst_caps_replace (&payload->priv->subclass_srccaps, srccaps);
+  gst_caps_unref (srccaps);
 
-  gst_clear_structure (&s);
-
-  return result;
-}
-
-static void
-add_and_ref_item (GstRTPHeaderExtension * ext, GPtrArray * ret)
-{
-  g_ptr_array_add (ret, gst_object_ref (ext));
-}
-
-static void
-remove_item_from (GstRTPHeaderExtension * ext, GPtrArray * ret)
-{
-  g_ptr_array_remove_fast (ret, ext);
-}
-
-static void
-add_item_to (GstRTPHeaderExtension * ext, GPtrArray * ret)
-{
-  g_ptr_array_add (ret, ext);
-}
-
-static void
-add_header_ext_to_caps (GstRTPHeaderExtension * ext, GstCaps * caps)
-{
-  if (!gst_rtp_header_extension_set_caps_from_attributes (ext, caps)) {
-    GST_WARNING ("Failed to set caps from rtp header extension");
-  }
+  return gst_rtp_base_payload_negotiate (payload);
 }
 
 static gboolean
@@ -1070,7 +830,7 @@ gst_rtp_base_payload_negotiate (GstRTPBasePayload * payload)
 {
   GstCaps *templ, *peercaps, *srccaps;
   GstStructure *s, *d;
-  gboolean res = TRUE;
+  gboolean res;
 
   payload->priv->caps_max_ptime = DEFAULT_MAX_PTIME;
   payload->ptime = 0;
@@ -1355,168 +1115,11 @@ gst_rtp_base_payload_negotiate (GstRTPBasePayload * payload)
 
   update_max_ptime (payload);
 
-  {
-    /* try to find header extension implementations for the list in the
-     * caps */
-    GstStructure *s = gst_caps_get_structure (srccaps, 0);
-    guint i, j, n_fields = gst_structure_n_fields (s);
-    GPtrArray *header_exts = g_ptr_array_new_with_free_func (gst_object_unref);
-    GPtrArray *to_add = g_ptr_array_new ();
-    GPtrArray *to_remove = g_ptr_array_new ();
-
-    GST_OBJECT_LOCK (payload);
-    g_ptr_array_foreach (payload->priv->header_exts,
-        (GFunc) add_and_ref_item, header_exts);
-    GST_OBJECT_UNLOCK (payload);
-
-    for (i = 0; i < n_fields; i++) {
-      const gchar *field_name = gst_structure_nth_field_name (s, i);
-      if (g_str_has_prefix (field_name, "extmap-")) {
-        const GValue *val;
-        const gchar *uri = NULL;
-        gchar *nptr;
-        guint ext_id;
-        GstRTPHeaderExtension *ext = NULL;
-
-        errno = 0;
-        ext_id = g_ascii_strtoull (&field_name[strlen ("extmap-")], &nptr, 10);
-        if (errno != 0 || (ext_id == 0 && field_name == nptr)) {
-          GST_WARNING_OBJECT (payload, "could not parse id from %s",
-              field_name);
-          res = FALSE;
-          goto ext_out;
-        }
-
-        val = gst_structure_get_value (s, field_name);
-        if (G_VALUE_HOLDS_STRING (val)) {
-          uri = g_value_get_string (val);
-        } else if (GST_VALUE_HOLDS_ARRAY (val)) {
-          /* the uri is the second value in the array */
-          const GValue *str = gst_value_array_get_value (val, 1);
-          if (G_VALUE_HOLDS_STRING (str)) {
-            uri = g_value_get_string (str);
-          }
-        }
-
-        if (!uri) {
-          GST_WARNING_OBJECT (payload, "could not get extmap uri for "
-              "field %s", field_name);
-          res = FALSE;
-          goto ext_out;
-        }
-
-        /* try to find if this extension mapping already exists */
-        for (j = 0; j < header_exts->len; j++) {
-          ext = g_ptr_array_index (header_exts, j);
-          if (gst_rtp_header_extension_get_id (ext) == ext_id) {
-            if (g_strcmp0 (uri, gst_rtp_header_extension_get_uri (ext)) == 0) {
-              /* still matching, we're good, set attributes from caps in case
-               * the caps have been updated */
-              if (!gst_rtp_header_extension_set_attributes_from_caps (ext,
-                      srccaps)) {
-                GST_WARNING_OBJECT (payload,
-                    "Failed to configure rtp header " "extension %"
-                    GST_PTR_FORMAT " attributes from caps %" GST_PTR_FORMAT,
-                    ext, srccaps);
-                res = FALSE;
-                goto ext_out;
-              }
-              break;
-            } else {
-              GST_DEBUG_OBJECT (payload, "extension id %u"
-                  "was replaced with a different extension uri "
-                  "original:\'%s' vs \'%s\'", ext_id,
-                  gst_rtp_header_extension_get_uri (ext), uri);
-              g_ptr_array_add (to_remove, ext);
-              ext = NULL;
-              break;
-            }
-          } else {
-            ext = NULL;
-          }
-        }
-
-        /* if no extension, attempt to request one */
-        if (!ext) {
-          GST_DEBUG_OBJECT (payload, "requesting extension for id %u"
-              " and uri %s", ext_id, uri);
-          g_signal_emit (payload,
-              gst_rtp_base_payload_signals[SIGNAL_REQUEST_EXTENSION], 0,
-              ext_id, uri, &ext);
-          GST_DEBUG_OBJECT (payload, "request returned extension %p \'%s\' "
-              "for id %u and uri %s", ext,
-              ext ? GST_OBJECT_NAME (ext) : "", ext_id, uri);
-
-          /* We require caller to set the appropriate extension if it's required */
-          if (ext && gst_rtp_header_extension_get_id (ext) != ext_id) {
-            g_warning ("\'request-extension\' signal provided an rtp header "
-                "extension for uri \'%s\' that does not match the requested "
-                "extension id %u", uri, ext_id);
-            gst_clear_object (&ext);
-          }
-
-          if (ext && !gst_rtp_header_extension_set_attributes_from_caps (ext,
-                  srccaps)) {
-            GST_WARNING_OBJECT (payload,
-                "Failed to configure rtp header " "extension %"
-                GST_PTR_FORMAT " attributes from caps %" GST_PTR_FORMAT,
-                ext, srccaps);
-            res = FALSE;
-            g_clear_object (&ext);
-            goto ext_out;
-          }
-
-          if (ext) {
-            g_ptr_array_add (to_add, ext);
-          }
-        }
-      }
-    }
-
-    GST_OBJECT_LOCK (payload);
-    g_ptr_array_foreach (to_remove, (GFunc) remove_item_from,
-        payload->priv->header_exts);
-    g_ptr_array_foreach (to_add, (GFunc) add_item_to,
-        payload->priv->header_exts);
-    /* let extensions update their internal state from sinkcaps */
-    if (payload->priv->sinkcaps) {
-      gint i;
-
-      for (i = 0; i < payload->priv->header_exts->len; i++) {
-        GstRTPHeaderExtension *ext;
-
-        ext = g_ptr_array_index (payload->priv->header_exts, i);
-        if (!gst_rtp_header_extension_set_non_rtp_sink_caps (ext,
-                payload->priv->sinkcaps)) {
-          GST_WARNING_OBJECT (payload,
-              "Failed to update rtp header extension (%s) from sink caps",
-              GST_OBJECT_NAME (ext));
-          res = FALSE;
-          GST_OBJECT_UNLOCK (payload);
-          goto ext_out;
-        }
-      }
-    }
-    /* add extension information to srccaps */
-    g_ptr_array_foreach (payload->priv->header_exts,
-        (GFunc) add_header_ext_to_caps, srccaps);
-    GST_OBJECT_UNLOCK (payload);
-
-  ext_out:
-    g_ptr_array_unref (to_add);
-    g_ptr_array_unref (to_remove);
-    g_ptr_array_unref (header_exts);
-  }
-
-  GST_DEBUG_OBJECT (payload, "configuring caps %" GST_PTR_FORMAT, srccaps);
-
-  if (res)
-    res = gst_pad_set_caps (GST_RTP_BASE_PAYLOAD_SRCPAD (payload), srccaps);
+  res = gst_pad_set_caps (GST_RTP_BASE_PAYLOAD_SRCPAD (payload), srccaps);
   gst_caps_unref (srccaps);
   gst_caps_unref (templ);
 
 out:
-  payload->priv->negotiate_called = TRUE;
 
   if (!res)
     gst_pad_mark_reconfigure (GST_RTP_BASE_PAYLOAD_SRCPAD (payload));
@@ -1577,214 +1180,19 @@ find_timestamp (GstBuffer ** buffer, guint idx, gpointer user_data)
     return TRUE;
 }
 
-static void
-gst_rtp_base_payload_add_extension (GstRTPBasePayload * payload,
-    GstRTPHeaderExtension * ext)
-{
-  g_return_if_fail (GST_IS_RTP_HEADER_EXTENSION (ext));
-  g_return_if_fail (gst_rtp_header_extension_get_id (ext) > 0);
-
-  /* XXX: check for duplicate ids? */
-  GST_OBJECT_LOCK (payload);
-  g_ptr_array_add (payload->priv->header_exts, gst_object_ref (ext));
-  gst_pad_mark_reconfigure (GST_RTP_BASE_PAYLOAD_SRCPAD (payload));
-  GST_OBJECT_UNLOCK (payload);
-}
-
-static void
-gst_rtp_base_payload_clear_extensions (GstRTPBasePayload * payload)
-{
-  GST_OBJECT_LOCK (payload);
-  g_ptr_array_set_size (payload->priv->header_exts, 0);
-  GST_OBJECT_UNLOCK (payload);
-}
-
-typedef struct
-{
-  GstRTPBasePayload *payload;
-  GstRTPHeaderExtensionFlags flags;
-  GstBuffer *output;
-  guint8 *data;
-  gsize allocated_size;
-  gsize written_size;
-  gsize hdr_unit_size;
-  gboolean abort;
-} HeaderExt;
-
-static void
-determine_header_extension_flags_size (GstRTPHeaderExtension * ext,
-    gpointer user_data)
-{
-  HeaderExt *hdr = user_data;
-  guint ext_id;
-  gsize max_size;
-
-  hdr->flags &= gst_rtp_header_extension_get_supported_flags (ext);
-  max_size =
-      gst_rtp_header_extension_get_max_size (ext,
-      hdr->payload->priv->input_meta_buffer);
-
-  if (max_size > RTP_HEADER_EXT_ONE_BYTE_MAX_SIZE)
-    hdr->flags &= ~GST_RTP_HEADER_EXTENSION_ONE_BYTE;
-  if (max_size > RTP_HEADER_EXT_TWO_BYTE_MAX_SIZE)
-    hdr->flags &= ~GST_RTP_HEADER_EXTENSION_TWO_BYTE;
-
-  ext_id = gst_rtp_header_extension_get_id (ext);
-  if (ext_id > RTP_HEADER_EXT_ONE_BYTE_MAX_ID)
-    hdr->flags &= ~GST_RTP_HEADER_EXTENSION_ONE_BYTE;
-  if (ext_id > RTP_HEADER_EXT_TWO_BYTE_MAX_ID)
-    hdr->flags &= ~GST_RTP_HEADER_EXTENSION_TWO_BYTE;
-
-  hdr->allocated_size += max_size;
-}
-
-static void
-write_header_extension (GstRTPHeaderExtension * ext, gpointer user_data)
-{
-  HeaderExt *hdr = user_data;
-  gsize remaining =
-      hdr->allocated_size - hdr->written_size - hdr->hdr_unit_size;
-  gsize offset = hdr->written_size + hdr->hdr_unit_size;
-  gssize written;
-  guint ext_id;
-
-  if (hdr->abort)
-    return;
-
-  written = gst_rtp_header_extension_write (ext,
-      hdr->payload->priv->input_meta_buffer, hdr->flags, hdr->output,
-      &hdr->data[offset], remaining);
-
-  GST_TRACE_OBJECT (hdr->payload, "extension %" GST_PTR_FORMAT " wrote %"
-      G_GSIZE_FORMAT, ext, written);
-
-  if (written == 0) {
-    /* extension wrote no data */
-    return;
-  } else if (written < 0) {
-    GST_WARNING_OBJECT (hdr->payload, "%s failed to write extension data",
-        GST_OBJECT_NAME (ext));
-    goto error;
-  } else if (written > remaining) {
-    /* wrote too much! */
-    g_error ("Overflow detected writing rtp header extensions. One of the "
-        "instances likely did not report a large enough maximum size. "
-        "Memory corruption has occured. Aborting");
-    goto error;
-  }
-
-  ext_id = gst_rtp_header_extension_get_id (ext);
-
-  /* move to the beginning of the extension header */
-  offset -= hdr->hdr_unit_size;
-
-  /* write extension header */
-  if (hdr->flags & GST_RTP_HEADER_EXTENSION_ONE_BYTE) {
-    if (written > RTP_HEADER_EXT_ONE_BYTE_MAX_SIZE) {
-      g_critical ("Amount of data written by %s is larger than allowed with "
-          "a one byte header.", GST_OBJECT_NAME (ext));
-      goto error;
-    }
-
-    hdr->data[offset] = ((ext_id & 0x0F) << 4) | ((written - 1) & 0x0F);
-  } else if (hdr->flags & GST_RTP_HEADER_EXTENSION_TWO_BYTE) {
-    if (written > RTP_HEADER_EXT_TWO_BYTE_MAX_SIZE) {
-      g_critical ("Amount of data written by %s is larger than allowed with "
-          "a two byte header.", GST_OBJECT_NAME (ext));
-      goto error;
-    }
-
-    hdr->data[offset] = ext_id & 0xFF;
-    hdr->data[offset + 1] = written & 0xFF;
-  } else {
-    g_critical ("Don't know how to write extension data with flags 0x%x!",
-        hdr->flags);
-    goto error;
-  }
-
-  hdr->written_size += written + hdr->hdr_unit_size;
-
-  return;
-
-error:
-  hdr->abort = TRUE;
-  return;
-}
-
 static gboolean
 set_headers (GstBuffer ** buffer, guint idx, gpointer user_data)
 {
   HeaderData *data = user_data;
-  HeaderExt hdrext = { NULL, };
   GstRTPBuffer rtp = { NULL, };
 
-  if (!gst_rtp_buffer_map (*buffer, GST_MAP_READWRITE, &rtp))
+  if (!gst_rtp_buffer_map (*buffer, GST_MAP_WRITE, &rtp))
     goto map_failed;
 
   gst_rtp_buffer_set_ssrc (&rtp, data->ssrc);
   gst_rtp_buffer_set_payload_type (&rtp, data->pt);
   gst_rtp_buffer_set_seq (&rtp, data->seqnum);
   gst_rtp_buffer_set_timestamp (&rtp, data->rtptime);
-
-  GST_OBJECT_LOCK (data->payload);
-  if (data->payload->priv->header_exts->len > 0
-      && data->payload->priv->input_meta_buffer) {
-    guint wordlen;
-    gsize extlen;
-    guint16 bit_pattern;
-
-    /* write header extensions */
-    hdrext.payload = data->payload;
-    hdrext.output = *buffer;
-    /* XXX: pre-calculate these flags and sizes? */
-    hdrext.flags =
-        GST_RTP_HEADER_EXTENSION_ONE_BYTE | GST_RTP_HEADER_EXTENSION_TWO_BYTE;
-    g_ptr_array_foreach (data->payload->priv->header_exts,
-        (GFunc) determine_header_extension_flags_size, &hdrext);
-    hdrext.hdr_unit_size = 0;
-    if (hdrext.flags & GST_RTP_HEADER_EXTENSION_ONE_BYTE) {
-      /* prefer the one byte header */
-      hdrext.hdr_unit_size = 1;
-      /* TODO: support mixed size writing modes, i.e. RFC8285 */
-      hdrext.flags &= ~GST_RTP_HEADER_EXTENSION_TWO_BYTE;
-      bit_pattern = 0xBEDE;
-    } else if (hdrext.flags & GST_RTP_HEADER_EXTENSION_TWO_BYTE) {
-      hdrext.hdr_unit_size = 2;
-      bit_pattern = 0x1000;
-    } else {
-      goto unsupported_flags;
-    }
-
-    extlen =
-        hdrext.hdr_unit_size * data->payload->priv->header_exts->len +
-        hdrext.allocated_size;
-    wordlen = extlen / 4 + ((extlen % 4) ? 1 : 0);
-
-    /* XXX: do we need to add to any existing extension data instead of
-     * overwriting everything? */
-    gst_rtp_buffer_set_extension_data (&rtp, bit_pattern, wordlen);
-    gst_rtp_buffer_get_extension_data (&rtp, NULL, (gpointer) & hdrext.data,
-        &wordlen);
-
-    /* from 32-bit words to bytes */
-    hdrext.allocated_size = wordlen * 4;
-
-    g_ptr_array_foreach (data->payload->priv->header_exts,
-        (GFunc) write_header_extension, &hdrext);
-
-    if (hdrext.written_size > 0) {
-      wordlen = hdrext.written_size / 4 + ((hdrext.written_size % 4) ? 1 : 0);
-
-      /* zero-fill the hdrext padding bytes */
-      memset (&hdrext.data[hdrext.written_size], 0,
-          wordlen * 4 - hdrext.written_size);
-
-      gst_rtp_buffer_set_extension_data (&rtp, bit_pattern, wordlen);
-    } else {
-      gst_rtp_buffer_remove_extension_data (&rtp);
-    }
-  }
-  GST_OBJECT_UNLOCK (data->payload);
   gst_rtp_buffer_unmap (&rtp);
 
   /* increment the seqnum for each buffer */
@@ -1797,20 +1205,12 @@ map_failed:
     GST_ERROR ("failed to map buffer %p", *buffer);
     return FALSE;
   }
-
-unsupported_flags:
-  {
-    GST_OBJECT_UNLOCK (data->payload);
-    gst_rtp_buffer_unmap (&rtp);
-    GST_ERROR ("Cannot add rtp header extensions with mixed header types");
-    return FALSE;
-  }
 }
 
 static gboolean
 foreach_metadata_drop (GstBuffer * buffer, GstMeta ** meta, gpointer user_data)
 {
-  GType drop_api_type = (GType) user_data;
+  GType drop_api_type = (GType) GPOINTER_TO_INT (user_data);
   const GstMetaInfo *info = (*meta)->info;
 
   if (info->api == drop_api_type)
@@ -1823,7 +1223,7 @@ static gboolean
 filter_meta (GstBuffer ** buffer, guint idx, gpointer user_data)
 {
   return gst_buffer_foreach_meta (*buffer, foreach_metadata_drop,
-      (gpointer) GST_RTP_SOURCE_META_API_TYPE);
+      GINT_TO_POINTER (GST_RTP_SOURCE_META_API_TYPE));
 }
 
 /* Updates the SSRC, payload type, seqnum and timestamp of the RTP buffer
@@ -1884,9 +1284,8 @@ gst_rtp_base_payload_prepare_push (GstRTPBasePayload * payload,
     guint64 rtime_hz;
 
     /* no offset, use the gstreamer pts */
-    if (priv->onvif_no_rate_control || !priv->scale_rtptime)
-      rtime_ns = gst_segment_to_stream_time (&payload->segment,
-          GST_FORMAT_TIME, data.pts);
+    if (priv->onvif_no_rate_control)
+      rtime_ns = data.pts;
     else
       rtime_ns =
           gst_segment_to_running_time (&payload->segment, GST_FORMAT_TIME,
@@ -1969,7 +1368,7 @@ no_rate:
 /**
  * gst_rtp_base_payload_push_list:
  * @payload: a #GstRTPBasePayload
- * @list: (transfer full): a #GstBufferList
+ * @list: a #GstBufferList
  *
  * Push @list to the peer element of the payloader. The SSRC, payload type,
  * seqnum and timestamp of the RTP buffer will be updated first.
@@ -2003,7 +1402,7 @@ gst_rtp_base_payload_push_list (GstRTPBasePayload * payload,
 /**
  * gst_rtp_base_payload_push:
  * @payload: a #GstRTPBasePayload
- * @buffer: (transfer full): a #GstBuffer
+ * @buffer: a #GstBuffer
  *
  * Push @buffer to the peer element of the payloader. The SSRC, payload type,
  * seqnum and timestamp of the RTP buffer will be updated first.
@@ -2166,12 +1565,6 @@ gst_rtp_base_payload_set_property (GObject * object, guint prop_id,
     case PROP_ONVIF_NO_RATE_CONTROL:
       priv->onvif_no_rate_control = g_value_get_boolean (value);
       break;
-    case PROP_SCALE_RTPTIME:
-      priv->scale_rtptime = g_value_get_boolean (value);
-      break;
-    case PROP_AUTO_HEADER_EXTENSION:
-      priv->auto_hdr_ext = g_value_get_boolean (value);
-      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -2242,12 +1635,6 @@ gst_rtp_base_payload_get_property (GObject * object, guint prop_id,
     case PROP_ONVIF_NO_RATE_CONTROL:
       g_value_set_boolean (value, priv->onvif_no_rate_control);
       break;
-    case PROP_SCALE_RTPTIME:
-      g_value_set_boolean (value, priv->scale_rtptime);
-      break;
-    case PROP_AUTO_HEADER_EXTENSION:
-      g_value_set_boolean (value, priv->auto_hdr_ext);
-      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -2294,7 +1681,6 @@ gst_rtp_base_payload_change_state (GstElement * element,
       g_atomic_int_set (&rtpbasepayload->priv->notified_first_timestamp, 1);
       priv->base_offset = GST_BUFFER_OFFSET_NONE;
       priv->negotiated = FALSE;
-      priv->negotiate_called = FALSE;
       gst_caps_replace (&rtpbasepayload->priv->subclass_srccaps, NULL);
       gst_caps_replace (&rtpbasepayload->priv->sinkcaps, NULL);
       break;

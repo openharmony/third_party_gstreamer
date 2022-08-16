@@ -22,15 +22,15 @@
 
 /**
  * SECTION:element-jpegdec
- * @title: jpegdec
  *
  * Decodes jpeg images.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 -v filesrc location=mjpeg.avi ! avidemux !  queue ! jpegdec ! videoconvert ! videoscale ! autovideosink
  * ]| The above pipeline decode the mjpeg stream and renders it to the screen.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -38,9 +38,8 @@
 #endif
 #include <string.h>
 
-#include "gstjpeg.h"
 #include "gstjpegdec.h"
-#include "gstjpegelements.h"
+#include "gstjpeg.h"
 #include <gst/video/video.h>
 #include <gst/video/gstvideometa.h>
 #include <gst/video/gstvideopool.h>
@@ -110,8 +109,6 @@ static gboolean gst_jpeg_dec_sink_event (GstVideoDecoder * bdec,
 
 #define gst_jpeg_dec_parent_class parent_class
 G_DEFINE_TYPE (GstJpegDec, gst_jpeg_dec, GST_TYPE_VIDEO_DECODER);
-GST_ELEMENT_REGISTER_DEFINE (jpegdec, "jpegdec", GST_RANK_PRIMARY,
-    GST_TYPE_JPEG_DEC);
 
 static void
 gst_jpeg_dec_finalize (GObject * object)
@@ -184,8 +181,6 @@ gst_jpeg_dec_class_init (GstJpegDecClass * klass)
 
   GST_DEBUG_CATEGORY_INIT (jpeg_dec_debug, "jpegdec", 0, "JPEG decoder");
   GST_DEBUG_CATEGORY_GET (GST_CAT_PERFORMANCE, "GST_PERFORMANCE");
-
-  gst_type_mark_as_plugin_api (GST_TYPE_IDCT_METHOD, 0);
 }
 
 static boolean
@@ -871,7 +866,7 @@ gst_jpeg_dec_decode_direct (GstJpegDec * dec, GstVideoFrame * frame,
   gint lines, v_samp[3];
   guchar *base[3], *last[3];
   gint stride[3];
-  guint height, field_height;
+  guint height;
 
   line[0] = y;
   line[1] = u;
@@ -884,12 +879,7 @@ gst_jpeg_dec_decode_direct (GstJpegDec * dec, GstVideoFrame * frame,
   if (G_UNLIKELY (v_samp[0] > 2 || v_samp[1] > 2 || v_samp[2] > 2))
     goto format_not_supported;
 
-  height = field_height = GST_VIDEO_FRAME_HEIGHT (frame);
-
-  /* XXX: division by 2 here might not be a good idea yes. But we are doing this
-   * already in gst_jpeg_dec_handle_frame() for interlaced jpeg */
-  if (num_fields == 2)
-    field_height /= 2;
+  height = GST_VIDEO_FRAME_HEIGHT (frame);
 
   for (i = 0; i < 3; i++) {
     base[i] = GST_VIDEO_FRAME_COMP_DATA (frame, i);
@@ -904,7 +894,7 @@ gst_jpeg_dec_decode_direct (GstJpegDec * dec, GstVideoFrame * frame,
     }
   }
 
-  if (field_height % (v_samp[0] * DCTSIZE) && (dec->scratch_size < stride[0])) {
+  if (height % (v_samp[0] * DCTSIZE) && (dec->scratch_size < stride[0])) {
     g_free (dec->scratch);
     dec->scratch = g_malloc (stride[0]);
     dec->scratch_size = stride[0];
@@ -913,55 +903,33 @@ gst_jpeg_dec_decode_direct (GstJpegDec * dec, GstVideoFrame * frame,
   /* let jpeglib decode directly into our final buffer */
   GST_DEBUG_OBJECT (dec, "decoding directly into output buffer");
 
-#ifdef JCS_EXTENSIONS
-  if (dec->format_convert) {
-    gint row_stride = GST_VIDEO_FRAME_PLANE_STRIDE (frame, 0);
-    guchar *bufbase = GST_VIDEO_FRAME_PLANE_DATA (frame, 0);
-
-    if (num_fields == 2) {
-      row_stride *= 2;
-    }
-
-    if (field == 2) {
-      bufbase += GST_VIDEO_FRAME_PLANE_STRIDE (frame, 0);
-    }
-
-    while (dec->cinfo.output_scanline < dec->cinfo.output_height) {
-      JSAMPARRAY buffer = { &bufbase, };
-      jpeg_read_scanlines (&dec->cinfo, buffer, 1);
-      bufbase += row_stride;
-    }
-  } else
-#endif
-  {
-    for (i = 0; i < height; i += v_samp[0] * DCTSIZE) {
-      for (j = 0; j < (v_samp[0] * DCTSIZE); ++j) {
-        /* Y */
-        line[0][j] = base[0] + (i + j) * stride[0];
-        if (G_UNLIKELY (line[0][j] > last[0]))
-          line[0][j] = dec->scratch;
-        /* U */
-        if (v_samp[1] == v_samp[0]) {
-          line[1][j] = base[1] + ((i + j) / 2) * stride[1];
-        } else if (j < (v_samp[1] * DCTSIZE)) {
-          line[1][j] = base[1] + ((i / 2) + j) * stride[1];
-        }
-        if (G_UNLIKELY (line[1][j] > last[1]))
-          line[1][j] = dec->scratch;
-        /* V */
-        if (v_samp[2] == v_samp[0]) {
-          line[2][j] = base[2] + ((i + j) / 2) * stride[2];
-        } else if (j < (v_samp[2] * DCTSIZE)) {
-          line[2][j] = base[2] + ((i / 2) + j) * stride[2];
-        }
-        if (G_UNLIKELY (line[2][j] > last[2]))
-          line[2][j] = dec->scratch;
+  for (i = 0; i < height; i += v_samp[0] * DCTSIZE) {
+    for (j = 0; j < (v_samp[0] * DCTSIZE); ++j) {
+      /* Y */
+      line[0][j] = base[0] + (i + j) * stride[0];
+      if (G_UNLIKELY (line[0][j] > last[0]))
+        line[0][j] = dec->scratch;
+      /* U */
+      if (v_samp[1] == v_samp[0]) {
+        line[1][j] = base[1] + ((i + j) / 2) * stride[1];
+      } else if (j < (v_samp[1] * DCTSIZE)) {
+        line[1][j] = base[1] + ((i / 2) + j) * stride[1];
       }
-
-      lines = jpeg_read_raw_data (&dec->cinfo, line, v_samp[0] * DCTSIZE);
-      if (G_UNLIKELY (!lines)) {
-        GST_INFO_OBJECT (dec, "jpeg_read_raw_data() returned 0");
+      if (G_UNLIKELY (line[1][j] > last[1]))
+        line[1][j] = dec->scratch;
+      /* V */
+      if (v_samp[2] == v_samp[0]) {
+        line[2][j] = base[2] + ((i + j) / 2) * stride[2];
+      } else if (j < (v_samp[2] * DCTSIZE)) {
+        line[2][j] = base[2] + ((i / 2) + j) * stride[2];
       }
+      if (G_UNLIKELY (line[2][j] > last[2]))
+        line[2][j] = dec->scratch;
+    }
+
+    lines = jpeg_read_raw_data (&dec->cinfo, line, v_samp[0] * DCTSIZE);
+    if (G_UNLIKELY (!lines)) {
+      GST_INFO_OBJECT (dec, "jpeg_read_raw_data() returned 0");
     }
   }
   return GST_FLOW_OK;
@@ -979,86 +947,6 @@ format_not_supported:
   }
 }
 
-#ifdef JCS_EXTENSIONS
-static J_COLOR_SPACE
-gst_fmt_to_jpeg_turbo_ext_fmt (GstVideoFormat gstfmt)
-{
-  switch (gstfmt) {
-    case GST_VIDEO_FORMAT_RGB:
-      return JCS_EXT_RGB;
-    case GST_VIDEO_FORMAT_RGBx:
-      return JCS_EXT_RGBX;
-    case GST_VIDEO_FORMAT_xRGB:
-      return JCS_EXT_XRGB;
-    case GST_VIDEO_FORMAT_RGBA:
-      return JCS_EXT_RGBA;
-    case GST_VIDEO_FORMAT_ARGB:
-      return JCS_EXT_ARGB;
-    case GST_VIDEO_FORMAT_BGR:
-      return JCS_EXT_BGR;
-    case GST_VIDEO_FORMAT_BGRx:
-      return JCS_EXT_BGRX;
-    case GST_VIDEO_FORMAT_xBGR:
-      return JCS_EXT_XBGR;
-    case GST_VIDEO_FORMAT_BGRA:
-      return JCS_EXT_BGRA;
-    case GST_VIDEO_FORMAT_ABGR:
-      return JCS_EXT_ABGR;
-    default:
-      return 0;
-  }
-}
-
-static void
-gst_jpeg_turbo_parse_ext_fmt_convert (GstJpegDec * dec, gint * clrspc)
-{
-  GstCaps *peer_caps, *dec_caps;
-
-  dec_caps = gst_static_caps_get (&gst_jpeg_dec_src_pad_template.static_caps);
-  peer_caps =
-      gst_pad_peer_query_caps (GST_VIDEO_DECODER_SRC_PAD (dec), dec_caps);
-  gst_caps_unref (dec_caps);
-
-  GST_DEBUG ("Received caps from peer: %" GST_PTR_FORMAT, peer_caps);
-  dec->format_convert = FALSE;
-  if (!gst_caps_is_empty (peer_caps)) {
-    GstStructure *peerstruct;
-    const gchar *peerformat;
-    GstVideoFormat peerfmt;
-
-    if (!gst_caps_is_fixed (peer_caps))
-      peer_caps = gst_caps_fixate (peer_caps);
-
-    peerstruct = gst_caps_get_structure (peer_caps, 0);
-    peerformat = gst_structure_get_string (peerstruct, "format");
-    peerfmt = gst_video_format_from_string (peerformat);
-
-    switch (peerfmt) {
-      case GST_VIDEO_FORMAT_RGB:
-      case GST_VIDEO_FORMAT_RGBx:
-      case GST_VIDEO_FORMAT_xRGB:
-      case GST_VIDEO_FORMAT_RGBA:
-      case GST_VIDEO_FORMAT_ARGB:
-      case GST_VIDEO_FORMAT_BGR:
-      case GST_VIDEO_FORMAT_BGRx:
-      case GST_VIDEO_FORMAT_xBGR:
-      case GST_VIDEO_FORMAT_BGRA:
-      case GST_VIDEO_FORMAT_ABGR:
-        if (clrspc)
-          *clrspc = JCS_RGB;
-        dec->format = peerfmt;
-        dec->format_convert = TRUE;
-        dec->libjpeg_ext_format = gst_fmt_to_jpeg_turbo_ext_fmt (peerfmt);
-        break;
-      default:
-        break;
-    }
-  }
-  gst_caps_unref (peer_caps);
-  GST_DEBUG_OBJECT (dec, "format_convert=%d", dec->format_convert);
-}
-#endif
-
 static void
 gst_jpeg_dec_negotiate (GstJpegDec * dec, gint width, gint height, gint clrspc,
     gboolean interlaced)
@@ -1067,23 +955,16 @@ gst_jpeg_dec_negotiate (GstJpegDec * dec, gint width, gint height, gint clrspc,
   GstVideoInfo *info;
   GstVideoFormat format;
 
-#ifdef JCS_EXTENSIONS
-  if (dec->format_convert) {
-    format = dec->format;
-  } else
-#endif
-  {
-    switch (clrspc) {
-      case JCS_RGB:
-        format = GST_VIDEO_FORMAT_RGB;
-        break;
-      case JCS_GRAYSCALE:
-        format = GST_VIDEO_FORMAT_GRAY8;
-        break;
-      default:
-        format = GST_VIDEO_FORMAT_I420;
-        break;
-    }
+  switch (clrspc) {
+    case JCS_RGB:
+      format = GST_VIDEO_FORMAT_RGB;
+      break;
+    case JCS_GRAYSCALE:
+      format = GST_VIDEO_FORMAT_GRAY8;
+      break;
+    default:
+      format = GST_VIDEO_FORMAT_I420;
+      break;
   }
 
   /* Compare to currently configured output state */
@@ -1099,12 +980,6 @@ gst_jpeg_dec_negotiate (GstJpegDec * dec, gint width, gint height, gint clrspc,
     }
     gst_video_codec_state_unref (outstate);
   }
-#ifdef JCS_EXTENSIONS
-  /* Determine if libjpeg-turbo direct format conversion can be used
-   * with current caps and if so, adjust $dec to enable it and $clrspc
-   * accordingly. */
-  gst_jpeg_turbo_parse_ext_fmt_convert (dec, &clrspc);
-#endif
 
   outstate =
       gst_video_decoder_set_output_state (GST_VIDEO_DECODER (dec), format,
@@ -1115,9 +990,6 @@ gst_jpeg_dec_negotiate (GstJpegDec * dec, gint width, gint height, gint clrspc,
     case JCS_GRAYSCALE:
       break;
     default:
-      /* aka JPEG chroma siting */
-      outstate->info.chroma_site = GST_VIDEO_CHROMA_SITE_NONE;
-
       outstate->info.colorimetry.range = GST_VIDEO_COLOR_RANGE_0_255;
       outstate->info.colorimetry.matrix = GST_VIDEO_COLOR_MATRIX_BT601;
       outstate->info.colorimetry.transfer = GST_VIDEO_TRANSFER_UNKNOWN;
@@ -1187,18 +1059,9 @@ gst_jpeg_dec_prepare_decode (GstJpegDec * dec)
   /* prepare for raw output */
   dec->cinfo.do_fancy_upsampling = FALSE;
   dec->cinfo.do_block_smoothing = FALSE;
+  dec->cinfo.out_color_space = dec->cinfo.jpeg_color_space;
   dec->cinfo.dct_method = dec->idct_method;
-#ifdef JCS_EXTENSIONS
-  gst_jpeg_turbo_parse_ext_fmt_convert (dec, NULL);
-  if (dec->format_convert) {
-    dec->cinfo.out_color_space = dec->libjpeg_ext_format;
-    dec->cinfo.raw_data_out = FALSE;
-  } else
-#endif
-  {
-    dec->cinfo.out_color_space = dec->cinfo.jpeg_color_space;
-    dec->cinfo.raw_data_out = TRUE;
-  }
+  dec->cinfo.raw_data_out = TRUE;
 
   GST_LOG_OBJECT (dec, "starting decompress");
   guarantee_huff_tables (&dec->cinfo);
@@ -1341,14 +1204,10 @@ gst_jpeg_dec_handle_frame (GstVideoDecoder * bdec, GstVideoCodecFrame * frame)
   guint8 *data;
   gsize nbytes;
 
-  if (!gst_buffer_map (frame->input_buffer, &dec->current_frame_map,
-          GST_MAP_READ))
-    goto map_failed;
+  gst_buffer_map (frame->input_buffer, &dec->current_frame_map, GST_MAP_READ);
 
   data = dec->current_frame_map.data;
   nbytes = dec->current_frame_map.size;
-  if (nbytes < 2)
-    goto need_more_data;
   has_eoi = ((data[nbytes - 2] == 0xff) && (data[nbytes - 1] == 0xd9));
 
   /* some cameras fail to send an end-of-image marker (EOI),
@@ -1471,23 +1330,16 @@ gst_jpeg_dec_handle_frame (GstVideoDecoder * bdec, GstVideoCodecFrame * frame)
     }
 
     /* check if format has changed for the second field */
-#ifdef JCS_EXTENSIONS
-    if (dec->format_convert) {
-      field2_format = dec->format;
-    } else
-#endif
-    {
-      switch (dec->cinfo.jpeg_color_space) {
-        case JCS_RGB:
-          field2_format = GST_VIDEO_FORMAT_RGB;
-          break;
-        case JCS_GRAYSCALE:
-          field2_format = GST_VIDEO_FORMAT_GRAY8;
-          break;
-        default:
-          field2_format = GST_VIDEO_FORMAT_I420;
-          break;
-      }
+    switch (dec->cinfo.jpeg_color_space) {
+      case JCS_RGB:
+        field2_format = GST_VIDEO_FORMAT_RGB;
+        break;
+      case JCS_GRAYSCALE:
+        field2_format = GST_VIDEO_FORMAT_GRAY8;
+        break;
+      default:
+        field2_format = GST_VIDEO_FORMAT_I420;
+        break;
     }
 
     GST_LOG_OBJECT (dec,
@@ -1541,13 +1393,6 @@ need_more_data:
     goto exit;
   }
   /* ERRORS */
-map_failed:
-  {
-    GST_ELEMENT_ERROR (dec, RESOURCE, READ, (_("Failed to read memory")),
-        ("gst_buffer_map() failed for READ access"));
-    ret = GST_FLOW_ERROR;
-    goto exit;
-  }
 decode_error:
   {
     gchar err_msg[JMSG_LENGTH_MAX];
@@ -1641,9 +1486,6 @@ gst_jpeg_dec_start (GstVideoDecoder * bdec)
 {
   GstJpegDec *dec = (GstJpegDec *) bdec;
 
-#ifdef JCS_EXTENSIONS
-  dec->format_convert = FALSE;
-#endif
   dec->saw_header = FALSE;
   dec->parse_entropy_len = 0;
   dec->parse_resync = FALSE;
@@ -1662,9 +1504,6 @@ gst_jpeg_dec_flush (GstVideoDecoder * bdec)
   dec->parse_entropy_len = 0;
   dec->parse_resync = FALSE;
   dec->saw_header = FALSE;
-#ifdef JCS_EXTENSIONS
-  dec->format_convert = FALSE;
-#endif
 
   return TRUE;
 }

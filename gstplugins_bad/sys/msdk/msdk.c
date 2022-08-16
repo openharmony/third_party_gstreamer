@@ -63,22 +63,6 @@ static const struct map gst_msdk_video_format_to_mfx_map[] = {
 #endif
   GST_VIDEO_INFO_TO_MFX_MAP (VUYA, YUV444, AYUV),
   GST_VIDEO_INFO_TO_MFX_MAP (BGR10A2_LE, YUV444, A2RGB10),
-#if (MFX_VERSION >= 1027)
-  GST_VIDEO_INFO_TO_MFX_MAP (Y210, YUV422, Y210),
-  GST_VIDEO_INFO_TO_MFX_MAP (Y410, YUV444, Y410),
-#endif
-#if (MFX_VERSION >= 1031)
-  /* P016 is used for semi-planar 12 bits format in MSDK */
-  GST_VIDEO_INFO_TO_MFX_MAP (P012_LE, YUV420, P016),
-  /* Y216 is used for 12bit 4:2:2 format in MSDK */
-  GST_VIDEO_INFO_TO_MFX_MAP (Y212_LE, YUV422, Y216),
-  /* Y416 is used for 12bit 4:4:4:4 format in MSDK */
-  GST_VIDEO_INFO_TO_MFX_MAP (Y412_LE, YUV444, Y416),
-#endif
-#if (MFX_VERSION >=2004)
-  GST_VIDEO_INFO_TO_MFX_MAP (RGBP, YUV444, RGBP),
-  GST_VIDEO_INFO_TO_MFX_MAP (BGRP, YUV444, BGRP),
-#endif
   {0, 0, 0}
 };
 
@@ -127,12 +111,10 @@ msdk_status_to_string (mfxStatus status)
       return "device operation failure";
     case MFX_ERR_MORE_BITSTREAM:
       return "expect more bitstream buffers at output";
-#if (MFX_VERSION < 2000)
     case MFX_ERR_INCOMPATIBLE_AUDIO_PARAM:
       return "incompatible audio parameters";
     case MFX_ERR_INVALID_AUDIO_PARAM:
       return "invalid audio parameters";
-#endif
       /* warnings >0 */
     case MFX_WRN_IN_EXECUTION:
       return "the previous asynchronous operation is in execution";
@@ -150,177 +132,16 @@ msdk_status_to_string (mfxStatus status)
       return "the value is out of valid range";
     case MFX_WRN_FILTER_SKIPPED:
       return "one of requested filters has been skipped";
-#if (MFX_VERSION < 2000)
     case MFX_WRN_INCOMPATIBLE_AUDIO_PARAM:
       return "incompatible audio parameters";
-#endif
     default:
       break;
   }
-  return "undefined error";
-}
-
-mfxU16
-msdk_get_platform_codename (mfxSession session)
-{
-  mfxU16 codename = MFX_PLATFORM_UNKNOWN;
-
-#if (MFX_VERSION >= 1019)
-  {
-    mfxStatus status;
-    mfxPlatform platform = { 0 };
-    status = MFXVideoCORE_QueryPlatform (session, &platform);
-    if (MFX_ERR_NONE == status)
-      codename = platform.CodeName;
-  }
-#endif
-
-  return codename;
-}
-
-#if (MFX_VERSION >= 2000)
-
-mfxStatus
-msdk_init_msdk_session (mfxIMPL impl, mfxVersion * pver,
-    MsdkSession * msdk_session)
-{
-  mfxStatus sts = MFX_ERR_NONE;
-  mfxLoader loader = NULL;
-  mfxSession session = NULL;
-  mfxU32 impl_idx = 0;
-  mfxConfig cfg;
-  mfxVariant impl_value;
-
-  loader = msdk_session->loader;
-
-  if (!loader) {
-    loader = MFXLoad ();
-
-    GST_INFO ("Use the Intel oneVPL SDK to create MFX session");
-
-    if (!loader) {
-      GST_WARNING ("Failed to create a MFX loader");
-      return MFX_ERR_UNKNOWN;
-    }
-
-    /* Create configurations for implementation */
-    cfg = MFXCreateConfig (loader);
-
-    if (!cfg) {
-      GST_ERROR ("Failed to create a MFX configuration");
-      MFXUnload (loader);
-      return MFX_ERR_UNKNOWN;
-    }
-
-    impl_value.Type = MFX_VARIANT_TYPE_U32;
-    impl_value.Data.U32 =
-        (impl ==
-        MFX_IMPL_SOFTWARE) ? MFX_IMPL_TYPE_SOFTWARE : MFX_IMPL_TYPE_HARDWARE;
-    sts =
-        MFXSetConfigFilterProperty (cfg,
-        (const mfxU8 *) "mfxImplDescription.Impl", impl_value);
-
-    if (sts != MFX_ERR_NONE) {
-      GST_ERROR ("Failed to add an additional MFX configuration (%s)",
-          msdk_status_to_string (sts));
-      MFXUnload (loader);
-      return sts;
-    }
-
-    impl_value.Type = MFX_VARIANT_TYPE_U32;
-    impl_value.Data.U32 = pver->Version;
-    sts =
-        MFXSetConfigFilterProperty (cfg,
-        (const mfxU8 *) "mfxImplDescription.ApiVersion.Version", impl_value);
-
-    if (sts != MFX_ERR_NONE) {
-      GST_ERROR ("Failed to add an additional MFX configuration (%s)",
-          msdk_status_to_string (sts));
-      MFXUnload (loader);
-      return sts;
-    }
-  }
-
-  while (1) {
-    /* Enumerate all implementations */
-    mfxImplDescription *impl_desc;
-
-    sts = MFXEnumImplementations (loader, impl_idx,
-        MFX_IMPLCAPS_IMPLDESCSTRUCTURE, (mfxHDL *) & impl_desc);
-
-    /* Failed to find an available implementation */
-    if (sts == MFX_ERR_NOT_FOUND)
-      break;
-    else if (sts != MFX_ERR_NONE) {
-      impl_idx++;
-      continue;
-    }
-
-    sts = MFXCreateSession (loader, impl_idx, &session);
-    MFXDispReleaseImplDescription (loader, impl_desc);
-
-    if (sts == MFX_ERR_NONE)
-      break;
-
-    impl_idx++;
-  }
-
-  if (sts != MFX_ERR_NONE) {
-    GST_ERROR ("Failed to create a MFX session (%s)",
-        msdk_status_to_string (sts));
-
-    if (!msdk_session->loader)
-      MFXUnload (loader);
-
-    return sts;
-  }
-
-  msdk_session->session = session;
-  msdk_session->loader = loader;
-
-  return MFX_ERR_NONE;
-}
-
-#else
-
-mfxStatus
-msdk_init_msdk_session (mfxIMPL impl, mfxVersion * pver,
-    MsdkSession * msdk_session)
-{
-  mfxStatus status;
-  mfxSession session = NULL;
-  mfxInitParam init_par = { impl, *pver };
-
-  GST_INFO ("Use the " MFX_API_SDK " to create MFX session");
-
-#if (MFX_VERSION >= 1025)
-  init_par.GPUCopy = 1;
-#endif
-
-  status = MFXInitEx (init_par, &session);
-
-  if (status != MFX_ERR_NONE) {
-    GST_WARNING ("Failed to initialize a MFX session (%s)",
-        msdk_status_to_string (status));
-    return status;
-  }
-
-  msdk_session->session = session;
-  msdk_session->loader = NULL;
-
-  return MFX_ERR_NONE;
+  return "undefiend error";
 }
 
 void
-MFXUnload (mfxLoader loader)
-{
-  g_assert (loader == NULL);
-}
-
-#endif
-
-void
-msdk_close_mfx_session (mfxSession session)
+msdk_close_session (mfxSession session)
 {
   mfxStatus status;
 
@@ -332,14 +153,7 @@ msdk_close_mfx_session (mfxSession session)
     GST_ERROR ("Close failed (%s)", msdk_status_to_string (status));
 }
 
-void
-msdk_close_session (MsdkSession * msdk_session)
-{
-  msdk_close_mfx_session (msdk_session->session);
-  MFXUnload (msdk_session->loader);
-}
-
-MsdkSession
+mfxSession
 msdk_open_session (mfxIMPL impl)
 {
   mfxSession session = NULL;
@@ -347,21 +161,18 @@ msdk_open_session (mfxIMPL impl)
   };
   mfxIMPL implementation;
   mfxStatus status;
-  MsdkSession msdk_session;
 
   static const gchar *implementation_names[] = {
     "AUTO", "SOFTWARE", "HARDWARE", "AUTO_ANY", "HARDWARE_ANY", "HARDWARE2",
     "HARDWARE3", "HARDWARE4", "RUNTIME"
   };
 
-  msdk_session.session = NULL;
-  msdk_session.loader = NULL;
-  status = msdk_init_msdk_session (impl, &version, &msdk_session);
-
-  if (status != MFX_ERR_NONE)
-    return msdk_session;
-  else
-    session = msdk_session.session;
+  status = MFXInit (impl, &version, &session);
+  if (status != MFX_ERR_NONE) {
+    GST_ERROR ("Intel Media SDK not available (%s)",
+        msdk_status_to_string (status));
+    goto failed;
+  }
 
   status = MFXQueryIMPL (session, &implementation);
   if (status != MFX_ERR_NONE) {
@@ -376,65 +187,46 @@ msdk_open_session (mfxIMPL impl)
     goto failed;
   }
 
-  GST_INFO ("MFX implementation: 0x%04x (%s)", implementation,
+  GST_INFO ("MSDK implementation: 0x%04x (%s)", implementation,
       implementation_names[MFX_IMPL_BASETYPE (implementation)]);
-  GST_INFO ("MFX version: %d.%d", version.Major, version.Minor);
+  GST_INFO ("MSDK version: %d.%d", version.Major, version.Minor);
 
-  return msdk_session;
+  return session;
 
 failed:
-  msdk_close_session (&msdk_session);
-  msdk_session.session = NULL;
-  msdk_session.loader = NULL;
-  return msdk_session;
+  msdk_close_session (session);
+  return NULL;
 }
 
 gboolean
 msdk_is_available (void)
 {
-  /* Make sure we can create GstMsdkContext instance (the job type is not used actually) */
-  GstMsdkContext *msdk_context = gst_msdk_context_new (1, GST_MSDK_JOB_DECODER);
-
-  if (!msdk_context) {
+  mfxSession session = msdk_open_session (MFX_IMPL_AUTO_ANY);
+  if (!session) {
     return FALSE;
   }
 
-  gst_object_unref (msdk_context);
+  msdk_close_session (session);
   return TRUE;
 }
 
 void
-gst_msdk_set_video_alignment (GstVideoInfo * info, guint alloc_w, guint alloc_h,
+gst_msdk_set_video_alignment (GstVideoInfo * info,
     GstVideoAlignment * alignment)
 {
   guint i, width, height;
-  guint stride_align = 127;     /* 128-byte alignment */
 
   width = GST_VIDEO_INFO_WIDTH (info);
   height = GST_VIDEO_INFO_HEIGHT (info);
 
-  g_assert (alloc_w == 0 || alloc_w >= width);
-  g_assert (alloc_h == 0 || alloc_h >= height);
-
-  if (alloc_w == 0)
-    alloc_w = width;
-
-  if (alloc_h == 0)
-    alloc_h = height;
-
-  /* PitchAlignment is set to 64 bytes in the media driver for the following formats */
-  if (GST_VIDEO_INFO_FORMAT (info) == GST_VIDEO_FORMAT_BGRA ||
-      GST_VIDEO_INFO_FORMAT (info) == GST_VIDEO_FORMAT_BGRx ||
-      GST_VIDEO_INFO_FORMAT (info) == GST_VIDEO_FORMAT_BGR10A2_LE ||
-      GST_VIDEO_INFO_FORMAT (info) == GST_VIDEO_FORMAT_RGB16)
-    stride_align = 63;          /* 64-byte alignment */
-
   gst_video_alignment_reset (alignment);
   for (i = 0; i < GST_VIDEO_INFO_N_PLANES (info); i++)
-    alignment->stride_align[i] = stride_align;
+    alignment->stride_align[i] = 15;    /* 16-byte alignment */
 
-  alignment->padding_right = GST_ROUND_UP_16 (alloc_w) - width;
-  alignment->padding_bottom = GST_ROUND_UP_32 (alloc_h) - height;
+  if (width & 15)
+    alignment->padding_right = GST_MSDK_ALIGNMENT_PADDING (width, 16);
+  if (height & 31)
+    alignment->padding_bottom = GST_MSDK_ALIGNMENT_PADDING (height, 32);
 }
 
 static const struct map *
@@ -471,20 +263,8 @@ gst_msdk_set_mfx_frame_info_from_video_info (mfxFrameInfo * mfx_info,
 {
   g_return_if_fail (info && mfx_info);
 
-  /* Use the first component in info to calculate mfx width / height */
-  mfx_info->Width =
-      GST_ROUND_UP_16 (GST_VIDEO_INFO_COMP_STRIDE (info,
-          0) / GST_VIDEO_INFO_COMP_PSTRIDE (info, 0));
-
-  if (GST_VIDEO_INFO_N_PLANES (info) > 1)
-    mfx_info->Height =
-        GST_ROUND_UP_32 (GST_VIDEO_INFO_COMP_OFFSET (info,
-            1) / GST_VIDEO_INFO_COMP_STRIDE (info, 0));
-  else
-    mfx_info->Height =
-        GST_ROUND_UP_32 (GST_VIDEO_INFO_SIZE (info) /
-        GST_VIDEO_INFO_COMP_STRIDE (info, 0));
-
+  mfx_info->Width = GST_ROUND_UP_16 (GST_VIDEO_INFO_WIDTH (info));
+  mfx_info->Height = GST_ROUND_UP_32 (GST_VIDEO_INFO_HEIGHT (info));
   mfx_info->CropW = GST_VIDEO_INFO_WIDTH (info);
   mfx_info->CropH = GST_VIDEO_INFO_HEIGHT (info);
   mfx_info->FrameRateExtN = GST_VIDEO_INFO_FPS_N (info);
@@ -499,39 +279,10 @@ gst_msdk_set_mfx_frame_info_from_video_info (mfxFrameInfo * mfx_info,
   mfx_info->ChromaFormat =
       gst_msdk_get_mfx_chroma_from_format (GST_VIDEO_INFO_FORMAT (info));
 
-  switch (mfx_info->FourCC) {
-    case MFX_FOURCC_P010:
-#if (MFX_VERSION >= 1027)
-    case MFX_FOURCC_Y210:
-#endif
-      mfx_info->BitDepthLuma = 10;
-      mfx_info->BitDepthChroma = 10;
-      mfx_info->Shift = 1;
-
-      break;
-
-#if (MFX_VERSION >= 1027)
-    case MFX_FOURCC_Y410:
-      mfx_info->BitDepthLuma = 10;
-      mfx_info->BitDepthChroma = 10;
-      mfx_info->Shift = 0;
-
-      break;
-#endif
-
-#if (MFX_VERSION >= 1031)
-    case MFX_FOURCC_P016:
-    case MFX_FOURCC_Y216:
-    case MFX_FOURCC_Y416:
-      mfx_info->BitDepthLuma = 12;
-      mfx_info->BitDepthChroma = 12;
-      mfx_info->Shift = 1;
-
-      break;
-#endif
-
-    default:
-      break;
+  if (mfx_info->FourCC == MFX_FOURCC_P010) {
+    mfx_info->BitDepthLuma = 10;
+    mfx_info->BitDepthChroma = 10;
+    mfx_info->Shift = 1;
   }
 
   return;
@@ -584,82 +335,4 @@ gst_msdk_get_video_format_from_mfx_fourcc (mfxU32 fourcc)
   }
 
   return GST_VIDEO_FORMAT_UNKNOWN;
-}
-
-void
-gst_msdk_update_mfx_frame_info_from_mfx_video_param (mfxFrameInfo * mfx_info,
-    mfxVideoParam * param)
-{
-  mfx_info->BitDepthLuma = param->mfx.FrameInfo.BitDepthLuma;
-  mfx_info->BitDepthChroma = param->mfx.FrameInfo.BitDepthChroma;
-  mfx_info->Shift = param->mfx.FrameInfo.Shift;
-}
-
-void
-gst_msdk_get_mfx_video_orientation_from_video_direction (guint value,
-    guint * mfx_mirror, guint * mfx_rotation)
-{
-  *mfx_mirror = MFX_MIRRORING_DISABLED;
-  *mfx_rotation = MFX_ANGLE_0;
-
-  switch (value) {
-    case GST_VIDEO_ORIENTATION_IDENTITY:
-      *mfx_mirror = MFX_MIRRORING_DISABLED;
-      *mfx_rotation = MFX_ANGLE_0;
-      break;
-    case GST_VIDEO_ORIENTATION_HORIZ:
-      *mfx_mirror = MFX_MIRRORING_HORIZONTAL;
-      *mfx_rotation = MFX_ANGLE_0;
-      break;
-    case GST_VIDEO_ORIENTATION_VERT:
-      *mfx_mirror = MFX_MIRRORING_VERTICAL;
-      *mfx_rotation = MFX_ANGLE_0;
-      break;
-    case GST_VIDEO_ORIENTATION_90R:
-      *mfx_mirror = MFX_MIRRORING_DISABLED;
-      *mfx_rotation = MFX_ANGLE_90;
-      break;
-    case GST_VIDEO_ORIENTATION_180:
-      *mfx_mirror = MFX_MIRRORING_DISABLED;
-      *mfx_rotation = MFX_ANGLE_180;
-      break;
-    case GST_VIDEO_ORIENTATION_90L:
-      *mfx_mirror = MFX_MIRRORING_DISABLED;
-      *mfx_rotation = MFX_ANGLE_270;
-      break;
-    case GST_VIDEO_ORIENTATION_UL_LR:
-      *mfx_mirror = MFX_MIRRORING_HORIZONTAL;
-      *mfx_rotation = MFX_ANGLE_90;
-      break;
-    case GST_VIDEO_ORIENTATION_UR_LL:
-      *mfx_mirror = MFX_MIRRORING_VERTICAL;
-      *mfx_rotation = MFX_ANGLE_90;
-      break;
-    default:
-      break;
-  }
-}
-
-gboolean
-gst_msdk_load_plugin (mfxSession session, const mfxPluginUID * uid,
-    mfxU32 version, const gchar * plugin)
-{
-#if (MFX_VERSION < 2000)
-  mfxStatus status;
-
-  status = MFXVideoUSER_Load (session, uid, version);
-
-  if (status == MFX_ERR_UNDEFINED_BEHAVIOR) {
-    GST_WARNING ("Media SDK Plugin for %s has been loaded", plugin);
-  } else if (status < MFX_ERR_NONE) {
-    GST_ERROR ("Media SDK Plugin for %s load failed (%s)", plugin,
-        msdk_status_to_string (status));
-    return FALSE;
-  } else if (status > MFX_ERR_NONE) {
-    GST_WARNING ("Media SDK Plugin for %s load warning: %s", plugin,
-        msdk_status_to_string (status));
-  }
-#endif
-
-  return TRUE;
 }

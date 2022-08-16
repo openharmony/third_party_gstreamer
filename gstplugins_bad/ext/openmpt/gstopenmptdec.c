@@ -23,14 +23,15 @@
  * @see_also: #GstOpenMptDec
  *
  * openmpdec decodes module music formats, such as S3M, MOD, XM, IT.
- * It uses the [OpenMPT library](https://lib.openmpt.org) for this purpose.
- * It can be autoplugged and therefore works with decodebin.
+ * It uses the <ulink url="https://lib.openmpt.org">OpenMPT library</ulink>
+ * for this purpose. It can be autoplugged and therefore works with decodebin.
  *
- * ## Example launch line
- *
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 filesrc location=media/example.it ! openmptdec ! audioconvert ! audioresample ! autoaudiosink
  * ]|
+ * </refsect2>
  */
 
 
@@ -95,8 +96,7 @@ static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
 
 G_DEFINE_TYPE (GstOpenMptDec, gst_openmpt_dec,
     GST_TYPE_NONSTREAM_AUDIO_DECODER);
-GST_ELEMENT_REGISTER_DEFINE (openmptdec, "openmptdec", GST_RANK_PRIMARY + 2,
-    gst_openmpt_dec_get_type ());
+
 
 
 static void gst_openmpt_dec_finalize (GObject * object);

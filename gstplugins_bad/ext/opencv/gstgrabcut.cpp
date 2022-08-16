@@ -68,8 +68,8 @@
  * extraction using iterated graph cuts, ACM Trans. Graph., vol. 23, pp. 309–314,
  * 2004.
  *
- * ## Example launch line
- *
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 --gst-debug=grabcut=4  v4l2src device=/dev/video0 ! videoconvert ! grabcut ! videoconvert ! video/x-raw,width=320,height=240 ! ximagesink
  * ]|
@@ -77,6 +77,7 @@
  * |[
  * gst-launch-1.0 --gst-debug=grabcut=4  v4l2src device=/dev/video0 ! videoconvert ! facedetect display=0 ! videoconvert ! grabcut test-mode=true ! videoconvert ! video/x-raw,width=320,height=240 ! ximagesink
  * ]|
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -107,12 +108,7 @@ enum
 #define DEFAULT_TEST_MODE FALSE
 #define DEFAULT_SCALE 1.6
 
-G_DEFINE_TYPE_WITH_CODE (GstGrabcut, gst_grabcut, GST_TYPE_OPENCV_VIDEO_FILTER,
-    GST_DEBUG_CATEGORY_INIT (gst_grabcut_debug, "grabcut", 0,
-        "Grabcut image segmentation on either input alpha or input bounding box"););
-GST_ELEMENT_REGISTER_DEFINE (grabcut, "grabcut", GST_RANK_NONE,
-    GST_TYPE_GRABCUT);
-
+G_DEFINE_TYPE (GstGrabcut, gst_grabcut, GST_TYPE_OPENCV_VIDEO_FILTER);
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
@@ -208,7 +204,7 @@ IF nothing is present, then nothing is done.", "Miguel Casas-Sanchez <miguelecas
 
 /* initialize the new element
  * instantiate pads and add them to element
- * set pad callback functions
+ * set pad calback functions
  * initialize instance structure
  */
 static void
@@ -358,6 +354,23 @@ gst_grabcut_transform_ip (GstOpencvVideoFilter * filter, GstBuffer * buffer,
   return GST_FLOW_OK;
 }
 
+/* entry point to initialize the plug-in
+ * initialize the plug-in itself
+ * register the element factories and other features
+ */
+gboolean
+gst_grabcut_plugin_init (GstPlugin * plugin)
+{
+  /* debug category for fltering log messages
+   *
+   */
+  GST_DEBUG_CATEGORY_INIT (gst_grabcut_debug, "grabcut",
+      0,
+      "Grabcut image segmentation on either input alpha or input bounding box");
+
+  return gst_element_register (plugin, "grabcut", GST_RANK_NONE,
+      GST_TYPE_GRABCUT);
+}
 
 void
 compose_matrix_from_image (Mat output, Mat input)

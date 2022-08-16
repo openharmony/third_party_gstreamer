@@ -40,7 +40,6 @@
 #  include "config.h"
 #endif
 
-#include "gstipcpipelineelements.h"
 #include "gstipcpipelinesrc.h"
 
 static GstStaticPadTemplate srctemplate = GST_STATIC_PAD_TEMPLATE ("src",
@@ -80,9 +79,6 @@ static GQuark QUARK_UPSTREAM;
 #define gst_ipc_pipeline_src_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstIpcPipelineSrc, gst_ipc_pipeline_src,
     GST_TYPE_ELEMENT, _do_init);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (ipcpipelinesrc, "ipcpipelinesrc",
-    GST_RANK_NONE, GST_TYPE_IPC_PIPELINE_SRC,
-    icepipeline_element_init (plugin));
 
 static void gst_ipc_pipeline_src_finalize (GObject * object);
 static void gst_ipc_pipeline_src_dispose (GObject * object);
@@ -167,13 +163,13 @@ gst_ipc_pipeline_src_class_init (GstIpcPipelineSrcClass * klass)
       g_signal_new ("forward-message", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
       G_STRUCT_OFFSET (GstIpcPipelineSrcClass, forward_message), NULL, NULL,
-      NULL, G_TYPE_BOOLEAN, 1, GST_TYPE_MESSAGE);
+      g_cclosure_marshal_generic, G_TYPE_BOOLEAN, 1, GST_TYPE_MESSAGE);
 
   gst_ipc_pipeline_src_signals[SIGNAL_DISCONNECT] =
       g_signal_new ("disconnect", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
-      G_STRUCT_OFFSET (GstIpcPipelineSrcClass, disconnect), NULL, NULL, NULL,
-      G_TYPE_NONE, 0);
+      G_STRUCT_OFFSET (GstIpcPipelineSrcClass, disconnect),
+      NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE, 0);
 
   gst_element_class_set_static_metadata (gstelement_class,
       "Inter-process Pipeline Source",
@@ -299,8 +295,8 @@ gst_ipc_pipeline_src_log_queue (GstIpcPipelineSrc * src)
     } else if (GST_IS_QUERY (object)) {
       GST_LOG_OBJECT (src, "  #%u: %s query", n, GST_QUERY_TYPE_NAME (object));
     } else if (GST_IS_BUFFER (object)) {
-      GST_LOG_OBJECT (src, "  #%u: %" G_GSIZE_FORMAT " bytes buffer", n,
-          gst_buffer_get_size (object));
+      GST_LOG_OBJECT (src, "  #%u: %zu bytes buffer", n,
+          (size_t) gst_buffer_get_size (object));
     } else {
       GST_LOG_OBJECT (src, "  #%u: unknown item in queue", n);
     }

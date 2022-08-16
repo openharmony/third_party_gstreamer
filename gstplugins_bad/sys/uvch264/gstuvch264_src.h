@@ -30,6 +30,7 @@
 
 #include <gst/gst.h>
 #include <gst/basecamerabinsrc/gstbasecamerasrc.h>
+#include <libusb.h>
 
 #include "uvc_h264.h"
 
@@ -157,8 +158,6 @@ struct _GstUvcH264SrcClass
 {
   GstBaseCameraSrcClass parent;
 };
-
-GST_ELEMENT_REGISTER_DECLARE (uvch264src);
 
 G_END_DECLS
 

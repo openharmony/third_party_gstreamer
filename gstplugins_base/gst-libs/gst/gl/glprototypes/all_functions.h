@@ -31,4 +31,3 @@
 #include "sync.h"
 #include "buffers.h"
 #include "query.h"
-#include "buffer_storage.h"

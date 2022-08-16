@@ -25,7 +25,6 @@
 #include <gst/audio/audio.h>
 
 #include <string.h>
-#include "gstrtpelements.h"
 #include "gstrtpmpadepay.h"
 #include "gstrtputils.h"
 
@@ -54,8 +53,6 @@ static GstStaticPadTemplate gst_rtp_mpa_depay_sink_template =
 
 #define gst_rtp_mpa_depay_parent_class parent_class
 G_DEFINE_TYPE (GstRtpMPADepay, gst_rtp_mpa_depay, GST_TYPE_RTP_BASE_DEPAYLOAD);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpmpadepay, "rtpmpadepay",
-    GST_RANK_SECONDARY, GST_TYPE_RTP_MPA_DEPAY, rtp_element_init (plugin));
 
 static gboolean gst_rtp_mpa_depay_setcaps (GstRTPBaseDepayload * depayload,
     GstCaps * caps);
@@ -174,4 +171,11 @@ empty_packet:
         ("Empty Payload."), (NULL));
     return NULL;
   }
+}
+
+gboolean
+gst_rtp_mpa_depay_plugin_init (GstPlugin * plugin)
+{
+  return gst_element_register (plugin, "rtpmpadepay",
+      GST_RANK_SECONDARY, GST_TYPE_RTP_MPA_DEPAY);
 }

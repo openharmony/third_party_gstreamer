@@ -33,7 +33,6 @@
 #include <gst/pbutils/pbutils.h>
 #include <gst/video/video.h>
 
-#include "gstvideoparserselements.h"
 #include "gstmpeg4videoparse.h"
 
 GST_DEBUG_CATEGORY (mpeg4v_parse_debug);
@@ -72,9 +71,6 @@ enum
 
 #define gst_mpeg4vparse_parent_class parent_class
 G_DEFINE_TYPE (GstMpeg4VParse, gst_mpeg4vparse, GST_TYPE_BASE_PARSE);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (mpeg4videoparse, "mpeg4videoparse",
-    GST_RANK_PRIMARY + 1, GST_TYPE_MPEG4VIDEO_PARSE,
-    videoparsers_element_init (plugin));
 
 static gboolean gst_mpeg4vparse_start (GstBaseParse * parse);
 static gboolean gst_mpeg4vparse_stop (GstBaseParse * parse);
@@ -107,7 +103,7 @@ gst_mpeg4vparse_set_property (GObject * object, guint property_id,
       parse->drop = g_value_get_boolean (value);
       break;
     case PROP_CONFIG_INTERVAL:
-      parse->interval = g_value_get_int (value);
+      parse->interval = g_value_get_uint (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -125,7 +121,7 @@ gst_mpeg4vparse_get_property (GObject * object, guint property_id,
       g_value_set_boolean (value, parse->drop);
       break;
     case PROP_CONFIG_INTERVAL:
-      g_value_set_int (value, parse->interval);
+      g_value_set_uint (value, parse->interval);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -146,17 +142,16 @@ gst_mpeg4vparse_class_init (GstMpeg4VParseClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_DROP,
       g_param_spec_boolean ("drop", "drop",
-          "Drop data until valid configuration data is received either "
+          "Drop data untill valid configuration data is received either "
           "in the stream or through caps", DEFAULT_PROP_DROP,
           G_PARAM_CONSTRUCT | G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_CONFIG_INTERVAL,
-      g_param_spec_int ("config-interval",
+      g_param_spec_uint ("config-interval",
           "Configuration Send Interval",
           "Send Configuration Insertion Interval in seconds (configuration headers "
-          "will be multiplexed in the data stream when detected.) "
-          "(0 = disabled, -1 = send with every IDR frame)",
-          -1, 3600, DEFAULT_CONFIG_INTERVAL,
+          "will be multiplexed in the data stream when detected.) (0 = disabled)",
+          0, 3600, DEFAULT_CONFIG_INTERVAL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_static_pad_template (element_class, &src_template);
@@ -189,7 +184,6 @@ gst_mpeg4vparse_init (GstMpeg4VParse * parse)
   parse->last_report = GST_CLOCK_TIME_NONE;
 
   gst_base_parse_set_pts_interpolation (GST_BASE_PARSE (parse), FALSE);
-  gst_base_parse_set_infer_ts (GST_BASE_PARSE (parse), FALSE);
   GST_PAD_SET_ACCEPT_INTERSECT (GST_BASE_PARSE_SINK_PAD (parse));
   GST_PAD_SET_ACCEPT_TEMPLATE (GST_BASE_PARSE_SINK_PAD (parse));
 }
@@ -304,7 +298,7 @@ gst_mpeg4vparse_process_config (GstMpeg4VParse * mp4vparse,
   if (mp4vparse->config != NULL)
     gst_buffer_unref (mp4vparse->config);
 
-  mp4vparse->config = gst_buffer_new_memdup (data, size);
+  mp4vparse->config = gst_buffer_new_wrapped (g_memdup (data, size), size);
 
   /* trigger src caps update */
   mp4vparse->update_caps = TRUE;
@@ -763,10 +757,6 @@ gst_mpeg4vparse_pre_push_frame (GstBaseParse * parse, GstBaseParseFrame * frame)
     push_codec = TRUE;
   }
 
-  if (mp4vparse->interval == -1) {
-    push_codec = TRUE;
-  }
-
   /* periodic config sending */
   if (mp4vparse->interval > 0 || push_codec) {
     GstClockTime timestamp = GST_BUFFER_TIMESTAMP (buffer);
@@ -797,30 +787,26 @@ gst_mpeg4vparse_pre_push_frame (GstBaseParse * parse, GstBaseParseFrame * frame)
 
         /* we need to send config now first */
         GST_INFO_OBJECT (parse, "inserting config in stream");
-        if (mp4vparse->config != NULL
-            && gst_buffer_map (mp4vparse->config, &cmap, GST_MAP_READ)) {
-          diffconf = (gst_buffer_get_size (buffer) < cmap.size)
-              || gst_buffer_memcmp (buffer, 0, cmap.data, cmap.size);
-          csize = cmap.size;
-          gst_buffer_unmap (mp4vparse->config, &cmap);
+        gst_buffer_map (mp4vparse->config, &cmap, GST_MAP_READ);
+        diffconf = (gst_buffer_get_size (buffer) < cmap.size)
+            || gst_buffer_memcmp (buffer, 0, cmap.data, cmap.size);
+        csize = cmap.size;
+        gst_buffer_unmap (mp4vparse->config, &cmap);
 
-          /* avoid inserting duplicate config */
-          if (diffconf) {
-            GstBuffer *superbuf;
+        /* avoid inserting duplicate config */
+        if (diffconf) {
+          GstBuffer *superbuf;
 
-            /* insert header */
-            superbuf =
-                gst_buffer_append (gst_buffer_ref (mp4vparse->config),
-                gst_buffer_ref (buffer));
-            gst_buffer_copy_into (superbuf, buffer, GST_BUFFER_COPY_METADATA, 0,
-                csize);
-            gst_buffer_replace (&frame->out_buffer, superbuf);
-            gst_buffer_unref (superbuf);
-          } else {
-            GST_INFO_OBJECT (parse, "... but avoiding duplication");
-          }
+          /* insert header */
+          superbuf =
+              gst_buffer_append (gst_buffer_ref (mp4vparse->config),
+              gst_buffer_ref (buffer));
+          gst_buffer_copy_into (superbuf, buffer, GST_BUFFER_COPY_METADATA, 0,
+              csize);
+          gst_buffer_replace (&frame->out_buffer, superbuf);
+          gst_buffer_unref (superbuf);
         } else {
-          GST_WARNING_OBJECT (parse, "No config received yet");
+          GST_INFO_OBJECT (parse, "... but avoiding duplication");
         }
 
         if (G_UNLIKELY (timestamp != -1)) {
@@ -855,7 +841,7 @@ gst_mpeg4vparse_set_caps (GstBaseParse * parse, GstCaps * caps)
       && (buf = gst_value_get_buffer (value))) {
     /* best possible parse attempt,
      * src caps are based on sink caps so it will end up in there
-     * whether successful or not */
+     * whether sucessful or not */
     gst_buffer_map (buf, &map, GST_MAP_READ);
     data = map.data;
     size = map.size;

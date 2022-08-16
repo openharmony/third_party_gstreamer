@@ -30,12 +30,14 @@
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  if (!gst_element_register (plugin, "jpegparse", GST_RANK_NONE,
+          GST_TYPE_JPEG_PARSE))
+    return FALSE;
+  if (!gst_element_register (plugin, "jifmux", GST_RANK_SECONDARY,
+          GST_TYPE_JIF_MUX))
+    return FALSE;
 
-  ret |= GST_ELEMENT_REGISTER (jpegparse, plugin);
-  ret |= GST_ELEMENT_REGISTER (jifmux, plugin);
-
-  return ret;
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

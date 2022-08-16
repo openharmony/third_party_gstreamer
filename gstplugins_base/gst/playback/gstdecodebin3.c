@@ -30,7 +30,7 @@
 #include <gst/gst.h>
 #include <gst/pbutils/pbutils.h>
 
-#include "gstplaybackelements.h"
+#include "gstplayback.h"
 #include "gstplay-enum.h"
 #include "gstrawcaps.h"
 
@@ -45,7 +45,7 @@
  * decodebin3 differs from the previous decodebin (decodebin2) in important ways:
  *
  * * supports publication and selection of stream information via
- * GstStreamCollection messages and #GST_EVENT_SELECT_STREAMS events.
+ * GstStreamCollection messages and #GST_EVENT_SELECT_STREAM events.
  *
  * * dynamically switches stream connections internally, and
  * reuses decoder elements when stream selections change, so that in
@@ -53,18 +53,18 @@
  * and only creates new elements when streams change and an existing decoder
  * is not capable of handling the new format.
  *
- * * supports multiple input pads for the parallel decoding of auxiliary streams
+ * * supports multiple input pads for the parallel decoding of auxilliary streams
  * not muxed with the primary stream.
  *
  * * does not handle network stream buffering. decodebin3 expects that network stream
  * buffering is handled upstream, before data is passed to it.
  *
- * > decodebin3 is still experimental API and a technology preview.
- * > Its behaviour and exposed API is subject to change.
+ * <emphasis>decodebin3 is still experimental API and a technology preview.
+ * Its behaviour and exposed API is subject to change.</emphasis>
  *
  */
 
-/*
+/**
  * Global design
  *
  * 1) From sink pad to elementary streams (GstParseBin)
@@ -216,13 +216,11 @@ struct _GstDecodebin3
   /* counter for input */
   guint32 input_counter;
   /* Current stream group_id (default : GST_GROUP_ID_INVALID) */
-  /* FIXME : Needs to be reset appropriately (when upstream changes ?) */
+  /* FIXME : Needs to be resetted appropriately (when upstream changes ?) */
   guint32 current_group_id;
   /* End of variables protected by input_lock */
 
   GstElement *multiqueue;
-  GstClockTime default_mq_min_interleave;
-  GstClockTime current_mq_min_interleave;
 
   /* selection_lock protects access to following variables */
   GMutex selection_lock;
@@ -353,9 +351,6 @@ struct _DecodebinOutputStream
   /* Flag if ghost pad is exposed */
   gboolean src_exposed;
 
-  /* Reported decoder latency */
-  GstClockTime decoder_latency;
-
   /* keyframe dropping probe */
   gulong drop_probe_id;
 };
@@ -425,11 +420,6 @@ static guint gst_decodebin3_signals[LAST_SIGNAL] = { 0 };
 GType gst_decodebin3_get_type (void);
 #define gst_decodebin3_parent_class parent_class
 G_DEFINE_TYPE (GstDecodebin3, gst_decodebin3, GST_TYPE_BIN);
-#define _do_init \
-    GST_DEBUG_CATEGORY_INIT (decodebin3_debug, "decodebin3", 0, "decoder bin");\
-    playback_element_init (plugin);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (decodebin3, "decodebin3", GST_RANK_NONE,
-    GST_TYPE_DECODEBIN3, _do_init);
 
 static GstStaticCaps default_raw_caps = GST_STATIC_CAPS (DEFAULT_RAW_CAPS);
 
@@ -535,7 +525,8 @@ _gst_int_accumulator (GSignalInvocationHint * ihint,
 {
   gint res = g_value_get_int (handler_return);
 
-  g_value_set_int (return_accu, res);
+  if (!(ihint->run_type & G_SIGNAL_RUN_CLEANUP))
+    g_value_set_int (return_accu, res);
 
   if (res == -1)
     return TRUE;
@@ -570,28 +561,25 @@ gst_decodebin3_class_init (GstDecodebin3Class * klass)
    * This signal is emitted whenever @decodebin needs to decide whether
    * to expose a @stream of a given @collection.
    *
-   * Note that the prefered way to select streams is to listen to
-   * GST_MESSAGE_STREAM_COLLECTION on the bus and send a
-   * GST_EVENT_SELECT_STREAMS with the streams the user wants.
-   *
    * Returns: 1 if the stream should be selected, 0 if it shouldn't be selected.
    * A value of -1 (default) lets @decodebin decide what to do with the stream.
    * */
   gst_decodebin3_signals[SIGNAL_SELECT_STREAM] =
       g_signal_new ("select-stream", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstDecodebin3Class, select_stream),
-      _gst_int_accumulator, NULL, NULL,
+      _gst_int_accumulator, NULL, g_cclosure_marshal_generic,
       G_TYPE_INT, 2, GST_TYPE_STREAM_COLLECTION, GST_TYPE_STREAM);
 
   /**
    * GstDecodebin3::about-to-finish:
    *
    * This signal is emitted when the data for the selected URI is
-   * entirely buffered and it is safe to specify another URI.
+   * entirely buffered and it is safe to specify anothe URI.
    */
   gst_decodebin3_signals[SIGNAL_ABOUT_TO_FINISH] =
       g_signal_new ("about-to-finish", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 0, G_TYPE_NONE);
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE,
+      0, G_TYPE_NONE);
 
 
   element_class->request_new_pad =
@@ -629,9 +617,6 @@ gst_decodebin3_init (GstDecodebin3 * dbin)
   dbin->main_input = create_new_input (dbin, TRUE);
 
   dbin->multiqueue = gst_element_factory_make ("multiqueue", NULL);
-  g_object_get (dbin->multiqueue, "min-interleave-time",
-      &dbin->default_mq_min_interleave, NULL);
-  dbin->current_mq_min_interleave = dbin->default_mq_min_interleave;
   g_object_set (dbin->multiqueue, "sync-by-running-time", TRUE,
       "max-size-buffers", 0, "use-interleave", TRUE, NULL);
   gst_bin_add ((GstBin *) dbin, dbin->multiqueue);
@@ -768,7 +753,7 @@ parsebin_drained_cb (GstElement * parsebin, DecodebinInput * input)
   gboolean all_drained;
   GList *tmp;
 
-  GST_INFO_OBJECT (dbin, "input %p drained", input);
+  GST_WARNING_OBJECT (dbin, "input %p drained", input);
   input->drained = TRUE;
 
   all_drained = dbin->main_input->drained;
@@ -779,7 +764,7 @@ parsebin_drained_cb (GstElement * parsebin, DecodebinInput * input)
   }
 
   if (all_drained) {
-    GST_INFO_OBJECT (dbin, "All inputs drained. Posting about-to-finish");
+    GST_WARNING_OBJECT (dbin, "All inputs drained. Posting about-to-finish");
     g_signal_emit (dbin, gst_decodebin3_signals[SIGNAL_ABOUT_TO_FINISH], 0,
         NULL);
   }
@@ -811,22 +796,14 @@ ensure_input_parsebin (GstDecodebin3 * dbin, DecodebinInput * input)
   }
 
   if (GST_OBJECT_PARENT (GST_OBJECT (input->parsebin)) != GST_OBJECT (dbin)) {
-    /* The state lock is taken so that we ensure we are the one (de)activating
-     * parsebin. We need to do this to ensure any activation taking place in
-     * parsebin (including by elements doing upstream activation) are done
-     * within the same thread. */
-    GST_STATE_LOCK (input->parsebin);
     gst_bin_add (GST_BIN (dbin), input->parsebin);
     set_state = TRUE;
   }
 
   gst_ghost_pad_set_target (GST_GHOST_PAD (input->ghost_sink),
       input->parsebin_sink);
-
-  if (set_state) {
+  if (set_state)
     gst_element_sync_state_with_parent (input->parsebin);
-    GST_STATE_UNLOCK (input->parsebin);
-  }
 
   return TRUE;
 
@@ -921,7 +898,6 @@ gst_decodebin3_input_pad_unlink (GstPad * pad, GstObject * parent)
       if (dbin->collection)
         gst_object_unref (dbin->collection);
       dbin->collection = collection;
-      dbin->select_streams_seqnum = GST_SEQNUM_INVALID;
 
       msg =
           gst_message_new_stream_collection ((GstObject *) dbin,
@@ -930,11 +906,8 @@ gst_decodebin3_input_pad_unlink (GstPad * pad, GstObject * parent)
       SELECTION_UNLOCK (dbin);
       gst_element_post_message (GST_ELEMENT_CAST (dbin), msg);
       update_requested_selection (dbin);
-    } else {
-      if (collection)
-        gst_object_unref (collection);
+    } else
       SELECTION_UNLOCK (dbin);
-    }
 
     gst_bin_remove (GST_BIN (dbin), input->parsebin);
     gst_element_set_state (input->parsebin, GST_STATE_NULL);
@@ -1097,29 +1070,11 @@ stream_in_list (GList * list, const gchar * sid)
   return NULL;
 }
 
-static gboolean
-stream_list_equal (GList * lista, GList * listb)
-{
-  GList *tmp;
-
-  if (g_list_length (lista) != g_list_length (listb))
-    return FALSE;
-
-  for (tmp = lista; tmp; tmp = tmp->next) {
-    gchar *osid = tmp->data;
-    if (!stream_in_list (listb, osid))
-      return FALSE;
-  }
-
-  return TRUE;
-}
-
 static void
 update_requested_selection (GstDecodebin3 * dbin)
 {
   guint i, nb;
   GList *tmp = NULL;
-  gboolean all_user_selected = TRUE;
   GstStreamType used_types = 0;
   GstStreamCollection *collection;
 
@@ -1154,9 +1109,6 @@ update_requested_selection (GstDecodebin3 * dbin)
         gst_decodebin3_signals[SIGNAL_SELECT_STREAM], 0, collection, stream,
         &request);
     GST_DEBUG_OBJECT (dbin, "stream %s , request:%d", sid, request);
-
-    if (request == -1)
-      all_user_selected = FALSE;
     if (request == 1 || (request == -1
             && (stream_in_list (dbin->requested_selection, sid)
                 || stream_in_list (dbin->active_selection, sid)))) {
@@ -1173,32 +1125,22 @@ update_requested_selection (GstDecodebin3 * dbin)
     }
   }
 
-  /* 4. If the user didn't explicitly selected all streams, match one stream of each type */
-  if (!all_user_selected && dbin->select_streams_seqnum == GST_SEQNUM_INVALID) {
-    for (i = 0; i < nb; i++) {
-      GstStream *stream = gst_stream_collection_get_stream (collection, i);
-      GstStreamType curtype = gst_stream_get_stream_type (stream);
-      if (curtype != GST_STREAM_TYPE_UNKNOWN && !(used_types & curtype)) {
-        const gchar *sid = gst_stream_get_stream_id (stream);
-        GST_DEBUG_OBJECT (dbin,
-            "Automatically selecting stream '%s' of type %s", sid,
-            gst_stream_type_get_name (curtype));
-        tmp = g_list_append (tmp, (gchar *) sid);
-        used_types |= curtype;
-      }
+  /* 4. If not, match one stream of each type */
+  for (i = 0; i < nb; i++) {
+    GstStream *stream = gst_stream_collection_get_stream (collection, i);
+    GstStreamType curtype = gst_stream_get_stream_type (stream);
+    if (!(used_types & curtype)) {
+      const gchar *sid = gst_stream_get_stream_id (stream);
+      GST_DEBUG_OBJECT (dbin, "Selecting stream '%s' of type %s",
+          sid, gst_stream_type_get_name (curtype));
+      tmp = g_list_append (tmp, (gchar *) sid);
+      used_types |= curtype;
     }
   }
 
 beach:
-  if (stream_list_equal (tmp, dbin->requested_selection)) {
-    /* If the selection is equal, there is nothign to do */
-    GST_DEBUG_OBJECT (dbin, "Dropping duplicate selection");
-    g_list_free (tmp);
-    tmp = NULL;
-  }
-
+  /* Finally set the requested selection */
   if (tmp) {
-    /* Finally set the requested selection */
     if (dbin->requested_selection) {
       GST_FIXME_OBJECT (dbin,
           "Replacing non-NULL requested_selection, what should we do ??");
@@ -1328,9 +1270,7 @@ get_merged_collection (GstDecodebin3 * dbin)
       for (i = 0; i < nb_stream; i++) {
         GstStream *stream =
             gst_stream_collection_get_stream (input->collection, i);
-        /* Only add if not already present in the list */
-        if (!g_list_find (unsorted_streams, stream))
-          unsorted_streams = g_list_append (unsorted_streams, stream);
+        unsorted_streams = g_list_append (unsorted_streams, stream);
       }
     }
   }
@@ -1476,42 +1416,7 @@ handle_stream_collection (GstDecodebin3 * dbin,
     /* dbin->pending_collection = */
     /*     g_list_append (dbin->pending_collection, collection); */
   }
-  dbin->select_streams_seqnum = GST_SEQNUM_INVALID;
   SELECTION_UNLOCK (dbin);
-}
-
-/* Must be called with the selection lock taken */
-static void
-gst_decodebin3_update_min_interleave (GstDecodebin3 * dbin)
-{
-  GstClockTime max_latency = GST_CLOCK_TIME_NONE;
-  GList *tmp;
-
-  GST_DEBUG_OBJECT (dbin, "Recalculating max latency of decoders");
-  for (tmp = dbin->output_streams; tmp; tmp = tmp->next) {
-    DecodebinOutputStream *out = (DecodebinOutputStream *) tmp->data;
-    if (GST_CLOCK_TIME_IS_VALID (out->decoder_latency)) {
-      if (max_latency == GST_CLOCK_TIME_NONE
-          || out->decoder_latency > max_latency)
-        max_latency = out->decoder_latency;
-    }
-  }
-  GST_DEBUG_OBJECT (dbin, "max latency of all decoders: %" GST_TIME_FORMAT,
-      GST_TIME_ARGS (max_latency));
-
-  if (!GST_CLOCK_TIME_IS_VALID (max_latency))
-    return;
-
-  /* Make sure we keep an extra overhead */
-  max_latency += 100 * GST_MSECOND;
-  if (max_latency == dbin->current_mq_min_interleave)
-    return;
-
-  dbin->current_mq_min_interleave = max_latency;
-  GST_DEBUG_OBJECT (dbin, "Setting mq min-interleave to %" GST_TIME_FORMAT,
-      GST_TIME_ARGS (dbin->current_mq_min_interleave));
-  g_object_set (dbin->multiqueue, "min-interleave-time",
-      dbin->current_mq_min_interleave, NULL);
 }
 
 static void
@@ -1536,7 +1441,7 @@ gst_decodebin3_handle_message (GstBin * bin, GstMessage * message)
       }
 
       SELECTION_LOCK (dbin);
-      if (dbin->collection) {
+      if (dbin->collection && collection != dbin->collection) {
         /* Replace collection message, we most likely aggregated it */
         GstMessage *new_msg;
         new_msg =
@@ -1550,31 +1455,6 @@ gst_decodebin3_handle_message (GstBin * bin, GstMessage * message)
       if (collection)
         gst_object_unref (collection);
       break;
-    }
-    case GST_MESSAGE_LATENCY:
-    {
-      GList *tmp;
-      /* Check if this is from one of our decoders */
-      SELECTION_LOCK (dbin);
-      for (tmp = dbin->output_streams; tmp; tmp = tmp->next) {
-        DecodebinOutputStream *out = (DecodebinOutputStream *) tmp->data;
-        if (out->decoder == (GstElement *) GST_MESSAGE_SRC (message)) {
-          GstClockTime min, max;
-          if (GST_IS_VIDEO_DECODER (out->decoder)) {
-            gst_video_decoder_get_latency (GST_VIDEO_DECODER (out->decoder),
-                &min, &max);
-            GST_DEBUG_OBJECT (dbin,
-                "Got latency update from one of our decoders. min: %"
-                GST_TIME_FORMAT " max: %" GST_TIME_FORMAT, GST_TIME_ARGS (min),
-                GST_TIME_ARGS (max));
-            out->decoder_latency = min;
-            /* Trigger recalculation */
-            gst_decodebin3_update_min_interleave (dbin);
-          }
-          break;
-        }
-      }
-      SELECTION_UNLOCK (dbin);
     }
     default:
       break;
@@ -1733,9 +1613,7 @@ is_selection_done (GstDecodebin3 * dbin)
 
   /* We are completely active */
   msg = gst_message_new_streams_selected ((GstObject *) dbin, dbin->collection);
-  if (dbin->select_streams_seqnum != GST_SEQNUM_INVALID) {
-    gst_message_set_seqnum (msg, dbin->select_streams_seqnum);
-  }
+  GST_MESSAGE_SEQNUM (msg) = dbin->select_streams_seqnum;
   for (tmp = dbin->output_streams; tmp; tmp = tmp->next) {
     DecodebinOutputStream *output = (DecodebinOutputStream *) tmp->data;
     if (output->slot) {
@@ -1939,8 +1817,6 @@ multiqueue_src_probe (GstPad * pad, GstPadProbeInfo * info,
               dbin->output_streams =
                   g_list_remove (dbin->output_streams, output);
               free_output_stream (dbin, output);
-              /* Reacalculate min interleave */
-              gst_decodebin3_update_min_interleave (dbin);
             }
             slot->probe_id = 0;
             dbin->slots = g_list_remove (dbin->slots, slot);
@@ -2046,7 +1922,7 @@ create_new_slot (GstDecodebin3 * dbin, GstStreamType type)
   slot->id = dbin->slot_id++;
 
   slot->type = type;
-  slot->sink_pad = gst_element_request_pad_simple (dbin->multiqueue, "sink_%u");
+  slot->sink_pad = gst_element_get_request_pad (dbin->multiqueue, "sink_%u");
   if (slot->sink_pad == NULL)
     goto fail;
 
@@ -2188,17 +2064,45 @@ have_factory (GstDecodebin3 * dbin, GstCaps * caps,
 }
 #endif
 
-static GList *
-create_decoder_factory_list (GstDecodebin3 * dbin, GstCaps * caps)
+static GstElement *
+create_element (GstDecodebin3 * dbin, GstStream * stream,
+    GstElementFactoryListType ftype)
 {
   GList *res;
+  GstElement *element = NULL;
+  GstCaps *caps;
 
   g_mutex_lock (&dbin->factories_lock);
   gst_decode_bin_update_factories_list (dbin);
-  res = gst_element_factory_list_filter (dbin->decoder_factories,
-      caps, GST_PAD_SINK, TRUE);
+  caps = gst_stream_get_caps (stream);
+  if (ftype == GST_ELEMENT_FACTORY_TYPE_DECODER)
+    res =
+        gst_element_factory_list_filter (dbin->decoder_factories,
+        caps, GST_PAD_SINK, TRUE);
+  else
+    res =
+        gst_element_factory_list_filter (dbin->decodable_factories,
+        caps, GST_PAD_SINK, TRUE);
   g_mutex_unlock (&dbin->factories_lock);
-  return res;
+
+  if (res) {
+    element =
+        gst_element_factory_create ((GstElementFactory *) res->data, NULL);
+    GST_DEBUG ("Created element '%s'", GST_ELEMENT_NAME (element));
+    gst_plugin_feature_list_free (res);
+  } else {
+    GST_DEBUG ("Could not find an element for caps %" GST_PTR_FORMAT, caps);
+  }
+
+  gst_caps_unref (caps);
+  return element;
+}
+
+/* FIXME : VERY NAIVE. ASSUMING FIRST ONE WILL WORK */
+static GstElement *
+create_decoder (GstDecodebin3 * dbin, GstStream * stream)
+{
+  return create_element (dbin, stream, GST_ELEMENT_FACTORY_TYPE_DECODER);
 }
 
 static GstPadProbeReturn
@@ -2291,105 +2195,52 @@ reconfigure_output_stream (DecodebinOutputStream * output,
 
     gst_bin_remove ((GstBin *) dbin, output->decoder);
     output->decoder = NULL;
-    output->decoder_latency = GST_CLOCK_TIME_NONE;
-  } else if (output->linked) {
-    /* Otherwise if we have no decoder yet but the output is linked make
-     * sure that the ghost pad is really unlinked in case no decoder was
-     * needed previously */
-    if (!gst_ghost_pad_set_target ((GstGhostPad *) output->src_pad, NULL)) {
-      GST_ERROR_OBJECT (dbin, "Could not release ghost pad");
-      gst_caps_unref (new_caps);
-      goto cleanup;
-    }
   }
+
+  gst_caps_unref (new_caps);
 
   gst_object_replace ((GstObject **) & output->decoder_sink, NULL);
   gst_object_replace ((GstObject **) & output->decoder_src, NULL);
 
   /* If a decoder is required, create one */
   if (needs_decoder) {
-    GList *factories, *next_factory;
+    /* If we don't have a decoder yet, instantiate one */
+    output->decoder = create_decoder (dbin, slot->active_stream);
+    if (output->decoder == NULL) {
+      GstCaps *caps;
 
-    factories = next_factory = create_decoder_factory_list (dbin, new_caps);
-    while (!output->decoder) {
-      gboolean decoder_failed = FALSE;
-
-      /* If we don't have a decoder yet, instantiate one */
-      if (next_factory) {
-        output->decoder = gst_element_factory_create ((GstElementFactory *)
-            next_factory->data, NULL);
-        GST_DEBUG ("Created decoder '%s'", GST_ELEMENT_NAME (output->decoder));
-      } else
-        GST_DEBUG ("Could not find an element for caps %" GST_PTR_FORMAT,
-            new_caps);
-
-      if (output->decoder == NULL) {
-        GstCaps *caps;
-
-        SELECTION_UNLOCK (dbin);
-        /* FIXME : Should we be smarter if there's a missing decoder ?
-         * Should we deactivate that stream ? */
-        caps = gst_stream_get_caps (slot->active_stream);
-        gst_element_post_message (GST_ELEMENT_CAST (dbin),
-            gst_missing_decoder_message_new (GST_ELEMENT_CAST (dbin), caps));
-        gst_caps_unref (caps);
-        SELECTION_LOCK (dbin);
-        goto cleanup;
-      }
-      if (!gst_bin_add ((GstBin *) dbin, output->decoder)) {
-        GST_ERROR_OBJECT (dbin, "could not add decoder to pipeline");
-        goto cleanup;
-      }
-      output->decoder_sink =
-          gst_element_get_static_pad (output->decoder, "sink");
-      output->decoder_src = gst_element_get_static_pad (output->decoder, "src");
-      if (output->type & GST_STREAM_TYPE_VIDEO) {
-        GST_DEBUG_OBJECT (dbin, "Adding keyframe-waiter probe");
-        output->drop_probe_id =
-            gst_pad_add_probe (slot->src_pad, GST_PAD_PROBE_TYPE_BUFFER,
-            (GstPadProbeCallback) keyframe_waiter_probe, output, NULL);
-      }
-      if (gst_pad_link_full (slot->src_pad, output->decoder_sink,
-              GST_PAD_LINK_CHECK_NOTHING) != GST_PAD_LINK_OK) {
-        GST_ERROR_OBJECT (dbin, "could not link to %s:%s",
-            GST_DEBUG_PAD_NAME (output->decoder_sink));
-        goto cleanup;
-      }
-      if (gst_element_set_state (output->decoder,
-              GST_STATE_READY) == GST_STATE_CHANGE_FAILURE) {
-        GST_DEBUG_OBJECT (dbin,
-            "Decoder '%s' failed to reach READY state, trying the next type",
-            GST_ELEMENT_NAME (output->decoder));
-        decoder_failed = TRUE;
-      }
-      if (!gst_pad_query_accept_caps (output->decoder_sink, new_caps)) {
-        GST_DEBUG_OBJECT (dbin,
-            "Decoder '%s' did not accept the caps, trying the next type",
-            GST_ELEMENT_NAME (output->decoder));
-        decoder_failed = TRUE;
-      }
-      if (decoder_failed) {
-        gst_pad_unlink (slot->src_pad, output->decoder_sink);
-        if (output->drop_probe_id) {
-          gst_pad_remove_probe (slot->src_pad, output->drop_probe_id);
-          output->drop_probe_id = 0;
-        }
-
-        gst_element_set_locked_state (output->decoder, TRUE);
-        gst_element_set_state (output->decoder, GST_STATE_NULL);
-
-        gst_bin_remove ((GstBin *) dbin, output->decoder);
-        output->decoder = NULL;
-      }
-      next_factory = next_factory->next;
+      SELECTION_UNLOCK (dbin);
+      /* FIXME : Should we be smarter if there's a missing decoder ?
+       * Should we deactivate that stream ? */
+      caps = gst_stream_get_caps (slot->active_stream);
+      gst_element_post_message (GST_ELEMENT_CAST (dbin),
+          gst_missing_decoder_message_new (GST_ELEMENT_CAST (dbin), caps));
+      gst_caps_unref (caps);
+      SELECTION_LOCK (dbin);
+      goto cleanup;
     }
-    gst_plugin_feature_list_free (factories);
+    if (!gst_bin_add ((GstBin *) dbin, output->decoder)) {
+      GST_ERROR_OBJECT (dbin, "could not add decoder to pipeline");
+      goto cleanup;
+    }
+    output->decoder_sink = gst_element_get_static_pad (output->decoder, "sink");
+    output->decoder_src = gst_element_get_static_pad (output->decoder, "src");
+    if (output->type & GST_STREAM_TYPE_VIDEO) {
+      GST_DEBUG_OBJECT (dbin, "Adding keyframe-waiter probe");
+      output->drop_probe_id =
+          gst_pad_add_probe (slot->src_pad, GST_PAD_PROBE_TYPE_BUFFER,
+          (GstPadProbeCallback) keyframe_waiter_probe, output, NULL);
+    }
+    if (gst_pad_link_full (slot->src_pad, output->decoder_sink,
+            GST_PAD_LINK_CHECK_NOTHING) != GST_PAD_LINK_OK) {
+      GST_ERROR_OBJECT (dbin, "could not link to %s:%s",
+          GST_DEBUG_PAD_NAME (output->decoder_sink));
+      goto cleanup;
+    }
   } else {
     output->decoder_src = gst_object_ref (slot->src_pad);
     output->decoder_sink = NULL;
   }
-  gst_caps_unref (new_caps);
-
   output->linked = TRUE;
   if (!gst_ghost_pad_set_target ((GstGhostPad *) output->src_pad,
           output->decoder_src)) {
@@ -2397,20 +2248,6 @@ reconfigure_output_stream (DecodebinOutputStream * output,
     goto cleanup;
   }
   if (output->src_exposed == FALSE) {
-    GstEvent *stream_start;
-
-    stream_start = gst_pad_get_sticky_event (slot->src_pad,
-        GST_EVENT_STREAM_START, 0);
-
-    /* Ensure GstStream is accesiable from pad-added callback */
-    if (stream_start) {
-      gst_pad_store_sticky_event (output->src_pad, stream_start);
-      gst_event_unref (stream_start);
-    } else {
-      GST_WARNING_OBJECT (slot->src_pad,
-          "Pad has no stored stream-start event");
-    }
-
     output->src_exposed = TRUE;
     gst_element_add_pad (GST_ELEMENT_CAST (dbin), output->src_pad);
   }
@@ -2962,7 +2799,6 @@ create_output_stream (GstDecodebin3 * dbin, GstStreamType type)
 
   res->type = type;
   res->dbin = dbin;
-  res->decoder_latency = GST_CLOCK_TIME_NONE;
 
   if (type & GST_STREAM_TYPE_VIDEO) {
     templ = &video_src_template;
@@ -3062,12 +2898,6 @@ gst_decodebin3_change_state (GstElement * element, GstStateChange transition)
       dbin->slots = NULL;
       dbin->current_group_id = GST_GROUP_ID_INVALID;
       /* Free inputs */
-      /* Reset the main input group id since it will get a new id on a new stream */
-      dbin->main_input->group_id = GST_GROUP_ID_INVALID;
-      /* Reset multiqueue to default interleave */
-      g_object_set (dbin->multiqueue, "min-interleave-time",
-          dbin->default_mq_min_interleave, NULL);
-      dbin->current_mq_min_interleave = dbin->default_mq_min_interleave;
     }
       break;
     default:
@@ -3075,4 +2905,13 @@ gst_decodebin3_change_state (GstElement * element, GstStateChange transition)
   }
 beach:
   return ret;
+}
+
+gboolean
+gst_decodebin3_plugin_init (GstPlugin * plugin)
+{
+  GST_DEBUG_CATEGORY_INIT (decodebin3_debug, "decodebin3", 0, "decoder bin");
+
+  return gst_element_register (plugin, "decodebin3", GST_RANK_NONE,
+      GST_TYPE_DECODEBIN3);
 }

@@ -26,16 +26,16 @@
 
 /**
  * SECTION:element-agingtv
- * @title: agingtv
  *
  * AgingTV ages a video stream in realtime, changes the colors and adds
  * scratches and dust.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 -v videotestsrc ! agingtv ! videoconvert ! autovideosink
  * ]| This pipeline shows the effect of agingtv on a test stream.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -86,8 +86,6 @@ GST_STATIC_PAD_TEMPLATE ("sink",
     );
 
 G_DEFINE_TYPE (GstAgingTV, gst_agingtv, GST_TYPE_VIDEO_FILTER);
-GST_ELEMENT_REGISTER_DEFINE (agingtv, "agingtv", GST_RANK_NONE,
-    GST_TYPE_AGINGTV);
 
 static void
 coloraging (guint32 * src, guint32 * dest, gint video_area, gint * c)

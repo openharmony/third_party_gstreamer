@@ -95,7 +95,7 @@ struct _GstHanddetectClass
 
 GType gst_handdetect_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (handdetect);
+gboolean gst_handdetect_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 #endif /* __GST_HANDDETECT_H__ */

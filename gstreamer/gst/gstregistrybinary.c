@@ -167,19 +167,18 @@ typedef struct BinaryRegistryCache
   const char *location;
   char *tmp_location;
   unsigned long currentoffset;
-  FILE *cache_file;
+  int cache_fd;
 } BinaryRegistryCache;
 
 static BinaryRegistryCache *
 gst_registry_binary_cache_init (GstRegistry * registry, const char *location)
 {
   BinaryRegistryCache *cache = g_slice_new0 (BinaryRegistryCache);
-  int fd;
 
   cache->location = location;
   cache->tmp_location = g_strconcat (location, ".tmpXXXXXX", NULL);
-  fd = g_mkstemp (cache->tmp_location);
-  if (fd == -1) {
+  cache->cache_fd = g_mkstemp (cache->tmp_location);
+  if (cache->cache_fd == -1) {
     int ret;
     GStatBuf statbuf;
     gchar *dir;
@@ -198,9 +197,9 @@ gst_registry_binary_cache_init (GstRegistry * registry, const char *location)
     /* the previous g_mkstemp call overwrote the XXXXXX placeholder ... */
     g_free (cache->tmp_location);
     cache->tmp_location = g_strconcat (location, ".tmpXXXXXX", NULL);
-    fd = g_mkstemp (cache->tmp_location);
+    cache->cache_fd = g_mkstemp (cache->tmp_location);
 
-    if (fd == -1) {
+    if (cache->cache_fd == -1) {
       GST_DEBUG ("g_mkstemp() failed: %s", g_strerror (errno));
       g_free (cache->tmp_location);
       g_slice_free (BinaryRegistryCache, cache);
@@ -213,15 +212,6 @@ gst_registry_binary_cache_init (GstRegistry * registry, const char *location)
     }
   }
 
-  cache->cache_file = fdopen (fd, "w");
-  if (!cache->cache_file) {
-    GST_DEBUG ("fdopen() failed: %s", g_strerror (errno));
-    close (fd);
-    g_free (cache->tmp_location);
-    g_slice_free (BinaryRegistryCache, cache);
-    return NULL;
-  }
-
   return cache;
 }
 
@@ -231,7 +221,7 @@ gst_registry_binary_cache_write (BinaryRegistryCache * cache,
 {
   long written;
   if (offset != cache->currentoffset) {
-    if (fseek (cache->cache_file, offset, SEEK_SET) < 0) {
+    if (lseek (cache->cache_fd, offset, SEEK_SET) < 0) {
       GST_ERROR ("Seeking to new offset failed: %s", g_strerror (errno));
       return -1;
     }
@@ -239,7 +229,7 @@ gst_registry_binary_cache_write (BinaryRegistryCache * cache,
     cache->currentoffset = offset;
   }
 
-  written = fwrite (data, 1, length, cache->cache_file);
+  written = write (cache->cache_fd, data, length);
   if (written != length) {
     GST_ERROR ("Failed to write to cache file");
   }
@@ -251,62 +241,20 @@ gst_registry_binary_cache_write (BinaryRegistryCache * cache,
 static gboolean
 gst_registry_binary_cache_finish (BinaryRegistryCache * cache, gboolean success)
 {
-  gint fclose_ret;
-  const gchar *registry_mode;
+  /* only fsync if we're actually going to use and rename the file below */
+  if (success && fsync (cache->cache_fd) < 0)
+    goto fsync_failed;
 
-  if (success) {
-    /* flush the file and make sure the OS's buffer has been written to disk */
-    gint fflush_ret, fsync_ret;
-    int file_fd;
-
-    file_fd = fileno (cache->cache_file);
-
-    do {
-      fflush_ret = fflush (cache->cache_file);
-    } while (fflush_ret && errno == EINTR);
-    if (fflush_ret)
-      goto fflush_failed;
-
-    do {
-      fsync_ret = fsync (file_fd);
-    } while (fsync_ret < 0 && errno == EINTR);
-    if (fsync_ret < 0)
-      goto fsync_failed;
-  }
-
-  /* close the file, even when unsuccessful, so not to leak a file descriptor.
-   * We must not retry fclose() on EINTR as POSIX states:
-   *   After the call to fclose(), any use of stream results in undefined
-   *   behavior.
-   * We ensure above with fflush() and fsync() that everything is written out
-   * so chances of running into EINTR are very low. Nonetheless assume that
-   * the file can't be safely renamed, we'll just try again on the next
-   * opportunity. */
-  fclose_ret = fclose (cache->cache_file);
-  if (fclose_ret)
-    goto fclose_failed;
+  if (close (cache->cache_fd) < 0)
+    goto close_failed;
 
   if (!success)
-    goto fail_after_fclose;
+    goto fail_after_close;
 
   /* Only do the rename if we wrote the entire file successfully */
-  if (g_rename (cache->tmp_location, cache->location) < 0)
+  if (g_rename (cache->tmp_location, cache->location) < 0) {
+    GST_ERROR ("g_rename() failed: %s", g_strerror (errno));
     goto rename_failed;
-
-  /* Change mode of registry if set in environment */
-  registry_mode = g_getenv ("GST_REGISTRY_MODE");
-  if (registry_mode) {
-    gchar *endptr;
-    gint64 mode;
-
-    /* Expect numeric mode as one to four octal digits */
-    mode = g_ascii_strtoll (registry_mode, &endptr, 8);
-    if (mode > G_MAXINT || *endptr != '\0')
-      GST_ERROR ("GST_REGISTRY_MODE not an integer value");
-    else if (g_chmod (cache->location, mode) < 0)
-      GST_ERROR ("g_chmod failed: %s", g_strerror (errno));
-    else
-      GST_INFO ("Changed mode of registry cache to %s", registry_mode);
   }
 
   g_free (cache->tmp_location);
@@ -315,37 +263,27 @@ gst_registry_binary_cache_finish (BinaryRegistryCache * cache, gboolean success)
   return TRUE;
 
 /* ERRORS */
-fail_before_fclose:
-  {
-    fclose (cache->cache_file);
-  }
-  /* fall through */
-fail_after_fclose:
+fail_after_close:
   {
     g_unlink (cache->tmp_location);
     g_free (cache->tmp_location);
     g_slice_free (BinaryRegistryCache, cache);
     return FALSE;
   }
-fflush_failed:
-  {
-    GST_ERROR ("fflush() failed: %s", g_strerror (errno));
-    goto fail_before_fclose;
-  }
 fsync_failed:
   {
     GST_ERROR ("fsync() failed: %s", g_strerror (errno));
-    goto fail_before_fclose;
+    goto fail_after_close;
   }
-fclose_failed:
+close_failed:
   {
-    GST_ERROR ("fclose() failed: %s", g_strerror (errno));
-    goto fail_after_fclose;
+    GST_ERROR ("close() failed: %s", g_strerror (errno));
+    goto fail_after_close;
   }
 rename_failed:
   {
     GST_ERROR ("g_rename() failed: %s", g_strerror (errno));
-    goto fail_after_fclose;
+    goto fail_after_close;
   }
 }
 #endif

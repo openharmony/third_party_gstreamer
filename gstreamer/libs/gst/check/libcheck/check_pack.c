@@ -461,7 +461,7 @@ punpack (FILE * fdes)
 
   rmsg = rcvmsg_create ();
 
-  /* Allocate a buffer */
+  /* Allcate a buffer */
   buf = (char *) emalloc (CK_MAX_MSG_SIZE);
   /* Fill the buffer from the file */
   nread = read_buf (fdes, CK_MAX_MSG_SIZE, buf);
