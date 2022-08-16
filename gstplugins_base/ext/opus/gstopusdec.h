@@ -53,7 +53,7 @@ struct _GstOpusDec {
   GstBuffer            *vorbiscomment;
 
   guint32 sample_rate;
-  guint n_channels;
+  guint8 n_channels;
   guint16 pre_skip;
   gint16 r128_gain;
 
@@ -77,12 +77,6 @@ struct _GstOpusDec {
   GstClockTime last_known_buffer_duration;
 
   gboolean phase_inversion;
-
-  /* Used to generate the 'stats' property. Protected by object lock */
-  guint64 num_pushed;
-  guint64 num_gap;
-  guint64 plc_num_samples;
-  guint64 plc_duration;
 };
 
 struct _GstOpusDecClass {

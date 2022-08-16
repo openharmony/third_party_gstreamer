@@ -68,9 +68,10 @@ struct _GstWlWindow
   /* the size of the video in the buffers */
   gint video_width, video_height;
 
-  /* when this is not set both the area_surface and the video_surface are not
-   * visible and certain steps should be skipped */
-  gboolean is_area_surface_mapped;
+  /* this will be set when viewporter is available and black background has
+   * already been set on the area_subsurface */
+  gboolean no_border_update;
+
 };
 
 struct _GstWlWindowClass

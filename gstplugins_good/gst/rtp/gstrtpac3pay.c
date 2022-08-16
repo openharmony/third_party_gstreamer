@@ -19,18 +19,18 @@
 
 /**
  * SECTION:element-rtpac3pay
- * @title: rtpac3pay
  * @see_also: rtpac3depay
  *
  * Payload AC3 audio into RTP packets according to RFC 4184.
  * For detailed information see: http://www.rfc-editor.org/rfc/rfc4184.txt
  *
- * ## Example pipeline
+ * <refsect2>
+ * <title>Example pipeline</title>
  * |[
  * gst-launch-1.0 -v audiotestsrc ! avenc_ac3 ! rtpac3pay ! udpsink
  * ]| This example pipeline will encode and payload AC3 stream. Refer to
  * the rtpac3depay example to depayload and decode the RTP stream.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -42,7 +42,6 @@
 #include <gst/rtp/gstrtpbuffer.h>
 #include <gst/audio/audio.h>
 
-#include "gstrtpelements.h"
 #include "gstrtpac3pay.h"
 #include "gstrtputils.h"
 
@@ -82,8 +81,6 @@ static GstFlowReturn gst_rtp_ac3_pay_handle_buffer (GstRTPBasePayload * payload,
 
 #define gst_rtp_ac3_pay_parent_class parent_class
 G_DEFINE_TYPE (GstRtpAC3Pay, gst_rtp_ac3_pay, GST_TYPE_RTP_BASE_PAYLOAD);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpac3pay, "rtpac3pay",
-    GST_RANK_SECONDARY, GST_TYPE_RTP_AC3_PAY, rtp_element_init (plugin));
 
 static void
 gst_rtp_ac3_pay_class_init (GstRtpAC3PayClass * klass)
@@ -277,9 +274,7 @@ gst_rtp_ac3_pay_flush (GstRtpAC3Pay * rtpac3pay)
     payload_len = gst_rtp_buffer_calc_payload_len (towrite, 0, 0);
 
     /* create buffer to hold the payload */
-    outbuf =
-        gst_rtp_base_payload_allocate_output_buffer (GST_RTP_BASE_PAYLOAD
-        (rtpac3pay), 2, 0, 0);
+    outbuf = gst_rtp_buffer_new_allocate (2, 0, 0);
 
     if (FT == 0) {
       /* check if it all fits */
@@ -472,4 +467,11 @@ gst_rtp_ac3_pay_change_state (GstElement * element, GstStateChange transition)
       break;
   }
   return ret;
+}
+
+gboolean
+gst_rtp_ac3_pay_plugin_init (GstPlugin * plugin)
+{
+  return gst_element_register (plugin, "rtpac3pay",
+      GST_RANK_SECONDARY, GST_TYPE_RTP_AC3_PAY);
 }

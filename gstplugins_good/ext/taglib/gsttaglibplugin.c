@@ -23,19 +23,23 @@
 #include <config.h>
 #endif
 
-#include "gsttaglibelements.h"
+#include "gstapev2mux.h"
+#include "gstid3v2mux.h"
 
 #include <gst/tag/tag.h>
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  if (!gst_element_register (plugin, "id3v2mux", GST_RANK_NONE,
+          GST_TYPE_ID3V2_MUX) ||
+      !gst_element_register (plugin, "apev2mux", GST_RANK_NONE,
+          GST_TYPE_APEV2_MUX))
+    return FALSE;
 
-  ret |= GST_ELEMENT_REGISTER (id3v2mux, plugin);
-  ret |= GST_ELEMENT_REGISTER (apev2mux, plugin);
+  gst_tag_register_musicbrainz_tags ();
 
-  return ret;
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

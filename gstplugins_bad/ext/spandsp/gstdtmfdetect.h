@@ -64,7 +64,7 @@ struct _GstDtmfDetectClass
 
 GType gst_dtmf_detect_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (dtmfdetect);
+gboolean gst_dtmf_detect_plugin_init (GstPlugin *plugin);
 
 G_END_DECLS
 

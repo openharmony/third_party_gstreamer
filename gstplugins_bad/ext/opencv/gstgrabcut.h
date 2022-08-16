@@ -93,7 +93,7 @@ struct _GstGrabcutClass
 
 GType gst_grabcut_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (grabcut);
+gboolean gst_grabcut_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 #endif /* __GST_GRABCUT_H__ */

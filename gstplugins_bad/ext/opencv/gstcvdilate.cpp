@@ -46,11 +46,12 @@
  *
  * Dilates the image with the cvDilate OpenCV function.
  *
- * ## Example launch line
- *
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 videotestsrc ! cvdilate ! videoconvert ! autovideosink
  * ]|
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -64,11 +65,7 @@
 GST_DEBUG_CATEGORY_STATIC (gst_cv_dilate_debug);
 #define GST_CAT_DEFAULT gst_cv_dilate_debug
 
-G_DEFINE_TYPE_WITH_CODE (GstCvDilate, gst_cv_dilate, GST_TYPE_CV_DILATE_ERODE,
-    GST_DEBUG_CATEGORY_INIT (gst_cv_dilate_debug, "cvdilate", 0, "cvdilate");
-    );
-GST_ELEMENT_REGISTER_DEFINE (cvdilate, "cvdilate", GST_RANK_NONE,
-    GST_TYPE_CV_DILATE);
+G_DEFINE_TYPE (GstCvDilate, gst_cv_dilate, GST_TYPE_CV_DILATE_ERODE);
 
 static GstFlowReturn gst_cv_dilate_transform_ip (GstOpencvVideoFilter *
     filter, GstBuffer * buf, cv::Mat img);
@@ -92,7 +89,7 @@ gst_cv_dilate_class_init (GstCvDilateClass * klass)
 
 /* initialize the new element
  * instantiate pads and add them to element
- * set pad callback functions
+ * set pad calback functions
  * initialize instance structure
  */
 static void
@@ -109,4 +106,13 @@ gst_cv_dilate_transform_ip (GstOpencvVideoFilter * base, GstBuffer * buf,
   cv::dilate (img, img, cv::Mat (), cv::Point (-1, -1), filter->iterations);
 
   return GST_FLOW_OK;
+}
+
+gboolean
+gst_cv_dilate_plugin_init (GstPlugin * plugin)
+{
+  GST_DEBUG_CATEGORY_INIT (gst_cv_dilate_debug, "cvdilate", 0, "cvdilate");
+
+  return gst_element_register (plugin, "cvdilate", GST_RANK_NONE,
+      GST_TYPE_CV_DILATE);
 }

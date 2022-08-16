@@ -1,5 +1,5 @@
 /* -LICENSE-START-
-** Copyright (c) 2019 Blackmagic Design
+** Copyright (c) 2016 Blackmagic Design
 **
 ** Permission is hereby granted, free of charge, to any person or organization
 ** obtaining a copy of the software and accompanying documentation covered by
@@ -37,10 +37,6 @@
     #endif
 #endif
 
-#ifndef BMD_PUBLIC
-	#define BMD_PUBLIC
-#endif
-
 // Type Declarations
 
 
@@ -54,7 +50,7 @@ class IDeckLink;
 
 /* Interface IDeckLink - represents a DeckLink device */
 
-class BMD_PUBLIC IDeckLink : public IUnknown
+class IDeckLink : public IUnknown
 {
 public:
     virtual HRESULT GetModelName (/* out */ CFStringRef *modelName) = 0;

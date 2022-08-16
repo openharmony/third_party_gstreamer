@@ -34,17 +34,6 @@
  *     caps (simple caps = one line)
  */
 
-/**
- * SECTION: debugutils
- * @title: Debugging utilities
- * @short_description: A set of utilities for debugging and development
- *
- * These utility functions help with generating dot graphs which can
- * be rendered with [graphviz] to multiple formats.
- *
- * [graphviz]: https://graphviz.org/
- */
-
 #include "gst_private.h"
 #include "gstdebugutils.h"
 
@@ -129,8 +118,7 @@ debug_dump_get_object_params (GObject * object,
       /* skip some properties */
       if (!(property->flags & G_PARAM_READABLE))
         continue;
-      if (!strcmp (property->name, "name")
-          || !strcmp (property->name, "parent"))
+      if (!strcmp (property->name, "name"))
         continue;
 
       if (ignored_propnames)
@@ -242,7 +230,8 @@ debug_dump_pad (GstPad * pad, const gchar * color_name,
   GstPadPresence presence;
   gchar *pad_name, *param_name = NULL;
   const gchar *style_name;
-  static const char *const ignore_propnames[] = { "direction", "template",
+  static const char *const ignore_propnames[] =
+      { "parent", "direction", "template",
     "caps", NULL
   };
   const gchar *spc = MAKE_INDENT (indent);
@@ -625,7 +614,6 @@ debug_dump_element (GstBin * bin, GstDebugGraphDetails details,
   gchar *state_name = NULL;
   gchar *param_name = NULL;
   const gchar *spc = MAKE_INDENT (indent);
-  static const char *const ignore_propnames[] = { "stats", NULL };
 
   element_iter = gst_bin_iterate_elements (bin);
   elements_done = FALSE;
@@ -640,7 +628,7 @@ debug_dump_element (GstBin * bin, GstDebugGraphDetails details,
         }
         if (details & GST_DEBUG_GRAPH_SHOW_NON_DEFAULT_PARAMS) {
           param_name = debug_dump_get_object_params (G_OBJECT (element),
-              details, ignore_propnames);
+              details, NULL);
         }
         /* elements */
         g_string_append_printf (str, "%ssubgraph cluster_%s {\n", spc,
@@ -810,7 +798,7 @@ debug_dump_footer (GString * str)
  * @details: type of #GstDebugGraphDetails to use
  *
  * To aid debugging applications one can use this method to obtain the whole
- * network of gstreamer elements that form the pipeline into a dot file.
+ * network of gstreamer elements that form the pipeline into an dot file.
  * This data can be processed with graphviz to get an image.
  *
  * Returns: (transfer full): a string containing the pipeline in graphviz
@@ -839,12 +827,11 @@ gst_debug_bin_to_dot_data (GstBin * bin, GstDebugGraphDetails details)
  * @file_name: (type filename): output base filename (e.g. "myplayer")
  *
  * To aid debugging applications one can use this method to write out the whole
- * network of gstreamer elements that form the pipeline into a dot file.
+ * network of gstreamer elements that form the pipeline into an dot file.
  * This file can be processed with graphviz to get an image.
- *
- * ``` shell
+ * <informalexample><programlisting>
  *  dot -Tpng -oimage.png graph_lowlevel.dot
- * ```
+ * </programlisting></informalexample>
  */
 void
 gst_debug_bin_to_dot_file (GstBin * bin, GstDebugGraphDetails details,

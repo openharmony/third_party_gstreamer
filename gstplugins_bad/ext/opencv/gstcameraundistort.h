@@ -97,7 +97,7 @@ struct _GstCameraUndistortClass
 
 GType gst_camera_undistort_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (cameraundistort);
+gboolean gst_camera_undistort_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 

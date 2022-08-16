@@ -35,11 +35,40 @@ GType gst_webrtc_rtp_sender_get_type(void);
 #define GST_IS_WEBRTC_RTP_SENDER_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE((klass) ,GST_TYPE_WEBRTC_RTP_SENDER))
 #define GST_WEBRTC_RTP_SENDER_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS((obj) ,GST_TYPE_WEBRTC_RTP_SENDER,GstWebRTCRTPSenderClass))
 
-GST_WEBRTC_API
-void                        gst_webrtc_rtp_sender_set_priority          (GstWebRTCRTPSender *sender,
-                                                                         GstWebRTCPriorityType priority);
+struct _GstWebRTCRTPSender
+{
+  GstObject                          parent;
 
+  /* The MediStreamTrack is represented by the stream and is output into @transport/@rtcp_transport as necessary */
+  GstWebRTCDTLSTransport            *transport;
+  GstWebRTCDTLSTransport            *rtcp_transport;
+
+  GArray                            *send_encodings;
+
+  gpointer                          _padding[GST_PADDING];
+};
+
+struct _GstWebRTCRTPSenderClass
+{
+  GstObjectClass        parent_class;
+
+  gpointer              _padding[GST_PADDING];
+};
+
+GST_WEBRTC_API
+GstWebRTCRTPSender *        gst_webrtc_rtp_sender_new                   (void);
+
+GST_WEBRTC_API
+void                        gst_webrtc_rtp_sender_set_transport         (GstWebRTCRTPSender * sender,
+                                                                         GstWebRTCDTLSTransport * transport);
+GST_WEBRTC_API
+void                        gst_webrtc_rtp_sender_set_rtcp_transport    (GstWebRTCRTPSender * sender,
+                                                                         GstWebRTCDTLSTransport * transport);
+
+
+#ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GstWebRTCRTPSender, gst_object_unref)
+#endif
 
 G_END_DECLS
 

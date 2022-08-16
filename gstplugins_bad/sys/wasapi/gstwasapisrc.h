@@ -40,15 +40,12 @@ struct _GstWasapiSrc
 {
   GstAudioSrc parent;
 
-  GstMMDeviceEnumerator *enumerator;
-
   IMMDevice *device;
   IAudioClient *client;
   IAudioClock *client_clock;
   guint64 client_clock_freq;
   IAudioCaptureClient *capture_client;
   HANDLE event_handle;
-  HANDLE cancellable;
   /* Smooth frames captured from WASAPI, which can be irregular sometimes */
   GstAdapter *adapter;
   /* Client was reset, so it needs to be started again */
@@ -62,13 +59,6 @@ struct _GstWasapiSrc
    * we will pass this to GstAudioRingbuffer so it can
    * translate it to the native GStreamer channel layout. */
   GstAudioChannelPosition *positions;
-
-  /* Used for loopback use case in order to keep feeding silence into client */
-  IAudioClient *loopback_client;
-  IAudioRenderClient *loopback_render_client;
-  GThread *loopback_thread;
-  HANDLE loopback_event_handle;
-  HANDLE loopback_cancellable;
 
   /* properties */
   gint role;

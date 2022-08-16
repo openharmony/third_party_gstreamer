@@ -23,14 +23,16 @@
 #ifndef __GST_PLAYER_MEDIA_INFO_PRIVATE_H__
 #define __GST_PLAYER_MEDIA_INFO_PRIVATE_H__
 
-#include <gst/play/gstplay-media-info.h>
-
 struct _GstPlayerStreamInfo
 {
   GObject parent;
 
+  gchar *codec;
+
+  GstCaps *caps;
   gint stream_index;
-  GstPlayStreamInfo *info;
+  GstTagList  *tags;
+  gchar *stream_id;
 };
 
 struct _GstPlayerStreamInfoClass
@@ -40,9 +42,9 @@ struct _GstPlayerStreamInfoClass
 
 struct _GstPlayerSubtitleInfo
 {
-  GstPlayerStreamInfo parent;
+  GstPlayerStreamInfo  parent;
 
-  GstPlaySubtitleInfo *info;
+  gchar *language;
 };
 
 struct _GstPlayerSubtitleInfoClass
@@ -52,9 +54,15 @@ struct _GstPlayerSubtitleInfoClass
 
 struct _GstPlayerAudioInfo
 {
-  GstPlayerStreamInfo parent;
+  GstPlayerStreamInfo  parent;
 
-  GstPlayAudioInfo *info;
+  gint channels;
+  gint sample_rate;
+
+  guint bitrate;
+  guint max_bitrate;
+
+  gchar *language;
 };
 
 struct _GstPlayerAudioInfoClass
@@ -64,9 +72,17 @@ struct _GstPlayerAudioInfoClass
 
 struct _GstPlayerVideoInfo
 {
-  GstPlayerStreamInfo parent;
+  GstPlayerStreamInfo  parent;
 
-  GstPlayVideoInfo *info;
+  gint width;
+  gint height;
+  gint framerate_num;
+  gint framerate_denom;
+  gint par_num;
+  gint par_denom;
+
+  guint bitrate;
+  guint max_bitrate;
 };
 
 struct _GstPlayerVideoInfoClass
@@ -78,11 +94,19 @@ struct _GstPlayerMediaInfo
 {
   GObject parent;
 
+  gchar *uri;
+  gchar *title;
+  gchar *container;
+  gboolean seekable, is_live;
+  GstTagList *tags;
+  GstSample *image_sample;
+
   GList *stream_list;
   GList *audio_stream_list;
   GList *video_stream_list;
   GList *subtitle_stream_list;
-  GstPlayMediaInfo *info;
+
+  GstClockTime  duration;
 };
 
 struct _GstPlayerMediaInfoClass
@@ -91,23 +115,12 @@ struct _GstPlayerMediaInfoClass
 };
 
 G_GNUC_INTERNAL GstPlayerMediaInfo*   gst_player_media_info_new
-                                      (void);
+                                      (const gchar *uri);
 G_GNUC_INTERNAL GstPlayerMediaInfo*   gst_player_media_info_copy
                                       (GstPlayerMediaInfo *ref);
 G_GNUC_INTERNAL GstPlayerStreamInfo*  gst_player_stream_info_new
                                       (gint stream_index, GType type);
-G_GNUC_INTERNAL GstPlayerStreamInfo*  gst_player_stream_info_wrapped
-                                      (GstPlayStreamInfo * info);
 G_GNUC_INTERNAL GstPlayerStreamInfo*  gst_player_stream_info_copy
                                       (GstPlayerStreamInfo *ref);
-
-G_GNUC_INTERNAL GstPlayerMediaInfo*   gst_player_media_info_wrapped
-                                      (GstPlayMediaInfo *info);
-G_GNUC_INTERNAL GstPlayerAudioInfo*   gst_player_audio_info_wrapped
-                                      (GstPlayAudioInfo *info);
-G_GNUC_INTERNAL GstPlayerVideoInfo*   gst_player_video_info_wrapped
-                                      (GstPlayVideoInfo *info);
-G_GNUC_INTERNAL GstPlayerSubtitleInfo*  gst_player_subtitle_info_wrapped
-                                        (GstPlaySubtitleInfo *info);
 
 #endif /* __GST_PLAYER_MEDIA_INFO_PRIVATE_H__ */

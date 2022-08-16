@@ -133,8 +133,6 @@ struct _GstWavParseClass {
 
 GType gst_wavparse_get_type(void);
 
-GST_ELEMENT_REGISTER_DECLARE (wavparse);
-
 G_END_DECLS
 
 #endif /* __GST_WAVPARSE_H__ */

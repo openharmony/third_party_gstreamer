@@ -24,9 +24,6 @@
  * @title: GstAllocator
  * @short_description: allocate memory blocks
  * @see_also: #GstMemory
- * @auto-sort: false
- * @symbols:
- * - GstAllocator
  *
  * Memory is usually created by allocators with a gst_allocator_alloc()
  * method call. When %NULL is used as the allocator, the default allocator will
@@ -143,31 +140,6 @@ G_DEFINE_BOXED_TYPE (GstAllocationParams, gst_allocation_params,
     (GBoxedFreeFunc) gst_allocation_params_free);
 
 /**
- * gst_allocation_params_new:
- *
- * Create a new #GstAllocationParams on the heap.  This function is for
- * use in GStreamer language bindings.  In your own code, you can just
- * declare a #GstAllocationParams on the stack or in a struct, and
- * call gst_allocation_params_init() to initialize it.
- *
- * You do not need to call gst_allocation_params_init() on the instance
- * returned by this function.
- *
- * Returns: (transfer full) (not nullable): a new #GstAllocationParams
- *
- * Since: 1.20
- */
-GstAllocationParams *
-gst_allocation_params_new (void)
-{
-  /* Call new() and then init(), rather than calling new0(), in case
-   * init() ever changes to something other than a memset(). */
-  GstAllocationParams *result = g_slice_new (GstAllocationParams);
-  gst_allocation_params_init (result);
-  return result;
-}
-
-/**
  * gst_allocation_params_init:
  * @params: a #GstAllocationParams
  *
@@ -187,7 +159,10 @@ gst_allocation_params_init (GstAllocationParams * params)
  *
  * Create a copy of @params.
  *
- * Returns: (transfer full) (nullable): a new #GstAllocationParams.
+ * Free-function: gst_allocation_params_free
+ *
+ * Returns: (transfer full) (nullable): a new ##GstAllocationParams, free with
+ * gst_allocation_params_free().
  */
 GstAllocationParams *
 gst_allocation_params_copy (const GstAllocationParams * params)
@@ -219,7 +194,8 @@ gst_allocation_params_free (GstAllocationParams * params)
  * @name: the name of the allocator
  * @allocator: (transfer full): #GstAllocator
  *
- * Registers the memory @allocator with @name.
+ * Registers the memory @allocator with @name. This function takes ownership of
+ * @allocator.
  */
 void
 gst_allocator_register (const gchar * name, GstAllocator * allocator)
@@ -245,7 +221,8 @@ gst_allocator_register (const gchar * name, GstAllocator * allocator)
  * default allocator will be returned.
  *
  * Returns: (transfer full) (nullable): a #GstAllocator or %NULL when
- * the allocator with @name was not registered.
+ * the allocator with @name was not registered. Use gst_object_unref()
+ * to release the allocator after usage.
  */
 GstAllocator *
 gst_allocator_find (const gchar * name)
@@ -269,7 +246,7 @@ gst_allocator_find (const gchar * name)
  * gst_allocator_set_default:
  * @allocator: (transfer full): a #GstAllocator
  *
- * Set the default allocator.
+ * Set the default allocator. This function takes ownership of @allocator.
  */
 void
 gst_allocator_set_default (GstAllocator * allocator)

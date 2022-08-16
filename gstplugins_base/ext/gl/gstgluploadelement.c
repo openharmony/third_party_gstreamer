@@ -25,8 +25,6 @@
 #include <stdio.h>
 
 #include <gst/gl/gl.h>
-
-#include "gstglelements.h"
 #include "gstgluploadelement.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_gl_upload_element_debug);
@@ -37,8 +35,6 @@ G_DEFINE_TYPE_WITH_CODE (GstGLUploadElement, gst_gl_upload_element,
     GST_TYPE_GL_BASE_FILTER,
     GST_DEBUG_CATEGORY_INIT (gst_gl_upload_element_debug, "gluploadelement", 0,
         "glupload Element"););
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (glupload, "glupload",
-    GST_RANK_NONE, GST_TYPE_GL_UPLOAD_ELEMENT, gl_element_init (plugin));
 
 static gboolean gst_gl_upload_element_get_unit_size (GstBaseTransform * trans,
     GstCaps * caps, gsize * size);
@@ -70,25 +66,13 @@ GST_STATIC_PAD_TEMPLATE ("src",
     GST_STATIC_CAPS ("video/x-raw(ANY)"));
 
 static void
-_gst_gl_upload_element_clear_upload (GstGLUploadElement * upload)
-{
-  GstGLUpload *ul = NULL;
-
-  GST_OBJECT_LOCK (upload);
-  ul = upload->upload;
-  upload->upload = NULL;
-  GST_OBJECT_UNLOCK (upload);
-
-  if (ul)
-    gst_object_unref (ul);
-}
-
-static void
 gst_gl_upload_element_finalize (GObject * object)
 {
   GstGLUploadElement *upload = GST_GL_UPLOAD_ELEMENT (object);
 
-  _gst_gl_upload_element_clear_upload (upload);
+  if (upload->upload)
+    gst_object_unref (upload->upload);
+  upload->upload = NULL;
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -110,6 +94,8 @@ gst_gl_upload_element_class_init (GstGLUploadElementClass * klass)
   bt_class->prepare_output_buffer = gst_gl_upload_element_prepare_output_buffer;
   bt_class->transform = gst_gl_upload_element_transform;
   bt_class->stop = gst_gl_upload_element_stop;
+
+  bt_class->passthrough_on_same_caps = TRUE;
 
   element_class->change_state = gst_gl_upload_element_change_state;
 
@@ -139,7 +125,10 @@ gst_gl_upload_element_stop (GstBaseTransform * bt)
 {
   GstGLUploadElement *upload = GST_GL_UPLOAD_ELEMENT (bt);
 
-  _gst_gl_upload_element_clear_upload (upload);
+  if (upload->upload) {
+    gst_object_unref (upload->upload);
+    upload->upload = NULL;
+  }
 
   return GST_BASE_TRANSFORM_CLASS (parent_class)->stop (bt);
 }
@@ -165,42 +154,16 @@ _gst_gl_upload_element_transform_caps (GstBaseTransform * bt,
   GstGLBaseFilter *base_filter = GST_GL_BASE_FILTER (bt);
   GstGLUploadElement *upload = GST_GL_UPLOAD_ELEMENT (bt);
   GstGLContext *context;
-  GstGLUpload *ul = NULL;
-  GstCaps *ret_caps;
 
   if (base_filter->display && !gst_gl_base_filter_find_gl_context (base_filter))
     return NULL;
 
-  context = gst_gl_base_filter_get_gl_context (base_filter);
+  context = GST_GL_BASE_FILTER (bt)->context;
+  if (upload->upload == NULL)
+    upload->upload = gst_gl_upload_new (context);
 
-  GST_OBJECT_LOCK (upload);
-  if (upload->upload == NULL) {
-    GST_OBJECT_UNLOCK (upload);
-
-    ul = gst_gl_upload_new (context);
-
-    GST_OBJECT_LOCK (upload);
-    if (upload->upload) {
-      gst_object_unref (ul);
-      ul = upload->upload;
-    } else {
-      upload->upload = ul;
-    }
-  } else {
-    ul = upload->upload;
-  }
-
-  gst_object_ref (ul);
-  GST_OBJECT_UNLOCK (upload);
-
-  ret_caps =
-      gst_gl_upload_transform_caps (ul, context, direction, caps, filter);
-
-  gst_object_unref (ul);
-  if (context)
-    gst_object_unref (context);
-
-  return ret_caps;
+  return gst_gl_upload_transform_caps (upload->upload, context, direction, caps,
+      filter);
 }
 
 static gboolean
@@ -216,32 +179,19 @@ _gst_gl_upload_element_propose_allocation (GstBaseTransform * bt,
     GstQuery * decide_query, GstQuery * query)
 {
   GstGLUploadElement *upload = GST_GL_UPLOAD_ELEMENT (bt);
-  GstGLUpload *ul;
-  GstGLContext *context;
+  GstGLContext *context = GST_GL_BASE_FILTER (bt)->context;
   gboolean ret;
 
-  GST_OBJECT_LOCK (upload);
-  if (!upload->upload) {
-    GST_OBJECT_UNLOCK (upload);
+  if (!upload->upload)
     return FALSE;
-  }
-  ul = gst_object_ref (upload->upload);
-  GST_OBJECT_UNLOCK (upload);
-
-  context = gst_gl_base_filter_get_gl_context (GST_GL_BASE_FILTER (bt));
-  if (!context) {
-    gst_object_unref (ul);
+  if (!context)
     return FALSE;
-  }
 
-  gst_gl_upload_set_context (ul, context);
+  gst_gl_upload_set_context (upload->upload, context);
 
   ret = GST_BASE_TRANSFORM_CLASS (parent_class)->propose_allocation (bt,
       decide_query, query);
-  gst_gl_upload_propose_allocation (ul, decide_query, query);
-
-  gst_object_unref (ul);
-  gst_object_unref (context);
+  gst_gl_upload_propose_allocation (upload->upload, decide_query, query);
 
   return ret;
 }
@@ -348,7 +298,10 @@ gst_gl_upload_element_change_state (GstElement * element,
 
   switch (transition) {
     case GST_STATE_CHANGE_READY_TO_NULL:
-      _gst_gl_upload_element_clear_upload (upload);
+      if (upload->upload) {
+        gst_object_unref (upload->upload);
+        upload->upload = NULL;
+      }
       break;
     default:
       break;

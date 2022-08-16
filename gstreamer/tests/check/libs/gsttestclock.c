@@ -454,8 +454,7 @@ GST_START_TEST (test_single_shot_sync_past)
   clock_id = gst_clock_new_single_shot_id (clock, GST_SECOND - 1);
   wait_ctx =
       gst_test_util_wait_for_clock_id_begin (test_clock, clock_id, &jitter);
-  fail_unless_equals_int (gst_test_util_wait_for_clock_id_end (wait_ctx),
-      GST_CLOCK_EARLY);
+  g_assert (gst_test_util_wait_for_clock_id_end (wait_ctx) == GST_CLOCK_EARLY);
   g_assert_cmpint (jitter, ==, 1);
   gst_clock_id_unref (clock_id);
 
@@ -478,8 +477,7 @@ GST_START_TEST (test_single_shot_sync_present)
   clock_id = gst_clock_new_single_shot_id (clock, GST_SECOND);
   wait_ctx =
       gst_test_util_wait_for_clock_id_begin (test_clock, clock_id, &jitter);
-  fail_unless_equals_int (gst_test_util_wait_for_clock_id_end (wait_ctx),
-      GST_CLOCK_OK);
+  g_assert (gst_test_util_wait_for_clock_id_end (wait_ctx) == GST_CLOCK_OK);
   g_assert_cmpint (jitter, ==, 0);
   gst_clock_id_unref (clock_id);
 
@@ -503,8 +501,7 @@ GST_START_TEST (test_single_shot_sync_future)
   wait_ctx =
       gst_test_util_wait_for_clock_id_begin (test_clock, clock_id, &jitter);
   gst_test_clock_advance_time (test_clock, GST_SECOND);
-  fail_unless_equals_int (gst_test_util_wait_for_clock_id_end (wait_ctx),
-      GST_CLOCK_OK);
+  g_assert (gst_test_util_wait_for_clock_id_end (wait_ctx) == GST_CLOCK_OK);
   g_assert_cmpint (jitter, ==, -GST_SECOND);
   gst_clock_id_unref (clock_id);
 
@@ -535,8 +532,8 @@ GST_START_TEST (test_single_shot_sync_unschedule)
   clock_id = gst_clock_new_single_shot_id (clock, 2 * GST_SECOND);
   wait_ctx = gst_test_util_wait_for_clock_id_begin (test_clock, clock_id, NULL);
   gst_clock_id_unschedule (clock_id);
-  fail_unless_equals_int (gst_test_util_wait_for_clock_id_end (wait_ctx),
-      GST_CLOCK_UNSCHEDULED);
+  g_assert (gst_test_util_wait_for_clock_id_end (wait_ctx)
+      == GST_CLOCK_UNSCHEDULED);
   gst_clock_id_unref (clock_id);
 
   gst_object_unref (clock);
@@ -566,10 +563,8 @@ GST_START_TEST (test_single_shot_sync_ordering)
 
   gst_test_clock_advance_time (test_clock, GST_SECOND);
 
-  fail_unless_equals_int (gst_test_util_wait_for_clock_id_end (wait_ctx_b),
-      GST_CLOCK_OK);
-  fail_unless_equals_int (gst_test_util_wait_for_clock_id_end (wait_ctx_a),
-      GST_CLOCK_OK);
+  g_assert (gst_test_util_wait_for_clock_id_end (wait_ctx_b) == GST_CLOCK_OK);
+  g_assert (gst_test_util_wait_for_clock_id_end (wait_ctx_a) == GST_CLOCK_OK);
 
   gst_clock_id_unref (clock_id_b);
   gst_clock_id_unref (clock_id_a);
@@ -599,14 +594,12 @@ GST_START_TEST (test_single_shot_sync_ordering_parallel)
   g_assert_cmpuint (gst_test_clock_get_next_entry_time (test_clock), ==,
       2 * GST_SECOND);
   gst_test_clock_advance_time (test_clock, GST_SECOND);
-  fail_unless_equals_int (gst_test_util_wait_for_clock_id_end (wait_ctx_b),
-      GST_CLOCK_OK);
+  g_assert (gst_test_util_wait_for_clock_id_end (wait_ctx_b) == GST_CLOCK_OK);
 
   g_assert_cmpuint (gst_test_clock_get_next_entry_time (test_clock), ==,
       3 * GST_SECOND);
   gst_test_clock_advance_time (test_clock, GST_SECOND);
-  fail_unless_equals_int (gst_test_util_wait_for_clock_id_end (wait_ctx_a),
-      GST_CLOCK_OK);
+  g_assert (gst_test_util_wait_for_clock_id_end (wait_ctx_a) == GST_CLOCK_OK);
 
   gst_clock_id_unref (clock_id_b);
   gst_clock_id_unref (clock_id_a);
@@ -914,8 +907,7 @@ GST_START_TEST (test_periodic_sync)
     else
       gst_test_clock_advance_time (test_clock, interval);
 
-    fail_unless_equals_int (gst_test_util_wait_for_clock_id_end (wait_ctx),
-        GST_CLOCK_OK);
+    gst_test_util_wait_for_clock_id_end (wait_ctx);
   }
 
   gst_clock_id_unref (clock_id);
@@ -1004,8 +996,7 @@ GST_START_TEST (test_periodic_uniqueness)
     }
 
     gst_test_clock_advance_time (test_clock, interval);
-    fail_unless_equals_int (gst_test_util_wait_for_clock_id_end (wait_ctx),
-        GST_CLOCK_OK);
+    gst_test_util_wait_for_clock_id_end (wait_ctx);
   }
 
   gst_clock_id_unref (clock_id);
@@ -1052,45 +1043,6 @@ GST_START_TEST (test_crank)
 
 GST_END_TEST;
 
-GST_START_TEST (test_late_crank)
-{
-  GstClock *clock;
-  GstTestClock *test_clock;
-  GstClockID clock_id;
-  SyncClockWaitContext context;
-  GThread *worker_thread;
-
-  clock = gst_test_clock_new_with_start_time (GST_SECOND);
-  test_clock = GST_TEST_CLOCK (clock);
-
-  /* register a wait for 5 seconds */
-  clock_id = gst_clock_new_single_shot_id (clock, 5 * GST_SECOND);
-  context.clock_id = gst_clock_id_ref (clock_id);
-  context.jitter = 0;
-
-  /* crank the clock while the pending clock id is in the past */
-  gst_test_clock_set_time (test_clock, 6 * GST_SECOND);
-  worker_thread =
-      g_thread_new ("worker_thread_a",
-      test_wait_pending_single_shot_id_sync_worker, &context);
-  gst_test_clock_crank (test_clock);
-
-  /* the clock should have advanced and the wait released */
-  g_thread_join (worker_thread);
-
-  /* the pending entry was schedule 1 second before waiting */
-  fail_unless_equals_int64 (1 * GST_SECOND, context.jitter);
-
-  /* and the clock is still 5 seconds as configured */
-  fail_unless_equals_int64 (6 * GST_SECOND, gst_clock_get_time (clock));
-
-  gst_clock_id_unref (context.clock_id);
-  gst_clock_id_unref (clock_id);
-  gst_object_unref (clock);
-}
-
-GST_END_TEST;
-
 static Suite *
 gst_test_clock_suite (void)
 {
@@ -1123,7 +1075,6 @@ gst_test_clock_suite (void)
   tcase_add_test (tc_chain, test_periodic_async);
   tcase_add_test (tc_chain, test_periodic_uniqueness);
   tcase_add_test (tc_chain, test_crank);
-  tcase_add_test (tc_chain, test_late_crank);
 
   return s;
 }

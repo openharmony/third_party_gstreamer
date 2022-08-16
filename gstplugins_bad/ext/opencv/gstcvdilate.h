@@ -77,7 +77,7 @@ struct _GstCvDilateClass
 
 GType gst_cv_dilate_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (cvdilate);
+gboolean gst_cv_dilate_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 

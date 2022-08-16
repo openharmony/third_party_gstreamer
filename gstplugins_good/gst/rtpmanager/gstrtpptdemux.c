@@ -1,4 +1,4 @@
-/*
+/* 
  * RTP Demux element
  *
  * Copyright (C) 2005 Nokia Corporation.
@@ -25,27 +25,27 @@
 
 /**
  * SECTION:element-rtpptdemux
- * @title: rtpptdemux
  *
  * rtpptdemux acts as a demuxer for RTP packets based on the payload type of
  * the packets. Its main purpose is to allow an application to easily receive
  * and decode an RTP stream with multiple payload types.
- *
+ * 
  * For each payload type that is detected, a new pad will be created and the
  * #GstRtpPtDemux::new-payload-type signal will be emitted. When the payload for
  * the RTP stream changes, the #GstRtpPtDemux::payload-type-change signal will be
  * emitted.
- *
+ * 
  * The element will try to set complete and unique application/x-rtp caps
  * on the output pads based on the result of the #GstRtpPtDemux::request-pt-map
  * signal.
- *
- * ## Example pipelines
+ * 
+ * <refsect2>
+ * <title>Example pipelines</title>
  * |[
  * gst-launch-1.0 udpsrc caps="application/x-rtp" ! rtpptdemux ! fakesink
  * ]| Takes an RTP stream and send the RTP packets with the first detected
  * payload type to fakesink, discarding the other payload types.
- *
+ * </refsect2>
  */
 
 /*
@@ -99,8 +99,8 @@ GST_DEBUG_CATEGORY_STATIC (gst_rtp_pt_demux_debug);
  */
 struct _GstRtpPtDemuxPad
 {
-  GstPad *pad;                  /*< pointer to the actual pad */
-  gint pt;                      /*< RTP payload-type attached to pad */
+  GstPad *pad;        /**< pointer to the actual pad */
+  gint pt;             /**< RTP payload-type attached to pad */
   gboolean newcaps;
 };
 
@@ -122,8 +122,6 @@ enum
 
 #define gst_rtp_pt_demux_parent_class parent_class
 G_DEFINE_TYPE (GstRtpPtDemux, gst_rtp_pt_demux, GST_TYPE_ELEMENT);
-GST_ELEMENT_REGISTER_DEFINE (rtpptdemux, "rtpptdemux", GST_RANK_NONE,
-    GST_TYPE_RTP_PT_DEMUX);
 
 static void gst_rtp_pt_demux_finalize (GObject * object);
 
@@ -197,7 +195,7 @@ gst_rtp_pt_demux_class_init (GstRtpPtDemuxClass * klass)
   gst_rtp_pt_demux_signals[SIGNAL_REQUEST_PT_MAP] =
       g_signal_new ("request-pt-map", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstRtpPtDemuxClass, request_pt_map),
-      NULL, NULL, NULL, GST_TYPE_CAPS, 1, G_TYPE_UINT);
+      NULL, NULL, g_cclosure_marshal_generic, GST_TYPE_CAPS, 1, G_TYPE_UINT);
 
   /**
    * GstRtpPtDemux::new-payload-type:
@@ -205,24 +203,26 @@ gst_rtp_pt_demux_class_init (GstRtpPtDemuxClass * klass)
    * @pt: the payload type
    * @pad: the pad with the new payload
    *
-   * Emitted when a new payload type pad has been created in @demux.
+   * Emited when a new payload type pad has been created in @demux.
    */
   gst_rtp_pt_demux_signals[SIGNAL_NEW_PAYLOAD_TYPE] =
       g_signal_new ("new-payload-type", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstRtpPtDemuxClass, new_payload_type),
-      NULL, NULL, NULL, G_TYPE_NONE, 2, G_TYPE_UINT, GST_TYPE_PAD);
+      NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 2, G_TYPE_UINT,
+      GST_TYPE_PAD);
 
   /**
    * GstRtpPtDemux::payload-type-change:
    * @demux: the object which received the signal
    * @pt: the new payload type
    *
-   * Emitted when the payload type changed.
+   * Emited when the payload type changed.
    */
   gst_rtp_pt_demux_signals[SIGNAL_PAYLOAD_TYPE_CHANGE] =
       g_signal_new ("payload-type-change", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstRtpPtDemuxClass,
-          payload_type_change), NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_UINT);
+          payload_type_change), NULL, NULL, g_cclosure_marshal_VOID__UINT,
+      G_TYPE_NONE, 1, G_TYPE_UINT);
 
   /**
    * GstRtpPtDemux::clear-pt-map:
@@ -234,7 +234,8 @@ gst_rtp_pt_demux_class_init (GstRtpPtDemuxClass * klass)
   gst_rtp_pt_demux_signals[SIGNAL_CLEAR_PT_MAP] =
       g_signal_new ("clear-pt-map", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_ACTION | G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstRtpPtDemuxClass,
-          clear_pt_map), NULL, NULL, NULL, G_TYPE_NONE, 0, G_TYPE_NONE);
+          clear_pt_map), NULL, NULL, g_cclosure_marshal_VOID__VOID,
+      G_TYPE_NONE, 0, G_TYPE_NONE);
 
   gobject_klass->set_property = gst_rtp_pt_demux_set_property;
   gobject_klass->get_property = gst_rtp_pt_demux_get_property;
@@ -315,11 +316,10 @@ gst_rtp_pt_demux_finalize (GObject * object)
 static GstCaps *
 gst_rtp_pt_demux_get_caps (GstRtpPtDemux * rtpdemux, guint pt)
 {
-  guint32 ssrc = 0;
-  gboolean have_ssrc = FALSE;
-  GstCaps *caps, *sink_caps;
+  GstCaps *caps;
   GValue ret = { 0 };
   GValue args[2] = { {0}, {0} };
+  GstCaps *sink_caps;
 
   /* figure out the caps */
   g_value_init (&args[0], GST_TYPE_ELEMENT);
@@ -336,26 +336,30 @@ gst_rtp_pt_demux_get_caps (GstRtpPtDemux * rtpdemux, guint pt)
   g_value_unset (&args[0]);
   g_value_unset (&args[1]);
   caps = g_value_dup_boxed (&ret);
-  sink_caps = gst_pad_get_current_caps (rtpdemux->sink);
   g_value_unset (&ret);
 
-  if (caps == NULL) {
-    caps = sink_caps;
-  } else if (sink_caps) {
-    have_ssrc =
-        gst_structure_get_uint (gst_caps_get_structure (sink_caps, 0), "ssrc",
-        &ssrc);
+  sink_caps = gst_pad_get_current_caps (rtpdemux->sink);
+
+  if (sink_caps) {
+    if (caps == NULL) {
+      caps = gst_caps_ref (sink_caps);
+    } else {
+      GstStructure *s1;
+      GstStructure *s2;
+      guint ssrc;
+
+      caps = gst_caps_make_writable (caps);
+      s1 = gst_caps_get_structure (sink_caps, 0);
+      s2 = gst_caps_get_structure (caps, 0);
+
+      gst_structure_get_uint (s1, "ssrc", &ssrc);
+      gst_structure_set (s2, "ssrc", G_TYPE_UINT, ssrc, NULL);
+    }
+
     gst_caps_unref (sink_caps);
   }
 
-  if (caps != NULL) {
-    caps = gst_caps_make_writable (caps);
-    gst_caps_set_simple (caps, "payload", G_TYPE_INT, pt, NULL);
-    if (have_ssrc)
-      gst_caps_set_simple (caps, "ssrc", G_TYPE_UINT, ssrc, NULL);
-  }
-
-  GST_DEBUG_OBJECT (rtpdemux, "pt %d, got caps %" GST_PTR_FORMAT, pt, caps);
+  GST_DEBUG ("pt %d, got caps %" GST_PTR_FORMAT, pt, caps);
 
   return caps;
 }
@@ -366,7 +370,7 @@ gst_rtp_pt_demux_clear_pt_map (GstRtpPtDemux * rtpdemux)
   GSList *walk;
 
   GST_OBJECT_LOCK (rtpdemux);
-  GST_DEBUG_OBJECT (rtpdemux, "clearing pt map");
+  GST_DEBUG ("clearing pt map");
   for (walk = rtpdemux->srcpads; walk; walk = g_slist_next (walk)) {
     GstRtpPtDemuxPad *pad = walk->data;
 
@@ -477,12 +481,8 @@ gst_rtp_pt_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     if (!caps)
       goto no_caps;
 
-    /* must be after the get_caps() call as get_caps() may cause external code
-     * (e.g. rtpbin) to update the ignored-pt list */
-    if (gst_rtp_pt_demux_pt_is_ignored (rtpdemux, pt)) {
-      gst_clear_caps (&caps);
+    if (gst_rtp_pt_demux_pt_is_ignored (rtpdemux, pt))
       goto ignored;
-    }
 
     klass = GST_ELEMENT_GET_CLASS (rtpdemux);
     templ = gst_element_class_get_pad_template (klass, "src_%u");
@@ -492,7 +492,7 @@ gst_rtp_pt_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     g_free (padname);
     gst_pad_set_event_function (srcpad, gst_rtp_pt_demux_src_event);
 
-    GST_DEBUG_OBJECT (rtpdemux, "Adding pt=%d to the list.", pt);
+    GST_DEBUG ("Adding pt=%d to the list.", pt);
     rtpdemuxpad = g_slice_new0 (GstRtpPtDemuxPad);
     rtpdemuxpad->pt = pt;
     rtpdemuxpad->newcaps = FALSE;
@@ -504,11 +504,14 @@ gst_rtp_pt_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
     gst_pad_set_active (srcpad, TRUE);
 
+
     /* First push the stream-start event, it must always come first */
     gst_pad_push_event (srcpad,
         gst_pad_get_sticky_event (rtpdemux->sink, GST_EVENT_STREAM_START, 0));
 
     /* Then caps event is sent */
+    caps = gst_caps_make_writable (caps);
+    gst_caps_set_simple (caps, "payload", G_TYPE_INT, pt, NULL);
     gst_pad_set_caps (srcpad, caps);
     gst_caps_unref (caps);
 
@@ -518,7 +521,7 @@ gst_rtp_pt_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
     gst_element_add_pad (GST_ELEMENT_CAST (rtpdemux), srcpad);
 
-    GST_DEBUG_OBJECT (rtpdemux, "emitting new-payload-type for pt %d", pt);
+    GST_DEBUG ("emitting new-payload-type for pt %d", pt);
     g_signal_emit (G_OBJECT (rtpdemux),
         gst_rtp_pt_demux_signals[SIGNAL_NEW_PAYLOAD_TYPE], 0, pt, srcpad);
   }
@@ -528,20 +531,21 @@ gst_rtp_pt_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
     /* our own signal with an extra flag that this is the only pad */
     rtpdemux->last_pt = pt;
-    GST_DEBUG_OBJECT (rtpdemux, "emitting payload-type-changed for pt %d",
-        emit_pt);
+    GST_DEBUG ("emitting payload-type-changed for pt %d", emit_pt);
     g_signal_emit (G_OBJECT (rtpdemux),
         gst_rtp_pt_demux_signals[SIGNAL_PAYLOAD_TYPE_CHANGE], 0, emit_pt);
   }
 
   while (need_caps_for_pt (rtpdemux, pt)) {
-    GST_DEBUG_OBJECT (rtpdemux, "need new caps for %d", pt);
+    GST_DEBUG ("need new caps for %d", pt);
     caps = gst_rtp_pt_demux_get_caps (rtpdemux, pt);
     if (!caps)
       goto no_caps;
 
     clear_newcaps_for_pt (rtpdemux, pt);
 
+    caps = gst_caps_make_writable (caps);
+    gst_caps_set_simple (caps, "payload", G_TYPE_INT, pt, NULL);
     gst_pad_set_caps (srcpad, caps);
     gst_caps_unref (caps);
   }
@@ -567,7 +571,7 @@ invalid_buffer:
     GST_ELEMENT_WARNING (rtpdemux, STREAM, DEMUX, (NULL),
         ("Dropping invalid RTP payload"));
     gst_buffer_unref (buf);
-    return GST_FLOW_OK;
+    return GST_FLOW_ERROR;
   }
 no_caps:
   {
@@ -748,8 +752,8 @@ gst_rtp_pt_demux_change_state (GstElement * element, GstStateChange transition)
 
   switch (transition) {
     case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-      break;
     case GST_STATE_CHANGE_PAUSED_TO_READY:
+      break;
     case GST_STATE_CHANGE_READY_TO_NULL:
       gst_rtp_pt_demux_release (ptdemux);
       break;

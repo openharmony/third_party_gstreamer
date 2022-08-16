@@ -1,46 +1,44 @@
 # Esperanto translation for gst-plugins-base.
-# Copyright (C) 2011, 2021 Free Software Foundation, Inc.
+# Copyright (C) 2011 Free Software Foundation, Inc.
 # This file is distributed under the same license as the gst-plugins-base package.
 # Kristjan SCHMIDT <kristjan.schmidt@googlemail.com>, 2011.
-# Felipe CASTRO <fefcas@gmail.com>, 2021.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: gst-plugins-base 1.16.0\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2021-10-25 01:01+0100\n"
-"PO-Revision-Date: 2021-03-17 12:05-0300\n"
-"Last-Translator: Felipe Castro <fefcas@gmail.com>\n"
+"Project-Id-Version: gst-plugins-base 0.10.32.2\n"
+"Report-Msgid-Bugs-To: http://bugzilla.gnome.org/\n"
+"POT-Creation-Date: 2019-12-03 11:03+0000\n"
+"PO-Revision-Date: 2011-06-04 21:11+0100\n"
+"Last-Translator: Kristjan SCHMIDT <kristjan.schmidt@googlemail.com>\n"
 "Language-Team: Esperanto <translation-team-eo@lists.sourceforge.net>\n"
 "Language: eo\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Bugs: Report translation errors to the Language-Team address.\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
-"X-Generator: Poedit 2.4.2\n"
 
 msgid "Could not open device for playback in mono mode."
-msgstr "Ne eblis malfermi aparaton por ludado per unukanala reĝimo."
+msgstr "Ne eblis malfermi aparaton por reproduktado per unukanala reĝimo."
 
 msgid "Could not open device for playback in stereo mode."
-msgstr "Ne eblis malfermi aparaton por ludado per dukanala reĝimo."
+msgstr "Ne eblis malfermi aparaton por reproduktado per dukanala reĝimo."
 
 #, c-format
 msgid "Could not open device for playback in %d-channel mode."
-msgstr "Ne eblis malfermi la aparaton por ludado per %d-kanala reĝimo."
+msgstr "Ne eblis malfermi la aparaton por reproduktado per %d-kanala reĝimo."
 
 msgid ""
 "Could not open audio device for playback. Device is being used by another "
 "application."
 msgstr ""
-"Ne eblis malfermi la sonaparaton por ludado. Ĝi estas uzata de alia aplikaĵo."
+"Ne eblis malfermi la sonaparaton por reproduktado. Ĝi estas uzate de alia "
+"aplikaĵo."
 
 msgid "Could not open audio device for playback."
-msgstr "Ne eblis malfermi la sonaparaton por ludado."
+msgstr "Ne eblis malfermi la sonaparaton por reproduktado."
 
 msgid "Error outputting to audio device. The device has been disconnected."
-msgstr "Eraro dum eligo al sonaparato. La aparato estas malkonektita."
+msgstr ""
 
 msgid "Could not open device for recording in mono mode."
 msgstr "Ne eblis malfermi la aparaton por registrado per unukanala reĝimo."
@@ -50,20 +48,20 @@ msgstr "Ne eblis malfermi la aparaton por registrado per dukanala reĝimo."
 
 #, c-format
 msgid "Could not open device for recording in %d-channel mode"
-msgstr "Ne eblis malfermi la aparaton por registrado per %d-kanala reĝimo"
+msgstr "Ne eblis malfermi la aparaton por registrado per %d-kanala reĝimo."
 
 msgid ""
 "Could not open audio device for recording. Device is being used by another "
 "application."
 msgstr ""
-"Ne eblis malfermi la aparaton por registrado. Ĝi estas uzata de alia "
+"Ne eblis malfermi la aparaton por registrado. Ĝi estas uzate de alia "
 "aplikaĵo."
 
 msgid "Could not open audio device for recording."
 msgstr "Ne eblis malfermi sonaparaton por registrado."
 
 msgid "Error recording from audio device. The device has been disconnected."
-msgstr "Eraro dum registrado el sonaparato. La aparato estas malkonektita."
+msgstr ""
 
 msgid "Could not open CD device for reading."
 msgstr "Ne eblis malfermi KD-aparaton por legado."
@@ -74,669 +72,633 @@ msgstr "Ne eblis traserĉi la KD-n."
 msgid "Could not read CD."
 msgstr "Ne eblis legi la KD-n."
 
+msgid "failed to draw pattern"
+msgstr ""
+
+msgid "A GL error occurred"
+msgstr ""
+
+msgid "format wasn't negotiated before get function"
+msgstr ""
+
+#, c-format
+msgid "Missing element '%s' - check your GStreamer installation."
+msgstr ""
+
 msgid "Could not determine type of stream"
-msgstr "Ne eblis rekoni la tipon de fluo"
+msgstr "Ne eblis rekoni la tipon de la fluo"
 
 msgid "This appears to be a text file"
 msgstr "Tio ŝajnas esti tekstdosiero"
 
-#, c-format
-msgid "Missing element '%s' - check your GStreamer installation."
-msgstr "Mankas elemento '%s' - kontrolu vian instalon de GStreamer."
-
+#, fuzzy
 msgid "Could not create \"uridecodebin\" element."
-msgstr "Ne eblis krei elementon \"uridecodebin\"."
+msgstr "Ne eblis krei \"decodebin\"-elementon."
 
+#, fuzzy
 msgid "Could not create \"uridecodebin3\" element."
-msgstr "Ne eblis krei elementon \"uridecodebin3\"."
+msgstr "Ne eblis krei \"decodebin\"-elementon."
 
 #, c-format
 msgid "Both autovideosink and %s elements are missing."
-msgstr "Mankas elementoj: kaj autovideosink kaj %s."
+msgstr ""
 
 msgid "The autovideosink element is missing."
-msgstr "Mankas la elemento autovideosink."
+msgstr ""
 
 #, c-format
 msgid "Configured videosink %s is not working."
-msgstr "Agordita videosink %s ne funkcias."
+msgstr ""
 
 #, c-format
 msgid "Both autovideosink and %s elements are not working."
-msgstr "Elementoj kaj autovideosink kaj %s ne funkcias."
+msgstr ""
 
 msgid "The autovideosink element is not working."
-msgstr "La elemento autovideosink ne funkcias."
+msgstr ""
 
 msgid "Custom text sink element is not usable."
-msgstr "Propra tekst-konsuma elemento ne estas uzebla."
+msgstr ""
 
 msgid "No volume control found"
 msgstr "Ne trovis laŭtec-regilon"
 
 #, c-format
 msgid "Both autoaudiosink and %s elements are missing."
-msgstr "Mankas elementoj kaj autoaudiosink kaj %s."
+msgstr ""
 
 msgid "The autoaudiosink element is missing."
-msgstr "Mankas la elemento autoaudiosink."
+msgstr ""
 
 #, c-format
 msgid "Configured audiosink %s is not working."
-msgstr "Agordita audiosink %s ne funkcias."
+msgstr ""
 
 #, c-format
 msgid "Both autoaudiosink and %s elements are not working."
-msgstr "Elementoj kaj autoaudiosink kaj %s ne funkcias."
+msgstr ""
 
 msgid "The autoaudiosink element is not working."
-msgstr "La elemento autoaudiosink ne funkcias."
+msgstr ""
 
 msgid "Can't play a text file without video or visualizations."
-msgstr "Ne eblas ludi tekstan dosieron sen video aŭ vidigoj."
+msgstr ""
 
 #, c-format
 msgid "No decoder available for type '%s'."
-msgstr "Neniu malkodilo disponeblas por la tipo '%s'."
+msgstr ""
 
 msgid "No URI specified to play from."
-msgstr "Neniu URI estis specifita, el kiu ni ludu."
+msgstr ""
 
 #, c-format
 msgid "Invalid URI \"%s\"."
 msgstr "Nevalida URI \"%s\"."
 
 msgid "This stream type cannot be played yet."
-msgstr "Tiu ĉi tipo de fluo ankoraŭ ne povas esti ludata."
+msgstr ""
 
 #, c-format
 msgid "No URI handler implemented for \"%s\"."
-msgstr "Neniu URI-traktilo estas realigita por \"%s\"."
+msgstr ""
 
 msgid "Source element is invalid."
-msgstr "Font-elemento estas nevalida."
+msgstr "Font-elemento estas nevalide."
 
 #, c-format
 msgid "Error while sending data to \"%s:%d\"."
 msgstr "Eraro dum sendado de datumoj al \"%s:%d\"."
 
 msgid "Can't record audio fast enough"
-msgstr "Ne eblas registri sonon sufiĉe rapide"
+msgstr "Ne eblas registri la sonon sufiĉe rapide"
 
 msgid "This CD has no audio tracks"
-msgstr "Tiu ĉi KD ne havas iun ajn sontrakon"
-
-msgid "failed to draw pattern"
-msgstr "ni malsukcesis desegni motivon"
-
-msgid "A GL error occurred"
-msgstr "Eraro de GL okazis"
-
-msgid "format wasn't negotiated before get function"
-msgstr "aranĝo ne estis enterakordida antaŭ ol havigo de funkcio"
+msgstr ""
 
 msgid "ID3 tag"
-msgstr "Etikedo ID3"
+msgstr ""
 
 msgid "APE tag"
-msgstr "Etikedo APE"
+msgstr ""
 
 msgid "ICY internet radio"
-msgstr "Ret-radio ICY"
+msgstr ""
 
 msgid "Apple Lossless Audio (ALAC)"
-msgstr "Senperda sonkodeko de Apple (ALAC)"
+msgstr ""
 
 msgid "Free Lossless Audio Codec (FLAC)"
-msgstr "Libera senperda sonkodeko (FLAC)"
+msgstr ""
 
 msgid "Lossless True Audio (TTA)"
-msgstr "Senperda sonkodeko True Audio (TTA)"
+msgstr ""
 
 msgid "Windows Media Speech"
-msgstr "Vindoza Media Speech"
+msgstr ""
 
 msgid "CYUV Lossless"
-msgstr "CYUV Lossless"
+msgstr ""
 
 msgid "FFMpeg v1"
 msgstr "FFMpeg v1"
 
 msgid "Lossless MSZH"
-msgstr "Lossless MSZH"
+msgstr ""
 
 msgid "Run-length encoding"
-msgstr "Enkodigo Run-length"
+msgstr ""
 
-#. subtitle formats with static descriptions
 msgid "Timed Text"
-msgstr "Tempmezurita Teksto"
+msgstr ""
 
-#. FIXME: add variant field to typefinder?
 msgid "Subtitle"
-msgstr "Subteksto"
+msgstr ""
 
 msgid "MPL2 subtitle format"
-msgstr "Subteksta formo MPL2"
+msgstr ""
 
 msgid "DKS subtitle format"
-msgstr "Subteksta formo DKS"
+msgstr ""
 
 msgid "QTtext subtitle format"
-msgstr "Subteksta formo QTtext"
+msgstr ""
 
 msgid "Sami subtitle format"
-msgstr "Subteksta formo Sami"
+msgstr ""
 
 msgid "TMPlayer subtitle format"
-msgstr "Subteksta formo TMPlayer"
+msgstr ""
 
 msgid "CEA 608 Closed Caption"
-msgstr "Subteksto/sono CEA 608"
+msgstr ""
 
 msgid "CEA 708 Closed Caption"
-msgstr "Subteksto/sono CEA 708"
+msgstr ""
 
 msgid "Kate subtitle format"
-msgstr "Subteksta formo Kate"
+msgstr ""
 
 msgid "WebVTT subtitle format"
-msgstr "Subteksta formo WebVTT"
+msgstr ""
 
 msgid "Uncompressed video"
-msgstr "Nedensigita video"
+msgstr ""
 
 msgid "Uncompressed gray"
-msgstr "Nedensigita gray"
+msgstr ""
 
 #, c-format
 msgid "Uncompressed packed YUV %s"
-msgstr "Nedensigita pakigita YUV %s"
+msgstr ""
 
 #, c-format
 msgid "Uncompressed semi-planar YUV %s"
-msgstr "Nedensigita duon-ebena YUV %s"
+msgstr ""
 
 #, c-format
 msgid "Uncompressed planar YUV %s"
-msgstr "Nedensigita ebena YUV %s"
+msgstr ""
 
 #, c-format
 msgid "Uncompressed palettized %d-bit %s"
-msgstr "Nedensigita paletrigita %d-bita %s"
+msgstr ""
 
 #, c-format
 msgid "Uncompressed %d-bit %s"
-msgstr "Nedensigita %d-bita %s"
+msgstr ""
 
 #, c-format
 msgid "DivX MPEG-4 Version %d"
-msgstr "DivX MPEG-4 versio %d"
+msgstr "\"DivX MPEG-4\"-versio %d"
 
 msgid "Uncompressed audio"
-msgstr "Nedensigita sono"
+msgstr ""
 
 #, c-format
 msgid "Raw %d-bit %s audio"
-msgstr "Kruda %d-bita %s audio"
+msgstr ""
 
 msgid "Audio CD source"
-msgstr "Fonto de son-KD"
+msgstr "Son-KD-fonto"
 
 msgid "DVD source"
-msgstr "Fonto de DVD"
+msgstr "DVD-fonto"
 
 msgid "Real Time Streaming Protocol (RTSP) source"
-msgstr "Fonto de protokolo real-tempa flua (RTSP)"
+msgstr ""
 
 msgid "Microsoft Media Server (MMS) protocol source"
-msgstr "Fonto de protokolo Microsoft Media Server (MMS)"
+msgstr ""
 
-#. TODO: find out how to add a comment for translators to the source code
-#. * (and tell them to make the first letter uppercase below if they move
-#. * the protocol to the middle or end of the string)
 #, c-format
 msgid "%s protocol source"
 msgstr "%s protokolfonto"
 
 #, c-format
 msgid "%s video RTP depayloader"
-msgstr "%s video RTP-deŝarĝilo (depayloader)"
+msgstr ""
 
 #, c-format
 msgid "%s audio RTP depayloader"
-msgstr "%s sona RTP-deŝarĝilo (depayloader)"
+msgstr ""
 
 #, c-format
 msgid "%s RTP depayloader"
-msgstr "%s RTP-deŝarĝilo (depayloader)"
+msgstr ""
 
 #, c-format
 msgid "%s demuxer"
-msgstr "%s malplektilo (demux)"
+msgstr ""
 
 #, c-format
 msgid "%s decoder"
-msgstr "%s malkodilo"
+msgstr ""
 
 #, c-format
 msgid "%s video RTP payloader"
-msgstr "%s videa RTP-ŝarĝilo (payloader)"
+msgstr ""
 
 #, c-format
 msgid "%s audio RTP payloader"
-msgstr "%s sona RTP-ŝarĝilo (payloader)"
+msgstr ""
 
 #, c-format
 msgid "%s RTP payloader"
-msgstr "%s RTP-ŝarĝilo (payloader)"
+msgstr ""
 
 #, c-format
 msgid "%s muxer"
-msgstr "%s plektilo (mux)"
+msgstr ""
 
 #, c-format
 msgid "%s encoder"
-msgstr "%s enkodilo"
+msgstr ""
 
 #, c-format
 msgid "GStreamer element %s"
-msgstr "GStreamer-elemento %s"
+msgstr ""
 
 msgid "Unknown source element"
-msgstr "Nekonata fonta lemento"
+msgstr "Nekonata fontelemento"
 
 msgid "Unknown sink element"
-msgstr "Nekonata konsuma elemento"
+msgstr ""
 
 msgid "Unknown element"
 msgstr "Nekonata elemento"
 
 msgid "Unknown decoder element"
-msgstr "Nekonata malkodila elemento"
+msgstr ""
 
 msgid "Unknown encoder element"
-msgstr "Nekonata enkodila elemento"
+msgstr ""
 
-#. we should really never get here, but we better still return
-#. * something if we do
 msgid "Plugin or element of unknown type"
-msgstr "Kromaĵo aŭ elemento el nekonata tipo"
+msgstr ""
 
 msgid "Failed to read tag: not enough data"
-msgstr "Ni malsukcesis legi etikedon: ne sufiĉe da datumaro"
+msgstr ""
 
 msgid "track ID"
-msgstr "trak-ID"
+msgstr ""
 
 msgid "MusicBrainz track ID"
-msgstr "Trak-ID ĉe MusicBrainz"
+msgstr ""
 
 msgid "artist ID"
-msgstr "artist-ID"
+msgstr ""
 
 msgid "MusicBrainz artist ID"
-msgstr "artist-ID ĉe MusicBrainz"
+msgstr ""
 
 msgid "album ID"
 msgstr "album-ID"
 
 msgid "MusicBrainz album ID"
-msgstr "album-ID ĉe MusicBrainz"
+msgstr ""
 
 msgid "album artist ID"
-msgstr "artist-ID de albumo"
+msgstr ""
 
 msgid "MusicBrainz album artist ID"
-msgstr "artist-ID de albumo ĉe MusicBrainz"
-
-msgid "release group ID"
 msgstr ""
-
-#, fuzzy
-msgid "MusicBrainz release group ID"
-msgstr "Trak-ID ĉe MusicBrainz"
-
-#, fuzzy
-msgid "release track ID"
-msgstr "trak-ID"
-
-#, fuzzy
-msgid "MusicBrainz release track ID"
-msgstr "Trak-ID ĉe MusicBrainz"
 
 msgid "track TRM ID"
-msgstr "trak-TRM ID"
-
-msgid "MusicBrainz TRM ID"
-msgstr "TRM ID ĉe MusicBrainz"
-
-msgid "AcoustID ID"
 msgstr ""
 
-msgid "AcoustID fingerprint (chromaprint)"
+msgid "MusicBrainz TRM ID"
 msgstr ""
 
 msgid "capturing shutter speed"
-msgstr "kaptado de obturila rapido"
+msgstr ""
 
 msgid "Shutter speed used when capturing an image, in seconds"
-msgstr "Obturila rapido uzata por kapti bildon, laŭ sekundoj"
+msgstr ""
 
 msgid "capturing focal ratio"
-msgstr "kaptado de fokusa kvociento"
+msgstr ""
 
 msgid "Focal ratio (f-number) used when capturing the image"
-msgstr "Fokusa kvociento (f-numero) uzata por kapti la bildon"
+msgstr ""
 
 msgid "capturing focal length"
-msgstr "kaptado de fokusa distanco"
+msgstr ""
 
 msgid "Focal length of the lens used capturing the image, in mm"
-msgstr "Fokusa distanco de lensoj uzata dum kaptado de bildo, laŭ mm"
+msgstr ""
 
 msgid "capturing 35 mm equivalent focal length"
-msgstr "kaptado de fokusa distanco ekvivalenta al 35 mm"
+msgstr ""
 
 msgid ""
 "35 mm equivalent focal length of the lens used capturing the image, in mm"
 msgstr ""
-"fokusa distanco ekvivalenta al 35 mm de la lensoj uzataj por kapti la "
-"bildon, laŭ mm"
 
 msgid "capturing digital zoom ratio"
-msgstr "kaptado de cifereca zoma kvociento"
+msgstr ""
 
 msgid "Digital zoom ratio used when capturing an image"
-msgstr "Cifereca zoma kvociento uzata por kapti bildon"
+msgstr ""
 
 msgid "capturing iso speed"
-msgstr "kaptado de rapido iso"
+msgstr ""
 
 msgid "The ISO speed used when capturing an image"
-msgstr "La rapido ISO uzata por kapti bildon"
+msgstr ""
 
 msgid "capturing exposure program"
-msgstr "kaptado de eksponada programo"
+msgstr ""
 
 msgid "The exposure program used when capturing an image"
-msgstr "La ekzponada programo uzata por kapti bildon"
+msgstr ""
 
 msgid "capturing exposure mode"
-msgstr "kaptado de ekzponada reĝimo"
+msgstr ""
 
 msgid "The exposure mode used when capturing an image"
-msgstr "La ekzponada reĝimo uzata dum kaptado de bildo"
+msgstr ""
 
 msgid "capturing exposure compensation"
-msgstr "kaptado de ekzponada kompenso"
+msgstr ""
 
 msgid "The exposure compensation used when capturing an image"
-msgstr "La ekzponada kompenso uzata por kapti bildon"
+msgstr ""
 
 msgid "capturing scene capture type"
-msgstr "kaptado de pejzaĝ-haviga tipo"
+msgstr ""
 
 msgid "The scene capture mode used when capturing an image"
-msgstr "La pejzaĝ-haviga reĝimo uzata por kapti bildon"
+msgstr ""
 
 msgid "capturing gain adjustment"
-msgstr "kaptado de amplifan difinon"
+msgstr ""
 
 msgid "The overall gain adjustment applied on an image"
-msgstr "La ĝenerala amplifa difino aplikata en bildo"
+msgstr ""
 
 msgid "capturing white balance"
-msgstr "kaptado de blankeca ekvilibro"
+msgstr ""
 
 msgid "The white balance mode set when capturing an image"
-msgstr "La blankeca ekvilibra reĝimo difinita por kapti bildon"
+msgstr ""
 
 msgid "capturing contrast"
-msgstr "kaptado de kontrasto"
+msgstr ""
 
 msgid "The direction of contrast processing applied when capturing an image"
-msgstr "La direkto de kontrasta procezado aplikata por kapti bildon"
+msgstr ""
 
 msgid "capturing saturation"
-msgstr "kaptado de satureco"
+msgstr ""
 
 msgid "The direction of saturation processing applied when capturing an image"
-msgstr "La direkto de satureca procezado aplikata por kapti bildon"
+msgstr ""
 
 msgid "capturing sharpness"
-msgstr "kaptado de neteco"
+msgstr ""
 
 msgid "The direction of sharpness processing applied when capturing an image"
-msgstr "La direkto de neteca procezado aplikata por kapti bildon"
+msgstr ""
 
 msgid "capturing flash fired"
-msgstr "kaptado de fulmolumilo"
+msgstr ""
 
 msgid "If the flash fired while capturing an image"
-msgstr "Ĉu la lumilo fulmis por kapti bildon"
+msgstr ""
 
 msgid "capturing flash mode"
-msgstr "kaptado de fulmila reĝimo"
+msgstr ""
 
 msgid "The selected flash mode while capturing an image"
-msgstr "La elektita fulmila reĝimo por kapti bildon"
+msgstr ""
 
 msgid "capturing metering mode"
-msgstr "kaptado de mezura reĝimo"
+msgstr ""
 
 msgid ""
 "The metering mode used while determining exposure for capturing an image"
-msgstr "La mezura reĝimo uzata por difini ekspono por kapti bildon"
+msgstr ""
 
 msgid "capturing source"
-msgstr "kaptado de fonto"
+msgstr ""
 
 msgid "The source or type of device used for the capture"
-msgstr "La fonto aŭ tipo de aparato uzata por la kaptado"
+msgstr ""
 
 msgid "image horizontal ppi"
-msgstr "bilda horizontala ppi"
+msgstr ""
 
 msgid "Media (image/video) intended horizontal pixel density in ppi"
-msgstr "Aŭdvidaĵa intenca horizontala denso de bilderoj laŭ ppi"
+msgstr ""
 
 msgid "image vertical ppi"
-msgstr "bilda vertikala ppi"
+msgstr ""
 
 msgid "Media (image/video) intended vertical pixel density in ppi"
-msgstr "Aŭdvidaĵa intenca vertikala denso de bilderoj laŭ ppi"
+msgstr ""
 
 msgid "ID3v2 frame"
-msgstr "kadro ID3v2"
+msgstr ""
 
 msgid "unparsed id3v2 tag frame"
-msgstr "kadro kun neanalizita etikedo id3v2"
+msgstr ""
 
 msgid "musical-key"
-msgstr "muzik-tono"
+msgstr ""
 
 msgid "Initial key in which the sound starts"
-msgstr "Unua tono en kiu la sono komencas"
+msgstr ""
 
 msgid "Print version information and exit"
-msgstr "Montri informon pri versio kaj eliri"
+msgstr ""
 
 msgid ""
 "Don't exit after showing the initial device list, but wait for devices to "
 "added/removed."
 msgstr ""
-"Ne eliri post montro de komenca aparato-listo, sed atendi por ke aparatoj "
-"estu aldonataj/forigataj."
-
-msgid "Include devices from hidden device providers."
-msgstr ""
 
 #, c-format
 msgid "Volume: %.0f%%"
-msgstr "Laŭteco: %.0f%%"
-
-msgid "Mute: on"
-msgstr ""
-
-msgid "Mute: off"
 msgstr ""
 
 msgid "Buffering..."
-msgstr "Bufrado..."
+msgstr ""
 
 msgid "Clock lost, selecting a new one\n"
-msgstr "Horloĝo estas perdita, ni elektas novan\n"
+msgstr ""
 
 msgid "Reached end of play list."
-msgstr "Fino de lud-listo estas atingita."
+msgstr ""
 
 msgid "Paused"
-msgstr "Paŭso"
+msgstr ""
 
 #, c-format
 msgid "Now playing %s\n"
-msgstr "Nun ni ludas %s\n"
+msgstr ""
 
 #, c-format
 msgid "About to finish, preparing next title: %s"
-msgstr "Baldaŭ tiu finos, ni preparas sekvan titolon: %s"
+msgstr ""
 
 #, c-format
 msgid "Playback rate: %.2f"
-msgstr "Ludad-rapido: %.2f"
+msgstr ""
 
-#, c-format
+#, fuzzy, c-format
 msgid "Could not change playback rate to %.2f"
-msgstr "Ne eblis ŝanĝi ludad-rapidon al %.2f"
+msgstr "Ne eblis malfermi aparaton por reproduktado per dukanala reĝimo."
 
 msgid "space"
-msgstr "spaco"
+msgstr ""
 
 msgid "pause/unpause"
-msgstr "paŭso/daŭrigo"
+msgstr ""
 
 msgid "q or ESC"
-msgstr "q aŭ ESC"
+msgstr ""
 
 msgid "quit"
-msgstr "eliri"
+msgstr ""
 
 msgid "> or n"
-msgstr "> aŭ n"
+msgstr ""
 
 msgid "play next"
-msgstr "ludi sekvan"
+msgstr ""
 
 msgid "< or b"
-msgstr "< aŭ b"
+msgstr ""
 
 msgid "play previous"
-msgstr "ludi pasintan"
+msgstr ""
 
 msgid "seek forward"
-msgstr "trairi antaŭen"
+msgstr ""
 
 msgid "seek backward"
-msgstr "trairi malantaŭen"
+msgstr ""
 
 msgid "volume up"
-msgstr "pliigi laŭtecon"
+msgstr ""
 
 msgid "volume down"
-msgstr "malpliigi laŭtecon"
-
-msgid "toggle audio mute on/off"
 msgstr ""
 
 msgid "increase playback rate"
-msgstr "pliigi lud-rapidon"
+msgstr ""
 
 msgid "decrease playback rate"
-msgstr "malpliigi lud-rapidon"
+msgstr ""
 
 msgid "change playback direction"
-msgstr "ŝanĝi direkton de ludado"
+msgstr ""
 
 msgid "enable/disable trick modes"
-msgstr "aktivigi/malaktivigi artifikajn reĝimojn"
+msgstr ""
 
 msgid "change audio track"
-msgstr "ŝanĝi trakon de sono"
+msgstr ""
 
 msgid "change video track"
-msgstr "ŝanĝi trakon de video"
+msgstr ""
 
 msgid "change subtitle track"
-msgstr "ŝanĝi trakon de subteksto"
+msgstr ""
 
 msgid "seek to beginning"
-msgstr "trairi al la komenco"
+msgstr ""
 
 msgid "show keyboard shortcuts"
-msgstr "montri fulmoklavojn"
+msgstr ""
 
 msgid "Interactive mode - keyboard controls:"
-msgstr "Interega reĝimo - klavaraj regiloj:"
+msgstr ""
 
 msgid "Output status information and property notifications"
-msgstr "Eligi informon pri stato kaj sciigojn pri atributoj"
+msgstr ""
 
 msgid "Control playback behaviour setting playbin 'flags' property"
-msgstr "Regi ludadan konduton per difino de atributo 'flags' de Playbin"
+msgstr ""
 
 msgid "Video sink to use (default is autovideosink)"
-msgstr "Videa konsumanto uzota (apriore estas autovideosink)"
+msgstr ""
 
 msgid "Audio sink to use (default is autoaudiosink)"
-msgstr "Sona konsumanto uzota (apriore estas autoaudiosink)"
+msgstr ""
 
 msgid "Enable gapless playback"
-msgstr "Aktivigas ludadon sen interrompoj"
+msgstr ""
 
 msgid "Shuffle playlist"
-msgstr "Hazarda ludlisto"
+msgstr ""
 
 msgid "Disable interactive control via the keyboard"
-msgstr "Malaktivigi interagan regadon per klavaro"
+msgstr ""
 
 msgid "Volume"
-msgstr "Laŭteco"
-
-msgid "Start position in seconds."
 msgstr ""
 
 msgid "Playlist file containing input media files"
-msgstr "Ludlista dosiero enhavanta enigajn aŭdvidaĵajn dosierojn"
-
-msgid "Use the experimental instant-rate-change flag when changing rate"
 msgstr ""
 
 msgid "Do not print any output (apart from errors)"
-msgstr "Ne montru iun ajn eligon (krom eraroj)"
+msgstr ""
 
 msgid "Use playbin3 pipeline"
-msgstr "Uzi ĉenstablon playbin3"
+msgstr ""
 
 msgid "(default varies depending on 'USE_PLAYBIN' env variable)"
-msgstr "(aprioro varias depende de la medivariablo 'USE_PLAYBIN')"
+msgstr ""
 
 msgid ""
 "Keep showing the last frame on EOS until quit or playlist change command "
 "(gapless is ignored)"
 msgstr ""
-"Teni montradon de la lasta kadro en EOS ĝis komando 'eliri' aŭ 'ŝanĝi "
-"ludliston' (seninterrompo estos ignorata)"
 
 #, c-format
 msgid "Usage: %s FILE1|URI1 [FILE2|URI2] [FILE3|URI3] ..."
-msgstr "Uzmaniero: %s DOSIERO1|URI1 [DOSIERO2|URI2] [DOSIERO3|URI3] ..."
+msgstr ""
 
 msgid "You must provide at least one filename or URI to play."
-msgstr "Vi devas indiki minimume unu dosiernomon aŭ URI por ludi."
+msgstr ""
 
 msgid "Press 'k' to see a list of keyboard shortcuts.\n"
-msgstr "Premu 'k' por vidi liston de fulmoklavoj.\n"
+msgstr ""
+
+#, fuzzy
+#~ msgid "Could not create \"decodebin3\" element."
+#~ msgstr "Ne eblis krei \"decodebin\"-elementon."
+
+#, fuzzy
+#~ msgid "Could not create \"urisourcebin\" element."
+#~ msgstr "Ne eblis krei \"decodebin\"-elementon."
+
+#~ msgid "Internal data stream error."
+#~ msgstr "Interna datumflu-eraro."
+
+#~ msgid "A %s plugin is required to play this stream, but not installed."
+#~ msgstr "%s-kromprogramo bezonatas, sed tia ne estas instalite."
 
 #~ msgid "Master"
 #~ msgstr "Ĉefa regilo"
@@ -773,12 +735,6 @@ msgstr "Premu 'k' por vidi liston de fulmoklavoj.\n"
 
 #~ msgid "Error while writing to file \"%s\"."
 #~ msgstr "Eraro dum skribo al dosiero \"%s\"."
-
-#~ msgid "Internal data stream error."
-#~ msgstr "Interna datumflu-eraro."
-
-#~ msgid "A %s plugin is required to play this stream, but not installed."
-#~ msgstr "%s-kromprogramo bezonatas, sed tia ne estas instalite."
 
 #~ msgid "Invalid subtitle URI \"%s\", subtitles disabled."
 #~ msgstr "Nevalida subtekst-adreso \"%s\", subtekstoj estos elŝaltate."

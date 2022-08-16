@@ -79,7 +79,6 @@
 #include "config.h"
 #endif
 
-#include "gstvideoparserselements.h"
 #include "gstvc1parse.h"
 
 #include <gst/base/base.h>
@@ -187,8 +186,6 @@ static GstStaticPadTemplate srctemplate = GST_STATIC_PAD_TEMPLATE ("src",
 
 #define parent_class gst_vc1_parse_parent_class
 G_DEFINE_TYPE (GstVC1Parse, gst_vc1_parse, GST_TYPE_BASE_PARSE);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (vc1parse, "vc1parse", GST_RANK_NONE,
-    GST_TYPE_VC1_PARSE, videoparsers_element_init (plugin));
 
 static void gst_vc1_parse_finalize (GObject * object);
 
@@ -254,10 +251,6 @@ gst_vc1_parse_init (GstVC1Parse * vc1parse)
   gst_vc1_parse_reset (vc1parse);
   GST_PAD_SET_ACCEPT_INTERSECT (GST_BASE_PARSE_SINK_PAD (vc1parse));
   GST_PAD_SET_ACCEPT_TEMPLATE (GST_BASE_PARSE_SINK_PAD (vc1parse));
-
-  /* We have reordered frames - don't interpolate PTS */
-  gst_base_parse_set_pts_interpolation (GST_BASE_PARSE (vc1parse), FALSE);
-  gst_base_parse_set_infer_ts (GST_BASE_PARSE (vc1parse), FALSE);
 }
 
 static void
@@ -898,9 +891,8 @@ gst_vc1_parse_update_caps (GstVC1Parse * vc1parse)
     gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, vc1parse->fps_n,
         vc1parse->fps_d, NULL);
 
-    if (vc1parse->fps_n > 0)
-      vc1parse->frame_duration = gst_util_uint64_scale (GST_SECOND,
-          vc1parse->fps_d, vc1parse->fps_n);
+    vc1parse->frame_duration = gst_util_uint64_scale (GST_SECOND,
+        vc1parse->fps_d, vc1parse->fps_n);
   }
 
   if (vc1parse->par_n != 0 && vc1parse->par_d != 0)
@@ -2431,10 +2423,10 @@ gst_vc1_parse_set_caps (GstBaseParse * parse, GstCaps * caps)
 
       /* Some sanity checking */
       if ((minfo.data[0] & 0x01) != 0x01) {
-        GST_WARNING_OBJECT (vc1parse,
+        GST_ERROR_OBJECT (vc1parse,
             "Invalid binding byte for VC1 advanced profile ASF header");
-        /* stay relax on the validation, it's quite minor to set the reserved
-         * bit to 0 instead of 1, also see bug #793551 */
+        gst_buffer_unmap (codec_data, &minfo);
+        return FALSE;
       }
 
       start_code = GST_READ_UINT32_BE (minfo.data + 1);

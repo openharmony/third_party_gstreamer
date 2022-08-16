@@ -24,7 +24,6 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-#include "gstudpelements.h"
 #include "gstdynudpsink.h"
 
 #include <gst/net/gstnetaddressmeta.h>
@@ -84,8 +83,6 @@ static guint gst_dynudpsink_signals[LAST_SIGNAL] = { 0 };
 
 #define gst_dynudpsink_parent_class parent_class
 G_DEFINE_TYPE (GstDynUDPSink, gst_dynudpsink, GST_TYPE_BASE_SINK);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (dynudpsink, "dynudpsink", GST_RANK_NONE,
-    GST_TYPE_DYNUDPSINK, udp_element_init (plugin));
 
 static void
 gst_dynudpsink_class_init (GstDynUDPSinkClass * klass)
@@ -108,7 +105,8 @@ gst_dynudpsink_class_init (GstDynUDPSinkClass * klass)
       g_signal_new ("get-stats", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
       G_STRUCT_OFFSET (GstDynUDPSinkClass, get_stats),
-      NULL, NULL, NULL, GST_TYPE_STRUCTURE, 2, G_TYPE_STRING, G_TYPE_INT);
+      NULL, NULL, g_cclosure_marshal_generic, GST_TYPE_STRUCTURE, 2,
+      G_TYPE_STRING, G_TYPE_INT);
 
   g_object_class_install_property (gobject_class, PROP_SOCKET,
       g_param_spec_object ("socket", "Socket",

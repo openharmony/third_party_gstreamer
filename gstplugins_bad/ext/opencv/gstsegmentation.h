@@ -118,7 +118,7 @@ struct _GstSegmentationClass
 
 GType gst_segmentation_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (segmentation);
+gboolean gst_segmentation_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 #endif /* __GST_SEGMENTATION_H__ */

@@ -75,13 +75,8 @@ struct _GstVideoFlip {
   GstVideoFilter videofilter;
 
   /* < private > */
-  GstVideoFormat v_format;
-
   GstVideoOrientationMethod method;
   GstVideoOrientationMethod tag_method;
-  GstVideoOrientationMethod proposed_method;
-  gboolean change_configuring_method;
-  GstVideoOrientationMethod configuring_method;
   GstVideoOrientationMethod active_method;
   void (*process) (GstVideoFlip *videoflip, GstVideoFrame *dest, const GstVideoFrame *src);
 };
@@ -91,8 +86,6 @@ struct _GstVideoFlipClass {
 };
 
 GType gst_video_flip_get_type (void);
-
-GST_ELEMENT_REGISTER_DECLARE (videoflip);
 
 G_END_DECLS
 

@@ -30,9 +30,18 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_AUDIO_MIXER (gst_audiomixer_get_type())
-G_DECLARE_FINAL_TYPE (GstAudioMixer, gst_audiomixer, GST, AUDIO_MIXER,
-    GstAudioAggregator)
+#define GST_TYPE_AUDIO_MIXER            (gst_audiomixer_get_type())
+#define GST_AUDIO_MIXER(obj)            (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_AUDIO_MIXER,GstAudioMixer))
+#define GST_IS_AUDIO_MIXER(obj)         (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_AUDIO_MIXER))
+#define GST_AUDIO_MIXER_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST((klass) ,GST_TYPE_AUDIO_MIXER,GstAudioMixerClass))
+#define GST_IS_AUDIO_MIXER_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE((klass) ,GST_TYPE_AUDIO_MIXER))
+#define GST_AUDIO_MIXER_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS((obj) ,GST_TYPE_AUDIO_MIXER,GstAudioMixerClass))
+
+typedef struct _GstAudioMixer             GstAudioMixer;
+typedef struct _GstAudioMixerClass        GstAudioMixerClass;
+
+typedef struct _GstAudioMixerPad GstAudioMixerPad;
+typedef struct _GstAudioMixerPadClass GstAudioMixerPadClass;
 
 /**
  * GstAudioMixer:
@@ -43,9 +52,18 @@ struct _GstAudioMixer {
   GstAudioAggregator element;
 };
 
-#define GST_TYPE_AUDIO_MIXER_PAD (gst_audiomixer_pad_get_type())
-G_DECLARE_FINAL_TYPE (GstAudioMixerPad, gst_audiomixer_pad,
-    GST, AUDIO_MIXER_PAD, GstAudioAggregatorConvertPad)
+struct _GstAudioMixerClass {
+  GstAudioAggregatorClass parent_class;
+};
+
+GType    gst_audiomixer_get_type (void);
+
+#define GST_TYPE_AUDIO_MIXER_PAD            (gst_audiomixer_pad_get_type())
+#define GST_AUDIO_MIXER_PAD(obj)            (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_AUDIO_MIXER_PAD,GstAudioMixerPad))
+#define GST_IS_AUDIO_MIXER_PAD(obj)         (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_AUDIO_MIXER_PAD))
+#define GST_AUDIO_MIXER_PAD_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST((klass) ,GST_TYPE_AUDIO_MIXER_PAD,GstAudioMixerPadClass))
+#define GST_IS_AUDIO_MIXER_PAD_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE((klass) ,GST_TYPE_AUDIO_MIXER_PAD))
+#define GST_AUDIO_MIXER_PAD_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS((obj) ,GST_TYPE_AUDIO_MIXER_PAD,GstAudioMixerPadClass))
 
 struct _GstAudioMixerPad {
   GstAudioAggregatorConvertPad parent;
@@ -57,6 +75,13 @@ struct _GstAudioMixerPad {
   gboolean mute;
 };
 
+struct _GstAudioMixerPadClass {
+  GstAudioAggregatorConvertPadClass parent_class;
+};
+
+GType gst_audiomixer_pad_get_type (void);
+
 G_END_DECLS
+
 
 #endif /* __GST_AUDIO_MIXER_H__ */

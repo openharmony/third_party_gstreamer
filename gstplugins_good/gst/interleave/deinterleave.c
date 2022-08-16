@@ -32,20 +32,20 @@
 
 /**
  * SECTION:element-deinterleave
- * @title: deinterleave
  * @see_also: interleave
  *
  * Splits one interleaved multichannel audio stream into many mono audio streams.
- *
+ * 
  * This element handles all raw audio formats and supports changing the input caps as long as
  * all downstream elements can handle the new caps and the number of channels and the channel
  * positions stay the same. This restriction will be removed in later versions by adding or
  * removing some source pads as required.
- *
+ * 
  * In most cases a queue and an audioconvert element should be added after each source pad
  * before further processing of the audio data.
- *
- * ## Example launch line
+ * 
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 filesrc location=/path/to/file.mp3 ! decodebin ! audioconvert ! "audio/x-raw,channels=2 ! deinterleave name=d  d.src_0 ! queue ! audioconvert ! vorbisenc ! oggmux ! filesink location=channel1.ogg  d.src_1 ! queue ! audioconvert ! vorbisenc ! oggmux ! filesink location=channel2.ogg
  * ]| Decodes an MP3 file and encodes the left and right channel into separate
@@ -55,7 +55,7 @@
  * ]| Decodes and deinterleaves a Stereo MP3 file into separate channels and
  * then interleaves the channels again to a WAV file with the channel with the
  * channels exchanged.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -64,7 +64,6 @@
 
 #include <gst/gst.h>
 #include <string.h>
-#include "gstinterleaveelements.h"
 #include "deinterleave.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_deinterleave_debug);
@@ -117,8 +116,6 @@ deinterleave_24 (guint8 * out, guint8 * in, guint stride, guint nframes)
 
 #define gst_deinterleave_parent_class parent_class
 G_DEFINE_TYPE (GstDeinterleave, gst_deinterleave, GST_TYPE_ELEMENT);
-GST_ELEMENT_REGISTER_DEFINE (deinterleave, "deinterleave",
-    GST_RANK_NONE, gst_deinterleave_get_type ());
 
 enum
 {
@@ -189,7 +186,7 @@ gst_deinterleave_class_init (GstDeinterleaveClass * klass)
 
   /**
    * GstDeinterleave:keep-positions
-   *
+   * 
    * Keep positions: When enable the caps on the output buffers will
    * contain the original channel positions. This can be used to correctly
    * interleave the output again later but can also lead to unwanted effects
@@ -496,7 +493,7 @@ set_caps_failed:
   }
 info_from_caps_failed:
   {
-    GST_ERROR_OBJECT (self, "could not get info from caps");
+    GST_ERROR_OBJECT (self, "coud not get info from caps");
     return FALSE;
   }
 }
@@ -555,7 +552,7 @@ gst_deinterleave_sink_acceptcaps (GstPad * pad, GstObject * parent,
 
 info_from_caps_failed:
   {
-    GST_ERROR_OBJECT (self, "could not get info from caps");
+    GST_ERROR_OBJECT (self, "coud not get info from caps");
     return FALSE;
   }
 }
@@ -586,7 +583,7 @@ gst_deinterleave_getcaps (GstPad * pad, GstObject * parent, GstCaps * filter)
    * to get all formats that are possible up- and downstream.
    *
    * For the pad for which the caps are requested we don't remove the channel
-   * information as they must be in the returned caps and incompatibilities
+   * informations as they must be in the returned caps and incompatibilities
    * will be detected here already
    */
   ret = gst_caps_new_any ();

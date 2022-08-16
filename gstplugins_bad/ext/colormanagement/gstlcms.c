@@ -28,14 +28,15 @@
  * frames using the given ICC (International Color Consortium) profiles.
  * Falls back to internal sRGB profile if no ICC file is specified in property.
  *
- * ## Example launch line
- *
- * (write everything in one line, without the backslash characters)
+ * <refsect2>
+ * <title>Example launch line</title>
+ * <para>(write everything in one line, without the backslash characters)</para>
  * |[
  * gst-launch-1.0 filesrc location=photo_camera.png ! pngdec ! \
  * videoconvert ! lcms input-profile=sRGB.icc dest-profile=printer.icc \
  * pngenc ! filesink location=photo_print.png
  * ]|
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -67,7 +68,7 @@ enum
 GType
 gst_lcms_intent_get_type (void)
 {
-  static gsize intent_type = 0;
+  static volatile gsize intent_type = 0;
   static const GEnumValue intent[] = {
     {GST_LCMS_INTENT_PERCEPTUAL, "Perceptual",
         "perceptual"},
@@ -90,7 +91,7 @@ gst_lcms_intent_get_type (void)
 static GType
 gst_lcms_lookup_method_get_type (void)
 {
-  static gsize lookup_method_type = 0;
+  static volatile gsize lookup_method_type = 0;
   static const GEnumValue lookup_method[] = {
     {GST_LCMS_LOOKUP_METHOD_UNCACHED,
           "Uncached, calculate every pixel on the fly (very slow playback)",
@@ -99,7 +100,7 @@ gst_lcms_lookup_method_get_type (void)
           "Precalculate lookup table (takes a long time getting READY)",
         "precalculated"},
     {GST_LCMS_LOOKUP_METHOD_CACHED,
-          "Calculate and cache color replacement values on first occurrence",
+          "Calculate and cache color replacement values on first occurence",
         "cached"},
     {0, NULL, NULL},
   };
@@ -158,7 +159,6 @@ static void gst_lcms_process_rgb (GstLcms * lcms, GstVideoFrame * inframe,
     GstVideoFrame * outframe);
 
 G_DEFINE_TYPE (GstLcms, gst_lcms, GST_TYPE_VIDEO_FILTER);
-GST_ELEMENT_REGISTER_DEFINE (lcms, "lcms", GST_RANK_NONE, GST_TYPE_LCMS);
 
 static void
 gst_lcms_class_init (GstLcmsClass * klass)
@@ -226,9 +226,6 @@ gst_lcms_class_init (GstLcmsClass * klass)
   vfilter_class->transform_frame_ip =
       GST_DEBUG_FUNCPTR (gst_lcms_transform_frame_ip);
   vfilter_class->transform_frame = GST_DEBUG_FUNCPTR (gst_lcms_transform_frame);
-
-  gst_type_mark_as_plugin_api (GST_TYPE_LCMS_INTENT, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_LCMS_LOOKUP_METHOD, 0);
 }
 
 static void

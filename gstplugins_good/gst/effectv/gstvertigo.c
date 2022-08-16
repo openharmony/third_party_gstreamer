@@ -23,15 +23,15 @@
 
 /**
  * SECTION:element-vertigotv
- * @title: vertigotv
  *
  * VertigoTV is a loopback alpha blending effector with rotating and scaling.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 -v videotestsrc ! vertigotv ! videoconvert ! autovideosink
  * ]| This pipeline shows the effect of vertigotv on a test stream.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -41,13 +41,10 @@
 #include <math.h>
 #include <string.h>
 
-#include "gsteffectv.h"
 #include "gstvertigo.h"
 
 #define gst_vertigotv_parent_class parent_class
 G_DEFINE_TYPE (GstVertigoTV, gst_vertigotv, GST_TYPE_VIDEO_FILTER);
-GST_ELEMENT_REGISTER_DEFINE (vertigotv, "vertigotv", GST_RANK_NONE,
-    GST_TYPE_VERTIGOTV);
 
 /* Filter signals and args */
 enum

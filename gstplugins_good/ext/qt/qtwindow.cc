@@ -31,11 +31,12 @@
 #include "gstqtglutility.h"
 
 #include <QtCore/QDateTime>
+#include <QtCore/QRunnable>
 #include <QtGui/QGuiApplication>
 #include <QtQuick/QQuickWindow>
 #include <QOpenGLFramebufferObject>
 
-/* compatibility definitions... */
+/* compatability definitions... */
 #ifndef GL_READ_FRAMEBUFFER
 #define GL_READ_FRAMEBUFFER 0x8CA8
 #endif
@@ -69,7 +70,6 @@ struct _QtGLWindowPrivate
 
   GstGLDisplay *display;
   GstGLContext *other_context;
-  GstGLContext *context;
 
   GLuint fbo;
 
@@ -79,11 +79,31 @@ struct _QtGLWindowPrivate
   quint64 stop;
 };
 
+class InitQtGLContext : public QRunnable
+{
+public:
+  InitQtGLContext(QtGLWindow *window);
+  void run();
+
+private:
+  QtGLWindow *window_;
+};
+
+InitQtGLContext::InitQtGLContext(QtGLWindow *window) :
+  window_(window)
+{
+}
+
+void InitQtGLContext::run()
+{
+  window_->onSceneGraphInitialized();
+}
+
 QtGLWindow::QtGLWindow ( QWindow * parent, QQuickWindow *src ) :
   QQuickWindow( parent ), source (src)
 {
   QGuiApplication *app = static_cast<QGuiApplication *> (QCoreApplication::instance ());
-  static gsize _debug;
+  static volatile gsize _debug;
 
   g_assert (app != NULL);
 
@@ -97,13 +117,13 @@ QtGLWindow::QtGLWindow ( QWindow * parent, QQuickWindow *src ) :
   g_mutex_init (&this->priv->lock);
   g_cond_init (&this->priv->update_cond);
 
-  this->priv->display = gst_qt_get_gl_display(FALSE);
+  this->priv->display = gst_qt_get_gl_display();
 
   connect (source, SIGNAL(beforeRendering()), this, SLOT(beforeRendering()), Qt::DirectConnection);
   connect (source, SIGNAL(afterRendering()), this, SLOT(afterRendering()), Qt::DirectConnection);
   connect (app, SIGNAL(aboutToQuit()), this, SLOT(aboutToQuit()), Qt::DirectConnection);
   if (source->isSceneGraphInitialized())
-    source->scheduleRenderJob(new RenderJob(std::bind(&QtGLWindow::onSceneGraphInitialized, this)), QQuickWindow::BeforeSynchronizingStage);
+    source->scheduleRenderJob(new InitQtGLContext(this), QQuickWindow::BeforeSynchronizingStage);
   else
     connect (source, SIGNAL(sceneGraphInitialized()), this, SLOT(onSceneGraphInitialized()), Qt::DirectConnection);
 
@@ -121,8 +141,6 @@ QtGLWindow::~QtGLWindow()
     gst_object_unref(this->priv->other_context);
   if (this->priv->display)
     gst_object_unref(this->priv->display);
-  if (this->priv->context)
-    gst_object_unref(this->priv->context);
   g_free (this->priv);
   this->priv = NULL;
 }
@@ -134,7 +152,7 @@ QtGLWindow::beforeRendering()
 
   g_mutex_lock (&this->priv->lock);
 
-  static gsize once = 0;
+  static volatile gsize once = 0;
   if (g_once_init_enter(&once)) {
     this->priv->start = QDateTime::currentDateTime().toMSecsSinceEpoch();
     g_once_init_leave(&once,1);
@@ -171,7 +189,6 @@ QtGLWindow::afterRendering()
   guint width, height;
   const GstGLFuncs *gl;
   GLuint dst_tex;
-  GstGLSyncMeta *sync_meta;
 
   g_mutex_lock (&this->priv->lock);
 
@@ -225,25 +242,14 @@ QtGLWindow::afterRendering()
       GST_ERROR ("FBO errors");
       goto errors;
     }
-    if (this->priv->useDefaultFbo)
-      gl->ReadBuffer (GL_BACK);
-    else
-      gl->ReadBuffer (GL_COLOR_ATTACHMENT0);
+    gl->ReadBuffer (GL_COLOR_ATTACHMENT0);
     gl->BlitFramebuffer (0, 0, width, height,
         0, 0, width, height,
         GL_COLOR_BUFFER_BIT, GL_LINEAR);
   } else {
     gl->CopyTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 0, 0, width, height, 0);
   }
-
-  if (this->priv->context) {
-    sync_meta = gst_buffer_get_gl_sync_meta (this->priv->buffer);
-    if (!sync_meta) {
-      sync_meta = gst_buffer_add_gl_sync_meta (this->priv->context, this->priv->buffer);
-    }
-    gst_gl_sync_meta_set_sync_point (sync_meta, context);
-  }
-
+  
   GST_DEBUG ("rendering finished");
 
 errors:
@@ -284,7 +290,7 @@ QtGLWindow::onSceneGraphInitialized()
       this->source->openglContext ());
 
   this->priv->initted = gst_qt_get_gl_wrapcontext (this->priv->display,
-      &this->priv->other_context, &this->priv->context);
+      &this->priv->other_context, NULL);
 
   if (this->priv->initted && this->priv->other_context) {
     const GstGLFuncs *gl;
@@ -350,30 +356,6 @@ qt_window_get_display (QtGLWindow * qt_window)
     return NULL;
 
   return (GstGLDisplay *) gst_object_ref (qt_window->priv->display);
-}
-
-GstGLContext *
-qt_window_get_context (QtGLWindow * qt_window)
-{
-  g_return_val_if_fail (qt_window != NULL, NULL);
-
-  if (!qt_window->priv->context)
-    return NULL;
-
-  return (GstGLContext *) gst_object_ref (qt_window->priv->context);
-}
-
-gboolean
-qt_window_set_context (QtGLWindow * qt_window, GstGLContext * context)
-{
-  g_return_val_if_fail (qt_window != NULL, FALSE);
-
-  if (qt_window->priv->context && qt_window->priv->context != context)
-    return FALSE;
-
-  gst_object_replace ((GstObject **) &qt_window->priv->context, (GstObject *) context);
-
-  return TRUE;
 }
 
 gboolean

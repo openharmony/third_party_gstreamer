@@ -47,7 +47,6 @@ struct _GstRtpUlpFecEnc {
   GstElement parent;
   GstPad *srcpad;
   GstPad *sinkpad;
-  guint8 twcc_ext_id;
 
   GHashTable *ssrc_to_ctx;
 

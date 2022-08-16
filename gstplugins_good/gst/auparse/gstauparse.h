@@ -70,8 +70,6 @@ struct _GstAuParseClass {
 
 GType gst_au_parse_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (auparse);
-
 G_END_DECLS
 
 #endif /* __GST_AU_PARSE_H__ */

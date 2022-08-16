@@ -11,7 +11,6 @@ dvb_sources = [
   'camutils.c',
   'dvbbasebin.c',
   'gstdvb.c',
-  'gstdvbelement.c',
   'gstdvbsrc.c',
   'parsechannels.c',
 ]
@@ -41,5 +40,4 @@ if have_dvb
     install_dir : plugins_install_dir,
   )
   pkgconfig.generate(gstdvb, install_dir : plugins_pkgconfig_install_dir)
-  plugins += [gstdvb]
 endif

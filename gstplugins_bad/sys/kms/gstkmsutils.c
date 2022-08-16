@@ -40,47 +40,32 @@ static const struct
 #define DEF_FMT(fourcc, fmt) \
   { DRM_FORMAT_##fourcc,GST_VIDEO_FORMAT_##fmt }
 
-  /* Keep sorted by decreasing quality, refer to GST_VIDEO_FORMATS_ALL order
-   * if unsure */  
-
-  /* 32bits/p RGB with Alpha */
+  /* DEF_FMT (XRGB1555, ???), */
+  /* DEF_FMT (XBGR1555, ???), */
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN
   DEF_FMT (ARGB8888, BGRA),
-  DEF_FMT (ABGR8888, RGBA),
-
-  /* 16bits/c YUV 4:2:0 */
-  DEF_FMT (P016, P016_LE),
-
-  /* 16bits/c YUV 4:2:0 */
-  DEF_FMT (P010, P010_10LE),
-
-  /* YUV 4:4:4 */
-  DEF_FMT (NV24, NV24),
-
-  /* 32bits/p RGB opaque */
   DEF_FMT (XRGB8888, BGRx),
+  DEF_FMT (ABGR8888, RGBA),
   DEF_FMT (XBGR8888, RGBx),
-
-  /* 24bits RGB opaque */
   DEF_FMT (BGR888, RGB),
   DEF_FMT (RGB888, BGR),
-
-  /* 8bits/c YUV 4:2:2 */
-  DEF_FMT (YUV422, Y42B),
-  DEF_FMT (NV61, NV61),
-  DEF_FMT (NV16, NV16),
+#else
+  DEF_FMT (ARGB8888, ARGB),
+  DEF_FMT (XRGB8888, xRGB),
+  DEF_FMT (ABGR8888, ABGR),
+  DEF_FMT (XBGR8888, xBGR),
+  DEF_FMT (RGB888, RGB),
+  DEF_FMT (BGR888, BGR),
+#endif
   DEF_FMT (UYVY, UYVY),
-  DEF_FMT (YVYU, YVYU),
   DEF_FMT (YUYV, YUY2),
-
-  /* 8bits/c YUV 4:2:0 */
+  DEF_FMT (YVYU, YVYU),
   DEF_FMT (YUV420, I420),
   DEF_FMT (YVU420, YV12),
-  DEF_FMT (NV21, NV21),
+  DEF_FMT (YUV422, Y42B),
   DEF_FMT (NV12, NV12),
-
-  /* 16bits/p RGB */
-  DEF_FMT (RGB565, RGB16),
-  DEF_FMT (BGR565, BGR16),
+  DEF_FMT (NV21, NV21),
+  DEF_FMT (NV16, NV16),
 
 #undef DEF_FMT
 };
@@ -124,19 +109,11 @@ gst_drm_bpp_from_drm (guint32 drmfmt)
     case DRM_FORMAT_NV12:
     case DRM_FORMAT_NV21:
     case DRM_FORMAT_NV16:
-    case DRM_FORMAT_NV61:
-    case DRM_FORMAT_NV24:
       bpp = 8;
-      break;
-    case DRM_FORMAT_P010:
-      bpp = 10;
       break;
     case DRM_FORMAT_UYVY:
     case DRM_FORMAT_YUYV:
     case DRM_FORMAT_YVYU:
-    case DRM_FORMAT_P016:
-    case DRM_FORMAT_RGB565:
-    case DRM_FORMAT_BGR565:
       bpp = 16;
       break;
     case DRM_FORMAT_BGR888:
@@ -162,16 +139,10 @@ gst_drm_height_from_drm (guint32 drmfmt, guint32 height)
     case DRM_FORMAT_YUV422:
     case DRM_FORMAT_NV12:
     case DRM_FORMAT_NV21:
-    case DRM_FORMAT_P010:
-    case DRM_FORMAT_P016:
       ret = height * 3 / 2;
       break;
     case DRM_FORMAT_NV16:
-    case DRM_FORMAT_NV61:
       ret = height * 2;
-      break;
-    case DRM_FORMAT_NV24:
-      ret = height * 3;
       break;
     default:
       ret = height;

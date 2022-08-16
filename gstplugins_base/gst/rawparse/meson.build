@@ -16,5 +16,4 @@ gstrawparse = library('gstrawparse',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstrawparse, install_dir : plugins_pkgconfig_install_dir)
-plugins += [gstrawparse]
 

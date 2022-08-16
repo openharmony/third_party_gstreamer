@@ -17,7 +17,7 @@
  * Boston, MA 02110-1335, USA.
  */
 /**
- * SECTION:element-audiochannelmix
+ * SECTION:element-gstaudiochannelmix
  * @title: gstaudiochannelmix
  *
  * The audiochannelmix element mixes channels in stereo audio based on
@@ -91,8 +91,6 @@ G_DEFINE_TYPE_WITH_CODE (GstAudioChannelMix, gst_audio_channel_mix,
     GST_TYPE_AUDIO_FILTER,
     GST_DEBUG_CATEGORY_INIT (gst_audio_channel_mix_debug_category,
         "audiochannelmix", 0, "debug category for audiochannelmix element"));
-GST_ELEMENT_REGISTER_DEFINE (audiochannelmix, "audiochannelmix", GST_RANK_NONE,
-    GST_TYPE_AUDIO_CHANNEL_MIX);
 
 static void
 gst_audio_channel_mix_class_init (GstAudioChannelMixClass * klass)

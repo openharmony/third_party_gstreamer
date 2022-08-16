@@ -73,9 +73,6 @@ struct _GstKMSSink {
   GstCaps *allowed_caps;
   GstBufferPool *pool;
   GstAllocator *allocator;
-  GstVideoInfo last_vinfo;
-  guint last_width;
-  guint last_height;
   GstBuffer *last_buffer;
   GstMemory *tmp_kmsmem;
 
@@ -100,7 +97,7 @@ struct _GstKMSSinkClass {
 };
 
 GType gst_kms_sink_get_type (void) G_GNUC_CONST;
-GST_ELEMENT_REGISTER_DECLARE (kmssink);
+
 G_END_DECLS
 
 #endif /* __GST_KMS_SINK_H__ */

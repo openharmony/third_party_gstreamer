@@ -82,7 +82,7 @@ struct _GstCircleClass
 
 GType gst_circle_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (circle);
+gboolean gst_circle_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 

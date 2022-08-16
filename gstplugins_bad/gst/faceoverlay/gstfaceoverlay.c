@@ -47,11 +47,12 @@
  * x, y, w, and h properties are optional, and change the image position and
  * size relative to the detected face position and size.
  *
- * ## Example launch line
- *
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 autovideosrc ! videoconvert ! faceoverlay location=/path/to/gnome-video-effects/pixmaps/bow.svg x=0.5 y=0.5 w=0.7 h=0.7 ! videoconvert ! autovideosink
  * ]|
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -89,11 +90,6 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
 
 #define gst_face_overlay_parent_class parent_class
 G_DEFINE_TYPE (GstFaceOverlay, gst_face_overlay, GST_TYPE_BIN);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (faceoverlay, "faceoverlay",
-    GST_RANK_NONE, GST_TYPE_FACEOVERLAY,
-    GST_DEBUG_CATEGORY_INIT (gst_face_overlay_debug, "faceoverlay", 0,
-        "SVG Face Overlay");
-    );
 
 static void gst_face_overlay_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -435,9 +431,13 @@ gst_face_overlay_get_property (GObject * object, guint prop_id,
 }
 
 static gboolean
-faceoverlay_init (GstPlugin * plugin)
+faceoverlay_init (GstPlugin * faceoverlay)
 {
-  return GST_ELEMENT_REGISTER (faceoverlay, plugin);
+  GST_DEBUG_CATEGORY_INIT (gst_face_overlay_debug, "faceoverlay",
+      0, "SVG Face Overlay");
+
+  return gst_element_register (faceoverlay, "faceoverlay", GST_RANK_NONE,
+      GST_TYPE_FACEOVERLAY);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

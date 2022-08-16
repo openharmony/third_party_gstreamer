@@ -26,8 +26,10 @@
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (voamrwbenc, plugin);
+  return gst_element_register (plugin, "voamrwbenc",
+      GST_RANK_SECONDARY, GST_TYPE_VOAMRWBENC);
 }
+
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,

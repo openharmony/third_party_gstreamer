@@ -40,7 +40,7 @@
 #define MPEGTS_MAX_PACKETSIZE MPEGTS_ATSC_PACKETSIZE
 
 #define MPEGTS_AFC_DISCONTINUITY_FLAG           0x80
-#define MPEGTS_AFC_RANDOM_ACCESS_FLAG           0x40
+#define MPEGTS_AFC_RANDOM_ACCES_FLAGS           0x40
 #define MPEGTS_AFC_ELEMENTARY_STREAM_PRIORITY   0x20
 #define MPEGTS_AFC_PCR_FLAG                     0x10
 #define MPEGTS_AFC_OPCR_FLAG                    0x08
@@ -283,14 +283,6 @@ struct _MpegTSPacketizer2 {
   MpegTSPCR *observations[MAX_PCR_OBS_CHANNELS];
   guint8 lastobsid;
   GstClockTime pcr_discont_threshold;
-
-  /* PTS/DTS of last buffer */
-  GstClockTime last_pts;
-  GstClockTime last_dts;
-
-  /* Extra time offset to handle values before initial PCR.
-   * This will be added to all converted timestamps */
-  GstClockTime extra_shift;
 };
 
 struct _MpegTSPacketizer2Class {

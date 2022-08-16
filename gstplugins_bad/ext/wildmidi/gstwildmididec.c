@@ -23,15 +23,15 @@
  * @see_also: #GstWildmidiDec
  *
  * wildmididec decodes MIDI files.
+ * It uses <ulink url="https://www.mindwerks.net/projects/wildmidi/">WildMidi</ulink>
+ * for this purpose. It can be autoplugged and therefore works with decodebin.
  *
- * It uses [WildMidi](https://www.mindwerks.net/projects/wildmidi/) for this
- * purpose. It can be autoplugged and therefore works with decodebin.
- *
- * ## Example launch line
- *
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 filesrc location=media/example.mid ! wildmididec ! audioconvert ! audioresample ! autoaudiosink
  * ]|
+ * </refsect2>
  */
 
 
@@ -111,8 +111,7 @@ static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
 
 G_DEFINE_TYPE (GstWildmidiDec, gst_wildmidi_dec,
     GST_TYPE_NONSTREAM_AUDIO_DECODER);
-GST_ELEMENT_REGISTER_DEFINE (wildmididec, "wildmididec", GST_RANK_MARGINAL,
-    gst_wildmidi_dec_get_type ());
+
 
 
 static void gst_wildmidi_dec_finalize (GObject * object);
@@ -152,7 +151,7 @@ static void gst_wildmidi_dec_update_options (GstWildmidiDec * wildmidi_dec);
 
 static GMutex load_mutex;
 static unsigned long init_refcount = 0;
-static gint wildmidi_initialized = 0;
+static volatile gint wildmidi_initialized = 0;
 
 
 static gchar *
@@ -629,7 +628,7 @@ gst_wildmidi_dec_decode (GstNonstreamAudioDecoder * dec, GstBuffer ** buffer,
     return FALSE;
 
   /* Allocate output buffer
-   * Multiply by 2 to accommodate for the sample size (16 bit = 2 byte) */
+   * Multiply by 2 to accomodate for the sample size (16 bit = 2 byte) */
   outbuf_size = wildmidi_dec->output_buffer_size * 2 * WILDMIDI_NUM_CHANNELS;
   outbuf =
       gst_nonstream_audio_decoder_allocate_output_buffer (dec, outbuf_size);
@@ -678,7 +677,8 @@ gst_wildmidi_dec_update_options (GstWildmidiDec * wildmidi_dec)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (wildmididec, plugin);
+  return gst_element_register (plugin, "wildmididec", GST_RANK_MARGINAL,
+      gst_wildmidi_dec_get_type ());
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

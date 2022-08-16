@@ -26,16 +26,31 @@
 #include "gstcoloreffects.h"
 #include "gstchromahold.h"
 
+struct _elements_entry
+{
+  const gchar *name;
+    GType (*type) (void);
+};
+
+static const struct _elements_entry _elements[] = {
+  {"coloreffects", gst_color_effects_get_type},
+  {"chromahold", gst_chroma_hold_get_type},
+  {NULL, 0},
+};
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+  gint i = 0;
 
-  ret |= GST_ELEMENT_REGISTER (coloreffects, plugin);
-  ret |= GST_ELEMENT_REGISTER (chromahold, plugin);
+  while (_elements[i].name) {
+    if (!gst_element_register (plugin, _elements[i].name,
+            GST_RANK_NONE, (_elements[i].type) ()))
+      return FALSE;
+    i++;
+  }
 
-  return ret;
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

@@ -112,6 +112,7 @@ struct _GstSubtitleOverlayClass
 };
 
 GType gst_subtitle_overlay_get_type (void);
+gboolean gst_subtitle_overlay_plugin_init (GstPlugin * plugin);
 
 GstCaps *gst_subtitle_overlay_create_factory_caps (void);
 

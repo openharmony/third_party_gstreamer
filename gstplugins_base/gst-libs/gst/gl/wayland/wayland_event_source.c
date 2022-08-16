@@ -39,19 +39,71 @@
 
 #include "wayland_event_source.h"
 
-#define GST_CAT_DEFAULT gst_gl_wayland_event_source_debug
-GST_DEBUG_CATEGORY_STATIC (GST_CAT_DEFAULT);
-
 static void
-init_debug (void)
+sync_callback (void *data, struct wl_callback *callback, uint32_t serial)
 {
-  static gsize _debug;
+  gboolean *done = data;
 
-  if (g_once_init_enter (&_debug)) {
-    GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "glwaylandeventsource", 0,
-        "OpenGL Wayland event source");
-    g_once_init_leave (&_debug, 1);
+  GST_TRACE ("roundtrip done. callback:%p", callback);
+
+  *done = TRUE;
+  wl_callback_destroy (callback);
+}
+
+static const struct wl_callback_listener sync_listener = {
+  sync_callback
+};
+
+/* only thread safe iff called on the same thread @queue is being dispatched on.
+ * Otherwise, two prepare_read{_queue}()'s can be indicated for the same
+ * queue and dispatch{_queue}() may be called for different threads which
+ * will cause deadlocks as no guarantees for thread-safety are given when
+ * pumping the same queue from multiple threads.
+ * As a concrete example, if the wayland event source (below) for a @queue is
+ * running on a certain thread, then this function must only be called in that
+ * thread (with that @queue). */
+gint
+gst_gl_wl_display_roundtrip_queue (struct wl_display *display,
+    struct wl_event_queue *queue)
+{
+  struct wl_callback *callback;
+  gboolean done = FALSE;
+  gint ret = 0;
+
+  GST_TRACE ("roundtrip start for dpy %p and queue %p", display, queue);
+
+  if (queue) {
+    /* creating a wl_proxy and setting the queue is racy with the dispatching
+     * of the default queue */
+    while (wl_display_prepare_read_queue (display, queue) != 0) {
+      if ((ret = wl_display_dispatch_queue_pending (display, queue)) < 0) {
+        return ret;
+      }
+    }
   }
+  if (!(callback = wl_display_sync (display))) {
+    return -1;
+  }
+  GST_TRACE ("create roundtrip callback %p", callback);
+  wl_callback_add_listener (callback, &sync_listener, &done);
+  if (queue) {
+    wl_proxy_set_queue ((struct wl_proxy *) callback, queue);
+    wl_display_cancel_read (display);
+    while (!done && ret >= 0) {
+      ret = wl_display_dispatch_queue (display, queue);
+    }
+  } else {
+    while (!done && ret >= 0) {
+      ret = wl_display_dispatch (display);
+    }
+  }
+
+  if (ret == -1 && !done)
+    wl_callback_destroy (callback);
+  GST_TRACE ("roundtrip done for dpy %p and queue %p. ret %i", display, queue,
+      ret);
+
+  return ret;
 }
 
 typedef struct _WaylandEventSource
@@ -151,8 +203,6 @@ wayland_event_source_new (struct wl_display *display,
     struct wl_event_queue *queue)
 {
   WaylandEventSource *source;
-
-  init_debug ();
 
   source = (WaylandEventSource *)
       g_source_new (&wayland_event_source_funcs, sizeof (WaylandEventSource));

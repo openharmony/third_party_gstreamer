@@ -40,8 +40,8 @@
  *
  * Examples for caps features would be the requirement of a specific #GstMemory
  * types or the requirement of having a specific #GstMeta on the buffer. Features
- * are given as a string of the format `memory:GstMemoryTypeName` or
- * `meta:GstMetaAPIName`.
+ * are given as a string of the format "memory:GstMemoryTypeName" or
+ * "meta:GstMetaAPIName".
  *
  * Since: 1.2
  */
@@ -118,13 +118,6 @@ _priv_gst_caps_features_cleanup (void)
   _gst_caps_features_memory_system_memory = NULL;
 }
 
-/**
- * gst_is_caps_features:
- *
- * Checks if @obj is a #GstCapsFeatures
- *
- * Returns: %TRUE if @obj is a #GstCapsFeatures %FALSE otherwise
- */
 gboolean
 gst_is_caps_features (gconstpointer obj)
 {
@@ -171,6 +164,8 @@ gst_caps_feature_name_is_valid (const gchar * feature)
  *
  * Creates a new, empty #GstCapsFeatures.
  *
+ * Free-function: gst_caps_features_free
+ *
  * Returns: (transfer full): a new, empty #GstCapsFeatures
  *
  * Since: 1.2
@@ -198,6 +193,8 @@ gst_caps_features_new_empty (void)
  * to any other #GstCapsFeatures but caps with these are
  * unfixed.
  *
+ * Free-function: gst_caps_features_free
+ *
  * Returns: (transfer full): a new, ANY #GstCapsFeatures
  *
  * Since: 1.2
@@ -214,33 +211,14 @@ gst_caps_features_new_any (void)
 }
 
 /**
- * gst_caps_features_new_single:
- * @feature: The feature
- *
- * Creates a new #GstCapsFeatures with a single feature.
- *
- * Returns: (transfer full): a new #GstCapsFeatures
- *
- * Since: 1.20
- */
-GstCapsFeatures *
-gst_caps_features_new_single (const gchar * feature)
-{
-  GstCapsFeatures *features;
-  g_return_val_if_fail (feature != NULL, NULL);
-
-  features = gst_caps_features_new_empty ();
-  gst_caps_features_add (features, feature);
-  return features;
-}
-
-/**
  * gst_caps_features_new:
  * @feature1: name of first feature to set
  * @...: additional features
  *
  * Creates a new #GstCapsFeatures with the given features.
  * The last argument must be %NULL.
+ *
+ * Free-function: gst_caps_features_free
  *
  * Returns: (transfer full): a new, empty #GstCapsFeatures
  *
@@ -267,6 +245,8 @@ gst_caps_features_new (const gchar * feature1, ...)
  * @varargs: variable argument list
  *
  * Creates a new #GstCapsFeatures with the given features.
+ *
+ * Free-function: gst_caps_features_free
  *
  * Returns: (transfer full): a new, empty #GstCapsFeatures
  *
@@ -297,6 +277,8 @@ gst_caps_features_new_valist (const gchar * feature1, va_list varargs)
  * Creates a new #GstCapsFeatures with the given features.
  * The last argument must be 0.
  *
+ * Free-function: gst_caps_features_free
+ *
  * Returns: (transfer full): a new, empty #GstCapsFeatures
  *
  * Since: 1.2
@@ -322,6 +304,8 @@ gst_caps_features_new_id (GQuark feature1, ...)
  * @varargs: variable argument list
  *
  * Creates a new #GstCapsFeatures with the given features.
+ *
+ * Free-function: gst_caps_features_free
  *
  * Returns: (transfer full): a new, empty #GstCapsFeatures
  *
@@ -352,7 +336,7 @@ gst_caps_features_new_id_valist (GQuark feature1, va_list varargs)
  * Sets the parent_refcount field of #GstCapsFeatures. This field is used to
  * determine whether a caps features is mutable or not. This function should only be
  * called by code implementing parent objects of #GstCapsFeatures, as described in
- * [the MT refcounting design document](additional/design/MT-refcounting.md).
+ * the MT Refcounting section of the design documents.
  *
  * Returns: %TRUE if the parent refcount could be set.
  *
@@ -388,6 +372,8 @@ gst_caps_features_set_parent_refcount (GstCapsFeatures * features,
  * @features: a #GstCapsFeatures to duplicate
  *
  * Duplicates a #GstCapsFeatures and all its values.
+ *
+ * Free-function: gst_caps_features_free
  *
  * Returns: (transfer full): a new #GstCapsFeatures.
  *
@@ -441,14 +427,15 @@ gst_caps_features_free (GstCapsFeatures * features)
  * Converts @features to a human-readable string representation.
  *
  * For debugging purposes its easier to do something like this:
- *
- * ``` C
+ * |[<!-- language="C" -->
  * GST_LOG ("features is %" GST_PTR_FORMAT, features);
- * ```
- *
+ * ]|
  * This prints the features in human readable form.
  *
+ * Free-function: g_free
+ *
  * Returns: (transfer full): a pointer to string allocated by g_malloc().
+ *     g_free() after usage.
  *
  * Since: 1.2
  */
@@ -495,8 +482,11 @@ priv_gst_caps_features_append_to_gstring (const GstCapsFeatures * features,
  *
  * Creates a #GstCapsFeatures from a string representation.
  *
+ * Free-function: gst_caps_features_free
+ *
  * Returns: (transfer full) (nullable): a new #GstCapsFeatures or
- *     %NULL when the string could not be parsed.
+ *     %NULL when the string could not be parsed. Free with
+ *     gst_caps_features_free() after use.
  *
  * Since: 1.2
  */
@@ -652,7 +642,7 @@ gst_caps_features_get_nth_id (const GstCapsFeatures * features, guint i)
  * @features: a #GstCapsFeatures.
  * @feature: a feature
  *
- * Checks if @features contains @feature.
+ * Check if @features contains @feature.
  *
  * Returns: %TRUE if @features contains @feature.
  *
@@ -674,7 +664,7 @@ gst_caps_features_contains (const GstCapsFeatures * features,
  * @features: a #GstCapsFeatures.
  * @feature: a feature
  *
- * Checks if @features contains @feature.
+ * Check if @features contains @feature.
  *
  * Returns: %TRUE if @features contains @feature.
  *
@@ -708,7 +698,7 @@ gst_caps_features_contains_id (const GstCapsFeatures * features, GQuark feature)
  * @features1: a #GstCapsFeatures.
  * @features2: a #GstCapsFeatures.
  *
- * Checks if @features1 and @features2 are equal.
+ * Check if @features1 and @features2 are equal.
  *
  * Returns: %TRUE if @features1 and @features2 are equal.
  *
@@ -754,7 +744,7 @@ gst_caps_features_is_equal (const GstCapsFeatures * features1,
  * gst_caps_features_is_any:
  * @features: a #GstCapsFeatures.
  *
- * Checks if @features is %GST_CAPS_FEATURES_ANY.
+ * Check if @features is %GST_CAPS_FEATURES_ANY.
  *
  * Returns: %TRUE if @features is %GST_CAPS_FEATURES_ANY.
  *

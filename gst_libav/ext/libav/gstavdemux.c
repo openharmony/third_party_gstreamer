@@ -35,12 +35,7 @@
 #include "gstavcodecmap.h"
 #include "gstavutils.h"
 #include "gstavprotocol.h"
-#ifdef OHOS_EXT_FUNC
-/**
- * ohos.ext.func.0019
- */
 #include "gst/tag/tag.h"
-#endif
 
 #define MAX_STREAMS 20
 
@@ -489,11 +484,7 @@ gst_ffmpegdemux_do_seek (GstFFMpegDemux * demux, GstSegment * segment)
     GST_LOG_OBJECT (demux, "keyframeidx: %d", keyframeidx);
 
     if (keyframeidx >= 0) {
-#if LIBAVFORMAT_VERSION_INT >= AV_VERSION_INT(58,78,0)
-      fftarget = avformat_index_get_entry (stream, keyframeidx)->timestamp;
-#else
       fftarget = stream->index_entries[keyframeidx].timestamp;
-#endif
       target = gst_ffmpeg_time_ff_to_gst (fftarget, stream->time_base);
 
       GST_LOG_OBJECT (demux,
@@ -1058,10 +1049,6 @@ gst_ffmpegdemux_get_stream (GstFFMpegDemux * demux, AVStream * avstream)
     case AVMEDIA_TYPE_VIDEO:
       templ = oclass->videosrctempl;
       num = demux->videopads++;
-      /* These are not part of the codec parameters we built the
-       * context from */
-      ctx->framerate.num = avstream->r_frame_rate.num;
-      ctx->framerate.den = avstream->r_frame_rate.den;
       break;
     case AVMEDIA_TYPE_AUDIO:
       templ = oclass->audiosrctempl;
@@ -1248,12 +1235,9 @@ match_tag_name (gchar * ffmpeg_tag_name)
 
   real_ffmpeg_tag_name = g_ascii_strdown(ffmpeg_tag_name, -1);
   for (i = 0; i < G_N_ELEMENTS (tagmapping); i++) {
-    if (!g_strcmp0 (tagmapping[i].ffmpeg_tag_name, real_ffmpeg_tag_name)) {
-      g_free(real_ffmpeg_tag_name);
+    if (!g_strcmp0 (tagmapping[i].ffmpeg_tag_name, real_ffmpeg_tag_name))
       return tagmapping[i].gst_tag_name;
-    }
   }
-  g_free(real_ffmpeg_tag_name);
 #else
   for (i = 0; i < G_N_ELEMENTS (tagmapping); i++) {
     if (!g_strcmp0 (tagmapping[i].ffmpeg_tag_name, ffmpeg_tag_name))
@@ -1358,15 +1342,6 @@ gst_ffmpegdemux_open (GstFFMpegDemux * demux)
   GstTagList *tags;
   GstEvent *event;
   GList *cached_events;
-#ifndef OHOS_EXT_FUNC
-  /**
-   * ohos.ext.func.0030
-   * we use the gstreamer's src element to process uri donwload, no need to use the ffmpeg's protocal
-   * process capability.
-   */
-  GstQuery *query;
-  gchar *uri = NULL;
-#endif
 
   /* to be sure... */
   gst_ffmpegdemux_close (demux);
@@ -1380,43 +1355,9 @@ gst_ffmpegdemux_open (GstFFMpegDemux * demux)
   if (res < 0)
     goto beach;
 
-#ifndef OHOS_EXT_FUNC
-  /**
-   * ohos.ext.func.0030
-   */
-  query = gst_query_new_uri ();
-  if (gst_pad_peer_query (demux->sinkpad, query)) {
-    gchar *query_uri, *redirect_uri;
-    gboolean permanent;
-
-    gst_query_parse_uri (query, &query_uri);
-    gst_query_parse_uri_redirection (query, &redirect_uri);
-    gst_query_parse_uri_redirection_permanent (query, &permanent);
-
-    if (permanent && redirect_uri) {
-      uri = redirect_uri;
-      g_free (query_uri);
-    } else {
-      uri = query_uri;
-      g_free (redirect_uri);
-    }
-  }
-  gst_query_unref (query);
-
-  GST_DEBUG_OBJECT (demux, "Opening context with URI %s", GST_STR_NULL (uri));
-#endif
-
   demux->context = avformat_alloc_context ();
   demux->context->pb = iocontext;
-
-#ifdef OHOS_EXT_FUNC
-  /* ohos.ext.func.0030 */
   res = avformat_open_input (&demux->context, NULL, oclass->in_plugin, NULL);
-#else
-  res = avformat_open_input (&demux->context, uri, oclass->in_plugin, NULL);
-
-  g_free (uri);
-#endif
 
   GST_DEBUG_OBJECT (demux, "av_open_input returned %d", res);
   if (res < 0)
@@ -2370,11 +2311,6 @@ gst_ffmpegdemux_register (GstPlugin * plugin)
     /* Set the rank of demuxers known to work to MARGINAL.
      * Set demuxers for which we already have another implementation to NONE
      * Set All others to NONE*/
-    /**
-     * element-avdemux_xwma
-     *
-     * Since: 1.20
-     */
     if (!strcmp (in_plugin->name, "wsvqa") ||
         !strcmp (in_plugin->name, "wsaud") ||
         !strcmp (in_plugin->name, "wc3movie") ||
@@ -2413,7 +2349,6 @@ gst_ffmpegdemux_register (GstPlugin * plugin)
 #endif
         !strcmp (in_plugin->name, "avs") ||
         !strcmp (in_plugin->name, "aiff") ||
-        !strcmp (in_plugin->name, "xwma") ||
         !strcmp (in_plugin->name, "4xm") ||
         !strcmp (in_plugin->name, "yuv4mpegpipe") ||
         !strcmp (in_plugin->name, "pva") ||

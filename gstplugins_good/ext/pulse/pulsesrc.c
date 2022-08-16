@@ -21,17 +21,17 @@
 
 /**
  * SECTION:element-pulsesrc
- * @title: pulsesrc
  * @see_also: pulsesink
  *
  * This element captures audio from a
- * [PulseAudio sound server](http://www.pulseaudio.org).
+ * <ulink href="http://www.pulseaudio.org">PulseAudio sound server</ulink>.
  *
- * ## Example pipelines
+ * <refsect2>
+ * <title>Example pipelines</title>
  * |[
  * gst-launch-1.0 -v pulsesrc ! audioconvert ! vorbisenc ! oggmux ! filesink location=alsasrc.ogg
  * ]| Record from a sound card using pulseaudio and encode to Ogg/Vorbis.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -45,7 +45,6 @@
 #include <gst/gsttaglist.h>
 #include <gst/audio/audio.h>
 
-#include "gstpulseelements.h"
 #include "pulsesrc.h"
 #include "pulseutil.h"
 
@@ -116,8 +115,6 @@ static GstClockTime gst_pulsesrc_get_time (GstClock * clock, GstPulseSrc * src);
 #define gst_pulsesrc_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstPulseSrc, gst_pulsesrc, GST_TYPE_AUDIO_SRC,
     G_IMPLEMENT_INTERFACE (GST_TYPE_STREAM_VOLUME, NULL));
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (pulsesrc, "pulsesrc",
-    GST_RANK_PRIMARY + 10, GST_TYPE_PULSESRC, pulse_element_init (plugin));
 
 static void
 gst_pulsesrc_class_init (GstPulseSrcClass * klass)
@@ -188,7 +185,7 @@ gst_pulsesrc_class_init (GstPulseSrcClass * klass)
    * GstPulseSrc:stream-properties:
    *
    * List of pulseaudio stream properties. A list of defined properties can be
-   * found in the [pulseaudio api docs](http://0pointer.de/lennart/projects/pulseaudio/doxygen/proplist_8h.html).
+   * found in the <ulink href="http://0pointer.de/lennart/projects/pulseaudio/doxygen/proplist_8h.html">pulseaudio api docs</ulink>.
    *
    * Below is an example for registering as a music application to pulseaudio.
    * |[

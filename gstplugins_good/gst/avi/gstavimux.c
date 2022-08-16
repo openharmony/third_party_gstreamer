@@ -27,12 +27,12 @@
 
 /**
  * SECTION:element-avimux
- * @title: avimux
  *
  * Muxes raw or compressed audio and/or video streams into an AVI file.
  *
- * ## Example launch lines
- * (write everything in one line, without the backslash characters)
+ * <refsect2>
+ * <title>Example launch lines</title>
+ * <para>(write everything in one line, without the backslash characters)</para>
  * |[
  * gst-launch-1.0 videotestsrc num-buffers=250 \
  * ! 'video/x-raw,format=(string)I420,width=320,height=240,framerate=(fraction)25/1' \
@@ -53,7 +53,7 @@
  * ]| This will create an .AVI file containing the same test video and sound
  * as above, only that both streams will be compressed this time. This will
  * only work if you have the necessary encoder elements installed of course.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -69,7 +69,6 @@
 #include <gst/audio/audio.h>
 #include <gst/base/gstbytewriter.h>
 
-#include "gstavielements.h"
 #include "gstavimux.h"
 
 GST_DEBUG_CATEGORY_STATIC (avimux_debug);
@@ -94,7 +93,7 @@ static GstStaticPadTemplate video_sink_factory =
     GST_PAD_SINK,
     GST_PAD_REQUEST,
     GST_STATIC_CAPS ("video/x-raw, "
-        "format = (string) { YUY2, I420, BGR, BGRx, BGRA, GRAY8, UYVY, v210 }, "
+        "format = (string) { YUY2, I420, BGR, BGRx, BGRA, GRAY8, UYVY }, "
         "width = (int) [ 16, 4096 ], "
         "height = (int) [ 16, 4096 ], "
         "framerate = (fraction) [ 0, MAX ]; "
@@ -158,9 +157,9 @@ static GstStaticPadTemplate audio_sink_factory =
     GST_PAD_SINK,
     GST_PAD_REQUEST,
     GST_STATIC_CAPS ("audio/x-raw, "
-        "format = (string) { U8, S16LE, S24LE, S32LE }, "
+        "format = (string) { U8, S16LE }, "
         "rate = (int) [ 1000, 96000 ], "
-        "channels = (int) [ 1, 65535 ]; "
+        "channels = (int) [ 1, 2 ]; "
         "audio/mpeg, "
         "mpegversion = (int) 1, "
         "layer = (int) [ 1, 3 ], "
@@ -203,8 +202,6 @@ static GstStateChangeReturn gst_avi_mux_change_state (GstElement * element,
 #define gst_avi_mux_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstAviMux, gst_avi_mux, GST_TYPE_ELEMENT,
     G_IMPLEMENT_INTERFACE (GST_TYPE_TAG_SETTER, NULL));
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (avimux, "avimux", GST_RANK_PRIMARY,
-    GST_TYPE_AVI_MUX, avi_element_init (plugin));
 
 static void
 gst_avi_mux_finalize (GObject * object)
@@ -496,10 +493,6 @@ gst_avi_mux_vidsink_set_caps (GstPad * pad, GstCaps * vscaps)
         avipad->vids.compression = GST_MAKE_FOURCC ('Y', '8', '0', '0');
         avipad->vids.bit_cnt = 8;
         break;
-      case GST_VIDEO_FORMAT_v210:
-        avipad->vids.compression = GST_MAKE_FOURCC ('v', '2', '1', '0');
-        avipad->vids.bit_cnt = 20;
-        break;
       case GST_VIDEO_FORMAT_BGR:
         avipad->vids.compression = GST_MAKE_FOURCC (0x00, 0x00, 0x00, 0x00);
         avipad->vids.bit_cnt = 24;
@@ -750,69 +743,6 @@ gst_avi_mux_audsink_set_fields (GstAviMux * avimux, GstAviAudioPad * avipad)
   }
 }
 
-/* Taken from wavenc */
-static guint64
-gstmask_to_wavmask (guint64 gstmask, GstAudioChannelPosition * pos)
-{
-  const GstAudioChannelPosition valid_pos =
-      GST_AUDIO_CHANNEL_POSITION_FRONT_LEFT |
-      GST_AUDIO_CHANNEL_POSITION_FRONT_RIGHT |
-      GST_AUDIO_CHANNEL_POSITION_FRONT_CENTER |
-      GST_AUDIO_CHANNEL_POSITION_LFE1 |
-      GST_AUDIO_CHANNEL_POSITION_REAR_LEFT |
-      GST_AUDIO_CHANNEL_POSITION_REAR_RIGHT |
-      GST_AUDIO_CHANNEL_POSITION_FRONT_LEFT_OF_CENTER |
-      GST_AUDIO_CHANNEL_POSITION_FRONT_RIGHT_OF_CENTER |
-      GST_AUDIO_CHANNEL_POSITION_REAR_CENTER |
-      GST_AUDIO_CHANNEL_POSITION_SIDE_LEFT |
-      GST_AUDIO_CHANNEL_POSITION_SIDE_RIGHT |
-      GST_AUDIO_CHANNEL_POSITION_TOP_CENTER |
-      GST_AUDIO_CHANNEL_POSITION_TOP_FRONT_LEFT |
-      GST_AUDIO_CHANNEL_POSITION_TOP_FRONT_CENTER |
-      GST_AUDIO_CHANNEL_POSITION_TOP_FRONT_RIGHT |
-      GST_AUDIO_CHANNEL_POSITION_TOP_REAR_LEFT |
-      GST_AUDIO_CHANNEL_POSITION_TOP_REAR_CENTER |
-      GST_AUDIO_CHANNEL_POSITION_TOP_REAR_RIGHT;
-
-  const GstAudioChannelPosition wav_pos[] = {
-    GST_AUDIO_CHANNEL_POSITION_FRONT_LEFT,
-    GST_AUDIO_CHANNEL_POSITION_FRONT_RIGHT,
-    GST_AUDIO_CHANNEL_POSITION_FRONT_CENTER,
-    GST_AUDIO_CHANNEL_POSITION_LFE1,
-    GST_AUDIO_CHANNEL_POSITION_REAR_LEFT,
-    GST_AUDIO_CHANNEL_POSITION_REAR_RIGHT,
-    GST_AUDIO_CHANNEL_POSITION_FRONT_LEFT_OF_CENTER,
-    GST_AUDIO_CHANNEL_POSITION_FRONT_RIGHT_OF_CENTER,
-    GST_AUDIO_CHANNEL_POSITION_REAR_CENTER,
-    GST_AUDIO_CHANNEL_POSITION_SIDE_LEFT,
-    GST_AUDIO_CHANNEL_POSITION_SIDE_RIGHT,
-    GST_AUDIO_CHANNEL_POSITION_TOP_CENTER,
-    GST_AUDIO_CHANNEL_POSITION_TOP_FRONT_LEFT,
-    GST_AUDIO_CHANNEL_POSITION_TOP_FRONT_CENTER,
-    GST_AUDIO_CHANNEL_POSITION_TOP_FRONT_RIGHT,
-    GST_AUDIO_CHANNEL_POSITION_TOP_REAR_LEFT,
-    GST_AUDIO_CHANNEL_POSITION_TOP_REAR_CENTER,
-    GST_AUDIO_CHANNEL_POSITION_TOP_REAR_RIGHT,
-  };
-  int k;
-  int chan = 0;
-  guint64 ret = 0;
-  guint64 mask = 1;
-
-  if (gstmask == 0 || ((gstmask & ~valid_pos) != 0))
-    return 0;
-
-  for (k = 0; k < G_N_ELEMENTS (wav_pos); ++k) {
-    if (gstmask & (G_GUINT64_CONSTANT (1) << wav_pos[k])) {
-      ret |= mask;
-      pos[chan++] = wav_pos[k];
-    }
-    mask <<= 1;
-  }
-
-  return ret;
-}
-
 static gboolean
 gst_avi_mux_audsink_set_caps (GstPad * pad, GstCaps * vscaps)
 {
@@ -861,58 +791,28 @@ gst_avi_mux_audsink_set_caps (GstPad * pad, GstCaps * vscaps)
   if (!strcmp (mimetype, "audio/x-raw")) {
     const gchar *format;
     GstAudioFormat fmt;
-    guint64 channel_mask;
 
     format = gst_structure_get_string (structure, "format");
     fmt = gst_audio_format_from_string (format);
-
-    if (!gst_structure_get (structure, "channel-mask", GST_TYPE_BITMASK,
-            &channel_mask, NULL))
-      channel_mask = gst_audio_channel_get_fallback_mask (channels);
 
     switch (fmt) {
       case GST_AUDIO_FORMAT_U8:
         avipad->auds.blockalign = 8;
         avipad->auds.bits_per_sample = 8;
         break;
-      case GST_AUDIO_FORMAT_S16LE:
+      case GST_AUDIO_FORMAT_S16:
         avipad->auds.blockalign = 16;
         avipad->auds.bits_per_sample = 16;
-        break;
-      case GST_AUDIO_FORMAT_S24LE:
-        avipad->auds.blockalign = 24;
-        avipad->auds.bits_per_sample = 24;
-        break;
-      case GST_AUDIO_FORMAT_S32LE:
-        avipad->auds.blockalign = 32;
-        avipad->auds.bits_per_sample = 32;
         break;
       default:
         goto refuse_caps;
     }
-
-    avipad->audio_format = fmt;
 
     avipad->auds.format = GST_RIFF_WAVE_FORMAT_PCM;
     /* set some more info straight */
     avipad->auds.blockalign /= 8;
     avipad->auds.blockalign *= avipad->auds.channels;
     avipad->auds.av_bps = avipad->auds.blockalign * avipad->auds.rate;
-
-    if (channels > 2 || (channels == 1 && channel_mask != 0x0)
-        || (channels == 2 && channel_mask != 0x3)) {
-      avipad->write_waveformatex = TRUE;
-      /* The same for now as we don't support e.g. S24_32 */
-      avipad->valid_bits_per_sample = avipad->auds.bits_per_sample;
-      avipad->channel_mask =
-          gstmask_to_wavmask (channel_mask, avipad->wav_positions);
-
-      gst_audio_channel_positions_from_mask (channels, channel_mask,
-          avipad->gst_positions);
-      avipad->needs_reorder =
-          memcmp (avipad->gst_positions, avipad->wav_positions,
-          channels * sizeof (*avipad->gst_positions)) != 0;
-    }
   } else {
     avipad->auds.format = 0;
     /* set some defaults */
@@ -1421,27 +1321,13 @@ gst_avi_mux_riff_get_avi_header (GstAviMux * avimux)
       /* the audio header */
       strf = gst_avi_mux_start_chunk (&bw, "strf", 0);
       /* the actual header */
-      if (audpad->write_waveformatex)
-        hdl &= gst_byte_writer_put_uint16_le (&bw, 0xfffe);
-      else
-        hdl &= gst_byte_writer_put_uint16_le (&bw, audpad->auds.format);
+      hdl &= gst_byte_writer_put_uint16_le (&bw, audpad->auds.format);
       hdl &= gst_byte_writer_put_uint16_le (&bw, audpad->auds.channels);
       hdl &= gst_byte_writer_put_uint32_le (&bw, audpad->auds.rate);
       hdl &= gst_byte_writer_put_uint32_le (&bw, audpad->auds.av_bps);
       hdl &= gst_byte_writer_put_uint16_le (&bw, audpad->auds.blockalign);
       hdl &= gst_byte_writer_put_uint16_le (&bw, audpad->auds.bits_per_sample);
-      if (audpad->write_waveformatex) {
-        hdl &= gst_byte_writer_put_uint16_le (&bw, codec_size + 22);
-        hdl &=
-            gst_byte_writer_put_uint16_le (&bw, audpad->valid_bits_per_sample);
-        hdl &= gst_byte_writer_put_uint32_le (&bw, audpad->channel_mask);
-        hdl &= gst_byte_writer_put_uint32_le (&bw, audpad->auds.format);
-        hdl &= gst_byte_writer_put_uint32_le (&bw, 0x00100000);
-        hdl &= gst_byte_writer_put_uint32_le (&bw, 0xAA000080);
-        hdl &= gst_byte_writer_put_uint32_le (&bw, 0x719B3800);
-      } else {
-        hdl &= gst_byte_writer_put_uint16_le (&bw, codec_size);
-      }
+      hdl &= gst_byte_writer_put_uint16_le (&bw, codec_size);
       if (audpad->auds_codec_data) {
         gst_buffer_map (audpad->auds_codec_data, &map, GST_MAP_READ);
         hdl &= gst_byte_writer_put_data (&bw, map.data, map.size);
@@ -1496,7 +1382,7 @@ gst_avi_mux_riff_get_avi_header (GstAviMux * avimux)
 
     gst_tag_list_foreach (tags, gst_avi_mux_write_tag, &bw);
     if (info + 8 == gst_byte_writer_get_pos (&bw)) {
-      /* no tags written, remove the empty INFO LIST as it is useless
+      /* no tags writen, remove the empty INFO LIST as it is useless
        * and prevents playback in vlc */
       gst_byte_writer_set_pos (&bw, info - 4);
     } else {
@@ -2171,17 +2057,6 @@ gst_avi_mux_do_buffer (GstAviMux * avimux, GstAviPad * avipad)
     /* DIB buffers are stored topdown (I don't know why) */
     if (gst_avi_mux_is_uncompressed (avipad->hdr.fcc_handler)) {
       data = gst_avi_mux_invert (avipad, data);
-    }
-  } else {
-    GstAviAudioPad *audpad = (GstAviAudioPad *) avipad;
-
-    if (audpad->needs_reorder) {
-      data = gst_buffer_make_writable (data);
-      if (!gst_audio_buffer_reorder_channels (data, audpad->audio_format,
-              audpad->auds.channels, audpad->gst_positions,
-              audpad->wav_positions)) {
-        GST_WARNING_OBJECT (avimux, "Could not reorder channels");
-      }
     }
   }
 

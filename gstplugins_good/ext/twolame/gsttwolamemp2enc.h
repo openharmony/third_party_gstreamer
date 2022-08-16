@@ -30,8 +30,19 @@ G_BEGIN_DECLS
 
 #include <twolame.h>
 
-#define GST_TYPE_TWO_LAME (gst_two_lame_get_type())
-G_DECLARE_FINAL_TYPE (GstTwoLame, gst_two_lame, GST, TWO_LAME, GstAudioEncoder)
+#define GST_TYPE_TWO_LAME \
+  (gst_two_lame_get_type())
+#define GST_TWO_LAME(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_TWO_LAME,GstTwoLame))
+#define GST_TWO_LAME_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_TWO_LAME,GstTwoLameClass))
+#define GST_IS_TWO_LAME(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_TWO_LAME))
+#define GST_IS_TWO_LAME_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TWO_LAME))
+
+typedef struct _GstTwoLame GstTwoLame;
+typedef struct _GstTwoLameClass GstTwoLameClass;
 
 /**
  * GstTwoLame:
@@ -65,7 +76,11 @@ struct _GstTwoLame {
   twolame_options *glopts;
 };
 
-GST_ELEMENT_REGISTER_DECLARE (twolamemp2enc);
+struct _GstTwoLameClass {
+  GstAudioEncoderClass parent_class;
+};
+
+GType gst_two_lame_get_type(void);
 
 G_END_DECLS
 

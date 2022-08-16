@@ -27,7 +27,7 @@
 #include <gst/video/gstvideodecoder.h>
 
 #include "gstamc.h"
-#include "gstamcsurfacetexture.h"
+#include "gstamcsurface.h"
 
 G_BEGIN_DECLS
 
@@ -91,7 +91,7 @@ struct _GstAmcVideoDec
   /* TRUE if the component is drained currently */
   gboolean drained;
 
-  GstAmcSurfaceTexture *surface;
+  GstAmcSurface *surface;
 
   GstGLDisplay *gl_display;
   GstGLContext *gl_context;
@@ -99,6 +99,9 @@ struct _GstAmcVideoDec
 
   gboolean downstream_supports_gl;
   GstFlowReturn downstream_flow_ret;
+
+  jobject listener;
+  jmethodID set_context_id;
 
   gboolean gl_mem_attached;
   GstGLMemory *oes_mem;

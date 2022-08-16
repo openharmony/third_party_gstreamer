@@ -38,8 +38,6 @@ typedef struct _GstWasapiDeviceProviderClass GstWasapiDeviceProviderClass;
 struct _GstWasapiDeviceProvider
 {
   GstDeviceProvider parent;
-
-  GstMMDeviceEnumerator *enumerator;
 };
 
 struct _GstWasapiDeviceProviderClass

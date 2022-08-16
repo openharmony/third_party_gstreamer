@@ -58,7 +58,6 @@ struct _GstVTEnc
 
   const GstVTEncoderDetails * details;
 
-  CMVideoCodecType specific_format_id;
   CFStringRef profile_level;
   guint bitrate;
   gboolean allow_frame_reordering;
@@ -67,7 +66,6 @@ struct _GstVTEnc
   gint max_keyframe_interval;
   GstClockTime max_keyframe_interval_duration;
   gint latency_frames;
-  gboolean preserve_alpha;
 
   gboolean dump_properties;
   gboolean dump_attributes;
@@ -76,7 +74,6 @@ struct _GstVTEnc
   gint negotiated_fps_n, negotiated_fps_d;
   gint caps_width, caps_height;
   gint caps_fps_n, caps_fps_d;
-  gboolean have_field_order;
   GstVideoCodecState *input_state;
   GstVideoInfo video_info;
   VTCompressionSessionRef session;

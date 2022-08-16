@@ -30,7 +30,6 @@
 
 /**
  * SECTION:element-audiocheblimit
- * @title: audiocheblimit
  *
  * Attenuates all frequencies above the cutoff frequency (low-pass) or all frequencies below the
  * cutoff frequency (high-pass). The number of poles and the ripple parameter control the rolloff.
@@ -48,16 +47,19 @@
  *
  * As a special case, a Chebyshev type 1 filter with no ripple is a Butterworth filter.
  *
- * > Be warned that a too large number of poles can produce noise. The most poles are possible with
- * > a cutoff frequency at a quarter of the sampling rate.
+ * <note><para>
+ * Be warned that a too large number of poles can produce noise. The most poles are possible with
+ * a cutoff frequency at a quarter of the sampling rate.
+ * </para></note>
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 audiotestsrc freq=1500 ! audioconvert ! audiocheblimit mode=low-pass cutoff=1000 poles=4 ! audioconvert ! alsasink
  * gst-launch-1.0 filesrc location="melo1.ogg" ! oggdemux ! vorbisdec ! audioconvert ! audiocheblimit mode=high-pass cutoff=400 ripple=0.2 ! audioconvert ! alsasink
  * gst-launch-1.0 audiotestsrc wave=white-noise ! audioconvert ! audiocheblimit mode=low-pass cutoff=800 type=2 ! audioconvert ! alsasink
  * ]|
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -95,8 +97,6 @@ enum
 #define gst_audio_cheb_limit_parent_class parent_class
 G_DEFINE_TYPE (GstAudioChebLimit,
     gst_audio_cheb_limit, GST_TYPE_AUDIO_FX_BASE_IIR_FILTER);
-GST_ELEMENT_REGISTER_DEFINE (audiocheblimit, "audiocheblimit",
-    GST_RANK_NONE, GST_TYPE_AUDIO_CHEB_LIMIT);
 
 static void gst_audio_cheb_limit_set_property (GObject * object,
     guint prop_id, const GValue * value, GParamSpec * pspec);
@@ -185,8 +185,6 @@ gst_audio_cheb_limit_class_init (GstAudioChebLimitClass * klass)
       "Sebastian Dröge <sebastian.droege@collabora.co.uk>");
 
   filter_class->setup = GST_DEBUG_FUNCPTR (gst_audio_cheb_limit_setup);
-
-  gst_type_mark_as_plugin_api (GST_TYPE_AUDIO_CHEBYSHEV_FREQ_LIMIT_MODE, 0);
 }
 
 static void

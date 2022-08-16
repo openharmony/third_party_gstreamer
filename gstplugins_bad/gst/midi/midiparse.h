@@ -87,7 +87,6 @@ struct _GstMidiParseClass
 };
 
 GType gst_midi_parse_get_type (void);
-GST_ELEMENT_REGISTER_DECLARE (midiparse);
 
 G_END_DECLS
 

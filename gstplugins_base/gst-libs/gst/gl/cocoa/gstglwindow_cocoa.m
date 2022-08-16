@@ -23,10 +23,6 @@
 #include "config.h"
 #endif
 
-#if !defined(MAC_OS_X_VERSION_MAX_ALLOWED) || MAC_OS_X_VERSION_MAX_ALLOWED >= 1014
-# define GL_SILENCE_DEPRECATION
-#endif
-
 #include <Cocoa/Cocoa.h>
 #include <QuartzCore/QuartzCore.h>
 
@@ -73,7 +69,6 @@ static void gst_gl_window_cocoa_finalize (GObject * object);
 
 static gboolean gst_gl_window_cocoa_open (GstGLWindow *window, GError **err);
 static void gst_gl_window_cocoa_close (GstGLWindow *window);
-static void gst_gl_window_cocoa_quit (GstGLWindow *window);
 static guintptr gst_gl_window_cocoa_get_window_handle (GstGLWindow * window);
 static void gst_gl_window_cocoa_set_window_handle (GstGLWindow * window,
     guintptr handle);
@@ -101,9 +96,6 @@ struct _GstGLWindowCocoaPrivate
   int view_ready;
 
   gpointer gl_queue;
-
-  gboolean shutting_down;
-  GstGLContext *last_context;
 };
 
 #define DEBUG_INIT \
@@ -122,7 +114,6 @@ gst_gl_window_cocoa_class_init (GstGLWindowCocoaClass * klass)
 
   window_class->open = GST_DEBUG_FUNCPTR (gst_gl_window_cocoa_open);
   window_class->close = GST_DEBUG_FUNCPTR (gst_gl_window_cocoa_close);
-  window_class->quit = GST_DEBUG_FUNCPTR (gst_gl_window_cocoa_quit);
   window_class->get_window_handle =
       GST_DEBUG_FUNCPTR (gst_gl_window_cocoa_get_window_handle);
   window_class->set_window_handle =
@@ -166,7 +157,6 @@ gst_gl_window_cocoa_finalize (GObject * object)
 #if OS_OBJECT_USE_OBJC
   /* Let ARC clean up our queue */
   dispatch_queue_t queue = (__bridge_transfer dispatch_queue_t) window->priv->gl_queue;
-  (void) queue;
 #else
   dispatch_release (window->priv->gl_queue);
 #endif
@@ -477,8 +467,7 @@ gst_gl_window_cocoa_send_message_async (GstGLWindow * window,
 {
   GstGLWindowCocoa *window_cocoa = (GstGLWindowCocoa *) window;
   GstGLContext *context = gst_gl_window_get_context (window);
-  GstGLContext *unref_context = NULL;
-  GThread *thread = NULL;
+  GThread *thread = gst_gl_context_get_thread (context);
   GstGLWindowCocoaPrivate *priv = window_cocoa->priv;
 #if OS_OBJECT_USE_OBJC
   dispatch_queue_t gl_queue = (__bridge dispatch_queue_t)priv->gl_queue;
@@ -486,31 +475,16 @@ gst_gl_window_cocoa_send_message_async (GstGLWindow * window,
   dispatch_queue_t gl_queue = (dispatch_queue_t)priv->gl_queue;
 #endif
 
-  if (context)
-    window_cocoa->priv->last_context = unref_context = context;
-
-  /* we may not have a context if we are shutting down */
-  if (!context && window_cocoa->priv->shutting_down) {
-    context = window_cocoa->priv->last_context;
-    window_cocoa->priv->shutting_down = FALSE;
-  }
-
-  g_return_if_fail (context != NULL);
-
-  thread = gst_gl_context_get_thread (context);
-
   if (thread == g_thread_self()) {
     /* this case happens for nested calls happening from inside the GCD queue */
     callback (data);
     if (destroy)
       destroy (data);
-    if (unref_context)
-      gst_object_unref (unref_context);
+    gst_object_unref (context);
   } else {
     dispatch_async (gl_queue, ^{
       gst_gl_context_activate (context, TRUE);
-      if (unref_context)
-        gst_object_unref (unref_context);
+      gst_object_unref (context);
       callback (data);
       if (destroy)
         destroy (data);
@@ -518,16 +492,6 @@ gst_gl_window_cocoa_send_message_async (GstGLWindow * window,
   }
   if (thread)
     g_thread_unref (thread);
-}
-
-static void
-gst_gl_window_cocoa_quit (GstGLWindow * window)
-{
-  GstGLWindowCocoa *window_cocoa = (GstGLWindowCocoa *) window;
-
-  window_cocoa->priv->shutting_down = TRUE;
-
-  GST_GL_WINDOW_CLASS (parent_class)->quit (window);
 }
 
 struct SetRenderRectangle

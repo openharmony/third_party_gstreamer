@@ -46,7 +46,6 @@ struct _GstDtlsEnc {
     GstElement element;
 
     GstPad *src;
-    GstFlowReturn src_ret;
 
     GQueue queue;
     GMutex queue_lock;

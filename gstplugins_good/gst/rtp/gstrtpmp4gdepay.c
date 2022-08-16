@@ -25,7 +25,6 @@
 #include <stdlib.h>
 #include <gst/rtp/gstrtpbuffer.h>
 
-#include "gstrtpelements.h"
 #include "gstrtpmp4gdepay.h"
 #include "gstrtputils.h"
 
@@ -54,7 +53,7 @@ GST_STATIC_PAD_TEMPLATE ("sink",
         /* "streamtype = (string) { \"4\", \"5\" }, "  Not set by Wowza    4 = video, 5 = audio */
         /* "profile-level-id = (string) [1,MAX], " */
         /* "config = (string) [1,MAX]" */
-        "mode = (string) { \"generic\", \"CELP-cbr\", \"CELP-vbr\", \"AAC-lbr\", \"AAC-hbr\", \"aac-hbr\" } "
+        "mode = (string) { \"generic\", \"CELP-cbr\", \"CELP-vbr\", \"AAC-lbr\", \"AAC-hbr\" } "
         /* Optional general parameters */
         /* "objecttype = (string) [1,MAX], " */
         /* "constantsize = (string) [1,MAX], " *//* constant size of each AU */
@@ -130,8 +129,6 @@ gst_bs_parse_read (GstBsParse * bs, guint n)
 #define gst_rtp_mp4g_depay_parent_class parent_class
 G_DEFINE_TYPE (GstRtpMP4GDepay, gst_rtp_mp4g_depay,
     GST_TYPE_RTP_BASE_DEPAYLOAD);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpmp4gdepay, "rtpmp4gdepay",
-    GST_RANK_SECONDARY, GST_TYPE_RTP_MP4G_DEPAY, rtp_element_init (plugin));
 
 static void gst_rtp_mp4g_depay_finalize (GObject * object);
 
@@ -244,7 +241,6 @@ gst_rtp_mp4g_depay_setcaps (GstRTPBaseDepayload * depayload, GstCaps * caps)
           "mpegversion", G_TYPE_INT, 4, "stream-format", G_TYPE_STRING, "raw",
           NULL);
       rtpmp4gdepay->check_adts = TRUE;
-      rtpmp4gdepay->warn_adts = TRUE;
     } else if (strcmp (str, "video") == 0) {
       srccaps = gst_caps_new_simple ("video/mpeg",
           "mpegversion", G_TYPE_INT, 4,
@@ -601,7 +597,7 @@ gst_rtp_mp4g_depay_process (GstRTPBaseDepayload * depayload, GstRTPBuffer * rtp)
             rtpmp4gdepay->last_AU_index = AU_index;
           }
 
-          /* keep track of the highest AU_index */
+          /* keep track of the higest AU_index */
           if (rtpmp4gdepay->max_AU_index != -1
               && rtpmp4gdepay->max_AU_index <= AU_index) {
             GST_DEBUG_OBJECT (rtpmp4gdepay, "new interleave group, flushing");
@@ -685,17 +681,13 @@ gst_rtp_mp4g_depay_process (GstRTPBaseDepayload * depayload, GstRTPBuffer * rtp)
                     0xfffe0000, 0xfff00000, 0, 4, &v) == 0) {
               guint adts_hdr_len = (((v >> 16) & 0x1) == 0) ? 9 : 7;
               if (avail > adts_hdr_len) {
-                if (rtpmp4gdepay->warn_adts) {
-                  GST_WARNING_OBJECT (rtpmp4gdepay, "Detected ADTS header of "
-                      "%u bytes, skipping", adts_hdr_len);
-                  rtpmp4gdepay->warn_adts = FALSE;
-                }
+                GST_WARNING_OBJECT (rtpmp4gdepay, "Detected ADTS header of "
+                    "%u bytes, skipping", adts_hdr_len);
                 gst_adapter_flush (rtpmp4gdepay->adapter, adts_hdr_len);
                 avail -= adts_hdr_len;
               }
             } else {
               rtpmp4gdepay->check_adts = FALSE;
-              rtpmp4gdepay->warn_adts = TRUE;
             }
           }
 
@@ -808,4 +800,11 @@ gst_rtp_mp4g_depay_change_state (GstElement * element,
       break;
   }
   return ret;
+}
+
+gboolean
+gst_rtp_mp4g_depay_plugin_init (GstPlugin * plugin)
+{
+  return gst_element_register (plugin, "rtpmp4gdepay",
+      GST_RANK_SECONDARY, GST_TYPE_RTP_MP4G_DEPAY);
 }

@@ -59,21 +59,16 @@ gst_matroska_track_init_video_context (GstMatroskaTrackContext ** p_context)
   video_context->fourcc = 0;
   video_context->default_fps = 0.0;
   video_context->interlace_mode = GST_MATROSKA_INTERLACE_MODE_UNKNOWN;
-  video_context->field_order = GST_VIDEO_FIELD_ORDER_UNKNOWN;
   video_context->earliest_time = GST_CLOCK_TIME_NONE;
   video_context->dirac_unit = NULL;
   video_context->earliest_time = GST_CLOCK_TIME_NONE;
   video_context->multiview_mode = GST_VIDEO_MULTIVIEW_MODE_NONE;
   video_context->multiview_flags = GST_VIDEO_MULTIVIEW_FLAGS_NONE;
-  video_context->alpha_mode = FALSE;
   video_context->colorimetry.range = GST_VIDEO_COLOR_RANGE_UNKNOWN;
   video_context->colorimetry.matrix = GST_VIDEO_COLOR_MATRIX_UNKNOWN;
   video_context->colorimetry.transfer = GST_VIDEO_TRANSFER_UNKNOWN;
   video_context->colorimetry.primaries = GST_VIDEO_COLOR_PRIMARIES_UNKNOWN;
-  gst_video_mastering_display_info_init
-      (&video_context->mastering_display_info);
-  video_context->mastering_display_info_present = FALSE;
-  gst_video_content_light_level_init (&video_context->content_light_level);
+
 
   return TRUE;
 }
@@ -189,7 +184,7 @@ gst_matroska_parse_xiph_stream_headers (gpointer codec_data,
     if (offset + length[i] > codec_data_size)
       goto error;
 
-    hdr = gst_buffer_new_memdup (p + offset, length[i]);
+    hdr = gst_buffer_new_wrapped (g_memdup (p + offset, length[i]), length[i]);
     gst_buffer_list_add (list, hdr);
 
     offset += length[i];
@@ -228,11 +223,12 @@ gst_matroska_parse_speex_stream_headers (gpointer codec_data,
 
   list = gst_buffer_list_new ();
 
-  hdr = gst_buffer_new_memdup (pdata, 80);
+  hdr = gst_buffer_new_wrapped (g_memdup (pdata, 80), 80);
   gst_buffer_list_add (list, hdr);
 
   if (codec_data_size > 80) {
-    hdr = gst_buffer_new_memdup (pdata + 80, codec_data_size - 80);
+    hdr = gst_buffer_new_wrapped (g_memdup (pdata + 80, codec_data_size - 80),
+        codec_data_size - 80);
     gst_buffer_list_add (list, hdr);
   }
 
@@ -261,7 +257,9 @@ gst_matroska_parse_opus_stream_headers (gpointer codec_data,
 
   list = gst_buffer_list_new ();
 
-  hdr = gst_buffer_new_memdup (pdata, codec_data_size);
+  hdr =
+      gst_buffer_new_wrapped (g_memdup (pdata, codec_data_size),
+      codec_data_size);
   gst_buffer_list_add (list, hdr);
 
   return list;
@@ -291,7 +289,7 @@ gst_matroska_parse_flac_stream_headers (gpointer codec_data,
 
   list = gst_buffer_list_new ();
 
-  hdr = gst_buffer_new_memdup (pdata, 4);
+  hdr = gst_buffer_new_wrapped (g_memdup (pdata, 4), 4);
   gst_buffer_list_add (list, hdr);
 
   /* skip fLaC marker */
@@ -309,7 +307,7 @@ gst_matroska_parse_flac_stream_headers (gpointer codec_data,
       return NULL;
     }
 
-    hdr = gst_buffer_new_memdup (pdata + off, len + 4);
+    hdr = gst_buffer_new_wrapped (g_memdup (pdata + off, len + 4), len + 4);
     gst_buffer_list_add (list, hdr);
 
     off += 4 + len;
@@ -349,14 +347,14 @@ gst_matroska_track_free (GstMatroskaTrackContext * track)
 
       g_free (enc->comp_settings);
     }
-    g_array_unref (track->encodings);
+    g_array_free (track->encodings, TRUE);
   }
 
   if (track->tags)
     gst_tag_list_unref (track->tags);
 
   if (track->index_table)
-    g_array_unref (track->index_table);
+    g_array_free (track->index_table, TRUE);
 
   if (track->stream_headers)
     gst_buffer_list_unref (track->stream_headers);

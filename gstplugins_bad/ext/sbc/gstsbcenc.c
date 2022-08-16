@@ -47,7 +47,6 @@ GST_DEBUG_CATEGORY_STATIC (sbc_enc_debug);
 #define GST_CAT_DEFAULT sbc_enc_debug
 
 G_DEFINE_TYPE (GstSbcEnc, gst_sbc_enc, GST_TYPE_AUDIO_ENCODER);
-GST_ELEMENT_REGISTER_DEFINE (sbcenc, "sbcenc", GST_RANK_NONE, GST_TYPE_SBC_ENC);
 
 static GstStaticPadTemplate sbc_enc_sink_factory =
 GST_STATIC_PAD_TEMPLATE ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
@@ -89,11 +88,11 @@ gst_sbc_enc_set_format (GstAudioEncoder * audio_enc, GstAudioInfo * info)
 
   /* negotiate output format based on downstream caps restrictions */
   caps = gst_pad_get_allowed_caps (GST_AUDIO_ENCODER_SRC_PAD (enc));
+  if (caps == GST_CAPS_NONE || gst_caps_is_empty (caps))
+    goto failure;
 
   if (caps == NULL)
     caps = gst_static_pad_template_get_caps (&sbc_enc_src_factory);
-  else if (gst_caps_is_empty (caps))
-    goto failure;
 
   /* fixate output caps */
   filter_caps = gst_caps_new_simple ("audio/x-sbc", "rate", G_TYPE_INT,
@@ -288,6 +287,8 @@ gst_sbc_enc_handle_frame (GstAudioEncoder * audio_enc, GstBuffer * buffer)
       gst_buffer_replace (&outbuf, NULL);
   }
 
+done:
+
   gst_buffer_unmap (buffer, &in_map);
 
   return gst_audio_encoder_finish_frame (audio_enc, outbuf,
@@ -296,16 +297,13 @@ gst_sbc_enc_handle_frame (GstAudioEncoder * audio_enc, GstBuffer * buffer)
 /* ERRORS */
 no_buffer:
   {
-    gst_buffer_unmap (buffer, &in_map);
-    GST_ELEMENT_ERROR (enc, STREAM, FAILED, (NULL),
-        ("Could not allocate output buffer"));
-    return GST_FLOW_ERROR;
+    GST_ERROR_OBJECT (enc, "could not allocate output buffer");
+    goto done;
   }
 map_failed:
   {
-    GST_ELEMENT_ERROR (enc, STREAM, FAILED, (NULL),
-        ("Could not allocate output buffer"));
-    return GST_FLOW_ERROR;
+    GST_ERROR_OBJECT (enc, "could not map input buffer");
+    goto done;
   }
 }
 

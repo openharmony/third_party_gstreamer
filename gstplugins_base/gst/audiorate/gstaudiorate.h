@@ -25,8 +25,19 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_AUDIO_RATE (gst_audio_rate_get_type())
-G_DECLARE_FINAL_TYPE (GstAudioRate, gst_audio_rate, GST, AUDIO_RATE, GstElement)
+#define GST_TYPE_AUDIO_RATE \
+  (gst_audio_rate_get_type())
+#define GST_AUDIO_RATE(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_AUDIO_RATE,GstAudioRate))
+#define GST_AUDIO_RATE_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_AUDIO_RATE,GstAudioRate))
+#define GST_IS_AUDIO_RATE(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_AUDIO_RATE))
+#define GST_IS_AUDIO_RATE_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_AUDIO_RATE))
+
+typedef struct _GstAudioRate GstAudioRate;
+typedef struct _GstAudioRateClass GstAudioRateClass;
 
 /**
  * GstAudioRate:
@@ -60,7 +71,13 @@ struct _GstAudioRate
   /* we output TIME format on the src */
   GstSegment src_segment;
 };
-GST_ELEMENT_REGISTER_DECLARE (audiorate);
+
+struct _GstAudioRateClass
+{
+  GstElementClass parent_class;
+};
+
+GType gst_audio_rate_get_type (void);
 
 G_END_DECLS
 

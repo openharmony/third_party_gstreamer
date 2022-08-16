@@ -75,11 +75,7 @@ static gboolean gst_spectra_scope_render (GstAudioVisualizer * scope,
     GstBuffer * audio, GstVideoFrame * video);
 
 
-G_DEFINE_TYPE_WITH_CODE (GstSpectraScope, gst_spectra_scope,
-    GST_TYPE_AUDIO_VISUALIZER, GST_DEBUG_CATEGORY_INIT (spectra_scope_debug,
-        "spectrascope", 0, "spectrascope"););
-GST_ELEMENT_REGISTER_DEFINE (spectrascope, "spectrascope", GST_RANK_NONE,
-    GST_TYPE_SPECTRA_SCOPE);
+G_DEFINE_TYPE (GstSpectraScope, gst_spectra_scope, GST_TYPE_AUDIO_VISUALIZER);
 
 static void
 gst_spectra_scope_class_init (GstSpectraScopeClass * g_class)
@@ -188,7 +184,7 @@ gst_spectra_scope_render (GstAudioVisualizer * bscope, GstBuffer * audio,
 
   channels = GST_AUDIO_INFO_CHANNELS (&bscope->ainfo);
 
-  mono_adata = g_memdup2 (amap.data, amap.size);
+  mono_adata = (gint16 *) g_memdup (amap.data, amap.size);
 
   if (channels > 1) {
     guint ch = channels;
@@ -231,4 +227,14 @@ gst_spectra_scope_render (GstAudioVisualizer * bscope, GstBuffer * audio,
   }
   gst_buffer_unmap (audio, &amap);
   return TRUE;
+}
+
+gboolean
+gst_spectra_scope_plugin_init (GstPlugin * plugin)
+{
+  GST_DEBUG_CATEGORY_INIT (spectra_scope_debug, "spectrascope", 0,
+      "spectrascope");
+
+  return gst_element_register (plugin, "spectrascope", GST_RANK_NONE,
+      GST_TYPE_SPECTRA_SCOPE);
 }

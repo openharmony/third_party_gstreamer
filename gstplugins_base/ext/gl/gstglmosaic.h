@@ -40,11 +40,6 @@ struct _GstGLMosaic
     GstGLMixer mixer;
 
     GstGLShader *shader;
-    guint vao;
-    guint vertex_buffer;
-    guint vbo_indices;
-    gint attr_position_loc;
-    gint attr_texture_loc;
     GstGLMemory *out_tex;
     GLfloat xrot, yrot, zrot;
 };

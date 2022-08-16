@@ -27,7 +27,7 @@
 
 #include <gst/gst.h>
 #include <gst/base/gstbaseparse.h>
-#include "gstvideoparseutils.h"
+
 #include <gst/codecparsers/gstmpegvideoparser.h>
 
 G_BEGIN_DECLS
@@ -87,7 +87,10 @@ struct _GstMpegvParse {
   gboolean picext_updated;
   gboolean quantmatrext_updated;
 
-  GstVideoParseUserData user_data;
+  /* pending closed captions */
+  guint8 closedcaptions[96];
+  guint closedcaptions_size;
+  GstVideoCaptionType closedcaptions_type;
 
   /* properties */
   gboolean drop;

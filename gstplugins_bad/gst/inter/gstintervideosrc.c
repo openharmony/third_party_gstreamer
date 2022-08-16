@@ -17,7 +17,7 @@
  * Boston, MA 02110-1335, USA.
  */
 /**
- * SECTION:element-intervideosrc
+ * SECTION:element-gstintervideosrc
  * @title: gstintervideosrc
  *
  * The intervideosrc element is a video source element.  It is used
@@ -89,8 +89,6 @@ GST_STATIC_PAD_TEMPLATE ("src",
 /* class initialization */
 #define parent_class gst_inter_video_src_parent_class
 G_DEFINE_TYPE (GstInterVideoSrc, gst_inter_video_src, GST_TYPE_BASE_SRC);
-GST_ELEMENT_REGISTER_DEFINE (intervideosrc, "intervideosrc",
-    GST_RANK_NONE, GST_TYPE_INTER_VIDEO_SRC);
 
 static void
 gst_inter_video_src_class_init (GstInterVideoSrcClass * klass)
@@ -500,9 +498,8 @@ gst_inter_video_src_fixate (GstBaseSrc * src, GstCaps * caps)
   if (gst_structure_has_field (structure, "chroma-site"))
     gst_structure_fixate_field_string (structure, "chroma-site", "mpeg2");
 
-  if (gst_structure_has_field (structure, "interlace-mode"))
-    gst_structure_fixate_field_string (structure, "interlace-mode",
-        "progressive");
+  if (gst_structure_has_field (structure, "interlaced"))
+    gst_structure_fixate_field_boolean (structure, "interlaced", FALSE);
 
   return caps;
 }

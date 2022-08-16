@@ -21,7 +21,7 @@
 /**
  * SECTION:element-faad
  * @title: faad
- * @see_also: faac
+ * @seealso: faac
  *
  * faad decodes AAC (MPEG-4 part 3) stream.
  *
@@ -104,7 +104,6 @@ static void gst_faad_close_decoder (GstFaad * faad);
 
 #define gst_faad_parent_class parent_class
 G_DEFINE_TYPE (GstFaad, gst_faad, GST_TYPE_AUDIO_DECODER);
-GST_ELEMENT_REGISTER_DEFINE (faad, "faad", GST_RANK_SECONDARY, GST_TYPE_FAAD);
 
 static void
 gst_faad_class_init (GstFaadClass * klass)
@@ -451,7 +450,7 @@ gst_faad_update_caps (GstFaad * faad, faacDecFrameInfo * info)
   faad->samplerate = info->samplerate;
   faad->channels = info->channels;
   g_free (faad->channel_positions);
-  faad->channel_positions = g_memdup2 (info->channel_position, faad->channels);
+  faad->channel_positions = g_memdup (info->channel_position, faad->channels);
 
   faad->bps = 16 / 8;
 
@@ -841,7 +840,8 @@ gst_faad_close_decoder (GstFaad * faad)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (faad, plugin);
+  return gst_element_register (plugin, "faad", GST_RANK_SECONDARY,
+      GST_TYPE_FAAD);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

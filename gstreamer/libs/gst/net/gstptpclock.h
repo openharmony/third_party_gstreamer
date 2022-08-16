@@ -153,7 +153,9 @@ GST_NET_API
 GstClock*       gst_ptp_clock_new                  (const gchar *name,
                                                     guint domain);
 
+#ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(GstPtpClock, gst_object_unref)
+#endif
 
 G_END_DECLS
 

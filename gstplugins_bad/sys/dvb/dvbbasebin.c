@@ -30,7 +30,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <gst/mpegts/mpegts.h>
-#include "gstdvbelements.h"
 #include "dvbbasebin.h"
 #include "parsechannels.h"
 
@@ -170,12 +169,7 @@ G_DEFINE_TYPE_EXTENDED (DvbBaseBin, dvb_base_bin, GST_TYPE_BIN,
     0,
     G_IMPLEMENT_INTERFACE (GST_TYPE_URI_HANDLER,
         dvb_base_bin_uri_handler_init));
-#define _do_init \
-  GST_DEBUG_CATEGORY_INIT (dvb_base_bin_debug, "dvbbasebin", 0, "DVB bin"); \
-  cam_init (); \
-  dvb_element_init (plugin);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (dvbbasebin, "dvbbasebin", GST_RANK_NONE,
-    GST_TYPE_DVB_BASE_BIN, _do_init);
+
 
 static void
 dvb_base_bin_ref_stream (DvbBaseBinStream * stream)
@@ -428,7 +422,7 @@ dvb_base_bin_class_init (DvbBaseBinClass * klass)
    * DvbBaseBin::tuning-start:
    * @dvbbasebin: the element on which the signal is emitted
    *
-   * Signal emitted when the element first attempts to tune the
+   * Signal emited when the element first attempts to tune the
    * frontend tunner to a given frequency.
    */
   dvb_base_bin_signals[SIGNAL_TUNING_START] =
@@ -438,7 +432,7 @@ dvb_base_bin_class_init (DvbBaseBinClass * klass)
    * DvbBaseBin::tuning-done:
    * @dvbbasebin: the element on which the signal is emitted
    *
-   * Signal emitted when the tunner has successfully got a lock on a signal.
+   * Signal emited when the tunner has successfully got a lock on a signal.
    */
   dvb_base_bin_signals[SIGNAL_TUNING_DONE] =
       g_signal_new ("tuning-done", G_TYPE_FROM_CLASS (klass),
@@ -447,7 +441,7 @@ dvb_base_bin_class_init (DvbBaseBinClass * klass)
    * DvbBaseBin::tuning-fail:
    * @dvbbasebin: the element on which the signal is emitted
    *
-   * Signal emitted when the tunner failed to get a lock on the
+   * Signal emited when the tunner failed to get a lock on the
    * signal.
    */
   dvb_base_bin_signals[SIGNAL_TUNING_FAIL] =
@@ -458,14 +452,14 @@ dvb_base_bin_class_init (DvbBaseBinClass * klass)
    * DvbBaseBin::tune:
    * @dvbbasesink: the element on which the signal is emitted
    *
-   * Signal emitted from the application to the element, instructing it
+   * Signal emited from the application to the element, instructing it
    * to tune.
    */
   dvb_base_bin_signals[SIGNAL_TUNE] =
       g_signal_new ("tune", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
-      G_STRUCT_OFFSET (DvbBaseBinClass, do_tune), NULL, NULL, NULL,
-      G_TYPE_NONE, 0);
+      G_STRUCT_OFFSET (DvbBaseBinClass, do_tune),
+      NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE, 0);
 }
 
 static void
@@ -751,7 +745,7 @@ dvb_base_bin_request_new_pad (GstElement * element,
   if (name == NULL)
     name = GST_PAD_TEMPLATE_NAME_TEMPLATE (templ);
 
-  pad = gst_element_request_pad_simple (dvbbasebin->tsparse, name);
+  pad = gst_element_get_request_pad (dvbbasebin->tsparse, name);
   if (pad == NULL)
     return NULL;
 
@@ -1222,6 +1216,16 @@ dvb_base_bin_uri_handler_init (gpointer g_iface, gpointer iface_data)
   iface->set_uri = dvb_base_bin_uri_set_uri;
 }
 
+gboolean
+gst_dvb_base_bin_plugin_init (GstPlugin * plugin)
+{
+  GST_DEBUG_CATEGORY_INIT (dvb_base_bin_debug, "dvbbasebin", 0, "DVB bin");
+
+  cam_init ();
+
+  return gst_element_register (plugin, "dvbbasebin",
+      GST_RANK_NONE, GST_TYPE_DVB_BASE_BIN);
+}
 
 static void
 dvb_base_bin_program_destroy (gpointer data)

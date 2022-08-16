@@ -146,9 +146,6 @@ static struct
   jstring EFFECT_WHITEBOARD;
   jstring EFFECT_BLACKBOARD;
   jstring EFFECT_AQUA;
-  jstring EFFECT_EMBOSS;
-  jstring EFFECT_SKETCH;
-  jstring EFFECT_NEON;
   jstring ANTIBANDING_AUTO;
   jstring ANTIBANDING_50HZ;
   jstring ANTIBANDING_60HZ;
@@ -174,10 +171,6 @@ static struct
   jstring SCENE_MODE_PARTY;
   jstring SCENE_MODE_CANDLELIGHT;
   jstring SCENE_MODE_BARCODE;
-  jstring SCENE_MODE_BACKLIGHT;
-  jstring SCENE_MODE_FLOWERS;
-  jstring SCENE_MODE_AR;
-  jstring SCENE_MODE_HDR;
   jstring FOCUS_MODE_AUTO;
   jstring FOCUS_MODE_INFINITY;
   jstring FOCUS_MODE_MACRO;
@@ -205,9 +198,6 @@ const gchar *Parameters_EFFECT_POSTERIZE;
 const gchar *Parameters_EFFECT_WHITEBOARD;
 const gchar *Parameters_EFFECT_BLACKBOARD;
 const gchar *Parameters_EFFECT_AQUA;
-const gchar *Parameters_EFFECT_EMBOSS;
-const gchar *Parameters_EFFECT_SKETCH;
-const gchar *Parameters_EFFECT_NEON;
 const gchar *Parameters_ANTIBANDING_AUTO;
 const gchar *Parameters_ANTIBANDING_50HZ;
 const gchar *Parameters_ANTIBANDING_60HZ;
@@ -233,10 +223,6 @@ const gchar *Parameters_SCENE_MODE_SPORTS;
 const gchar *Parameters_SCENE_MODE_PARTY;
 const gchar *Parameters_SCENE_MODE_CANDLELIGHT;
 const gchar *Parameters_SCENE_MODE_BARCODE;
-const gchar *Parameters_SCENE_MODE_BACKLIGHT;
-const gchar *Parameters_SCENE_MODE_FLOWERS;
-const gchar *Parameters_SCENE_MODE_AR;
-const gchar *Parameters_SCENE_MODE_HDR;
 const gchar *Parameters_FOCUS_MODE_AUTO;
 const gchar *Parameters_FOCUS_MODE_INFINITY;
 const gchar *Parameters_FOCUS_MODE_MACRO;
@@ -961,69 +947,6 @@ _init_classes (void)
   }
 
   fieldID =
-      gst_amc_jni_get_static_field_id (env, &err, klass, "EFFECT_EMBOSS",
-      "Ljava/lang/String;");
-  if (fieldID) {
-    if (!gst_amc_jni_get_static_object_field (env, &err, klass, fieldID,
-            &android_hardware_camera_parameters.EFFECT_EMBOSS))
-      goto failed;
-
-    Parameters_EFFECT_EMBOSS =
-        (*env)->GetStringUTFChars (env,
-        android_hardware_camera_parameters.EFFECT_EMBOSS, NULL);
-    {
-      jobject local = android_hardware_camera_parameters.EFFECT_EMBOSS;
-
-      android_hardware_camera_parameters.EFFECT_EMBOSS =
-          gst_amc_jni_object_make_global (env, local);
-    }
-  } else {
-    android_hardware_camera_parameters.EFFECT_EMBOSS = NULL;
-  }
-
-  fieldID =
-      gst_amc_jni_get_static_field_id (env, &err, klass, "EFFECT_SKETCH",
-      "Ljava/lang/String;");
-  if (fieldID) {
-    if (!gst_amc_jni_get_static_object_field (env, &err, klass, fieldID,
-            &android_hardware_camera_parameters.EFFECT_SKETCH))
-      goto failed;
-
-    Parameters_EFFECT_SKETCH =
-        (*env)->GetStringUTFChars (env,
-        android_hardware_camera_parameters.EFFECT_SKETCH, NULL);
-    {
-      jobject local = android_hardware_camera_parameters.EFFECT_SKETCH;
-
-      android_hardware_camera_parameters.EFFECT_SKETCH =
-          gst_amc_jni_object_make_global (env, local);
-    }
-  } else {
-    android_hardware_camera_parameters.EFFECT_SKETCH = NULL;
-  }
-
-  fieldID =
-      gst_amc_jni_get_static_field_id (env, &err, klass, "EFFECT_NEON",
-      "Ljava/lang/String;");
-  if (fieldID) {
-    if (!gst_amc_jni_get_static_object_field (env, &err, klass, fieldID,
-            &android_hardware_camera_parameters.EFFECT_NEON))
-      goto failed;
-
-    Parameters_EFFECT_NEON =
-        (*env)->GetStringUTFChars (env,
-        android_hardware_camera_parameters.EFFECT_NEON, NULL);
-    {
-      jobject local = android_hardware_camera_parameters.EFFECT_NEON;
-
-      android_hardware_camera_parameters.EFFECT_NEON =
-          gst_amc_jni_object_make_global (env, local);
-    }
-  } else {
-    android_hardware_camera_parameters.EFFECT_NEON = NULL;
-  }
-
-  fieldID =
       gst_amc_jni_get_static_field_id (env, &err, klass, "ANTIBANDING_AUTO",
       "Ljava/lang/String;");
   if (!fieldID)
@@ -1501,90 +1424,6 @@ _init_classes (void)
   }
 
   fieldID =
-      gst_amc_jni_get_static_field_id (env, &err, klass, "SCENE_MODE_BACKLIGHT",
-      "Ljava/lang/String;");
-  if (fieldID) {
-    if (!gst_amc_jni_get_static_object_field (env, &err, klass, fieldID,
-            &android_hardware_camera_parameters.SCENE_MODE_BACKLIGHT))
-      goto failed;
-
-    Parameters_SCENE_MODE_BACKLIGHT =
-        (*env)->GetStringUTFChars (env,
-        android_hardware_camera_parameters.SCENE_MODE_BACKLIGHT, NULL);
-    {
-      jobject local = android_hardware_camera_parameters.SCENE_MODE_BACKLIGHT;
-
-      android_hardware_camera_parameters.SCENE_MODE_BACKLIGHT =
-          gst_amc_jni_object_make_global (env, local);
-    }
-  } else {
-    android_hardware_camera_parameters.SCENE_MODE_BACKLIGHT = NULL;
-  }
-
-  fieldID =
-      gst_amc_jni_get_static_field_id (env, &err, klass, "SCENE_MODE_FLOWERS",
-      "Ljava/lang/String;");
-  if (fieldID) {
-    if (!gst_amc_jni_get_static_object_field (env, &err, klass, fieldID,
-            &android_hardware_camera_parameters.SCENE_MODE_FLOWERS))
-      goto failed;
-
-    Parameters_SCENE_MODE_FLOWERS =
-        (*env)->GetStringUTFChars (env,
-        android_hardware_camera_parameters.SCENE_MODE_FLOWERS, NULL);
-    {
-      jobject local = android_hardware_camera_parameters.SCENE_MODE_FLOWERS;
-
-      android_hardware_camera_parameters.SCENE_MODE_FLOWERS =
-          gst_amc_jni_object_make_global (env, local);
-    }
-  } else {
-    android_hardware_camera_parameters.SCENE_MODE_FLOWERS = NULL;
-  }
-
-  fieldID =
-      gst_amc_jni_get_static_field_id (env, &err, klass, "SCENE_MODE_AR",
-      "Ljava/lang/String;");
-  if (fieldID) {
-    if (!gst_amc_jni_get_static_object_field (env, &err, klass, fieldID,
-            &android_hardware_camera_parameters.SCENE_MODE_AR))
-      goto failed;
-
-    Parameters_SCENE_MODE_AR =
-        (*env)->GetStringUTFChars (env,
-        android_hardware_camera_parameters.SCENE_MODE_AR, NULL);
-    {
-      jobject local = android_hardware_camera_parameters.SCENE_MODE_AR;
-
-      android_hardware_camera_parameters.SCENE_MODE_AR =
-          gst_amc_jni_object_make_global (env, local);
-    }
-  } else {
-    android_hardware_camera_parameters.SCENE_MODE_AR = NULL;
-  }
-
-  fieldID =
-      gst_amc_jni_get_static_field_id (env, &err, klass, "SCENE_MODE_HDR",
-      "Ljava/lang/String;");
-  if (fieldID) {
-    if (!gst_amc_jni_get_static_object_field (env, &err, klass, fieldID,
-            &android_hardware_camera_parameters.SCENE_MODE_HDR))
-      goto failed;
-
-    Parameters_SCENE_MODE_HDR =
-        (*env)->GetStringUTFChars (env,
-        android_hardware_camera_parameters.SCENE_MODE_HDR, NULL);
-    {
-      jobject local = android_hardware_camera_parameters.SCENE_MODE_HDR;
-
-      android_hardware_camera_parameters.SCENE_MODE_HDR =
-          gst_amc_jni_object_make_global (env, local);
-    }
-  } else {
-    android_hardware_camera_parameters.SCENE_MODE_HDR = NULL;
-  }
-
-  fieldID =
       gst_amc_jni_get_static_field_id (env, &err, klass, "FOCUS_MODE_AUTO",
       "Ljava/lang/String;");
   if (!fieldID)
@@ -1966,32 +1805,6 @@ gst_android_hardware_camera_deinit (void)
     gst_amc_jni_object_unref (env,
         android_hardware_camera_parameters.EFFECT_AQUA);
   android_hardware_camera_parameters.EFFECT_AQUA = NULL;
-  if (Parameters_EFFECT_EMBOSS)
-    (*env)->ReleaseStringUTFChars (env,
-        android_hardware_camera_parameters.EFFECT_EMBOSS,
-        Parameters_EFFECT_EMBOSS);
-  Parameters_EFFECT_EMBOSS = NULL;
-  if (android_hardware_camera_parameters.EFFECT_EMBOSS)
-    gst_amc_jni_object_unref (env,
-        android_hardware_camera_parameters.EFFECT_EMBOSS);
-  android_hardware_camera_parameters.EFFECT_EMBOSS = NULL;
-  if (Parameters_EFFECT_SKETCH)
-    (*env)->ReleaseStringUTFChars (env,
-        android_hardware_camera_parameters.EFFECT_SKETCH,
-        Parameters_EFFECT_SKETCH);
-  Parameters_EFFECT_SKETCH = NULL;
-  if (android_hardware_camera_parameters.EFFECT_SKETCH)
-    gst_amc_jni_object_unref (env,
-        android_hardware_camera_parameters.EFFECT_SKETCH);
-  android_hardware_camera_parameters.EFFECT_SKETCH = NULL;
-  if (Parameters_EFFECT_NEON)
-    (*env)->ReleaseStringUTFChars (env,
-        android_hardware_camera_parameters.EFFECT_NEON, Parameters_EFFECT_NEON);
-  Parameters_EFFECT_NEON = NULL;
-  if (android_hardware_camera_parameters.EFFECT_NEON)
-    gst_amc_jni_object_unref (env,
-        android_hardware_camera_parameters.EFFECT_NEON);
-  android_hardware_camera_parameters.EFFECT_NEON = NULL;
   if (Parameters_ANTIBANDING_AUTO)
     (*env)->ReleaseStringUTFChars (env,
         android_hardware_camera_parameters.ANTIBANDING_AUTO,
@@ -2217,42 +2030,6 @@ gst_android_hardware_camera_deinit (void)
     gst_amc_jni_object_unref (env,
         android_hardware_camera_parameters.SCENE_MODE_BARCODE);
   android_hardware_camera_parameters.SCENE_MODE_BARCODE = NULL;
-  if (Parameters_SCENE_MODE_BACKLIGHT)
-    (*env)->ReleaseStringUTFChars (env,
-        android_hardware_camera_parameters.SCENE_MODE_BACKLIGHT,
-        Parameters_SCENE_MODE_BACKLIGHT);
-  Parameters_SCENE_MODE_BACKLIGHT = NULL;
-  if (android_hardware_camera_parameters.SCENE_MODE_BACKLIGHT)
-    gst_amc_jni_object_unref (env,
-        android_hardware_camera_parameters.SCENE_MODE_BACKLIGHT);
-  android_hardware_camera_parameters.SCENE_MODE_BACKLIGHT = NULL;
-  if (Parameters_SCENE_MODE_FLOWERS)
-    (*env)->ReleaseStringUTFChars (env,
-        android_hardware_camera_parameters.SCENE_MODE_FLOWERS,
-        Parameters_SCENE_MODE_FLOWERS);
-  Parameters_SCENE_MODE_FLOWERS = NULL;
-  if (android_hardware_camera_parameters.SCENE_MODE_FLOWERS)
-    gst_amc_jni_object_unref (env,
-        android_hardware_camera_parameters.SCENE_MODE_FLOWERS);
-  android_hardware_camera_parameters.SCENE_MODE_FLOWERS = NULL;
-  if (Parameters_SCENE_MODE_AR)
-    (*env)->ReleaseStringUTFChars (env,
-        android_hardware_camera_parameters.SCENE_MODE_AR,
-        Parameters_SCENE_MODE_AR);
-  Parameters_SCENE_MODE_AR = NULL;
-  if (android_hardware_camera_parameters.SCENE_MODE_AR)
-    gst_amc_jni_object_unref (env,
-        android_hardware_camera_parameters.SCENE_MODE_AR);
-  android_hardware_camera_parameters.SCENE_MODE_AR = NULL;
-  if (Parameters_SCENE_MODE_HDR)
-    (*env)->ReleaseStringUTFChars (env,
-        android_hardware_camera_parameters.SCENE_MODE_HDR,
-        Parameters_SCENE_MODE_HDR);
-  Parameters_SCENE_MODE_HDR = NULL;
-  if (android_hardware_camera_parameters.SCENE_MODE_HDR)
-    gst_amc_jni_object_unref (env,
-        android_hardware_camera_parameters.SCENE_MODE_HDR);
-  android_hardware_camera_parameters.SCENE_MODE_HDR = NULL;
   if (Parameters_FOCUS_MODE_AUTO)
     (*env)->ReleaseStringUTFChars (env,
         android_hardware_camera_parameters.FOCUS_MODE_AUTO,
@@ -2726,14 +2503,13 @@ done:
 
 void
 gst_ah_camera_set_preview_texture (GstAHCamera * self,
-    GstAmcSurfaceTextureJNI * surfaceTexture)
+    GstAmcSurfaceTexture * surfaceTexture)
 {
   JNIEnv *env = gst_amc_jni_get_env ();
   GError *err = NULL;
 
   gst_amc_jni_call_void_method (env, &err, self->object,
-      android_hardware_camera.setPreviewTexture,
-      gst_amc_surface_texture_jni_get_jobject (surfaceTexture));
+      android_hardware_camera.setPreviewTexture, surfaceTexture->jobject);
   if (err) {
     GST_ERROR ("Failed to call android.hardware.Camera.setPreviewTexture: %s",
         err->message);
@@ -2979,18 +2755,6 @@ _color_effect_to_gchar (JNIEnv * env, jstring color_effect)
   else if (java_lang_string_equals (env, color_effect,
           android_hardware_camera_parameters.EFFECT_AQUA))
     return Parameters_EFFECT_AQUA;
-  else if (android_hardware_camera_parameters.EFFECT_EMBOSS != NULL &&
-      java_lang_string_equals (env, color_effect,
-          android_hardware_camera_parameters.EFFECT_EMBOSS))
-    return Parameters_EFFECT_EMBOSS;
-  else if (android_hardware_camera_parameters.EFFECT_SKETCH != NULL &&
-      java_lang_string_equals (env, color_effect,
-          android_hardware_camera_parameters.EFFECT_SKETCH))
-    return Parameters_EFFECT_SKETCH;
-  else if (android_hardware_camera_parameters.EFFECT_NEON != NULL &&
-      java_lang_string_equals (env, color_effect,
-          android_hardware_camera_parameters.EFFECT_NEON))
-    return Parameters_EFFECT_NEON;
 
   return NULL;
 }
@@ -3019,15 +2783,6 @@ _color_effect_to_jstring (const gchar * color_effect)
     return android_hardware_camera_parameters.EFFECT_BLACKBOARD;
   else if (!g_strcmp0 (color_effect, Parameters_EFFECT_AQUA))
     return android_hardware_camera_parameters.EFFECT_AQUA;
-  else if (android_hardware_camera_parameters.EFFECT_EMBOSS != NULL
-      && !g_strcmp0 (color_effect, Parameters_EFFECT_EMBOSS))
-    return android_hardware_camera_parameters.EFFECT_EMBOSS;
-  else if (android_hardware_camera_parameters.EFFECT_SKETCH != NULL
-      && !g_strcmp0 (color_effect, Parameters_EFFECT_SKETCH))
-    return android_hardware_camera_parameters.EFFECT_SKETCH;
-  else if (android_hardware_camera_parameters.EFFECT_NEON != NULL
-      && !g_strcmp0 (color_effect, Parameters_EFFECT_NEON))
-    return android_hardware_camera_parameters.EFFECT_NEON;
 
   return NULL;
 }
@@ -3171,22 +2926,6 @@ _scene_mode_to_gchar (JNIEnv * env, jstring scene_mode)
   else if (java_lang_string_equals (env, scene_mode,
           android_hardware_camera_parameters.SCENE_MODE_BARCODE))
     return Parameters_SCENE_MODE_BARCODE;
-  else if (android_hardware_camera_parameters.SCENE_MODE_BACKLIGHT != NULL &&
-      java_lang_string_equals (env, scene_mode,
-          android_hardware_camera_parameters.SCENE_MODE_BACKLIGHT))
-    return Parameters_SCENE_MODE_BACKLIGHT;
-  else if (android_hardware_camera_parameters.SCENE_MODE_FLOWERS != NULL &&
-      java_lang_string_equals (env, scene_mode,
-          android_hardware_camera_parameters.SCENE_MODE_FLOWERS))
-    return Parameters_SCENE_MODE_FLOWERS;
-  else if (android_hardware_camera_parameters.SCENE_MODE_AR != NULL &&
-      java_lang_string_equals (env, scene_mode,
-          android_hardware_camera_parameters.SCENE_MODE_AR))
-    return Parameters_SCENE_MODE_AR;
-  else if (android_hardware_camera_parameters.SCENE_MODE_HDR != NULL &&
-      java_lang_string_equals (env, scene_mode,
-          android_hardware_camera_parameters.SCENE_MODE_HDR))
-    return Parameters_SCENE_MODE_HDR;
 
   return NULL;
 }
@@ -3229,18 +2968,6 @@ _scene_mode_to_jstring (const gchar * scene_mode)
     return android_hardware_camera_parameters.SCENE_MODE_CANDLELIGHT;
   else if (!g_strcmp0 (scene_mode, Parameters_SCENE_MODE_BARCODE))
     return android_hardware_camera_parameters.SCENE_MODE_BARCODE;
-  else if (android_hardware_camera_parameters.SCENE_MODE_BACKLIGHT != NULL
-      && !g_strcmp0 (scene_mode, Parameters_SCENE_MODE_BACKLIGHT))
-    return android_hardware_camera_parameters.SCENE_MODE_BACKLIGHT;
-  else if (android_hardware_camera_parameters.SCENE_MODE_FLOWERS != NULL
-      && !g_strcmp0 (scene_mode, Parameters_SCENE_MODE_FLOWERS))
-    return android_hardware_camera_parameters.SCENE_MODE_FLOWERS;
-  else if (android_hardware_camera_parameters.SCENE_MODE_AR != NULL
-      && !g_strcmp0 (scene_mode, Parameters_SCENE_MODE_AR))
-    return android_hardware_camera_parameters.SCENE_MODE_AR;
-  else if (android_hardware_camera_parameters.SCENE_MODE_HDR != NULL
-      && !g_strcmp0 (scene_mode, Parameters_SCENE_MODE_HDR))
-    return android_hardware_camera_parameters.SCENE_MODE_HDR;
 
   return NULL;
 }

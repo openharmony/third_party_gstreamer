@@ -27,22 +27,27 @@
 #include "config.h"
 #endif
 
-#include <gst/gst.h>
+#include "gstdtlsdec.h"
+#include "gstdtlsenc.h"
+#include "gstdtlssrtpenc.h"
+#include "gstdtlssrtpdec.h"
+#include "gstdtlssrtpdemux.h"
 
-#include "gstdtlselements.h"
+#include <gst/gst.h>
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
-
-  ret |= GST_ELEMENT_REGISTER (dtlsenc, plugin);
-  ret |= GST_ELEMENT_REGISTER (dtlsdec, plugin);
-  ret |= GST_ELEMENT_REGISTER (dtlssrtpdec, plugin);
-  ret |= GST_ELEMENT_REGISTER (dtlssrtpenc, plugin);
-  ret |= GST_ELEMENT_REGISTER (dtlssrtpdemux, plugin);
-
-  return ret;
+  return gst_element_register (plugin, "dtlsenc", GST_RANK_NONE,
+      GST_TYPE_DTLS_ENC)
+      && gst_element_register (plugin, "dtlsdec", GST_RANK_NONE,
+      GST_TYPE_DTLS_DEC)
+      && gst_element_register (plugin, "dtlssrtpdec", GST_RANK_NONE,
+      GST_TYPE_DTLS_SRTP_DEC)
+      && gst_element_register (plugin, "dtlssrtpenc", GST_RANK_NONE,
+      GST_TYPE_DTLS_SRTP_ENC)
+      && gst_element_register (plugin, "dtlssrtpdemux", GST_RANK_NONE,
+      GST_TYPE_DTLS_SRTP_DEMUX);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

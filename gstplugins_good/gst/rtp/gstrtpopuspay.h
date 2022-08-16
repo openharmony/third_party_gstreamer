@@ -44,11 +44,6 @@ typedef struct _GstRtpOPUSPayClass GstRtpOPUSPayClass;
 struct _GstRtpOPUSPay
 {
   GstRTPBasePayload payload;
-
-  gboolean dtx;
-
-  /* if the next produced buffer should have the MARKER flag */
-  gboolean marker;
 };
 
 struct _GstRtpOPUSPayClass
@@ -57,6 +52,8 @@ struct _GstRtpOPUSPayClass
 };
 
 GType gst_rtp_opus_pay_get_type (void);
+
+gboolean gst_rtp_opus_pay_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 

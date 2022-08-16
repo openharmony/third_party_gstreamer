@@ -21,17 +21,18 @@
  */
 /**
  * SECTION:element-wavenc
- * @title: wavenc
  *
  * Format an audio stream into the wav format.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 cdparanoiasrc mode=continuous ! queue ! audioconvert ! wavenc ! filesink location=cd.wav
  * ]| Rip a whole audio CD into a single wav file, with the track table written into a CUE sheet inside the file
  * |[
  * gst-launch-1.0 cdparanoiasrc track=5 ! queue ! audioconvert ! wavenc ! filesink location=track5.wav
  * ]| Rip track 5 of an audio CD into a single wav file containing unencoded raw audio samples.
+ * </refsect2>
  *
  */
 #ifdef HAVE_CONFIG_H
@@ -116,8 +117,6 @@ G_DEFINE_TYPE_WITH_CODE (GstWavEnc, gst_wavenc, GST_TYPE_ELEMENT,
     G_IMPLEMENT_INTERFACE (GST_TYPE_TAG_SETTER, NULL)
     G_IMPLEMENT_INTERFACE (GST_TYPE_TOC_SETTER, NULL)
     );
-GST_ELEMENT_REGISTER_DEFINE (wavenc, "wavenc", GST_RANK_PRIMARY,
-    GST_TYPE_WAVENC);
 
 static GstFlowReturn gst_wavenc_chain (GstPad * pad, GstObject * parent,
     GstBuffer * buf);
@@ -252,7 +251,7 @@ gstmask_to_wavmask (guint64 gstmask, GstAudioChannelPosition * pos)
     return 0;
 
   for (k = 0; k < G_N_ELEMENTS (wav_pos); ++k) {
-    if (gstmask & (G_GUINT64_CONSTANT (1) << wav_pos[k])) {
+    if (gstmask & wav_pos[k]) {
       ret |= mask;
       pos[chan++] = wav_pos[k];
     }
@@ -548,7 +547,6 @@ gst_wavparse_tags_foreach (const GstTagList * tags, const gchar * tag,
     0, NULL}
   };
   gint n;
-  size_t size;
   gchar *str = NULL;
   GstByteWriter *bw = data;
   for (n = 0; rifftags[n].fcc != 0; n++) {
@@ -566,15 +564,9 @@ gst_wavparse_tags_foreach (const GstTagList * tags, const gchar * tag,
         gst_tag_list_get_string (tags, tag, &str);
       }
       if (str) {
-        /* get string length including null termination */
-        size = strlen (str) + 1;
         gst_byte_writer_put_uint32_le (bw, rifftags[n].fcc);
-        gst_byte_writer_put_uint32_le (bw, GST_ROUND_UP_2 (size));
-        gst_byte_writer_put_data (bw, (const guint8 *) str, size);
-        /* add padding if needed */
-        if (GST_ROUND_UP_2 (size) > size) {
-          gst_byte_writer_put_uint8 (bw, 0);
-        }
+        gst_byte_writer_put_uint32_le (bw, GST_ROUND_UP_2 (strlen (str)));
+        gst_byte_writer_put_string (bw, str);
         g_free (str);
         str = NULL;
         break;
@@ -1098,7 +1090,7 @@ gst_wavenc_change_state (GstElement * element, GstStateChange transition)
       wavenc->audio_length = 0x7FFF0000;
       wavenc->meta_length = 0;
       wavenc->sent_header = FALSE;
-      /* its true because we haven't written anything */
+      /* its true because we haven't writen anything */
       wavenc->finished_properly = TRUE;
       break;
     default:
@@ -1142,7 +1134,8 @@ gst_wavenc_change_state (GstElement * element, GstStateChange transition)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return GST_ELEMENT_REGISTER (wavenc, plugin);
+  return gst_element_register (plugin, "wavenc", GST_RANK_PRIMARY,
+      GST_TYPE_WAVENC);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

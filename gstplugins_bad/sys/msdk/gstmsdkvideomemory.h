@@ -116,7 +116,6 @@ struct _GstMsdkVideoAllocator
 
   GstMsdkContext *context;
   GstVideoInfo image_info;
-  mfxFrameAllocResponse mfx_response;
   mfxFrameAllocResponse *alloc_response;
 };
 
@@ -173,7 +172,6 @@ struct _GstMsdkDmaBufAllocator
 
   GstMsdkContext *context;
   GstVideoInfo image_info;
-  mfxFrameAllocResponse mfx_response;
   mfxFrameAllocResponse *alloc_response;
 };
 

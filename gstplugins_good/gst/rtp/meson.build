@@ -1,8 +1,6 @@
 rtp_sources = [
   'dboolhuff.c',
   'fnv1hash.c',
-  'gstbuffermemory.c',
-  'gstrtpelement.c',
   'gstrtp.c',
   'gstrtpchannels.c',
   'gstrtpac3depay.c',
@@ -42,7 +40,6 @@ rtp_sources = [
   'gstrtpgsmpay.c',
   'gstrtpamrdepay.c',
   'gstrtpamrpay.c',
-  'gstrtphdrext-colorspace.c',
   'gstrtph261depay.c',
   'gstrtph261pay.c',
   'gstrtph263pdepay.c',
@@ -63,7 +60,6 @@ rtp_sources = [
   'gstrtpL16pay.c',
   'gstrtpL24depay.c',
   'gstrtpL24pay.c',
-  'gstrtpldacpay.c',
   'gstasteriskh263.c',
   'gstrtpmp1sdepay.c',
   'gstrtpmp2tdepay.c',
@@ -105,8 +101,6 @@ rtp_sources = [
   'rtpstorage.c',
   'rtpstoragestream.c',
   'gstrtpstorage.c',
-  'gstrtpisacdepay.c',
-  'gstrtpisacpay.c',
 ]
 
 rtp_args = [
@@ -125,4 +119,3 @@ gstrtp = library('gstrtp',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstrtp, install_dir : plugins_pkgconfig_install_dir)
-plugins += [gstrtp]

@@ -68,7 +68,5 @@ struct _GstAV1DecClass
 
 GType gst_av1_dec_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (av1dec);
-
 G_END_DECLS
 #endif /* __GST_AV1_DEC_H__ */

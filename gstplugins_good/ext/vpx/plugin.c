@@ -25,30 +25,35 @@
 
 #include <gst/gst.h>
 
-#include "gstvpxelements.h"
+#include "gstvp8dec.h"
+#include "gstvp8enc.h"
+#include "gstvp9dec.h"
+#include "gstvp9enc.h"
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
-
 #ifdef HAVE_VP8_DECODER
-  ret |= GST_ELEMENT_REGISTER (vp8dec, plugin);
+  gst_element_register (plugin, "vp8dec", GST_RANK_PRIMARY,
+      gst_vp8_dec_get_type ());
 #endif
 
 #ifdef HAVE_VP8_ENCODER
-  ret |= GST_ELEMENT_REGISTER (vp8enc, plugin);
+  gst_element_register (plugin, "vp8enc", GST_RANK_PRIMARY,
+      gst_vp8_enc_get_type ());
 #endif
 
 #ifdef HAVE_VP9_DECODER
-  ret |= GST_ELEMENT_REGISTER (vp9dec, plugin);
+  gst_element_register (plugin, "vp9dec", GST_RANK_PRIMARY,
+      gst_vp9_dec_get_type ());
 #endif
 
 #ifdef HAVE_VP9_ENCODER
-  ret |= GST_ELEMENT_REGISTER (vp9enc, plugin);
+  gst_element_register (plugin, "vp9enc", GST_RANK_PRIMARY,
+      gst_vp9_enc_get_type ());
 #endif
 
-  return ret;
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

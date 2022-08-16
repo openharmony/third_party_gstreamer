@@ -18,7 +18,6 @@
  */
 /**
  * SECTION:element-splitfilesrc
- * @title: splitfilesrc
  * @see_also: #GstFileSrc, #GstMultiFileSrc
  *
  * Reads data from multiple files, presenting those files as one continuous
@@ -30,14 +29,15 @@
  * (and expects) shell-style wildcards (but only for the filename, not for
  * directories). The results will be sorted.
  *
- * ## Example launch lines
+ * <refsect2>
+ * <title>Example launch lines</title>
  * |[
  * gst-launch-1.0 splitfilesrc location="/path/to/part-*.mpg" ! decodebin ! ...
  * ]| Plays the different parts as if they were one single MPEG file.
  * |[
  * gst-launch-1.0 playbin uri="splitfile://path/to/foo.avi.*"
  * ]| Plays the different parts as if they were one single AVI file.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -85,8 +85,6 @@ GST_DEBUG_CATEGORY_STATIC (splitfilesrc_debug);
 G_DEFINE_TYPE_WITH_CODE (GstSplitFileSrc, gst_split_file_src, GST_TYPE_BASE_SRC,
     G_IMPLEMENT_INTERFACE (GST_TYPE_URI_HANDLER,
         gst_split_file_src_uri_handler_init));
-GST_ELEMENT_REGISTER_DEFINE (splitfilesrc, "splitfilesrc", GST_RANK_NONE,
-    gst_split_file_src_get_type ());
 
 #ifdef G_OS_WIN32
 #define WIN32_BLURB " Location string must be in UTF-8 encoding (on Windows)."

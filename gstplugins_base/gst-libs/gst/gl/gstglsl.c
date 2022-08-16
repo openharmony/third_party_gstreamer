@@ -40,7 +40,7 @@ GST_DEBUG_CATEGORY_STATIC (GST_CAT_DEFAULT);
 static void
 _init_debug (void)
 {
-  static gsize _init = 0;
+  static volatile gsize _init = 0;
 
   if (g_once_init_enter (&_init)) {
     GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "glsl", 0,
@@ -49,11 +49,6 @@ _init_debug (void)
   }
 }
 
-/**
- * gst_glsl_error_quark:
- *
- * Returns: the quark used for GstGLSL in #GError's
- */
 GQuark
 gst_glsl_error_quark (void)
 {
@@ -237,7 +232,7 @@ _is_valid_version_profile (GstGLSLVersion version, GstGLSLProfile profile)
  * @version: a #GstGLSLVersion
  * @profile: a #GstGLSLVersion
  *
- * Returns: the combined GLSL `#version` string for @version and @profile
+ * Returns: the combined GLSL #version string for @version and @profile
  */
 gchar *
 gst_glsl_version_profile_to_string (GstGLSLVersion version,
@@ -300,14 +295,14 @@ _check_valid_version_preprocessor_string (const gchar * str)
 
 /**
  * gst_glsl_version_profile_from_string:
- * @string: a valid GLSL `#version` string
+ * @string: a valid GLSL #version string
  * @version_ret: (out): resulting #GstGLSLVersion
  * @profile_ret: (out): resulting #GstGLSLVersion
  *
- * Note: this function expects either a `#version` GLSL preprocesser directive
+ * Note: this function expects either a #version GLSL preprocesser directive
  * or a valid GLSL version and/or profile.
  *
- * Returns: TRUE if a valid `#version` string was found, FALSE otherwise
+ * Returns: TRUE if a valid #version string was found, FALSE otherwise
  */
 gboolean
 gst_glsl_version_profile_from_string (const gchar * string,
@@ -330,7 +325,7 @@ gst_glsl_version_profile_from_string (const gchar * string,
   if (str[0] == '#') {
     if (!(version_s =
             (gchar *) _check_valid_version_preprocessor_string (version_s))) {
-      GST_WARNING ("Invalid preprocesser directive detected");
+      GST_WARNING ("Invalid preprocesser directive detected: %s", version_s);
       g_free (str);
       goto error;
     }
@@ -410,7 +405,7 @@ _gst_glsl_shader_string_find_version (const gchar * str)
 
   _init_debug ();
 
-  /* search for #version while allowing for preceding comments/whitespace as
+  /* search for #version while allowing for preceeding comments/whitespace as
    * permitted by the GLSL specification */
   while (str && str[i] != '\0' && i < 1024) {
     if (str[i] == '\n' || str[i] == '\r') {
@@ -466,14 +461,14 @@ _gst_glsl_shader_string_find_version (const gchar * str)
 
 /**
  * gst_glsl_string_get_version_profile:
- * @s: string to search for a valid `#version` string
+ * @s: string to search for a valid #version string
  * @version: (out): resulting #GstGLSLVersion
  * @profile: (out): resulting #GstGLSLProfile
  *
- * Note: this function first searches the first 1 kilobytes for a `#version`
+ * Note: this function first searches the first 1 kilobytes for a #version
  * preprocessor directive and then executes gst_glsl_version_profile_from_string().
  *
- * Returns: TRUE if a valid `#version` string was found, FALSE otherwise
+ * Returns: TRUE if a valid #version string was found, FALSE otherwise
  */
 gboolean
 gst_glsl_string_get_version_profile (const gchar * s, GstGLSLVersion * version,
@@ -576,7 +571,7 @@ gst_gl_context_supports_glsl_profile_version (GstGLContext * context,
       if ((profile & GST_GLSL_PROFILE_COMPATIBILITY) == 0)
         return FALSE;
     } else if ((gst_gl_context_get_gl_api (context) & GST_GL_API_OPENGL3) != 0) {
-      /* GL_ARB_es2_compatibility is required for GL3 contexts */
+      /* GL_ARB_es2_compatibility is requried for GL3 contexts */
       if ((profile & (GST_GLSL_PROFILE_CORE | GST_GLSL_PROFILE_ES)) == 0)
         return FALSE;
     } else {
@@ -608,7 +603,7 @@ gst_gl_context_supports_glsl_profile_version (GstGLContext * context,
       return FALSE;
 
     if (gst_gl_context_check_gl_version (context, GST_GL_API_OPENGL3, 1, 0))
-      /* GL_ARB_es2_compatibility is required for GL3 contexts */
+      /* GL_ARB_es2_compatibility is requried for GL3 contexts */
       if (version < GST_GLSL_VERSION_150 && version != GST_GLSL_VERSION_100)
         return FALSE;
 

@@ -45,21 +45,10 @@
 /* "R" : support color
  * "X" : do not clear the screen when leaving the pager
  * "F" : skip the pager if content fit into the screen
- *
- * Don't forget to update the manpage gst-inspect-1.0.1
- * after changing this default.
  */
 #define DEFAULT_LESS_OPTS "RXF"
 
 gboolean colored_output = TRUE;
-
-typedef enum
-{
-  SORT_TYPE_NONE = 0,
-  SORT_TYPE_NAME,               /* default */
-} SortType;
-
-SortType sort_output = SORT_TYPE_NAME;
 
 #ifdef G_OS_UNIX
 static const gchar DEFAULT_PAGER[] = "less";
@@ -143,7 +132,6 @@ n_print (const char *format, ...)
 {
   va_list args;
   int i;
-  gchar *str;
 
   if (_name)
     g_print ("%s", _name);
@@ -152,14 +140,8 @@ n_print (const char *format, ...)
     g_print ("  ");
 
   va_start (args, format);
-  str = gst_info_strdup_vprintf (format, args);
+  g_vprintf (format, args);
   va_end (args);
-
-  if (!str)
-    return;
-
-  g_print ("%s", str);
-  g_free (str);
 }
 
 static gboolean
@@ -243,7 +225,7 @@ print_factory_details_info (GstElementFactory * factory)
 {
   gchar **keys, **k;
   GstRank rank;
-  char s[40];
+  char s[20];
 
   rank = gst_plugin_feature_get_rank (GST_PLUGIN_FEATURE (factory));
   n_print ("%sFactory Details:%s\n", HEADING_COLOR, RESET_COLOR);
@@ -358,8 +340,7 @@ flags_to_string (GFlagsValue * vals, guint flags)
   G_PARAM_LAX_VALIDATION |  G_PARAM_STATIC_STRINGS | \
   G_PARAM_READABLE | G_PARAM_WRITABLE | G_PARAM_DEPRECATED | \
   GST_PARAM_CONTROLLABLE | GST_PARAM_MUTABLE_PLAYING | \
-  GST_PARAM_MUTABLE_PAUSED | GST_PARAM_MUTABLE_READY | \
-  GST_PARAM_CONDITIONALLY_AVAILABLE)
+  GST_PARAM_MUTABLE_PAUSED | GST_PARAM_MUTABLE_READY)
 
 static int
 sort_gparamspecs (GParamSpec ** a, GParamSpec ** b)
@@ -431,11 +412,6 @@ print_object_properties_info (GObject * obj, GObjectClass * obj_class,
     }
     if (param->flags & GST_PARAM_CONTROLLABLE) {
       g_print (", %s%s%s", PROP_ATTR_VALUE_COLOR, _("controllable"),
-          RESET_COLOR);
-      first_flag = FALSE;
-    }
-    if (param->flags & GST_PARAM_CONDITIONALLY_AVAILABLE) {
-      g_print (", %s%s%s", PROP_ATTR_VALUE_COLOR, _("conditionally available"),
           RESET_COLOR);
       first_flag = FALSE;
     }
@@ -738,22 +714,10 @@ print_element_properties_info (GstElement * element)
       G_OBJECT_GET_CLASS (element), "Element Properties");
 }
 
-static gint
-gst_static_pad_compare_func (gconstpointer p1, gconstpointer p2)
-{
-  GstStaticPadTemplate *pt1, *pt2;
-
-  pt1 = (GstStaticPadTemplate *) p1;
-  pt2 = (GstStaticPadTemplate *) p2;
-
-  return strcmp (pt1->name_template, pt2->name_template);
-}
-
-
 static void
 print_pad_templates_info (GstElement * element, GstElementFactory * factory)
 {
-  GList *pads;
+  const GList *pads;
   GstStaticPadTemplate *padtemplate;
   GstPadTemplate *tmpl;
 
@@ -766,9 +730,7 @@ print_pad_templates_info (GstElement * element, GstElementFactory * factory)
     goto done;
   }
 
-  pads = g_list_copy ((GList *)
-      gst_element_factory_get_static_pad_templates (factory));
-  pads = g_list_sort (pads, gst_static_pad_compare_func);
+  pads = gst_element_factory_get_static_pad_templates (factory);
   while (pads) {
     padtemplate = (GstStaticPadTemplate *) (pads->data);
     pads = g_list_next (pads);
@@ -831,7 +793,7 @@ print_pad_templates_info (GstElement * element, GstElementFactory * factory)
     if (pads != NULL)
       n_print ("\n");
   }
-  g_list_free (pads);
+
 done:
   pop_indent ();
 }
@@ -1154,30 +1116,10 @@ print_preset_list (GstElement * element)
     n_print ("\n");
     n_print ("%sPresets%s:\n", HEADING_COLOR, RESET_COLOR);
     for (preset = presets; *preset; preset++) {
-      gchar *comment = NULL;
-      n_print ("  \"%s\"", *preset);
-
-      if (gst_preset_get_meta (GST_PRESET (element), *preset, "comment",
-              &comment) && comment)
-        g_print (": %s", comment);
-      g_free (comment);
-      g_print ("\n");
+      n_print ("  \"%s\"\n", *preset);
     }
     g_strfreev (presets);
   }
-}
-
-static gint
-gst_plugin_name_compare_func (gconstpointer p1, gconstpointer p2)
-{
-  return strcmp (gst_plugin_get_name ((GstPlugin *) p1),
-      gst_plugin_get_name ((GstPlugin *) p2));
-}
-
-static gint
-gst_plugin_feature_name_compare_func (gconstpointer p1, gconstpointer p2)
-{
-  return strcmp (GST_OBJECT_NAME (p1), GST_OBJECT_NAME (p2));
 }
 
 static void
@@ -1189,9 +1131,6 @@ print_blacklist (void)
   g_print ("%s%s%s\n", HEADING_COLOR, _("Blacklisted files:"), RESET_COLOR);
 
   plugins = gst_registry_get_plugin_list (gst_registry_get ());
-  if (sort_output == SORT_TYPE_NAME)
-    plugins = g_list_sort (plugins, gst_plugin_name_compare_func);
-
   for (cur = plugins; cur != NULL; cur = g_list_next (cur)) {
     GstPlugin *plugin = (GstPlugin *) (cur->data);
     if (GST_OBJECT_FLAG_IS_SET (plugin, GST_PLUGIN_FLAG_BLACKLISTED)) {
@@ -1237,8 +1176,6 @@ print_element_list (gboolean print_all, gchar * ftypes)
   }
 
   orig_plugins = plugins = gst_registry_get_plugin_list (gst_registry_get ());
-  if (sort_output == SORT_TYPE_NAME)
-    plugins = g_list_sort (plugins, gst_plugin_name_compare_func);
   while (plugins) {
     GList *features, *orig_features;
     GstPlugin *plugin;
@@ -1255,8 +1192,6 @@ print_element_list (gboolean print_all, gchar * ftypes)
     orig_features = features =
         gst_registry_get_feature_list_by_plugin (gst_registry_get (),
         gst_plugin_get_name (plugin));
-    if (sort_output == SORT_TYPE_NAME)
-      features = g_list_sort (features, gst_plugin_feature_name_compare_func);
     while (features) {
       GstPluginFeature *feature;
 
@@ -1358,16 +1293,14 @@ print_all_uri_handlers (void)
   GList *plugins, *p, *features, *f;
 
   plugins = gst_registry_get_plugin_list (gst_registry_get ());
-  if (sort_output == SORT_TYPE_NAME)
-    plugins = g_list_sort (plugins, gst_plugin_name_compare_func);
+
   for (p = plugins; p; p = p->next) {
     GstPlugin *plugin = (GstPlugin *) (p->data);
 
     features =
         gst_registry_get_feature_list_by_plugin (gst_registry_get (),
         gst_plugin_get_name (plugin));
-    if (sort_output == SORT_TYPE_NAME)
-      features = g_list_sort (features, gst_plugin_feature_name_compare_func);
+
     for (f = features; f; f = f->next) {
       GstPluginFeature *feature = GST_PLUGIN_FEATURE (f->data);
 
@@ -1503,8 +1436,7 @@ print_plugin_features (GstPlugin * plugin)
   origlist = features =
       gst_registry_get_feature_list_by_plugin (gst_registry_get (),
       gst_plugin_get_name (plugin));
-  if (sort_output == SORT_TYPE_NAME)
-    features = g_list_sort (features, gst_plugin_feature_name_compare_func);
+
   while (features) {
     GstPluginFeature *feature;
 
@@ -1678,7 +1610,7 @@ print_typefind_info (GstPluginFeature * feature, gboolean print_names)
   GstPlugin *plugin;
   GstCaps *caps;
   GstRank rank;
-  char s[40];
+  char s[20];
   const gchar *const *extensions;
 
   factory = GST_TYPE_FIND_FACTORY (gst_plugin_feature_load (feature));
@@ -1933,8 +1865,6 @@ print_all_plugin_automatic_install_info (void)
   GList *plugins, *orig_plugins;
 
   orig_plugins = plugins = gst_registry_get_plugin_list (gst_registry_get ());
-  if (sort_output == SORT_TYPE_NAME)
-    plugins = g_list_sort (plugins, gst_plugin_name_compare_func);
   while (plugins) {
     GstPlugin *plugin;
 
@@ -1952,7 +1882,7 @@ redirect_stdout (void)
 {
   GError *error = NULL;
   gchar **argv;
-  const gchar *pager, *less;
+  const gchar *pager;
   gint stdin_fd;
   gchar **envp;
 
@@ -1962,12 +1892,8 @@ redirect_stdout (void)
 
   argv = g_strsplit (pager, " ", 0);
 
-  less = g_getenv ("GST_LESS");
-  if (less == NULL)
-    less = DEFAULT_LESS_OPTS;
-
   envp = g_get_environ ();
-  envp = g_environ_setenv (envp, "LESS", less, TRUE);
+  envp = g_environ_setenv (envp, "LESS", DEFAULT_LESS_OPTS, TRUE);
 
   if (!g_spawn_async_with_pipes (NULL, argv, envp,
           G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_SEARCH_PATH,
@@ -2005,21 +1931,6 @@ child_exit_cb (GPid child_pid, gint status, gpointer user_data)
 }
 #endif
 
-static gboolean
-_parse_sort_type (const gchar * option_name, const gchar * optarg,
-    gpointer data, GError ** error)
-{
-  if (!g_strcmp0 (optarg, "name")) {
-    sort_output = SORT_TYPE_NAME;
-    return TRUE;
-  } else if (!g_strcmp0 (optarg, "none")) {
-    sort_output = SORT_TYPE_NONE;
-    return TRUE;
-  }
-
-  return FALSE;
-}
-
 int
 main (int argc, char *argv[])
 {
@@ -2029,7 +1940,6 @@ main (int argc, char *argv[])
   gboolean print_aii = FALSE;
   gboolean uri_handlers = FALSE;
   gboolean check_exists = FALSE;
-  gboolean color_always = FALSE;
   gchar *min_version = NULL;
   guint minver_maj = GST_VERSION_MAJOR;
   guint minver_min = GST_VERSION_MINOR;
@@ -2066,15 +1976,8 @@ main (int argc, char *argv[])
     {"no-colors", '\0', G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE,
           &colored_output,
           N_
-          ("Disable colors in output. You can also achieve the same by setting "
+          ("Disable colors in output. You can also achieve the same by setting"
               "'GST_INSPECT_NO_COLORS' environment variable to any value."),
-        NULL},
-    {"sort", '\0', G_OPTION_ARG_NONE, G_OPTION_ARG_CALLBACK, &_parse_sort_type,
-          "Sort plugins and features. Sorting keys: name (default), none.",
-        "<sort-key>"}
-    ,
-    {"color", 'C', 0, G_OPTION_ARG_NONE, &color_always,
-          N_("Color output, even when not sending to a tty."),
         NULL},
     GST_TOOLS_GOPTION_VERSION,
     {NULL}
@@ -2129,10 +2032,8 @@ main (int argc, char *argv[])
             &minver_micro) < 2) {
       g_printerr ("Can't parse version '%s' passed to --atleast-version\n",
           min_version);
-      g_free (min_version);
       return -1;
     }
-    g_free (min_version);
     check_exists = TRUE;
   }
 
@@ -2172,11 +2073,10 @@ main (int argc, char *argv[])
     if (redirect_stdout ())
       loop = g_main_loop_new (NULL, FALSE);
   } else {
-    colored_output = (color_always) ? TRUE : FALSE;
+    colored_output = FALSE;
   }
 #elif defined(G_OS_WIN32)
   {
-    /* g_log_writer_supports_color is available since 2.50.0 */
     gint fd = _fileno (stdout);
     /* On Windows 10, g_log_writer_supports_color will also setup the console
      * so that it correctly interprets ANSI VT sequences if it's supported */

@@ -75,8 +75,7 @@ struct _GstOpenni2SrcClass
 };
 
 GType gst_openni2_src_get_type (void);
-
-GST_ELEMENT_REGISTER_DECLARE (openni2src);
+gboolean gst_openni2src_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 #endif /* __GST_OPENNI2_SRC_H__ */

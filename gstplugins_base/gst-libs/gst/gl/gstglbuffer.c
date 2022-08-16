@@ -53,26 +53,12 @@
 #define USING_GLES2(context) (gst_gl_context_check_gl_version (context, GST_GL_API_GLES2, 2, 0))
 #define USING_GLES3(context) (gst_gl_context_check_gl_version (context, GST_GL_API_GLES2, 3, 0))
 
-#define HAVE_BUFFER_STORAGE(context) (context->gl_vtable->BufferStorage != NULL)
-
 /* compatibility definitions... */
 #ifndef GL_MAP_READ_BIT
 #define GL_MAP_READ_BIT 0x0001
 #endif
 #ifndef GL_MAP_WRITE_BIT
 #define GL_MAP_WRITE_BIT 0x0002
-#endif
-#ifndef GL_MAP_FLUSH_EXPLICIT_BIT
-#define GL_MAP_FLUSH_EXPLICIT_BIT 0x0010
-#endif
-#ifndef GL_MAP_PERSISTENT_BIT
-#define GL_MAP_PERSISTENT_BIT 0x0040
-#endif
-#ifndef GL_DYNAMIC_STORAGE_BIT
-#define GL_DYNAMIC_STORAGE_BIT 0x0100
-#endif
-#ifndef GL_CLIENT_STORAGE_BIT
-#define GL_CLIENT_STORAGE_BIT 0x0200
 #endif
 #ifndef GL_COPY_READ_BUFFER
 #define GL_COPY_READ_BUFFER 0x8F36
@@ -84,8 +70,6 @@
 GST_DEBUG_CATEGORY_STATIC (GST_CAT_GL_BUFFER);
 #define GST_CAT_DEFUALT GST_CAT_GL_BUFFER
 
-GST_DEFINE_MINI_OBJECT_TYPE (GstGLBuffer, gst_gl_buffer);
-
 static GstAllocator *_gl_buffer_allocator;
 
 static gboolean
@@ -95,31 +79,8 @@ _gl_buffer_create (GstGLBuffer * gl_mem, GError ** error)
 
   gl->GenBuffers (1, &gl_mem->id);
   gl->BindBuffer (gl_mem->target, gl_mem->id);
-  if (HAVE_BUFFER_STORAGE (gl_mem->mem.context)) {
-    GLenum flags = 0;
-
-    flags |= GL_MAP_READ_BIT | GL_MAP_WRITE_BIT;
-    /* allow access to GPU-side data while there are outstanding mappings */
-    flags |= GL_MAP_PERSISTENT_BIT;
-    /* match the glBufferData() below and  make this buffer mutable */
-    flags |= GL_DYNAMIC_STORAGE_BIT;
-    /* hint that the data should be kept CPU-side.  Fixes atrocious
-     * performance when e.g. libav decoders are direct-rendering into our
-     * data pointer */
-    /* XXX: make this an fine-grained option. The current assumption here is
-     * that users signal GL_STREAM_DRAW for regularly updating video frames as
-     * is done by gstglmemorypbo */
-    if (gl_mem->usage_hints == GL_STREAM_DRAW) {
-      GST_CAT_DEBUG (GST_CAT_GL_BUFFER, "using client-side storage for "
-          "buffer %p %u", gl_mem, gl_mem->id);
-      flags |= GL_CLIENT_STORAGE_BIT;
-    }
-
-    gl->BufferStorage (gl_mem->target, gl_mem->mem.mem.maxsize, NULL, flags);
-  } else {
-    gl->BufferData (gl_mem->target, gl_mem->mem.mem.maxsize, NULL,
-        gl_mem->usage_hints);
-  }
+  gl->BufferData (gl_mem->target, gl_mem->mem.mem.maxsize, NULL,
+      gl_mem->usage_hints);
   gl->BindBuffer (gl_mem->target, 0);
 
   return TRUE;
@@ -134,7 +95,7 @@ struct create_data
 static void
 _gl_buffer_init (GstGLBuffer * mem, GstAllocator * allocator,
     GstMemory * parent, GstGLContext * context, guint gl_target, guint gl_usage,
-    const GstAllocationParams * params, gsize size)
+    GstAllocationParams * params, gsize size)
 {
   mem->target = gl_target;
   mem->usage_hints = gl_usage;
@@ -149,25 +110,11 @@ _gl_buffer_init (GstGLBuffer * mem, GstAllocator * allocator,
 static GstGLBuffer *
 _gl_buffer_new (GstAllocator * allocator, GstMemory * parent,
     GstGLContext * context, guint gl_target, guint gl_usage,
-    const GstAllocationParams * params, gsize size)
+    GstAllocationParams * params, gsize size)
 {
   GstGLBuffer *ret = g_new0 (GstGLBuffer, 1);
   _gl_buffer_init (ret, allocator, parent, context, gl_target, gl_usage,
       params, size);
-
-  return ret;
-}
-
-static GLenum
-gst_map_flags_to_gl (GstMapFlags flags)
-{
-  GLenum ret = 0;
-
-  if (flags & GST_MAP_READ)
-    ret |= GL_MAP_READ_BIT;
-
-  if (flags & GST_MAP_WRITE)
-    ret |= GL_MAP_WRITE_BIT;
 
   return ret;
 }
@@ -178,29 +125,13 @@ gst_gl_buffer_cpu_access (GstGLBuffer * mem, GstMapInfo * info, gsize size)
   const GstGLFuncs *gl = mem->mem.context->gl_vtable;
   gpointer data, ret;
 
-  GST_CAT_LOG (GST_CAT_GL_BUFFER, "mapping %p id %d size %" G_GSIZE_FORMAT,
-      mem, mem->id, size);
-
-  if (HAVE_BUFFER_STORAGE (mem->mem.context)) {
-    GLenum gl_map_flags = gst_map_flags_to_gl (info->flags);
-
-    gl_map_flags |= GL_MAP_PERSISTENT_BIT;
-    if (info->flags & GST_MAP_WRITE)
-      gl_map_flags |= GL_MAP_FLUSH_EXPLICIT_BIT;
-
-    if (mem->mem.map_count == (mem->mem.gl_map_count + 1)) {
-      gl->BindBuffer (mem->target, mem->id);
-      mem->mem.data = gl->MapBufferRange (mem->target, 0, size, gl_map_flags);
-      gl->BindBuffer (mem->target, 0);
-    }
-
-    return mem->mem.data;
-  }
-
   if (!gst_gl_base_memory_alloc_data (GST_GL_BASE_MEMORY_CAST (mem)))
     return NULL;
 
   ret = mem->mem.data;
+
+  GST_CAT_LOG (GST_CAT_GL_BUFFER, "mapping id %d size %" G_GSIZE_FORMAT,
+      mem->id, size);
 
   /* The extra data pointer indirection/memcpy is needed for coherent across
    * concurrent map()'s in both GL and CPU */
@@ -243,14 +174,6 @@ gst_gl_buffer_upload_cpu_write (GstGLBuffer * mem, GstMapInfo * info,
   if (!mem->mem.data)
     /* no data pointer has been written */
     return;
-
-  GST_CAT_LOG (GST_CAT_GL_BUFFER, "mapping %p id %d size %" G_GSIZE_FORMAT,
-      mem, mem->id, size);
-
-  if (HAVE_BUFFER_STORAGE (mem->mem.context)) {
-    /* flushing is done on unmap already */
-    return;
-  }
 
   /* The extra data pointer indirection/memcpy is needed for coherent across
    * concurrent map()'s in both GL and CPU */
@@ -302,21 +225,6 @@ _gl_buffer_unmap (GstGLBuffer * mem, GstMapInfo * info)
 {
   const GstGLFuncs *gl = mem->mem.context->gl_vtable;
 
-  GST_CAT_LOG (GST_CAT_GL_BUFFER, "unmapping %p id %d size %" G_GSIZE_FORMAT,
-      mem, mem->id, info->size);
-
-  if (HAVE_BUFFER_STORAGE (mem->mem.context) && (info->flags & GST_MAP_GL) == 0) {
-    gl->BindBuffer (mem->target, mem->id);
-
-    if (info->flags & GST_MAP_WRITE)
-      gl->FlushMappedBufferRange (mem->target, 0, info->maxsize);
-
-    if (mem->mem.map_count == (mem->mem.gl_map_count + 1))
-      /* if this is our last cpu-mapping, unmap the GL buffer */
-      gl->UnmapBuffer (mem->target);
-
-    gl->BindBuffer (mem->target, 0);
-  }
   if ((info->flags & GST_MAP_GL) != 0) {
     gl->BindBuffer (mem->target, 0);
   }
@@ -461,7 +369,7 @@ G_DEFINE_BOXED_TYPE (GstGLBufferAllocationParams,
  */
 GstGLBufferAllocationParams *
 gst_gl_buffer_allocation_params_new (GstGLContext * context, gsize alloc_size,
-    const GstAllocationParams * alloc_params, guint gl_target, guint gl_usage)
+    GstAllocationParams * alloc_params, guint gl_target, guint gl_usage)
 {
   GstGLBufferAllocationParams *params;
 
@@ -547,7 +455,7 @@ gst_gl_buffer_allocator_init (GstGLBufferAllocator * allocator)
 void
 gst_gl_buffer_init_once (void)
 {
-  static gsize _init = 0;
+  static volatile gsize _init = 0;
 
   if (g_once_init_enter (&_init)) {
     gst_gl_base_memory_init_once ();

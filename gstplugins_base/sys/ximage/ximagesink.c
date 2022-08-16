@@ -115,10 +115,8 @@
 /* for XkbKeycodeToKeysym */
 #include <X11/XKBlib.h>
 
-GST_DEBUG_CATEGORY_EXTERN (gst_debug_x_image_pool);
-GST_DEBUG_CATEGORY (gst_debug_x_image_sink);
-GST_DEBUG_CATEGORY_STATIC (CAT_PERFORMANCE);
-
+GST_DEBUG_CATEGORY_EXTERN (gst_debug_x_image_sink);
+GST_DEBUG_CATEGORY_EXTERN (CAT_PERFORMANCE);
 #define GST_CAT_DEFAULT gst_debug_x_image_sink
 
 typedef struct
@@ -180,13 +178,6 @@ G_DEFINE_TYPE_WITH_CODE (GstXImageSink, gst_x_image_sink, GST_TYPE_VIDEO_SINK,
         gst_x_image_sink_navigation_init);
     G_IMPLEMENT_INTERFACE (GST_TYPE_VIDEO_OVERLAY,
         gst_x_image_sink_video_overlay_init));
-
-#define _do_init \
-  GST_DEBUG_CATEGORY_INIT (gst_debug_x_image_sink, "ximagesink", 0, "ximagesink element");\
-  GST_DEBUG_CATEGORY_INIT (gst_debug_x_image_pool, "ximagepool", 0, "ximagepool object");\
-  GST_DEBUG_CATEGORY_GET (CAT_PERFORMANCE, "GST_PERFORMANCE");
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (ximagesink, "ximagesink",
-    GST_RANK_SECONDARY, GST_TYPE_X_IMAGE_SINK, _do_init);
 
 /* ============================================================= */
 /*                                                               */
@@ -406,15 +397,6 @@ gst_x_image_sink_xwindow_set_title (GstXImageSink * ximagesink,
       if (title) {
         if ((XStringListToTextProperty (((char **) &title), 1,
                     &xproperty)) != 0) {
-          Atom _NET_WM_NAME =
-              XInternAtom (ximagesink->xcontext->disp, "_NET_WM_NAME", 0);
-          Atom UTF8_STRING =
-              XInternAtom (ximagesink->xcontext->disp, "UTF8_STRING", 0);
-          XChangeProperty (ximagesink->xcontext->disp, xwindow->win,
-              _NET_WM_NAME, UTF8_STRING, 8, 0, (unsigned char *) title,
-              strlen (title));
-          XSync (ximagesink->xcontext->disp, False);
-
           XSetWMName (ximagesink->xcontext->disp, xwindow->win, &xproperty);
           XFree (xproperty.value);
         }
@@ -649,13 +631,8 @@ gst_x_image_sink_handle_xevents (GstXImageSink * ximagesink)
         /* Key pressed/released over our window. We send upstream
            events for interactivity/navigation */
         g_mutex_lock (&ximagesink->x_lock);
-        if (ximagesink->xcontext->use_xkb) {
-          keysym = XkbKeycodeToKeysym (ximagesink->xcontext->disp,
-              e.xkey.keycode, 0, 0);
-        } else {
-          keysym = XKeycodeToKeysym (ximagesink->xcontext->disp,
-              e.xkey.keycode, 0);
-        }
+        keysym = XkbKeycodeToKeysym (ximagesink->xcontext->disp,
+            e.xkey.keycode, 0, 0);
         if (keysym != NoSymbol) {
           key_str = XKeysymToString (keysym);
         } else {
@@ -867,9 +844,6 @@ gst_x_image_sink_xcontext_get (GstXImageSink * ximagesink)
   gint endianness;
   GstVideoFormat vformat;
   guint32 alpha_mask;
-  int opcode, event, err;
-  int major = XkbMajorVersion;
-  int minor = XkbMinorVersion;
 
   g_return_val_if_fail (GST_IS_X_IMAGE_SINK (ximagesink), NULL);
 
@@ -940,13 +914,6 @@ gst_x_image_sink_xcontext_get (GstXImageSink * ximagesink)
   {
     xcontext->use_xshm = FALSE;
     GST_DEBUG ("ximagesink is not using XShm extension");
-  }
-  if (XkbQueryExtension (xcontext->disp, &opcode, &event, &err, &major, &minor)) {
-    xcontext->use_xkb = TRUE;
-    GST_DEBUG ("ximagesink is using Xkb extension");
-  } else {
-    xcontext->use_xkb = FALSE;
-    GST_DEBUG ("ximagesink is not using Xkb extension");
   }
 
   /* extrapolate alpha mask */
@@ -1560,7 +1527,7 @@ gst_x_image_sink_navigation_send_event (GstNavigation * navigation,
 
   /* We are not converting the pointer coordinates as there's no hardware
      scaling done here. The only possible scaling is done by videoscale and
-     videoscale will have to catch those events and transform the coordinates
+     videoscale will have to catch those events and tranform the coordinates
      to match the applied scaling. So here we just add the offset if the image
      is centered in the window.  */
 

@@ -8,8 +8,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: gst-plugins-base 1.16.0\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2021-10-25 01:01+0100\n"
+"Report-Msgid-Bugs-To: http://bugzilla.gnome.org/\n"
+"POT-Creation-Date: 2019-12-03 11:03+0000\n"
 "PO-Revision-Date: 2019-11-23 21:59+0100\n"
 "Last-Translator: Balázs Úr <ur.balazs@fsf.hu>\n"
 "Language-Team: Hungarian <translation-team-hu@lists.sourceforge.net>\n"
@@ -77,15 +77,24 @@ msgstr "Nem sikerült pozicionálni a CD-t."
 msgid "Could not read CD."
 msgstr "Nem sikerült olvasni a CD-t."
 
+msgid "failed to draw pattern"
+msgstr "a minta rajzolása sikertelen"
+
+msgid "A GL error occurred"
+msgstr "Egy GL hiba történt"
+
+msgid "format wasn't negotiated before get function"
+msgstr "a formátum nem lett egyeztetve a függvény lekérése előtt"
+
+#, c-format
+msgid "Missing element '%s' - check your GStreamer installation."
+msgstr "A(z) „%s” elem hiányzik - ellenőrizze a Gstreamer telepítését."
+
 msgid "Could not determine type of stream"
 msgstr "Nem sikerült meghatározni az adatfolyam típusát"
 
 msgid "This appears to be a text file"
 msgstr "Ez egy szövegfájlnak tűnik"
-
-#, c-format
-msgid "Missing element '%s' - check your GStreamer installation."
-msgstr "A(z) „%s” elem hiányzik - ellenőrizze a Gstreamer telepítését."
 
 msgid "Could not create \"uridecodebin\" element."
 msgstr "Nem sikerült létrehozni „uridecodebin” elemet."
@@ -169,15 +178,6 @@ msgstr "Nem lehet elég gyorsan rögzíteni a hangot"
 msgid "This CD has no audio tracks"
 msgstr "Ez a CD nem rendelkezik hangsávokkal"
 
-msgid "failed to draw pattern"
-msgstr "a minta rajzolása sikertelen"
-
-msgid "A GL error occurred"
-msgstr "Egy GL hiba történt"
-
-msgid "format wasn't negotiated before get function"
-msgstr "a formátum nem lett egyeztetve a függvény lekérése előtt"
-
 msgid "ID3 tag"
 msgstr "ID3 címke"
 
@@ -211,11 +211,9 @@ msgstr "Veszteségmentes MSZH"
 msgid "Run-length encoding"
 msgstr "Műsorhossz-kódolás"
 
-#. subtitle formats with static descriptions
 msgid "Timed Text"
 msgstr "Időzített szöveg"
 
-#. FIXME: add variant field to typefinder?
 msgid "Subtitle"
 msgstr "Felirat"
 
@@ -295,9 +293,6 @@ msgstr "Valósidejű adatfolyam-protokoll (RTSP) forrás"
 msgid "Microsoft Media Server (MMS) protocol source"
 msgstr "Microsoft Media Server (MMS) protokollforrás"
 
-#. TODO: find out how to add a comment for translators to the source code
-#. * (and tell them to make the first letter uppercase below if they move
-#. * the protocol to the middle or end of the string)
 #, c-format
 msgid "%s protocol source"
 msgstr "%s protokollforrás"
@@ -361,8 +356,6 @@ msgstr "Ismeretlen dekódolóelem"
 msgid "Unknown encoder element"
 msgstr "Ismeretlen kódolóelem"
 
-#. we should really never get here, but we better still return
-#. * something if we do
 msgid "Plugin or element of unknown type"
 msgstr "Ismeretlen típusú bővítmény vagy elem"
 
@@ -393,32 +386,11 @@ msgstr "Albumelőadó azonosítója"
 msgid "MusicBrainz album artist ID"
 msgstr "MusicBrainz albumelőadó azonosítója"
 
-msgid "release group ID"
-msgstr ""
-
-#, fuzzy
-msgid "MusicBrainz release group ID"
-msgstr "MusicBrainz számazonosító"
-
-#, fuzzy
-msgid "release track ID"
-msgstr "számazonosító"
-
-#, fuzzy
-msgid "MusicBrainz release track ID"
-msgstr "MusicBrainz számazonosító"
-
 msgid "track TRM ID"
 msgstr "szám TRM azonosítója"
 
 msgid "MusicBrainz TRM ID"
 msgstr "MusicBrainz szám TRM azonosítója"
-
-msgid "AcoustID ID"
-msgstr ""
-
-msgid "AcoustID fingerprint (chromaprint)"
-msgstr ""
 
 msgid "capturing shutter speed"
 msgstr "felvétel zársebessége"
@@ -571,18 +543,9 @@ msgstr ""
 "Ne lépjen ki a kezdeti eszközlista megjelenítése után, de várjon az eszközök "
 "hozzáadására/eltávolítására."
 
-msgid "Include devices from hidden device providers."
-msgstr ""
-
 #, c-format
 msgid "Volume: %.0f%%"
 msgstr "Hangerő: %.0f%%"
-
-msgid "Mute: on"
-msgstr ""
-
-msgid "Mute: off"
-msgstr ""
 
 msgid "Buffering..."
 msgstr "Pufferelés…"
@@ -648,9 +611,6 @@ msgstr "hangerő fel"
 msgid "volume down"
 msgstr "hangerő le"
 
-msgid "toggle audio mute on/off"
-msgstr ""
-
 msgid "increase playback rate"
 msgstr "lejátszási sebesség növelése"
 
@@ -707,14 +667,8 @@ msgstr "Interaktív vezérlés letiltása a billentyűzeten keresztül"
 msgid "Volume"
 msgstr "Hangerő"
 
-msgid "Start position in seconds."
-msgstr ""
-
 msgid "Playlist file containing input media files"
 msgstr "Bemeneti médiafájlokat tartalmazó lejátszólista fájl"
-
-msgid "Use the experimental instant-rate-change flag when changing rate"
-msgstr ""
 
 msgid "Do not print any output (apart from errors)"
 msgstr "Ne írjon ki semmilyen kimenetet (a hibákon kívül)"

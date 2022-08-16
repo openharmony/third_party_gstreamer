@@ -18,22 +18,12 @@
  * Boston, MA 02110-1301, USA.
  */
 
-/**
- * SECTION:gstgldisplay_wayland
- * @short_description: Wayland display connection
- * @title: GstGLDisplayWayland
- * @see_also: #GstGLDisplay
- *
- * #GstGLDisplayWayland represents a connection to a Wayland `wl_display` handle
- * created internally (gst_gl_display_wayland_new()) or wrapped by the application
- * (gst_gl_display_wayland_new_with_display())
- */
-
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
 #include "gstgldisplay_wayland.h"
+#include "gstgldisplay_wayland_private.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_gl_display_debug);
 #define GST_CAT_DEFAULT gst_gl_display_debug
@@ -41,7 +31,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_gl_display_debug);
 /* We can't define these in the public struct, or we'd break ABI */
 typedef struct _GstGLDisplayWaylandPrivate
 {
-  gint dummy;
+  struct xdg_wm_base *xdg_wm_base;
 } GstGLDisplayWaylandPrivate;
 
 G_DEFINE_TYPE_WITH_PRIVATE (GstGLDisplayWayland, gst_gl_display_wayland,
@@ -49,6 +39,59 @@ G_DEFINE_TYPE_WITH_PRIVATE (GstGLDisplayWayland, gst_gl_display_wayland,
 
 static void gst_gl_display_wayland_finalize (GObject * object);
 static guintptr gst_gl_display_wayland_get_handle (GstGLDisplay * display);
+
+static void
+handle_xdg_wm_base_ping (void *user_data, struct xdg_wm_base *xdg_wm_base,
+    uint32_t serial)
+{
+  xdg_wm_base_pong (xdg_wm_base, serial);
+}
+
+static const struct xdg_wm_base_listener xdg_wm_base_listener = {
+  handle_xdg_wm_base_ping
+};
+
+static void
+registry_handle_global (void *data, struct wl_registry *registry,
+    uint32_t name, const char *interface, uint32_t version)
+{
+  GstGLDisplayWayland *display = data;
+  GstGLDisplayWaylandPrivate *priv =
+      gst_gl_display_wayland_get_instance_private (display);
+
+  GST_DEBUG_CATEGORY_GET (gst_gl_display_debug, "gldisplay");
+
+  GST_TRACE_OBJECT (display, "registry_handle_global with registry %p, "
+      "interface %s, version %u", registry, interface, version);
+
+  if (g_strcmp0 (interface, "wl_compositor") == 0) {
+    display->compositor =
+        wl_registry_bind (registry, name, &wl_compositor_interface, 1);
+  } else if (g_strcmp0 (interface, "wl_subcompositor") == 0) {
+    display->subcompositor =
+        wl_registry_bind (registry, name, &wl_subcompositor_interface, 1);
+  } else if (g_strcmp0 (interface, "xdg_wm_base") == 0) {
+    priv->xdg_wm_base =
+        wl_registry_bind (registry, name, &xdg_wm_base_interface, 1);
+    xdg_wm_base_add_listener (priv->xdg_wm_base, &xdg_wm_base_listener,
+        display);
+  } else if (g_strcmp0 (interface, "wl_shell") == 0) {
+    display->shell = wl_registry_bind (registry, name, &wl_shell_interface, 1);
+  }
+}
+
+static const struct wl_registry_listener registry_listener = {
+  registry_handle_global
+};
+
+static void
+_connect_listeners (GstGLDisplayWayland * display)
+{
+  display->registry = wl_display_get_registry (display->display);
+  wl_registry_add_listener (display->registry, &registry_listener, display);
+
+  wl_display_roundtrip (display->display);
+}
 
 static void
 gst_gl_display_wayland_class_init (GstGLDisplayWaylandClass * klass)
@@ -72,6 +115,11 @@ static void
 gst_gl_display_wayland_finalize (GObject * object)
 {
   GstGLDisplayWayland *display_wayland = GST_GL_DISPLAY_WAYLAND (object);
+  GstGLDisplayWaylandPrivate *priv =
+      gst_gl_display_wayland_get_instance_private (display_wayland);
+
+  g_clear_pointer (&display_wayland->shell, wl_shell_destroy);
+  g_clear_pointer (&priv->xdg_wm_base, xdg_wm_base_destroy);
 
   /* Cause eglTerminate() to occur before wl_display_disconnect()
    * https://bugzilla.gnome.org/show_bug.cgi?id=787293 */
@@ -89,7 +137,7 @@ gst_gl_display_wayland_finalize (GObject * object)
  * gst_gl_display_wayland_new:
  * @name: (allow-none): a display name
  *
- * Create a new #GstGLDisplayWayland from the wayland display name.  See `wl_display_connect`()
+ * Create a new #GstGLDisplayWayland from the wayland display name.  See wl_display_connect()
  * for details on what is a valid name.
  *
  * Returns: (transfer full): a new #GstGLDisplayWayland or %NULL
@@ -115,6 +163,8 @@ gst_gl_display_wayland_new (const gchar * name)
     gst_object_unref (ret);
     return NULL;
   }
+
+  _connect_listeners (ret);
 
   return ret;
 }
@@ -142,6 +192,8 @@ gst_gl_display_wayland_new_with_display (struct wl_display * display)
   ret->display = display;
   ret->foreign_display = TRUE;
 
+  _connect_listeners (ret);
+
   return ret;
 }
 
@@ -149,4 +201,13 @@ static guintptr
 gst_gl_display_wayland_get_handle (GstGLDisplay * display)
 {
   return (guintptr) GST_GL_DISPLAY_WAYLAND (display)->display;
+}
+
+struct xdg_wm_base *
+gst_gl_display_wayland_get_xdg_wm_base (GstGLDisplayWayland * display)
+{
+  GstGLDisplayWaylandPrivate *priv =
+      gst_gl_display_wayland_get_instance_private (display);
+
+  return priv->xdg_wm_base;
 }

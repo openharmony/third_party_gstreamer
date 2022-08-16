@@ -26,7 +26,6 @@
 #include <gst/gl/gstglapi.h>
 #include <gst/gl/gstglconfig.h>
 #include <gst/gl/gstglcontext.h>
-#include <gst/gl/gstglcontextconfig.h>
 #include <gst/gl/gstgldebug.h>
 #include <gst/gl/gstgldisplay.h>
 #include <gst/gl/gstglfeature.h>
@@ -46,7 +45,6 @@
 #include <gst/gl/gstglbufferpool.h>
 #include <gst/gl/gstglframebuffer.h>
 #include <gst/gl/gstglbasefilter.h>
-#include <gst/gl/gstglbasesrc.h>
 #include <gst/gl/gstglviewconvert.h>
 #include <gst/gl/gstglfilter.h>
 #include <gst/gl/gstglsyncmeta.h>

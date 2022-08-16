@@ -20,20 +20,20 @@
 
 /**
  * SECTION:element-dvdec
- * @title: dvdec
  *
  * dvdec decodes DV video into raw video. The element expects a full DV frame
  * as input, which is 120000 bytes for NTSC and 144000 for PAL video.
  *
  * This element can perform simple frame dropping with the #GstDVDec:drop-factor
- * property. Setting this property to a value N > 1 will only decode every
+ * property. Setting this property to a value N > 1 will only decode every 
  * Nth frame.
  *
- * ## Example launch line
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 filesrc location=test.dv ! dvdemux name=demux ! dvdec ! xvimagesink
  * ]| This pipeline decodes and renders the raw DV stream to a videosink.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -45,7 +45,6 @@
 #include <gst/video/gstvideometa.h>
 #include <gst/video/gstvideopool.h>
 
-#include "gstdvelements.h"
 #include "gstdvdec.h"
 
 /* sizes of one input buffer */
@@ -132,8 +131,6 @@ gst_dvdec_quality_get_type (void)
 
 #define gst_dvdec_parent_class parent_class
 G_DEFINE_TYPE (GstDVDec, gst_dvdec, GST_TYPE_ELEMENT);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (dvdec, "dvdec", GST_RANK_MARGINAL,
-    GST_TYPE_DVDEC, dv_element_init (plugin));
 
 static GstFlowReturn gst_dvdec_chain (GstPad * pad, GstObject * parent,
     GstBuffer * buffer);
@@ -186,8 +183,6 @@ gst_dvdec_class_init (GstDVDecClass * klass)
       "Erik Walthinsen <omega@cse.ogi.edu>," "Wim Taymans <wim@fluendo.com>");
 
   GST_DEBUG_CATEGORY_INIT (dvdec_debug, "dvdec", 0, "DV decoding element");
-
-  gst_type_mark_as_plugin_api (GST_TYPE_DVDEC_QUALITY, 0);
 }
 
 static void

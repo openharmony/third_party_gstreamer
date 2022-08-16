@@ -39,7 +39,7 @@
  * The application that wants to index the stream will create a new index object
  * using gst_index_new() or gst_index_factory_make(). The index is assigned to a
  * specific element, a bin or the whole pipeline. This will cause indexable
- * elements to add entries to the index while playing.
+ * elements to add entires to the index while playing.
  */
 
 /* FIXME: complete gobject annotations */
@@ -60,8 +60,10 @@
 #include "config.h"
 #endif
 
+#include <stdio.h>
+#include <string.h>
 #include <gst/gst.h>
-#include "gst/glib-compat-private.h"
+#include "gstindex.h"
 
 /* Index signals and args */
 enum
@@ -162,7 +164,7 @@ gst_index_class_init (GstIndexClass * klass)
   gst_index_signals[ENTRY_ADDED] =
       g_signal_new ("entry-added", G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
       G_STRUCT_OFFSET (GstIndexClass, entry_added), NULL, NULL,
-      NULL, G_TYPE_NONE, 1, GST_TYPE_INDEX_ENTRY);
+      g_cclosure_marshal_generic, G_TYPE_NONE, 1, GST_TYPE_INDEX_ENTRY);
 
   gobject_class->set_property = gst_index_set_property;
   gobject_class->get_property = gst_index_get_property;
@@ -799,7 +801,7 @@ gst_index_add_associationv (GstIndex * index, gint id,
   entry->type = GST_INDEX_ENTRY_ASSOCIATION;
   entry->id = id;
   entry->data.assoc.flags = flags;
-  entry->data.assoc.assocs = g_memdup2 (list, sizeof (GstIndexAssociation) * n);
+  entry->data.assoc.assocs = g_memdup (list, sizeof (GstIndexAssociation) * n);
   entry->data.assoc.nassocs = n;
 
   gst_index_add_entry (index, entry);

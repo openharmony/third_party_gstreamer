@@ -32,8 +32,6 @@
 #include <gst/gl/gstgl_enums.h>
 #include <gst/gl/gstglapi.h>
 #include <gst/gl/gstglbasefilter.h>
-#include <gst/gl/gstglbasememory.h>
-#include <gst/gl/gstglbasesrc.h>
 #include <gst/gl/gstglbuffer.h>
 #include <gst/gl/gstglbufferpool.h>
 #include <gst/gl/gstglcolorconvert.h>
@@ -45,15 +43,15 @@
 #include <gst/gl/gstglfilter.h>
 #include <gst/gl/gstglformat.h>
 #include <gst/gl/gstglframebuffer.h>
+#include <gst/gl/gstglsl.h>
+#include <gst/gl/gstglslstage.h>
 #include <gst/gl/gstglmemory.h>
 #include <gst/gl/gstglmemorypbo.h>
-#include <gst/gl/gstgloverlaycompositor.h>
 #include <gst/gl/gstglquery.h>
+#include <gst/gl/gstgloverlaycompositor.h>
 #include <gst/gl/gstglrenderbuffer.h>
 #include <gst/gl/gstglshader.h>
 #include <gst/gl/gstglshaderstrings.h>
-#include <gst/gl/gstglsl.h>
-#include <gst/gl/gstglslstage.h>
 #include <gst/gl/gstglsyncmeta.h>
 #include <gst/gl/gstglupload.h>
 #include <gst/gl/gstglutils.h>
@@ -62,17 +60,13 @@
 
 #if GST_GL_HAVE_PLATFORM_EGL
 #include <gst/gl/egl/gstgldisplay_egl.h>
-#include <gst/gl/egl/gstgldisplay_egl_device.h>
+#include <gst/gl/egl/gstglcontext_egl.h>
 #include <gst/gl/egl/gstglmemoryegl.h>
-#include <gst/gl/egl/gsteglimage.h>
 #endif
 
-#if GST_GL_HAVE_WINDOW_X11
+#if GST_GL_HAVE_PLATFORM_GLX
 #include <gst/gl/x11/gstgldisplay_x11.h>
-#endif
-
-#if GST_GL_HAVE_WINDOW_WAYLAND
-#include <gst/gl/wayland/gstgldisplay_wayland.h>
+#include <gst/gl/x11/gstglwindow_x11.h>
 #endif
 
 #include <gst/gl/gl.h>

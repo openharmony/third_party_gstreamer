@@ -7,4 +7,3 @@ gstvideorate = library('gstvideorate',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstvideorate, install_dir : plugins_pkgconfig_install_dir)
-plugins += [gstvideorate]

@@ -69,7 +69,7 @@
 }
 
 {
-   <ALSA uninitialized access>
+   <ALSA unitialized access>
    Memcheck:Cond
    obj:/usr/lib/libasound.so.*
    obj:/usr/lib/libasound.so.*
@@ -596,14 +596,14 @@
    ...
    fun:__res_vinit
    ...
-   fun:context_get.part.*
+   fun:context_get.part.1
    ...
-   fun:gaih_inet.constprop.*
+   fun:gaih_inet.constprop.7
    fun:getaddrinfo
    ...
 }
 {
-   <uninitialized values in nvidia driver>
+   <unitialized values in nvidia driver>
    Memcheck:Cond
    obj:*libnvidia-glcore.so.*
 }
@@ -622,18 +622,4 @@
    Memcheck:Leak
    ...
    obj:*/libpango*.so*
-}
-
-{
-  <valgrind gets confused at orc_int64 widening in orc backup code>
-  Memcheck:Cond
-  fun:_backup_audio_orc_int_bias
-  ...
-}
-
-{
-  <valgrind gets confused with value initialized in unconditional scope>
-  Memcheck:Cond
-  fun:_backup_volume_orc_process_controlled_int16_1ch
-  ...
 }

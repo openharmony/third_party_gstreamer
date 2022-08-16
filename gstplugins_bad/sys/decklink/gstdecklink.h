@@ -2,7 +2,6 @@
  * Copyright (C) 2011 David Schleef <ds@schleef.org>
  * Copyright (C) 2014 Sebastian Dröge <sebastian@centricular.com>
  * Copyright (C) 2015 Florian Langlois <florian.langlois@fr.thalesgroup.com>
- * Copyright (C) 2020 Sohonet <dev@sohonet.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -42,11 +41,11 @@
 #define COMSTR_T BSTR
 /* MinGW does not have comsuppw.lib, so no _com_util::ConvertBSTRToString */
 # ifdef __MINGW32__
-#  define CONVERT_COM_STRING(s) G_STMT_START { BSTR _s = (BSTR)s; s = (char*) malloc(100); wcstombs(s, _s, 100); ::SysFreeString(_s); } G_STMT_END
+#  define CONVERT_COM_STRING(s) BSTR _s = (BSTR)s; s = (char*) malloc(100); wcstombs(s, _s, 100); ::SysFreeString(_s);
 #  define FREE_COM_STRING(s) free(s);
 # else
-#  define CONVERT_COM_STRING(s) G_STMT_START { BSTR _s = (BSTR)s; s = _com_util::ConvertBSTRToString(_s); ::SysFreeString(_s); } G_STMT_END
-#  define FREE_COM_STRING(s) G_STMT_START { delete[] s; } G_STMT_END
+#  define CONVERT_COM_STRING(s) BSTR _s = (BSTR)s; s = _com_util::ConvertBSTRToString(_s); ::SysFreeString(_s);
+#  define FREE_COM_STRING(s) delete[] s;
 # endif /* __MINGW32__ */
 #else
 #define COMSTR_T const char*
@@ -54,8 +53,6 @@
 #define FREE_COM_STRING(s)
 #define WINAPI
 #endif /* G_OS_WIN32 */
-
-void decklink_element_init (GstPlugin * plugin);
 
 typedef enum {
   GST_DECKLINK_MODE_AUTO,
@@ -88,15 +85,6 @@ typedef enum {
   GST_DECKLINK_MODE_1556p24,
   GST_DECKLINK_MODE_1556p25,
 
-  GST_DECKLINK_MODE_2KDCI2398,
-  GST_DECKLINK_MODE_2KDCI24,
-  GST_DECKLINK_MODE_2KDCI25,
-  GST_DECKLINK_MODE_2KDCI2997,
-  GST_DECKLINK_MODE_2KDCI30,
-  GST_DECKLINK_MODE_2KDCI50,
-  GST_DECKLINK_MODE_2KDCI5994,
-  GST_DECKLINK_MODE_2KDCI60,
-
   GST_DECKLINK_MODE_2160p2398,
   GST_DECKLINK_MODE_2160p24,
   GST_DECKLINK_MODE_2160p25,
@@ -104,13 +92,7 @@ typedef enum {
   GST_DECKLINK_MODE_2160p30,
   GST_DECKLINK_MODE_2160p50,
   GST_DECKLINK_MODE_2160p5994,
-  GST_DECKLINK_MODE_2160p60,
-
-  GST_DECKLINK_MODE_NTSC_WIDESCREEN,
-  GST_DECKLINK_MODE_NTSC2398_WIDESCREEN,
-  GST_DECKLINK_MODE_PAL_WIDESCREEN,
-  GST_DECKLINK_MODE_NTSC_P_WIDESCREEN,
-  GST_DECKLINK_MODE_PAL_P_WIDESCREEN
+  GST_DECKLINK_MODE_2160p60
 } GstDecklinkModeEnum;
 #define GST_TYPE_DECKLINK_MODE (gst_decklink_mode_get_type ())
 GType gst_decklink_mode_get_type (void);
@@ -163,15 +145,11 @@ typedef enum {
 GType gst_decklink_video_format_get_type (void);
 
 typedef enum {
-  GST_DECKLINK_PROFILE_ID_DEFAULT,
-  GST_DECKLINK_PROFILE_ID_ONE_SUB_DEVICE_FULL_DUPLEX, /* bmdProfileOneSubDeviceFullDuplex */
-  GST_DECKLINK_PROFILE_ID_ONE_SUB_DEVICE_HALF_DUPLEX, /* bmdProfileOneSubDeviceHalfDuplex */
-  GST_DECKLINK_PROFILE_ID_TWO_SUB_DEVICES_FULL_DUPLEX, /* bmdProfileTwoSubDevicesFullDuplex */
-  GST_DECKLINK_PROFILE_ID_TWO_SUB_DEVICES_HALF_DUPLEX, /* bmdProfileTwoSubDevicesHalfDuplex */
-  GST_DECKLINK_PROFILE_ID_FOUR_SUB_DEVICES_HALF_DUPLEX, /* bmdProfileFourSubDevicesHalfDuplex */
-} GstDecklinkProfileId;
-#define GST_TYPE_DECKLINK_PROFILE_ID (gst_decklink_profile_id_get_type ())
-GType gst_decklink_profile_id_get_type (void);
+  GST_DECKLINK_DUPLEX_MODE_HALF, /* bmdDuplexModeHalf */
+  GST_DECKLINK_DUPLEX_MODE_FULL, /* bmdDuplexModeFull */
+} GstDecklinkDuplexMode;
+#define GST_TYPE_DECKLINK_DUPLEX_MODE (gst_decklink_duplex_mode_get_type ())
+GType gst_decklink_duplex_mode_get_type (void);
 
 typedef enum {
   GST_DECKLINK_TIMECODE_FORMAT_RP188VITC1, /*bmdTimecodeRP188VITC1 */
@@ -210,8 +188,8 @@ const GstDecklinkVideoFormat gst_decklink_type_from_video_format (GstVideoFormat
 GstVideoFormat gst_decklink_video_format_from_type (BMDPixelFormat pf);
 const BMDTimecodeFormat gst_decklink_timecode_format_from_enum (GstDecklinkTimecodeFormat f);
 const GstDecklinkTimecodeFormat gst_decklink_timecode_format_to_enum (BMDTimecodeFormat f);
-const BMDProfileID gst_decklink_profile_id_from_enum (GstDecklinkProfileId p);
-const GstDecklinkProfileId gst_decklink_profile_id_to_enum (BMDProfileID p);
+const BMDDuplexMode gst_decklink_duplex_mode_from_enum (GstDecklinkDuplexMode m);
+const GstDecklinkDuplexMode gst_decklink_duplex_mode_to_enum (BMDDuplexMode m);
 const BMDKeyerMode gst_decklink_keyer_mode_from_enum (GstDecklinkKeyerMode m);
 const GstDecklinkKeyerMode gst_decklink_keyer_mode_to_enum (BMDKeyerMode m);
 
@@ -239,7 +217,7 @@ typedef struct _GstDecklinkOutput GstDecklinkOutput;
 struct _GstDecklinkOutput {
   IDeckLink *device;
   IDeckLinkOutput *output;
-  IDeckLinkProfileAttributes *attributes;
+  IDeckLinkAttributes *attributes;
   IDeckLinkKeyer *keyer;
 
   gchar *hw_serial_number;
@@ -270,7 +248,7 @@ struct _GstDecklinkInput {
   IDeckLink *device;
   IDeckLinkInput *input;
   IDeckLinkConfiguration *config;
-  IDeckLinkProfileAttributes *attributes;
+  IDeckLinkAttributes *attributes;
 
   gchar *hw_serial_number;
 
@@ -303,28 +281,5 @@ const GstDecklinkMode * gst_decklink_find_mode_for_caps (GstCaps * caps);
 const GstDecklinkMode * gst_decklink_find_mode_and_format_for_caps (GstCaps * caps, BMDPixelFormat * format);
 GstCaps * gst_decklink_mode_get_caps_all_formats (GstDecklinkModeEnum e, gboolean input);
 GstCaps * gst_decklink_pixel_format_get_caps (BMDPixelFormat f, gboolean input);
-
-#define GST_TYPE_DECKLINK_DEVICE gst_decklink_device_get_type()
-#define GST_DECKLINK_DEVICE(obj) (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_DECKLINK_DEVICE,GstDecklinkDevice))
-
-typedef struct _GstDecklinkDevice GstDecklinkDevice;
-typedef struct _GstDecklinkDeviceClass GstDecklinkDeviceClass;
-
-struct _GstDecklinkDeviceClass
-{
-  GstDeviceClass parent_class;
-};
-
-struct _GstDecklinkDevice
-{
-  GstDevice parent;
-  gboolean video;
-  gboolean capture;
-  guint device_number;
-};
-
-GType gst_decklink_device_get_type (void);
-
-GList * gst_decklink_get_devices (void);
 
 #endif

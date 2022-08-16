@@ -59,8 +59,6 @@ struct _GstY4mEncodeClass {
 
 GType gst_y4m_encode_get_type(void);
 
-GST_ELEMENT_REGISTER_DECLARE (y4menc);
-
 G_END_DECLS
 
 #endif /* __GST_Y4MENCODE_H__ */

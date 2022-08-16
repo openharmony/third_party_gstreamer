@@ -1,10 +1,9 @@
 gst_elements_sources = [
   'gstcapsfilter.c',
-  'gstclocksync.c',
   'gstconcat.c',
   'gstdataurisrc.c',
   'gstdownloadbuffer.c',
-  'gstcoreelementsplugin.c',
+  'gstelements.c',
   'gstelements_private.c',
   'gstfakesink.c',
   'gstfakesrc.c',
@@ -35,5 +34,3 @@ gst_elements = library('gstcoreelements',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gst_elements, install_dir : plugins_pkgconfig_install_dir)
-
-plugins += [gst_elements]

@@ -1,7 +1,6 @@
 hls_sources = [
   'gsthlsdemux.c',
   'gsthlsdemux-util.c',
-  'gsthlselement.c',
   'gsthlsplugin.c',
   'gsthlssink.c',
   'gsthlssink2.c',
@@ -13,16 +12,15 @@ hls_cargs = ['-DGST_USE_UNSTABLE_API']
 
 hls_crypto = get_option('hls-crypto')
 hls_option = get_option('hls')
+
 hls_crypto_dep = dependency('', required : false)
-# used for unit test
-hls_dep = dependency('', required : false)
 
 if hls_option.disabled()
   subdir_done()
 endif
 
 if ['auto', 'nettle'].contains(hls_crypto)
-  hls_crypto_dep = dependency('nettle', version : '>= 3.0', required : false)
+  hls_crypto_dep = dependency('nettle', required : false)
   if hls_crypto_dep.found()
     hls_cargs += ['-DHAVE_NETTLE']
   endif
@@ -59,10 +57,8 @@ gsthls = library('gsthls',
   include_directories : [configinc],
   dependencies : [gstpbutils_dep, gsttag_dep, gstvideo_dep,
                   gstadaptivedemux_dep, gsturidownloader_dep,
-                  hls_crypto_dep, gio_dep, libm],
+                  hls_crypto_dep, libm],
   install : true,
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gsthls, install_dir : plugins_pkgconfig_install_dir)
-plugins += [gsthls]
-hls_dep = declare_dependency(include_directories : include_directories('.'))

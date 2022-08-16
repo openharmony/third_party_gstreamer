@@ -1,5 +1,4 @@
-cairo_dep = dependency('cairo-gobject', version : '>=1.10.0', required : get_option('cairo'),
-                       default_options: ['glib=enabled'])
+cairo_dep = dependency('cairo-gobject', version : '>=1.10.0', required : get_option('cairo'))
 
 if cairo_dep.found()
   gstcairo = library('gstcairo',
@@ -12,5 +11,4 @@ if cairo_dep.found()
     install_dir : plugins_install_dir,
   )
   pkgconfig.generate(gstcairo, install_dir : plugins_pkgconfig_install_dir)
-  plugins += [gstcairo]
 endif

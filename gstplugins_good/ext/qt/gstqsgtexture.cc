@@ -35,7 +35,7 @@ GST_DEBUG_CATEGORY_STATIC (GST_CAT_DEFAULT);
 
 GstQSGTexture::GstQSGTexture ()
 {
-  static gsize _debug;
+  static volatile gsize _debug;
 
   initializeOpenGLFunctions();
 
@@ -45,21 +45,17 @@ GstQSGTexture::GstQSGTexture ()
     g_once_init_leave (&_debug, 1);
   }
 
-  g_weak_ref_init (&this->qt_context_ref_, NULL);
   gst_video_info_init (&this->v_info);
-
   this->buffer_ = NULL;
-  this->buffer_was_bound = FALSE;
+  this->qt_context_ = NULL;
   this->sync_buffer_ = gst_buffer_new ();
   this->dummy_tex_id_ = 0;
 }
 
 GstQSGTexture::~GstQSGTexture ()
 {
-  g_weak_ref_clear (&this->qt_context_ref_);
   gst_buffer_replace (&this->buffer_, NULL);
   gst_buffer_replace (&this->sync_buffer_, NULL);
-  this->buffer_was_bound = FALSE;
   if (this->dummy_tex_id_ && QOpenGLContext::currentContext ()) {
     QOpenGLContext::currentContext ()->functions ()->glDeleteTextures (1,
         &this->dummy_tex_id_);
@@ -84,25 +80,9 @@ GstQSGTexture::setBuffer (GstBuffer * buffer)
   if (!gst_buffer_replace (&this->buffer_, buffer))
     return FALSE;
 
-  this->buffer_was_bound = FALSE;
-
-  g_weak_ref_set (&this->qt_context_ref_, gst_gl_context_get_current ());
+  this->qt_context_ = gst_gl_context_get_current ();
 
   return TRUE;
-}
-
-/* only called from the streaming thread with scene graph thread blocked */
-GstBuffer *
-GstQSGTexture::getBuffer (gboolean * was_bound)
-{
-  GstBuffer *buffer = NULL;
-
-  if (this->buffer_)
-    buffer = gst_buffer_ref (this->buffer_);
-  if (was_bound)
-    *was_bound = this->buffer_was_bound;
-
-  return buffer;
 }
 
 /* only called from qt's scene graph render thread */
@@ -110,15 +90,16 @@ void
 GstQSGTexture::bind ()
 {
   const GstGLFuncs *gl;
-  GstGLContext *context, *qt_context;
+  GstGLContext *context;
   GstGLSyncMeta *sync_meta;
   GstMemory *mem;
   guint tex_id;
   gboolean use_dummy_tex = TRUE;
 
-  qt_context = GST_GL_CONTEXT (g_weak_ref_get (&this->qt_context_ref_));
-  if (!qt_context)
-    goto out;
+  if (!this->qt_context_)
+    return;
+
+  gst_gl_context_activate (this->qt_context_, TRUE);
 
   if (!this->buffer_)
     goto out;
@@ -129,7 +110,8 @@ GstQSGTexture::bind ()
   if (!this->mem_)
     goto out;
 
-  gl = qt_context->gl_vtable;
+  g_assert (this->qt_context_);
+  gl = this->qt_context_->gl_vtable;
 
   /* FIXME: should really lock the memory to prevent write access */
   if (!gst_video_frame_map (&this->v_frame, &this->v_info, this->buffer_,
@@ -149,7 +131,7 @@ GstQSGTexture::bind ()
 
   gst_gl_sync_meta_set_sync_point (sync_meta, context);
 
-  gst_gl_sync_meta_wait (sync_meta, qt_context);
+  gst_gl_sync_meta_wait (sync_meta, this->qt_context_);
 
   tex_id = *(guint *) this->v_frame.data[0];
   GST_LOG ("%p binding Qt texture %u", this, tex_id);
@@ -162,11 +144,7 @@ GstQSGTexture::bind ()
    * to use the dummy texture */
   use_dummy_tex = FALSE;
 
-  this->buffer_was_bound = TRUE;
-
 out:
-  gst_clear_object (&qt_context);
-
   if (G_UNLIKELY (use_dummy_tex)) {
     QOpenGLContext *qglcontext = QOpenGLContext::currentContext ();
     QOpenGLFunctions *funcs = qglcontext->functions ();
@@ -195,8 +173,9 @@ out:
     g_assert (this->dummy_tex_id_ != 0);
 
     funcs->glBindTexture (GL_TEXTURE_2D, this->dummy_tex_id_);
-    GST_LOG ("%p binding fallback dummy Qt texture %u", this, this->dummy_tex_id_);
   }
+
+  gst_gl_context_activate (this->qt_context_, FALSE);
 }
 
 /* can be called from any thread */
@@ -233,11 +212,8 @@ GstQSGTexture::textureSize () const
 bool
 GstQSGTexture::hasAlphaChannel () const
 {
-  const bool has_alpha = GST_VIDEO_FORMAT_INFO_HAS_ALPHA(this->v_info.finfo);
-
-  GST_LOG ("%p get has alpha channel %u", this, has_alpha);
-
-  return has_alpha;
+  /* FIXME: support RGB textures */
+  return true;
 }
 
 /* can be called from any thread */

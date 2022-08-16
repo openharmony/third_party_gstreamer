@@ -86,7 +86,7 @@ struct _GstEdgeDetectClass
 
 GType gst_edge_detect_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (edgedetect);
+gboolean gst_edge_detect_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 #endif /* __GST_EDGE_DETECT_H__ */

@@ -1,7 +1,7 @@
 ogg_sources = [
   'dirac_parse.c',
   'gstoggaviparse.c',
-  'gstoggplugin.c',
+  'gstogg.c',
   'gstoggdemux.c',
   'gstoggmux.c',
   'gstoggparse.c',
@@ -10,7 +10,7 @@ ogg_sources = [
   'vorbis_parse.c',
 ]
 
-ogg_dep = dependency('ogg', allow_fallback: true, version : '>=1.0', required : get_option('ogg'))
+ogg_dep = dependency('ogg', version : '>=1.0', required : get_option('ogg'))
 core_conf.set('HAVE_OGG', ogg_dep.found())
 
 if ogg_dep.found()
@@ -24,5 +24,4 @@ if ogg_dep.found()
     install_dir : plugins_install_dir,
   )
   pkgconfig.generate(gstogg, install_dir : plugins_pkgconfig_install_dir)
-  plugins += [gstogg]
 endif

@@ -56,7 +56,7 @@
  * An application can request multiple RTP and RTCP pads to protect,
  * but every sink pad requested must receive packets from the same
  * source (identical SSRC). If a packet received contains a different
- * SSRC, a warning is emitted and the valid SSRC is forced on the packet.
+ * SSRC, a warning is emited and the valid SSRC is forced on the packet.
  *
  * This element uses libsrtp library. When receiving the first packet,
  * the library is initialized with a new stream (based on the SSRC). It
@@ -106,7 +106,6 @@
  * will be added to every buffer.
  */
 
-#include "gstsrtpelements.h"
 #include "gstsrtpenc.h"
 
 #include <gst/rtp/gstrtpbuffer.h>
@@ -202,10 +201,7 @@ GST_STATIC_PAD_TEMPLATE ("rtcp_src_%u",
     GST_STATIC_CAPS ("application/x-srtcp")
     );
 
-G_DEFINE_TYPE_WITH_CODE (GstSrtpEnc, gst_srtp_enc, GST_TYPE_ELEMENT,
-    GST_DEBUG_CATEGORY_INIT (gst_srtp_enc_debug, "srtpenc", 0, "SRTP Enc"););
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (srtpenc, "srtpenc", GST_RANK_NONE,
-    GST_TYPE_SRTP_ENC, srtp_element_init (plugin));
+G_DEFINE_TYPE (GstSrtpEnc, gst_srtp_enc, GST_TYPE_ELEMENT);
 
 static guint gst_srtp_enc_signals[LAST_SIGNAL] = { 0 };
 
@@ -339,7 +335,7 @@ gst_srtp_enc_class_init (GstSrtpEncClass * klass)
    * GstSrtpEnc::soft-limit:
    * @gstsrtpenc: the element on which the signal is emitted
    *
-   * Signal emitted when the stream with @ssrc has reached the soft
+   * Signal emited when the stream with @ssrc has reached the soft
    * limit of utilisation of it's master encryption key. User should
    * provide a new key by setting the #GstSrtpEnc:key property.
    */
@@ -488,7 +484,7 @@ done:
   return ret;
 }
 
-/* Release resources and set default values
+/* Release ressources and set default values
  */
 static void
 gst_srtp_enc_reset_no_lock (GstSrtpEnc * filter)
@@ -824,16 +820,6 @@ get_rtp_other_pad (GstPad * pad)
   return GST_PAD (gst_pad_get_element_private (pad));
 }
 
-static void
-gst_srtp_enc_add_ssrc (GstSrtpEnc * filter, guint ssrc)
-{
-  gboolean is_added =
-      g_hash_table_add (filter->ssrcs_set, GUINT_TO_POINTER (ssrc));
-  if (is_added) {
-    GST_DEBUG_OBJECT (filter, "Added ssrc %u", ssrc);
-  }
-}
-
 /* Release a sink pad and it's linked source pad
  */
 static void
@@ -886,7 +872,7 @@ gst_srtp_enc_sink_setcaps (GstPad * pad, GstSrtpEnc * filter,
   if (gst_structure_has_field_typed (ps, "ssrc", G_TYPE_UINT)) {
     guint ssrc;
     gst_structure_get_uint (ps, "ssrc", &ssrc);
-    gst_srtp_enc_add_ssrc (filter, ssrc);
+    g_hash_table_add (filter->ssrcs_set, GUINT_TO_POINTER (ssrc));
   }
 
   if (HAS_CRYPTO (filter))
@@ -1111,18 +1097,6 @@ gst_srtp_enc_check_set_caps (GstSrtpEnc * filter, GstPad * pad,
   return GST_FLOW_OK;
 }
 
-static void
-gst_srtp_enc_ensure_ssrc (GstSrtpEnc * filter, GstBuffer * buf)
-{
-  GstRTPBuffer rtpbuf = GST_RTP_BUFFER_INIT;
-  if (gst_rtp_buffer_map (buf,
-          GST_MAP_READ | GST_RTP_BUFFER_MAP_FLAG_SKIP_PADDING, &rtpbuf)) {
-    guint32 ssrc = gst_rtp_buffer_get_ssrc (&rtpbuf);
-    gst_srtp_enc_add_ssrc (filter, ssrc);
-    gst_rtp_buffer_unmap (&rtpbuf);
-  }
-}
-
 static GstFlowReturn
 gst_srtp_enc_process_buffer (GstSrtpEnc * filter, GstPad * pad,
     GstBuffer * buf, gboolean is_rtcp, GstBuffer ** outbuf_ptr)
@@ -1152,9 +1126,6 @@ gst_srtp_enc_process_buffer (GstSrtpEnc * filter, GstPad * pad,
     ret = GST_FLOW_FLUSHING;
     goto fail;
   }
-
-  gst_srtp_enc_ensure_ssrc (filter, buf);
-
 #ifdef HAVE_SRTP2
   if (is_rtcp)
     err = srtp_protect_rtcp_mki (filter->session, mapout.data, &size,
@@ -1495,4 +1466,17 @@ gst_srtp_enc_sink_event_rtcp (GstPad * pad, GstObject * parent,
     GstEvent * event)
 {
   return gst_srtp_enc_sink_event (pad, parent, event, TRUE);
+}
+
+/* entry point to initialize the plug-in
+ * initialize the plug-in itself
+ * register the element factories and other features
+ */
+gboolean
+gst_srtp_enc_plugin_init (GstPlugin * srtpenc)
+{
+  GST_DEBUG_CATEGORY_INIT (gst_srtp_enc_debug, "srtpenc", 0, "SRTP Enc");
+
+  return gst_element_register (srtpenc, "srtpenc", GST_RANK_NONE,
+      GST_TYPE_SRTP_ENC);
 }

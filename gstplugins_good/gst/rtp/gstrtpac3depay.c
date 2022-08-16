@@ -19,18 +19,18 @@
 
 /**
  * SECTION:element-rtpac3depay
- * @title: rtpac3depay
  * @see_also: rtpac3pay
  *
  * Extract AC3 audio from RTP packets according to RFC 4184.
  * For detailed information see: http://www.rfc-editor.org/rfc/rfc4184.txt
  *
- * ## Example pipeline
+ * <refsect2>
+ * <title>Example pipeline</title>
  * |[
  * gst-launch-1.0 udpsrc caps='application/x-rtp, media=(string)audio, clock-rate=(int)44100, encoding-name=(string)AC3, payload=(int)96' ! rtpac3depay ! a52dec ! pulsesink
  * ]| This example pipeline will depayload and decode an RTP AC3 stream. Refer to
  * the rtpac3pay example to create the RTP stream.
- *
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -41,7 +41,6 @@
 #include <gst/audio/audio.h>
 
 #include <string.h>
-#include "gstrtpelements.h"
 #include "gstrtpac3depay.h"
 #include "gstrtputils.h"
 
@@ -66,8 +65,6 @@ GST_STATIC_PAD_TEMPLATE ("sink",
     );
 
 G_DEFINE_TYPE (GstRtpAC3Depay, gst_rtp_ac3_depay, GST_TYPE_RTP_BASE_DEPAYLOAD);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpac3depay, "rtpac3depay",
-    GST_RANK_SECONDARY, GST_TYPE_RTP_AC3_DEPAY, rtp_element_init (plugin));
 
 static gboolean gst_rtp_ac3_depay_setcaps (GstRTPBaseDepayload * depayload,
     GstCaps * caps);
@@ -173,4 +170,11 @@ empty_packet:
         ("Empty Payload."), (NULL));
     return NULL;
   }
+}
+
+gboolean
+gst_rtp_ac3_depay_plugin_init (GstPlugin * plugin)
+{
+  return gst_element_register (plugin, "rtpac3depay",
+      GST_RANK_SECONDARY, GST_TYPE_RTP_AC3_DEPAY);
 }

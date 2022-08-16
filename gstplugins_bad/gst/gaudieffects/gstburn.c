@@ -64,18 +64,16 @@
 #include <gst/gst.h>
 #include <math.h>
 
+#include "gstplugin.h"
 #include "gstburn.h"
 
 #include "gstgaudieffectsorc.h"
 
-GST_DEBUG_CATEGORY_STATIC (gst_burn_debug);
-#define GST_CAT_DEFAULT gst_burn_debug
-
 #define gst_burn_parent_class parent_class
 G_DEFINE_TYPE (GstBurn, gst_burn, GST_TYPE_VIDEO_FILTER);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (burn, "burn", GST_RANK_NONE,
-    GST_TYPE_BURN, GST_DEBUG_CATEGORY_INIT (gst_burn_debug, "burn", 0,
-        "Template burn"));
+
+GST_DEBUG_CATEGORY_STATIC (gst_burn_debug);
+#define GST_CAT_DEFAULT gst_burn_debug
 
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
 #define CAPS_STR GST_VIDEO_CAPS_MAKE ("{  BGRx, RGBx }")
@@ -159,7 +157,7 @@ gst_burn_class_init (GstBurnClass * klass)
 
 /* Initialize the element,
  * instantiate pads and add them to element,
- * set pad callback functions, and
+ * set pad calback functions, and
  * initialize instance structure.
  */
 static void
@@ -247,4 +245,15 @@ gst_burn_transform_frame (GstVideoFilter * vfilter,
   gaudi_orc_burn (dest, src, adjustment, video_size);
 
   return GST_FLOW_OK;
+}
+
+/* Entry point to initialize the plug-in.
+ * Register the element factories and other features. */
+gboolean
+gst_burn_plugin_init (GstPlugin * burn)
+{
+  /* debug category for fltering log messages */
+  GST_DEBUG_CATEGORY_INIT (gst_burn_debug, "burn", 0, "Template burn");
+
+  return gst_element_register (burn, "burn", GST_RANK_NONE, GST_TYPE_BURN);
 }

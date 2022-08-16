@@ -36,6 +36,12 @@ struct _GstUriDownloaderPrivate
   GstElement *urisrc;
   GstBus *bus;
   GstPad *pad;
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0013
+  GDateTime *timeout;
+#else
+  GTimeVal *timeout;
+#endif
   GstFragment *download;
   gboolean got_buffer;
   GMutex download_lock;         /* used to restrict to one download only */
@@ -237,7 +243,7 @@ gst_uri_downloader_bus_handler (GstBus * bus,
     GST_WARNING_OBJECT (downloader,
         "Received error: %s from %s, the download will be cancelled",
         err->message, GST_OBJECT_NAME (message->src));
-    GST_DEBUG ("Debugging info: %s", (dbg_info) ? dbg_info : "none");
+    GST_DEBUG ("Debugging info: %s\n", (dbg_info) ? dbg_info : "none");
 
     if (dbg_info)
       new_error = g_strdup_printf ("%s: %s\n", err->message, dbg_info);
@@ -274,7 +280,7 @@ gst_uri_downloader_bus_handler (GstBus * bus,
     GST_WARNING_OBJECT (downloader,
         "Received warning: %s from %s",
         GST_OBJECT_NAME (message->src), err->message);
-    GST_DEBUG ("Debugging info: %s", (dbg_info) ? dbg_info : "none");
+    GST_DEBUG ("Debugging info: %s\n", (dbg_info) ? dbg_info : "none");
     g_error_free (err);
     g_free (dbg_info);
   } else if (GST_MESSAGE_TYPE (message) == GST_MESSAGE_NEED_CONTEXT) {
@@ -679,7 +685,7 @@ quit:
       } else {
         GstQuery *query;
 
-        /* Download successful, let's query the URI */
+        /* Download successfull, let's query the URI */
         query = gst_query_new_uri ();
         if (gst_element_query (urisrc, query)) {
           gst_query_parse_uri (query, &download->uri);

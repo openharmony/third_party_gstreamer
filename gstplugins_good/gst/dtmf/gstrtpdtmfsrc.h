@@ -108,7 +108,8 @@ struct _GstRTPDTMFSrcClass
 
 GType gst_rtp_dtmf_src_get_type (void);
 
-GST_ELEMENT_REGISTER_DECLARE (rtpdtmfsrc);
+gboolean gst_rtp_dtmf_src_plugin_init (GstPlugin * plugin);
+
 
 G_END_DECLS
 #endif /* __GST_RTP_DTMF_SRC_H__ */

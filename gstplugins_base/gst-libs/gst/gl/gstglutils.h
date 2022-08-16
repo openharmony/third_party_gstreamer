@@ -32,10 +32,10 @@ GST_GL_API
 gboolean gst_gl_ensure_element_data (gpointer element,
     GstGLDisplay **display_ptr, GstGLContext ** other_context_ptr);
 GST_GL_API
-gboolean gst_gl_handle_set_context (GstElement * element, GstContext * context,
+gboolean gst_gl_handle_set_context (GstElement * element, GstContext * context, 
     GstGLDisplay ** display, GstGLContext ** other_context);
 GST_GL_API
-gboolean gst_gl_handle_context_query (GstElement * element, GstQuery * query,
+gboolean gst_gl_handle_context_query (GstElement * element, GstQuery * query, 
     GstGLDisplay * display, GstGLContext * context, GstGLContext * other_context);
 GST_GL_API
 gboolean gst_gl_query_local_gl_context (GstElement * element, GstPadDirection direction,
@@ -45,10 +45,10 @@ GST_GL_API
 void gst_gl_element_propagate_display_context (GstElement * element, GstGLDisplay * display);
 
 GST_GL_API
-gsize gst_gl_get_plane_data_size (const GstVideoInfo * info, const GstVideoAlignment * align,
+gsize gst_gl_get_plane_data_size (GstVideoInfo * info, GstVideoAlignment * align,
     guint plane);
 GST_GL_API
-gsize gst_gl_get_plane_start (const GstVideoInfo * info, const GstVideoAlignment * valign,
+gsize gst_gl_get_plane_start (GstVideoInfo * info, GstVideoAlignment * valign,
     guint plane);
 
 GST_GL_API
@@ -58,15 +58,6 @@ GST_GL_API
 gboolean gst_gl_value_set_texture_target (GValue * value, GstGLTextureTarget target);
 GST_GL_API
 GstGLTextureTarget gst_gl_value_get_texture_target_mask (const GValue * value);
-
-GST_GL_API
-void gst_gl_get_affine_transformation_meta_as_ndc (GstVideoAffineTransformationMeta * meta, gfloat * matrix);
-GST_GL_API
-void gst_gl_set_affine_transformation_meta_from_ndc (GstVideoAffineTransformationMeta * meta, const gfloat * matrix);
-
-GST_GL_API
-void gst_gl_multiply_matrix4 (const gfloat * a, const gfloat * b, gfloat * result);
-
 
 G_END_DECLS
 

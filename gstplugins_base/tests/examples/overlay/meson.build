@@ -1,7 +1,3 @@
-if get_option('qt5').disabled()
-  subdir_done()
-endif
-
 if x11_dep.found()
   if gtk_x11_dep.found()
     executable('gtk-videooverlay', 'gtk-videooverlay.c',
@@ -13,7 +9,7 @@ if x11_dep.found()
 
   if have_cxx                                      # check for C++ support
     qt5_mod = import('qt5')
-    qt5widgets_dep = dependency('qt5', modules : ['Core', 'Gui', 'Widgets'],
+    qt5widgets_dep = dependency('qt5', modules : ['Gui', 'Widgets'],
                                 required: get_option('examples'))
 
     # FIXME Add a way to get that information out of the qt5 module
@@ -34,20 +30,4 @@ if x11_dep.found()
         install: false)
     endif
   endif
-endif
-
-if host_system == 'windows'
-  executable('win32-videooverlay', 'win32-videooverlay.c',
-    c_args : gst_plugins_base_args,
-    include_directories : [configinc, libsinc],
-    dependencies : [gst_dep, video_dep],
-    install: false,
-  )
-
-  executable('win32-videooverlay-playbin', 'win32-videooverlay-playbin.c',
-    c_args : gst_plugins_base_args,
-    include_directories : [configinc, libsinc],
-    dependencies : [gst_dep, video_dep],
-    install: false,
-  )
 endif

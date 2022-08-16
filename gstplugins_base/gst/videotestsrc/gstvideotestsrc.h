@@ -29,9 +29,16 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_VIDEO_TEST_SRC (gst_video_test_src_get_type())
-G_DECLARE_FINAL_TYPE (GstVideoTestSrc, gst_video_test_src, GST, VIDEO_TEST_SRC,
-    GstPushSrc)
+#define GST_TYPE_VIDEO_TEST_SRC \
+  (gst_video_test_src_get_type())
+#define GST_VIDEO_TEST_SRC(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_VIDEO_TEST_SRC,GstVideoTestSrc))
+#define GST_VIDEO_TEST_SRC_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_VIDEO_TEST_SRC,GstVideoTestSrcClass))
+#define GST_IS_VIDEO_TEST_SRC(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_VIDEO_TEST_SRC))
+#define GST_IS_VIDEO_TEST_SRC_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_VIDEO_TEST_SRC))
 
 /**
  * GstVideoTestSrcPattern:
@@ -61,7 +68,6 @@ G_DECLARE_FINAL_TYPE (GstVideoTestSrc, gst_video_test_src, GST, VIDEO_TEST_SRC,
  * @GST_VIDEO_TEST_SRC_SPOKES: Spokes
  * @GST_VIDEO_TEST_SRC_GRADIENT: Gradient
  * @GST_VIDEO_TEST_SRC_COLORS: All colors
- * @GST_VIDEO_TEST_SRC_SMPTE_RP_219: SMPTE test pattern, RP 219 conformant (Since: 1.20)
  *
  * The test pattern to produce.
  *
@@ -107,16 +113,7 @@ typedef enum {
   GST_VIDEO_TEST_SRC_PINWHEEL,
   GST_VIDEO_TEST_SRC_SPOKES,
   GST_VIDEO_TEST_SRC_GRADIENT,
-  GST_VIDEO_TEST_SRC_COLORS,
-
-  /**
-   * GstVideoTestSrcPattern::smpte-rp-219:
-   *
-   * SMPTE test pattern, RP 219 conformant
-   *
-   * Since: 1.20
-   */
-  GST_VIDEO_TEST_SRC_SMPTE_RP_219,
+  GST_VIDEO_TEST_SRC_COLORS
 } GstVideoTestSrcPattern;
 
 typedef enum {
@@ -131,6 +128,9 @@ typedef enum {
   GST_VIDEO_TEST_SRC_SWEEP,
   GST_VIDEO_TEST_SRC_HSWEEP
 } GstVideoTestSrcMotionType;
+
+typedef struct _GstVideoTestSrc GstVideoTestSrc;
+typedef struct _GstVideoTestSrcClass GstVideoTestSrcClass;
 
 /**
  * GstVideoTestSrc:
@@ -208,7 +208,11 @@ struct _GstVideoTestSrc {
   gpointer *lines;
 };
 
-GST_ELEMENT_REGISTER_DECLARE (videotestsrc);
+struct _GstVideoTestSrcClass {
+  GstPushSrcClass parent_class;
+};
+
+GType gst_video_test_src_get_type (void);
 
 G_END_DECLS
 

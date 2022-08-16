@@ -59,8 +59,6 @@ GST_DEBUG_CATEGORY_STATIC (GST_CAT_GL_RENDERBUFFER);
 G_DEFINE_TYPE (GstGLRenderbufferAllocator, gst_gl_renderbuffer_allocator,
     GST_TYPE_GL_BASE_MEMORY_ALLOCATOR);
 
-GST_DEFINE_MINI_OBJECT_TYPE (GstGLRenderbuffer, gst_gl_renderbuffer);
-
 static guint
 _new_renderbuffer (GstGLContext * context, guint format, guint width,
     guint height)
@@ -115,7 +113,7 @@ _gl_rbo_create (GstGLRenderbuffer * gl_mem, GError ** error)
 static void
 gst_gl_renderbuffer_init (GstGLRenderbuffer * mem, GstAllocator * allocator,
     GstMemory * parent, GstGLContext * context,
-    GstGLFormat renderbuffer_format, const GstAllocationParams * params,
+    GstGLFormat renderbuffer_format, GstAllocationParams * params,
     guint width, guint height, gpointer user_data, GDestroyNotify notify)
 {
   gsize size;
@@ -312,7 +310,7 @@ gst_gl_renderbuffer_get_id (GstGLRenderbuffer * gl_mem)
 void
 gst_gl_renderbuffer_init_once (void)
 {
-  static gsize _init = 0;
+  static volatile gsize _init = 0;
 
   if (g_once_init_enter (&_init)) {
     gst_gl_base_memory_init_once ();
@@ -379,7 +377,7 @@ static gboolean
     (GstGLRenderbufferAllocationParams * params, gsize struct_size,
     guint alloc_flags, GstGLAllocationParamsCopyFunc copy,
     GstGLAllocationParamsFreeFunc free, GstGLContext * context,
-    const GstAllocationParams * alloc_params, guint width, guint height,
+    GstAllocationParams * alloc_params, guint width, guint height,
     GstGLFormat renderbuffer_format, gpointer wrapped_data,
     gpointer gl_handle, gpointer user_data, GDestroyNotify notify)
 {
@@ -416,7 +414,7 @@ static gboolean
  */
 GstGLRenderbufferAllocationParams *
 gst_gl_renderbuffer_allocation_params_new (GstGLContext * context,
-    const GstAllocationParams * alloc_params, GstGLFormat renderbuffer_format,
+    GstAllocationParams * alloc_params, GstGLFormat renderbuffer_format,
     guint width, guint height)
 {
   GstGLRenderbufferAllocationParams *params =
@@ -455,7 +453,7 @@ gst_gl_renderbuffer_allocation_params_new (GstGLContext * context,
  */
 GstGLRenderbufferAllocationParams *
 gst_gl_renderbuffer_allocation_params_new_wrapped (GstGLContext * context,
-    const GstAllocationParams * alloc_params, GstGLFormat renderbuffer_format,
+    GstAllocationParams * alloc_params, GstGLFormat renderbuffer_format,
     guint width, guint height, gpointer gl_handle, gpointer user_data,
     GDestroyNotify notify)
 {

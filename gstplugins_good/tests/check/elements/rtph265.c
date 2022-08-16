@@ -20,14 +20,10 @@
  * Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
  * Boston, MA 02110-1301, USA.
  */
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
 
 #include <gst/check/check.h>
 #include <gst/app/app.h>
 #include <gst/rtp/gstrtpbuffer.h>
-#include <gst/rtp/gstrtph265types.h>
 
 #define ALLOCATOR_CUSTOM_SYSMEM "CustomSysMem"
 
@@ -261,7 +257,8 @@ GST_START_TEST (test_rtph265depay_with_downstream_allocator)
       fail_unless (len >= 2 + packet_len);
 
       flow = gst_app_src_push_buffer (GST_APP_SRC (src),
-          gst_buffer_new_memdup (pdata + 2, packet_len));
+          gst_buffer_new_wrapped (g_memdup (pdata + 2, packet_len),
+              packet_len));
 
       fail_unless_equals_int (flow, GST_FLOW_OK);
 
@@ -420,28 +417,6 @@ GST_END_TEST;
  *     ! fakesink dump=1
  */
 
-static guint8 h265_vps[] = {
-  0x00, 0x00, 0x00, 0x01, 0x40, 0x01, 0x0c, 0x01,
-  0xff, 0xff, 0x01, 0x60, 0x00, 0x00, 0x03, 0x00,
-  0x90, 0x00, 0x00, 0x03, 0x00, 0x00, 0x03, 0x00,
-  0x3f, 0x95, 0x98, 0x09
-};
-
-static guint8 h265_sps[] = {
-  0x00, 0x00, 0x00, 0x01, 0x42, 0x01, 0x01, 0x01,
-  0x60, 0x00, 0x00, 0x03, 0x00, 0x90, 0x00, 0x00,
-  0x03, 0x00, 0x00, 0x03, 0x00, 0x3f, 0xa0, 0x08,
-  0x08, 0x04, 0x05, 0x96, 0x56, 0x69, 0x24, 0xca,
-  0xff, 0xf0, 0x00, 0x10, 0x00, 0x10, 0x10, 0x00,
-  0x00, 0x03, 0x00, 0x10, 0x00, 0x00, 0x03, 0x01,
-  0xe0, 0x80
-};
-
-static guint8 h265_pps[] = {
-  0x00, 0x00, 0x00, 0x01, 0x44, 0x01, 0xc1, 0x72,
-  0xb4, 0x42, 0x40
-};
-
 /* IDR Slice 1 */
 static guint8 h265_idr_slice_1[] = {
   0x00, 0x00, 0x00, 0x01, 0x28, 0x01, 0xaf, 0x08,
@@ -462,11 +437,9 @@ static guint8 h265_idr_slice_2[] = {
   0x00, 0x3e, 0x40, 0x92, 0x0c, 0x78
 };
 
-
 GST_START_TEST (test_rtph265pay_two_slices_timestamp)
 {
-  GstHarness *h = gst_harness_new_parse ("rtph265pay timestamp-offset=123"
-      " aggregate-mode=zero-latency");
+  GstHarness *h = gst_harness_new_parse ("rtph265pay timestamp-offset=123");
   GstFlowReturn ret;
   GstBuffer *buffer;
   GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
@@ -527,8 +500,7 @@ GST_END_TEST;
 
 GST_START_TEST (test_rtph265pay_marker_for_flag)
 {
-  GstHarness *h = gst_harness_new_parse ("rtph265pay timestamp-offset=123"
-      " aggregate-mode=zero-latency");
+  GstHarness *h = gst_harness_new_parse ("rtph265pay timestamp-offset=123");
   GstFlowReturn ret;
   GstBuffer *buffer;
   GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
@@ -567,8 +539,7 @@ GST_END_TEST;
 
 GST_START_TEST (test_rtph265pay_marker_for_au)
 {
-  GstHarness *h = gst_harness_new_parse
-      ("rtph265pay timestamp-offset=123 aggregate-mode=none");
+  GstHarness *h = gst_harness_new_parse ("rtph265pay timestamp-offset=123");
   GstFlowReturn ret;
   GstBuffer *slice1, *slice2, *buffer;
   GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
@@ -606,8 +577,7 @@ GST_END_TEST;
 GST_START_TEST (test_rtph265pay_marker_for_fragmented_au)
 {
   GstHarness *h =
-      gst_harness_new_parse ("rtph265pay timestamp-offset=123 mtu=40"
-      " aggregate-mode=zero-latency");
+      gst_harness_new_parse ("rtph265pay timestamp-offset=123 mtu=40");
   GstFlowReturn ret;
   GstBuffer *slice1, *slice2, *buffer;
   GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
@@ -644,490 +614,7 @@ GST_START_TEST (test_rtph265pay_marker_for_fragmented_au)
 
 GST_END_TEST;
 
-GST_START_TEST (test_rtph265pay_aggregate_two_slices_per_buffer)
-{
-  GstHarness *h = gst_harness_new_parse ("rtph265pay timestamp-offset=123"
-      " name=p");
-  GstFlowReturn ret;
-  GstBuffer *buffer;
-  GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
-  GstElement *e = gst_bin_get_by_name (GST_BIN (h->element), "p");
-  gint i;
 
-  gst_harness_set_src_caps_str (h,
-      "video/x-h265,alignment=nal,stream-format=byte-stream");
-
-  /* No aggregation latency mode */
-
-  g_object_set (e, "aggregate-mode", 0, NULL);
-
-  buffer = wrap_static_buffer_with_pts (h265_idr_slice_1,
-      sizeof (h265_idr_slice_1), 0);
-  buffer = gst_buffer_append (buffer,
-      wrap_static_buffer_with_pts (h265_idr_slice_2, sizeof (h265_idr_slice_2),
-          0));
-  ret = gst_harness_push (h, buffer);
-  fail_unless_equals_int (ret, GST_FLOW_OK);
-
-  buffer = wrap_static_buffer_with_pts (h265_idr_slice_1,
-      sizeof (h265_idr_slice_1), 0);
-  buffer = gst_buffer_append (buffer,
-      wrap_static_buffer_with_pts (h265_idr_slice_2, sizeof (h265_idr_slice_2),
-          0));
-  ret = gst_harness_push (h, buffer);
-  fail_unless_equals_int (ret, GST_FLOW_OK);
-
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 4);
-
-  for (i = 0; i < 4; i++) {
-    buffer = gst_harness_pull (h);
-    fail_unless (gst_rtp_buffer_map (buffer, GST_MAP_READ, &rtp));
-    fail_unless_equals_uint64 (GST_BUFFER_PTS (buffer), 0);
-    fail_unless_equals_uint64 (gst_rtp_buffer_get_timestamp (&rtp), 123);
-    fail_unless_equals_int (gst_buffer_get_size (buffer), 12 +
-        ((i % 2) ? (sizeof (h265_idr_slice_2) - 3) :
-            (sizeof (h265_idr_slice_1)) - 4));
-    gst_rtp_buffer_unmap (&rtp);
-    gst_buffer_unref (buffer);
-  }
-
-  /* Zero latency mode */
-  g_object_set (e, "aggregate-mode", 1, NULL);
-
-  buffer = wrap_static_buffer_with_pts (h265_idr_slice_1,
-      sizeof (h265_idr_slice_1), 0);
-  buffer = gst_buffer_append (buffer,
-      wrap_static_buffer_with_pts (h265_idr_slice_2, sizeof (h265_idr_slice_2),
-          0));
-  ret = gst_harness_push (h, buffer);
-  fail_unless_equals_int (ret, GST_FLOW_OK);
-
-  buffer = wrap_static_buffer_with_pts (h265_idr_slice_1,
-      sizeof (h265_idr_slice_1), 0);
-  buffer = gst_buffer_append (buffer,
-      wrap_static_buffer_with_pts (h265_idr_slice_2, sizeof (h265_idr_slice_2),
-          0));
-  ret = gst_harness_push (h, buffer);
-  fail_unless_equals_int (ret, GST_FLOW_OK);
-
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 2);
-
-  for (i = 0; i < 2; i++) {
-    buffer = gst_harness_pull (h);
-    fail_unless (gst_rtp_buffer_map (buffer, GST_MAP_READ, &rtp));
-    fail_unless_equals_uint64 (GST_BUFFER_PTS (buffer), 0);
-    fail_unless_equals_uint64 (gst_rtp_buffer_get_timestamp (&rtp), 123);
-    /* RTP header = 12,  AP header = 2, 2 bytes length per NAL */
-    fail_unless_equals_int (gst_buffer_get_size (buffer), 12 + 2 +
-        (2 + sizeof (h265_idr_slice_2) - 3) +
-        (2 + sizeof (h265_idr_slice_1) - 4));
-    gst_rtp_buffer_unmap (&rtp);
-    gst_buffer_unref (buffer);
-  }
-
-  /* Max aggregation */
-  g_object_set (e, "aggregate-mode", 2, NULL);
-
-  buffer = wrap_static_buffer_with_pts (h265_idr_slice_1,
-      sizeof (h265_idr_slice_1), 0);
-  buffer = gst_buffer_append (buffer,
-      wrap_static_buffer_with_pts (h265_idr_slice_2, sizeof (h265_idr_slice_2),
-          0));
-  ret = gst_harness_push (h, buffer);
-  fail_unless_equals_int (ret, GST_FLOW_OK);
-
-  buffer = wrap_static_buffer_with_pts (h265_idr_slice_1,
-      sizeof (h265_idr_slice_1), 0);
-  buffer = gst_buffer_append (buffer,
-      wrap_static_buffer_with_pts (h265_idr_slice_2, sizeof (h265_idr_slice_2),
-          0));
-  ret = gst_harness_push (h, buffer);
-  fail_unless_equals_int (ret, GST_FLOW_OK);
-
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 0);
-
-  /* Push EOS to send it out */
-  gst_harness_push_event (h, gst_event_new_eos ());
-
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 1);
-
-  buffer = gst_harness_pull (h);
-  fail_unless (gst_rtp_buffer_map (buffer, GST_MAP_READ, &rtp));
-  fail_unless_equals_uint64 (GST_BUFFER_PTS (buffer), 0);
-  fail_unless_equals_uint64 (gst_rtp_buffer_get_timestamp (&rtp), 123);
-  fail_unless_equals_int (gst_buffer_get_size (buffer), 12 + 2 +
-      2 * ((2 + sizeof (h265_idr_slice_2) - 3) +
-          (2 + sizeof (h265_idr_slice_1) - 4)));
-  gst_rtp_buffer_unmap (&rtp);
-  gst_buffer_unref (buffer);
-
-
-  g_object_unref (e);
-  gst_harness_teardown (h);
-}
-
-GST_END_TEST;
-
-/* AUD */
-static guint8 h265_aud[] = {
-  0x00, 0x00, 0x00, 0x01, (35 << 1), 0x00, 0x80
-};
-
-GST_START_TEST (test_rtph265pay_aggregate_with_aud)
-{
-  GstHarness *h = gst_harness_new_parse ("rtph265pay timestamp-offset=123"
-      " aggregate-mode=zero-latency");
-  GstFlowReturn ret;
-  GstBuffer *buffer;
-  GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
-
-  gst_harness_set_src_caps_str (h,
-      "video/x-h265,alignment=nal,stream-format=byte-stream");
-
-  buffer = wrap_static_buffer_with_pts (h265_idr_slice_1,
-      sizeof (h265_idr_slice_1), 0);
-  buffer = gst_buffer_append (buffer,
-      wrap_static_buffer_with_pts (h265_aud, sizeof (h265_aud), 0));
-  buffer = gst_buffer_append (buffer,
-      wrap_static_buffer_with_pts (h265_idr_slice_1, sizeof (h265_idr_slice_1),
-          0));
-
-  ret = gst_harness_push (h, buffer);
-  fail_unless_equals_int (ret, GST_FLOW_OK);
-
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 2);
-
-  buffer = gst_harness_pull (h);
-  fail_unless (gst_rtp_buffer_map (buffer, GST_MAP_READ, &rtp));
-  fail_unless_equals_uint64 (GST_BUFFER_PTS (buffer), 0);
-  fail_unless_equals_uint64 (gst_rtp_buffer_get_timestamp (&rtp), 123);
-  fail_unless_equals_int (gst_buffer_get_size (buffer), 12 +
-      (sizeof (h265_idr_slice_1) - 4));
-  gst_rtp_buffer_unmap (&rtp);
-  gst_buffer_unref (buffer);
-
-  buffer = gst_harness_pull (h);
-  fail_unless (gst_rtp_buffer_map (buffer, GST_MAP_READ, &rtp));
-  fail_unless_equals_uint64 (GST_BUFFER_PTS (buffer), 0);
-  fail_unless_equals_uint64 (gst_rtp_buffer_get_timestamp (&rtp), 123);
-  fail_unless_equals_int (gst_buffer_get_size (buffer), 12 + 2 +
-      (2 + sizeof (h265_aud) - 4) + (2 + sizeof (h265_idr_slice_1) - 4));
-  gst_rtp_buffer_unmap (&rtp);
-  gst_buffer_unref (buffer);
-
-
-  gst_harness_teardown (h);
-}
-
-GST_END_TEST;
-
-GST_START_TEST (test_rtph265pay_aggregate_with_ts_change)
-{
-  GstHarness *h = gst_harness_new_parse ("rtph265pay timestamp-offset=123 "
-      "aggregate-mode=max");
-  GstFlowReturn ret;
-  GstBuffer *buffer;
-  GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
-
-  gst_harness_set_src_caps_str (h,
-      "video/x-h265,alignment=nal,stream-format=byte-stream");
-
-  buffer = wrap_static_buffer_with_pts (h265_idr_slice_1,
-      sizeof (h265_idr_slice_1), 0);
-  buffer = gst_buffer_append (buffer,
-      wrap_static_buffer_with_pts (h265_idr_slice_2, sizeof (h265_idr_slice_2),
-          0));
-  ret = gst_harness_push (h, buffer);
-  fail_unless_equals_int (ret, GST_FLOW_OK);
-
-  buffer = wrap_static_buffer_with_pts (h265_idr_slice_1,
-      sizeof (h265_idr_slice_1), GST_SECOND);
-  buffer = gst_buffer_append (buffer,
-      wrap_static_buffer_with_pts (h265_idr_slice_2, sizeof (h265_idr_slice_2),
-          GST_SECOND));
-  ret = gst_harness_push (h, buffer);
-  fail_unless_equals_int (ret, GST_FLOW_OK);
-
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 1);
-
-  /* Push EOS to send the second one out */
-  gst_harness_push_event (h, gst_event_new_eos ());
-
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 2);
-
-  buffer = gst_harness_pull (h);
-  fail_unless (gst_rtp_buffer_map (buffer, GST_MAP_READ, &rtp));
-  fail_unless_equals_uint64 (GST_BUFFER_PTS (buffer), 0);
-  fail_unless_equals_uint64 (gst_rtp_buffer_get_timestamp (&rtp), 123);
-  fail_unless_equals_int (gst_buffer_get_size (buffer), 12 + 2 +
-      (2 + sizeof (h265_idr_slice_2) - 3) +
-      (2 + sizeof (h265_idr_slice_1) - 4));
-  gst_rtp_buffer_unmap (&rtp);
-  gst_buffer_unref (buffer);
-
-  buffer = gst_harness_pull (h);
-  fail_unless (gst_rtp_buffer_map (buffer, GST_MAP_READ, &rtp));
-  fail_unless_equals_uint64 (GST_BUFFER_PTS (buffer), GST_SECOND);
-  fail_unless_equals_uint64 (gst_rtp_buffer_get_timestamp (&rtp), 123 + 90000);
-  fail_unless_equals_int (gst_buffer_get_size (buffer), 12 + 2 +
-      (2 + sizeof (h265_idr_slice_2) - 3) +
-      (2 + sizeof (h265_idr_slice_1) - 4));
-  gst_rtp_buffer_unmap (&rtp);
-  gst_buffer_unref (buffer);
-
-
-  gst_harness_teardown (h);
-}
-
-GST_END_TEST;
-
-GST_START_TEST (test_rtph265pay_aggregate_with_discont)
-{
-  GstHarness *h = gst_harness_new_parse ("rtph265pay timestamp-offset=123"
-      " aggregate-mode=zero-latency");
-  GstFlowReturn ret;
-  GstBuffer *buffer;
-  GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
-
-  gst_harness_set_src_caps_str (h,
-      "video/x-h265,alignment=nal,stream-format=byte-stream");
-
-  buffer = wrap_static_buffer_with_pts (h265_idr_slice_1,
-      sizeof (h265_idr_slice_1), 0);
-  buffer = gst_buffer_append (buffer,
-      wrap_static_buffer_with_pts (h265_idr_slice_2, sizeof (h265_idr_slice_2),
-          0));
-  ret = gst_harness_push (h, buffer);
-  fail_unless_equals_int (ret, GST_FLOW_OK);
-
-  buffer = wrap_static_buffer_with_pts (h265_idr_slice_1,
-      sizeof (h265_idr_slice_1), 0);
-  buffer = gst_buffer_append (buffer,
-      wrap_static_buffer_with_pts (h265_idr_slice_2, sizeof (h265_idr_slice_2),
-          0));
-  GST_BUFFER_FLAG_SET (buffer, GST_BUFFER_FLAG_DISCONT);
-  ret = gst_harness_push (h, buffer);
-  fail_unless_equals_int (ret, GST_FLOW_OK);
-
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 2);
-
-  buffer = gst_harness_pull (h);
-  fail_unless (gst_rtp_buffer_map (buffer, GST_MAP_READ, &rtp));
-  fail_unless_equals_uint64 (GST_BUFFER_PTS (buffer), 0);
-  fail_unless_equals_uint64 (gst_rtp_buffer_get_timestamp (&rtp), 123);
-  fail_unless_equals_int (gst_buffer_get_size (buffer), 12 + 2 +
-      (2 + sizeof (h265_idr_slice_2) - 3) +
-      (2 + sizeof (h265_idr_slice_1) - 4));
-  gst_rtp_buffer_unmap (&rtp);
-  gst_buffer_unref (buffer);
-
-  buffer = gst_harness_pull (h);
-  fail_unless (gst_rtp_buffer_map (buffer, GST_MAP_READ, &rtp));
-  fail_unless_equals_uint64 (GST_BUFFER_PTS (buffer), 0);
-  fail_unless_equals_uint64 (gst_rtp_buffer_get_timestamp (&rtp), 123 + 0);
-  fail_unless_equals_int (gst_buffer_get_size (buffer), 12 + 2 +
-      (2 + sizeof (h265_idr_slice_2) - 3) +
-      (2 + sizeof (h265_idr_slice_1) - 4));
-  gst_rtp_buffer_unmap (&rtp);
-  gst_buffer_unref (buffer);
-
-
-  gst_harness_teardown (h);
-}
-
-GST_END_TEST;
-
-/* EOS */
-static guint8 h265_eos[] = {
-  0x00, 0x00, 0x00, 0x01, (36 << 1), 0x00
-};
-
-
-GST_START_TEST (test_rtph265pay_aggregate_until_vcl)
-{
-  GstHarness *h = gst_harness_new_parse ("rtph265pay timestamp-offset=123"
-      " name=p aggregate-mode=zero-latency");
-  GstFlowReturn ret;
-  GstBuffer *buffer;
-  GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
-
-  gst_harness_set_src_caps_str (h,
-      "video/x-h265,alignment=nal,stream-format=byte-stream");
-
-  buffer = wrap_static_buffer_with_pts (h265_vps, sizeof (h265_vps), 0);
-  ret = gst_harness_push (h, buffer);
-  fail_unless_equals_int (ret, GST_FLOW_OK);
-
-  buffer = wrap_static_buffer_with_pts (h265_sps, sizeof (h265_sps), 0);
-  ret = gst_harness_push (h, buffer);
-  fail_unless_equals_int (ret, GST_FLOW_OK);
-
-  buffer = wrap_static_buffer_with_pts (h265_pps, sizeof (h265_pps), 0);
-  ret = gst_harness_push (h, buffer);
-  fail_unless_equals_int (ret, GST_FLOW_OK);
-
-  buffer = wrap_static_buffer_with_pts (h265_idr_slice_1,
-      sizeof (h265_idr_slice_1), 0);
-  ret = gst_harness_push (h, buffer);
-  fail_unless_equals_int (ret, GST_FLOW_OK);
-
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 1);
-
-  buffer = gst_harness_pull (h);
-  fail_unless (gst_rtp_buffer_map (buffer, GST_MAP_READ, &rtp));
-  fail_unless_equals_uint64 (GST_BUFFER_PTS (buffer), 0);
-  fail_unless_equals_uint64 (gst_rtp_buffer_get_timestamp (&rtp), 123);
-  /* RTP header = 12,  STAP header = 2, 2 bytes length per NAL */
-  fail_unless_equals_int (gst_buffer_get_size (buffer), 12 + 2 +
-      (2 + sizeof (h265_vps) - 4) +
-      (2 + sizeof (h265_sps) - 4) +
-      (2 + sizeof (h265_pps) - 4) + (2 + sizeof (h265_idr_slice_1) - 4));
-  gst_rtp_buffer_unmap (&rtp);
-  gst_buffer_unref (buffer);
-
-  /* Push EOS now */
-
-  buffer = wrap_static_buffer_with_pts (h265_eos, sizeof (h265_eos), 0);
-  ret = gst_harness_push (h, buffer);
-  fail_unless_equals_int (ret, GST_FLOW_OK);
-
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 1);
-
-  buffer = gst_harness_pull (h);
-  fail_unless (gst_rtp_buffer_map (buffer, GST_MAP_READ, &rtp));
-  fail_unless_equals_uint64 (GST_BUFFER_PTS (buffer), 0);
-  fail_unless_equals_uint64 (gst_rtp_buffer_get_timestamp (&rtp), 123);
-  fail_unless_equals_int (gst_buffer_get_size (buffer), 12 +
-      sizeof (h265_eos) - 4);
-  gst_rtp_buffer_unmap (&rtp);
-  gst_buffer_unref (buffer);
-
-  gst_harness_teardown (h);
-}
-
-GST_END_TEST;
-
-
-GST_START_TEST (test_rtph265pay_aggregate_verify_nalu_hdr)
-{
-  GstHarness *h = gst_harness_new_parse ("rtph265pay timestamp-offset=123"
-      " name=p aggregate-mode=zero-latency");
-  GstFlowReturn ret;
-  GstBuffer *buffer;
-  GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
-  guint8 *payload = NULL;
-  gint paylen;
-  guint nalu_type;
-  guint nal_hdr_idx = 0;
-  guint nal_size_idx;
-  guint f_bit;
-  guint max_f_bit;
-  guint layer_id;
-  guint layer_id_min;
-  guint tid;
-  guint tid_min;
-  guint i;
-
-  gst_harness_set_src_caps_str (h,
-      "video/x-h265,alignment=nal,stream-format=byte-stream");
-
-  buffer = wrap_static_buffer_with_pts (h265_vps, sizeof (h265_vps), 0);
-  ret = gst_harness_push (h, buffer);
-  fail_unless_equals_int (ret, GST_FLOW_OK);
-
-  buffer = wrap_static_buffer_with_pts (h265_sps, sizeof (h265_sps), 0);
-  ret = gst_harness_push (h, buffer);
-  fail_unless_equals_int (ret, GST_FLOW_OK);
-
-  buffer = wrap_static_buffer_with_pts (h265_pps, sizeof (h265_pps), 0);
-  ret = gst_harness_push (h, buffer);
-  fail_unless_equals_int (ret, GST_FLOW_OK);
-
-  buffer = wrap_static_buffer_with_pts (h265_idr_slice_1,
-      sizeof (h265_idr_slice_1), 0);
-  ret = gst_harness_push (h, buffer);
-  fail_unless_equals_int (ret, GST_FLOW_OK);
-
-  fail_unless_equals_int (gst_harness_buffers_in_queue (h), 1);
-
-  buffer = gst_harness_pull (h);
-  fail_unless (gst_rtp_buffer_map (buffer, GST_MAP_READ, &rtp));
-  fail_unless_equals_uint64 (GST_BUFFER_PTS (buffer), 0);
-  fail_unless_equals_uint64 (gst_rtp_buffer_get_timestamp (&rtp), 123);
-  /* RTP header = 12,  STAP header = 2, 2 bytes length per NAL */
-  fail_unless_equals_int (gst_buffer_get_size (buffer), 12 + 2 +
-      (2 + sizeof (h265_vps) - 4) +
-      (2 + sizeof (h265_sps) - 4) +
-      (2 + sizeof (h265_pps) - 4) + (2 + sizeof (h265_idr_slice_1) - 4));
-
-  paylen = gst_rtp_buffer_get_payload_len (&rtp);
-  payload = gst_rtp_buffer_get_payload (&rtp);
-  fail_unless (payload);
-
-  /* Verify NAL unit type is 48. We need to shift to the rigth to get rid of the
-   * first bit belonging to LayerID */
-  nalu_type = ((0x7e & payload[nal_hdr_idx]) >> 1);
-  fail_unless (nalu_type == 48);
-
-  /* The F bit MUST be cleared if all F bits of the aggregated NAL units
-   * are zero; otherwise, it MUST be set. rfc7798 4.4.2 */
-  f_bit = (0x80 & payload[nal_hdr_idx]);
-  max_f_bit = 0;
-
-  /* The value of LayerId and TID MUST be equal to the lowest value of LayerId
-   * resp TID of all the aggregated NAL units */
-  layer_id = ((0x01 & payload[nal_hdr_idx]) << 5) |
-      ((payload[nal_hdr_idx + 1] >> 3) & 0x1F);
-  tid = payload[nal_hdr_idx + 1] & 0x7;
-
-  nal_hdr_idx = 4;
-  nal_size_idx = 2;
-  layer_id_min = 63;
-  tid_min = 7;
-  i = 0;
-  while (nal_size_idx < paylen) {
-    guint nal_type = ((0x7e & payload[nal_hdr_idx]) >> 1);
-    if (i == 0) {
-      fail_unless (nal_type == GST_H265_NAL_VPS);
-    } else if (i == 1) {
-      fail_unless (nal_type == GST_H265_NAL_SPS);
-    } else if (i == 2) {
-      fail_unless (nal_type == GST_H265_NAL_PPS);
-    } else if (i == 3) {
-      fail_unless (nal_type == GST_H265_NAL_SLICE_IDR_N_LP);
-    }
-
-    if ((0x80 & payload[nal_hdr_idx]) > max_f_bit)
-      max_f_bit = (0x80 & payload[nal_hdr_idx]);
-
-    if ((((0x01 & payload[nal_hdr_idx]) << 5) | ((payload[nal_hdr_idx + 1] >> 3)
-                & 0x1F)) < layer_id_min)
-      layer_id_min =
-          ((0x01 & payload[nal_hdr_idx]) << 5) | ((payload[nal_hdr_idx + 1]
-              >> 3) & 0x1F);
-
-    if ((payload[nal_hdr_idx + 1] & 0x7) < tid_min)
-      tid_min = payload[nal_hdr_idx + 1] & 0x7;
-
-    nal_size_idx =
-        (payload[nal_size_idx] << 8 | payload[nal_size_idx + 1]) +
-        nal_size_idx + 2;
-    nal_hdr_idx = nal_size_idx + 2;
-    i++;
-  }
-
-  fail_unless (nal_size_idx == paylen);
-  fail_unless (max_f_bit == f_bit);
-  fail_unless (layer_id_min == layer_id);
-  fail_unless (tid_min == tid);
-
-  gst_rtp_buffer_unmap (&rtp);
-  gst_buffer_unref (buffer);
-
-  gst_harness_teardown (h);
-}
-
-GST_END_TEST;
 static Suite *
 rtph265_suite (void)
 {
@@ -1148,12 +635,6 @@ rtph265_suite (void)
   tcase_add_test (tc_chain, test_rtph265pay_marker_for_flag);
   tcase_add_test (tc_chain, test_rtph265pay_marker_for_au);
   tcase_add_test (tc_chain, test_rtph265pay_marker_for_fragmented_au);
-  tcase_add_test (tc_chain, test_rtph265pay_aggregate_two_slices_per_buffer);
-  tcase_add_test (tc_chain, test_rtph265pay_aggregate_with_aud);
-  tcase_add_test (tc_chain, test_rtph265pay_aggregate_with_ts_change);
-  tcase_add_test (tc_chain, test_rtph265pay_aggregate_with_discont);
-  tcase_add_test (tc_chain, test_rtph265pay_aggregate_until_vcl);
-  tcase_add_test (tc_chain, test_rtph265pay_aggregate_verify_nalu_hdr);
 
   return s;
 }

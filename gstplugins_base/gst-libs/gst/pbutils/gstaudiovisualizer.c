@@ -29,7 +29,7 @@
  * changes).
  *
  * It also provides several background shading effects. These effects are
- * applied to a previous picture before the `render()` implementation can draw a
+ * applied to a previous picture before the render() implementation can draw a
  * new frame.
  */
 
@@ -336,10 +336,6 @@ shader_fade_and_move_horiz_out (GstAudioVisualizer * scope,
     }
     d += ds;
   }
-
-  /* rewind one stride */
-  d -= ds;
-
   /* move lower half down */
   for (j = 0; j < height / 2; j++) {
     d += ds;
@@ -503,7 +499,7 @@ gst_audio_visualizer_change_shader (GstAudioVisualizer * scope)
 GType
 gst_audio_visualizer_get_type (void)
 {
-  static gsize audio_visualizer_type = 0;
+  static volatile gsize audio_visualizer_type = 0;
 
   if (g_once_init_enter (&audio_visualizer_type)) {
     static const GTypeInfo audio_visualizer_info = {
@@ -848,7 +844,7 @@ no_format:
 static gboolean
 gst_audio_visualizer_set_allocation (GstAudioVisualizer * scope,
     GstBufferPool * pool, GstAllocator * allocator,
-    const GstAllocationParams * params, GstQuery * query)
+    GstAllocationParams * params, GstQuery * query)
 {
   GstAllocator *oldalloc;
   GstBufferPool *oldpool;
@@ -1274,7 +1270,7 @@ gst_audio_visualizer_src_event (GstPad * pad, GstObject * parent,
       break;
     }
     case GST_EVENT_RECONFIGURE:
-      /* don't forward */
+      /* dont't forward */
       gst_event_unref (event);
       res = TRUE;
       break;
@@ -1312,7 +1308,7 @@ gst_audio_visualizer_sink_event (GstPad * pad, GstObject * parent,
     case GST_EVENT_SEGMENT:
     {
       /* the newsegment values are used to clip the input samples
-       * and to convert the incoming timestamps to running time so
+       * and to convert the incomming timestamps to running time so
        * we can do QoS */
       gst_event_copy_segment (event, &scope->priv->segment);
 

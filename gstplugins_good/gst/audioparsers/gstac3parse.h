@@ -62,7 +62,7 @@ struct _GstAc3Parse {
   gint                  blocks;
   gboolean              eac;
   gboolean              sent_codec_tag;
-  gint                  align;
+  volatile gint         align;
   GstPadChainFunction   baseparse_chainfunc;
 };
 

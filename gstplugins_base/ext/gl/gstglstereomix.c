@@ -61,7 +61,6 @@
 #include "config.h"
 #endif
 
-#include "gstglelements.h"
 #include "gstglstereomix.h"
 
 #define GST_CAT_DEFAULT gst_gl_stereo_mix_debug
@@ -86,8 +85,6 @@ static void gst_gl_stereo_mix_child_proxy_init (gpointer g_iface,
 G_DEFINE_TYPE_WITH_CODE (GstGLStereoMix, gst_gl_stereo_mix, GST_TYPE_GL_MIXER,
     G_IMPLEMENT_INTERFACE (GST_TYPE_CHILD_PROXY,
         gst_gl_stereo_mix_child_proxy_init));
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (glstereomix, "glstereomix",
-    GST_RANK_NONE, GST_TYPE_GL_STEREO_MIX, gl_element_init (plugin));
 
 static GstCaps *_update_caps (GstVideoAggregator * vagg, GstCaps * caps);
 static gboolean _negotiated_caps (GstAggregator * aggregator, GstCaps * caps);
@@ -213,9 +210,6 @@ gst_gl_stereo_mix_class_init (GstGLStereoMixClass * klass)
 
   base_mix_class->supported_gl_api =
       GST_GL_API_GLES2 | GST_GL_API_OPENGL | GST_GL_API_OPENGL3;
-
-  gst_type_mark_as_plugin_api (GST_TYPE_GL_STEREO_DOWNMIX, 0);
-  gst_type_mark_as_plugin_api (GST_TYPE_GL_STEREO_MIX_PAD, 0);
 }
 
 static void
@@ -369,7 +363,7 @@ gst_gl_stereo_mix_aggregate_frames (GstVideoAggregator * vagg,
   GstGLStereoMix *mix = GST_GL_STEREO_MIX (vagg);
   /* If we're operating in frame-by-frame mode, push
    * the primary view now, and let the parent class
-   * push the remaining auxiliary view */
+   * push the remaining auxilliary view */
   if (GST_VIDEO_INFO_MULTIVIEW_MODE (&vagg->info) ==
       GST_VIDEO_MULTIVIEW_MODE_FRAME_BY_FRAME) {
     /* Transfer the timestamps video-agg put on the aux buffer */
@@ -644,7 +638,6 @@ _negotiated_caps (GstAggregator * agg, GstCaps * caps)
       GST_GL_TEXTURE_TARGET_2D_STR, NULL);
 
   gst_gl_view_convert_set_caps (mix->viewconvert, in_caps, caps);
-  gst_caps_unref (in_caps);
 
   return TRUE;
 }
@@ -706,10 +699,6 @@ gst_gl_stereo_mix_process_frames (GstGLStereoMix * mixer)
     views = out_info->views;
   else
     views = 1;
-
-  /* We can configure the view_converter now */
-  gst_gl_view_convert_set_context (mixer->viewconvert,
-      GST_GL_BASE_MIXER (mixer)->context);
 
   if (gst_gl_view_convert_submit_input_buffer (mixer->viewconvert,
           FALSE, inbuf) != GST_FLOW_OK)

@@ -43,15 +43,15 @@
  * customization (there's a section about this below), then select
  * the desired mode and start capturing.
  *
- * In image capture mode, just send a #GstCameraBin::start-capture and a
+ * In image capture mode, just send a #GstCameraBin:start-capture and a
  * picture will be captured. When the picture is stored on the selected
  * location, a %GST_MESSAGE_ELEMENT named 'image-done' will be posted on
  * the #GstBus.
  *
- * In video capture mode, send a #GstCameraBin::start-capture to start
- * recording, then send a #GstCameraBin::stop-capture to stop recording.
+ * In video capture mode, send a #GstCameraBin:start-capture to start
+ * recording, then send a #GstCameraBin:stop-capture to stop recording.
  * Note that both signals are asynchronous, so, calling
- * #GstCameraBin::stop-capture doesn't guarantee that the video has been
+ * #GstCameraBin:stop-capture doesn't guarantee that the video has been
  * properly finished yet. Applications should wait for the 'video-done'
  * message to be posted on the bus.
  *
@@ -80,7 +80,7 @@
  * set their source that will provide buffers for the viewfinder and for
  * captures. This camera source is a special type of source that has 3 pads.
  * To use a 'regular' source with a single pad you should use
- * #GstWrapperCameraBinSrc, it will adapt your source and provide 3 pads.
+ * #GstWrapperCameraBinSource, it will adapt your source and provide 3 pads.
  *
  * Applications can also select the desired viewfinder sink using
  * #GstCameraBin:viewfinder-sink, it is also possible to select the audio
@@ -263,7 +263,7 @@ gst_cam_flags_get_type (void)
           "elements", "no-image-conversion"},
     {0, NULL, NULL}
   };
-  static GType id = 0;
+  static volatile GType id = 0;
 
   if (g_once_init_enter ((gsize *) & id)) {
     GType _id;
@@ -310,11 +310,6 @@ gst_camera_bin2_get_type (void)
 
   return gst_camera_bin_type;
 }
-
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (camerabin, "camerabin", GST_RANK_NONE,
-    gst_camera_bin2_get_type (), GST_DEBUG_CATEGORY_INIT (gst_camera_bin_debug,
-        "camerabin", 0, "CameraBin");
-    );
 
 /* GObject class functions */
 static void gst_camera_bin_set_property (GObject * object, guint prop_id,
@@ -787,7 +782,7 @@ gst_camera_bin_class_init (GstCameraBin2Class * klass)
    *   show that jifmux is picked if image/jpeg is the caps of a container
    *   profile. So this could work.
    * - There seems to be a problem with encodebin for images currently as
-   *   it autoplugs a videorate that only starts outputting buffers after
+   *   it autoplugs a videorate that only starts outputing buffers after
    *   getting the 2nd buffer.
    */
   g_object_class_install_property (object_class, PROP_IMAGE_ENCODING_PROFILE,
@@ -838,7 +833,7 @@ gst_camera_bin_class_init (GstCameraBin2Class * klass)
       G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
       G_STRUCT_OFFSET (GstCameraBin2Class, start_capture),
-      NULL, NULL, NULL, G_TYPE_NONE, 0);
+      NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE, 0);
 
   /**
    * GstCameraBin2::capture-stop:
@@ -849,9 +844,7 @@ gst_camera_bin_class_init (GstCameraBin2Class * klass)
       G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
       G_STRUCT_OFFSET (GstCameraBin2Class, stop_capture),
-      NULL, NULL, NULL, G_TYPE_NONE, 0);
-
-  gst_type_mark_as_plugin_api (GST_TYPE_CAM_FLAGS, 0);
+      NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE, 0);
 }
 
 static void
@@ -870,7 +863,7 @@ gst_camera_bin_init (GstCameraBin2 * camera)
   g_cond_init (&camera->video_state_cond);
 
   /* capsfilters are created here as we proxy their caps properties and
-   * this way we avoid having to store the caps while on NULL state to
+   * this way we avoid having to store the caps while on NULL state to 
    * set them later */
   camera->videobin_capsfilter = gst_element_factory_make ("capsfilter",
       "videobin-capsfilter");
@@ -2394,4 +2387,13 @@ gst_camera_bin_get_property (GObject * object, guint prop_id,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+}
+
+gboolean
+gst_camera_bin2_plugin_init (GstPlugin * plugin)
+{
+  GST_DEBUG_CATEGORY_INIT (gst_camera_bin_debug, "camerabin", 0, "CameraBin");
+
+  return gst_element_register (plugin, "camerabin", GST_RANK_NONE,
+      gst_camera_bin2_get_type ());
 }

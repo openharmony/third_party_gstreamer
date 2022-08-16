@@ -33,7 +33,6 @@
 #include "config.h"
 #endif
 
-#include "gsthlselements.h"
 #include "gsthlssink.h"
 #include <gst/pbutils/pbutils.h>
 #include <gst/video/video.h>
@@ -71,11 +70,6 @@ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
 
 #define gst_hls_sink_parent_class parent_class
 G_DEFINE_TYPE (GstHlsSink, gst_hls_sink, GST_TYPE_BIN);
-#define _do_init \
-  hls_element_init (plugin); \
-  GST_DEBUG_CATEGORY_INIT (gst_hls_sink_debug, "hlssink", 0, "HlsSink");
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (hlssink, "hlssink", GST_RANK_NONE,
-    GST_TYPE_HLS_SINK, _do_init);
 
 static void gst_hls_sink_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * spec);
@@ -213,9 +207,8 @@ gst_hls_sink_reset (GstHlsSink * sink)
   if (sink->playlist)
     gst_m3u8_playlist_free (sink->playlist);
   sink->playlist =
-      gst_m3u8_playlist_new (GST_M3U8_PLAYLIST_VERSION, sink->playlist_length);
-
-  sink->state = GST_M3U8_PLAYLIST_RENDER_INIT;
+      gst_m3u8_playlist_new (GST_M3U8_PLAYLIST_VERSION, sink->playlist_length,
+      FALSE);
 }
 
 static gboolean
@@ -311,7 +304,6 @@ gst_hls_sink_handle_message (GstBin * bin, GstMessage * message)
       g_free (entry_location);
 
       gst_hls_sink_write_playlist (sink);
-      sink->state |= GST_M3U8_PLAYLIST_RENDER_STARTED;
 
       /* multifilesink is starting a new file. It means that upstream sent a key
        * unit and we can schedule the next key unit now.
@@ -329,7 +321,6 @@ gst_hls_sink_handle_message (GstBin * bin, GstMessage * message)
     case GST_MESSAGE_EOS:{
       sink->playlist->end_list = TRUE;
       gst_hls_sink_write_playlist (sink);
-      sink->state |= GST_M3U8_PLAYLIST_RENDER_ENDED;
       break;
     }
     default:
@@ -364,12 +355,6 @@ gst_hls_sink_change_state (GstElement * element, GstStateChange trans)
     case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
       break;
     case GST_STATE_CHANGE_PAUSED_TO_READY:
-      /* drain playlist with #EXT-X-ENDLIST */
-      if (sink->playlist && (sink->state & GST_M3U8_PLAYLIST_RENDER_STARTED) &&
-          !(sink->state & GST_M3U8_PLAYLIST_RENDER_ENDED)) {
-        sink->playlist->end_list = TRUE;
-        gst_hls_sink_write_playlist (sink);
-      }
       gst_hls_sink_reset (sink);
       break;
     case GST_STATE_CHANGE_READY_TO_NULL:
@@ -584,4 +569,12 @@ gst_hls_sink_chain_list (GstPad * pad, GstObject * parent, GstBufferList * list)
   gst_buffer_list_unref (list);
 
   return ret;
+}
+
+gboolean
+gst_hls_sink_plugin_init (GstPlugin * plugin)
+{
+  GST_DEBUG_CATEGORY_INIT (gst_hls_sink_debug, "hlssink", 0, "HlsSink");
+  return gst_element_register (plugin, "hlssink", GST_RANK_NONE,
+      gst_hls_sink_get_type ());
 }

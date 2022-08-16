@@ -43,7 +43,6 @@
 
 /**
  * SECTION:element-rtpdec
- * @title: rtpdec
  *
  * A simple RTP session manager used internally by rtspsrc.
  */
@@ -56,7 +55,6 @@
 #include <gst/rtp/gstrtcpbuffer.h>
 #endif
 
-#include "gstrtspelements.h"
 #include "gstrtpdec.h"
 #include <stdio.h>
 
@@ -197,8 +195,6 @@ static guint gst_rtp_dec_signals[LAST_SIGNAL] = { 0 };
 
 #define gst_rtp_dec_parent_class parent_class
 G_DEFINE_TYPE (GstRTPDec, gst_rtp_dec, GST_TYPE_ELEMENT);
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpdec, "rtpdec", GST_RANK_NONE,
-    GST_TYPE_RTP_DEC, rtsp_element_init (plugin));
 
 static void
 gst_rtp_dec_class_init (GstRTPDecClass * g_class)
@@ -232,87 +228,94 @@ gst_rtp_dec_class_init (GstRTPDecClass * g_class)
    */
   gst_rtp_dec_signals[SIGNAL_REQUEST_PT_MAP] =
       g_signal_new ("request-pt-map", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstRTPDecClass, request_pt_map), NULL,
-      NULL, NULL, GST_TYPE_CAPS, 2, G_TYPE_UINT, G_TYPE_UINT);
+      G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstRTPDecClass, request_pt_map),
+      NULL, NULL, g_cclosure_marshal_generic, GST_TYPE_CAPS, 2, G_TYPE_UINT,
+      G_TYPE_UINT);
 
   gst_rtp_dec_signals[SIGNAL_CLEAR_PT_MAP] =
       g_signal_new ("clear-pt-map", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstRTPDecClass, clear_pt_map), NULL,
-      NULL, NULL, G_TYPE_NONE, 0, G_TYPE_NONE);
+      G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstRTPDecClass, clear_pt_map),
+      NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE, 0, G_TYPE_NONE);
 
   /**
    * GstRTPDec::on-new-ssrc:
    * @rtpbin: the object which received the signal
    * @session: the session
-   * @ssrc: the SSRC
+   * @ssrc: the SSRC 
    *
    * Notify of a new SSRC that entered @session.
    */
   gst_rtp_dec_signals[SIGNAL_ON_NEW_SSRC] =
       g_signal_new ("on-new-ssrc", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstRTPDecClass, on_new_ssrc), NULL,
-      NULL, NULL, G_TYPE_NONE, 2, G_TYPE_UINT, G_TYPE_UINT);
+      G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstRTPDecClass, on_new_ssrc),
+      NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 2, G_TYPE_UINT,
+      G_TYPE_UINT);
   /**
    * GstRTPDec::on-ssrc_collision:
    * @rtpbin: the object which received the signal
    * @session: the session
-   * @ssrc: the SSRC
+   * @ssrc: the SSRC 
    *
    * Notify when we have an SSRC collision
    */
   gst_rtp_dec_signals[SIGNAL_ON_SSRC_COLLISION] =
       g_signal_new ("on-ssrc-collision", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstRTPDecClass, on_ssrc_collision),
-      NULL, NULL, NULL, G_TYPE_NONE, 2, G_TYPE_UINT, G_TYPE_UINT);
+      NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 2, G_TYPE_UINT,
+      G_TYPE_UINT);
   /**
    * GstRTPDec::on-ssrc_validated:
    * @rtpbin: the object which received the signal
    * @session: the session
-   * @ssrc: the SSRC
+   * @ssrc: the SSRC 
    *
    * Notify of a new SSRC that became validated.
    */
   gst_rtp_dec_signals[SIGNAL_ON_SSRC_VALIDATED] =
       g_signal_new ("on-ssrc-validated", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstRTPDecClass, on_ssrc_validated),
-      NULL, NULL, NULL, G_TYPE_NONE, 2, G_TYPE_UINT, G_TYPE_UINT);
+      NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 2, G_TYPE_UINT,
+      G_TYPE_UINT);
 
   /**
    * GstRTPDec::on-bye-ssrc:
    * @rtpbin: the object which received the signal
    * @session: the session
-   * @ssrc: the SSRC
+   * @ssrc: the SSRC 
    *
    * Notify of an SSRC that became inactive because of a BYE packet.
    */
   gst_rtp_dec_signals[SIGNAL_ON_BYE_SSRC] =
       g_signal_new ("on-bye-ssrc", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstRTPDecClass, on_bye_ssrc), NULL,
-      NULL, NULL, G_TYPE_NONE, 2, G_TYPE_UINT, G_TYPE_UINT);
+      G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstRTPDecClass, on_bye_ssrc),
+      NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 2, G_TYPE_UINT,
+      G_TYPE_UINT);
   /**
    * GstRTPDec::on-bye-timeout:
    * @rtpbin: the object which received the signal
    * @session: the session
-   * @ssrc: the SSRC
+   * @ssrc: the SSRC 
    *
    * Notify of an SSRC that has timed out because of BYE
    */
   gst_rtp_dec_signals[SIGNAL_ON_BYE_TIMEOUT] =
       g_signal_new ("on-bye-timeout", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstRTPDecClass, on_bye_timeout),
-      NULL, NULL, NULL, G_TYPE_NONE, 2, G_TYPE_UINT, G_TYPE_UINT);
+      NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 2, G_TYPE_UINT,
+      G_TYPE_UINT);
   /**
    * GstRTPDec::on-timeout:
    * @rtpbin: the object which received the signal
    * @session: the session
-   * @ssrc: the SSRC
+   * @ssrc: the SSRC 
    *
    * Notify of an SSRC that has timed out
    */
   gst_rtp_dec_signals[SIGNAL_ON_TIMEOUT] =
       g_signal_new ("on-timeout", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstRTPDecClass, on_timeout), NULL,
-      NULL, NULL, G_TYPE_NONE, 2, G_TYPE_UINT, G_TYPE_UINT);
+      G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstRTPDecClass, on_timeout),
+      NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 2, G_TYPE_UINT,
+      G_TYPE_UINT);
 
   gstelement_class->provide_clock =
       GST_DEBUG_FUNCPTR (gst_rtp_dec_provide_clock);

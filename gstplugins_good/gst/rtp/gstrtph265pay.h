@@ -47,13 +47,6 @@ typedef enum
   GST_H265_ALIGNMENT_AU
 } GstH265Alignment;
 
-typedef enum
-{
-  GST_RTP_H265_AGGREGATE_NONE,
-  GST_RTP_H265_AGGREGATE_ZERO_LATENCY,
-  GST_RTP_H265_AGGREGATE_MAX,
-} GstRTPH265AggregateMode;
-
 struct _GstRtpH265Pay
 {
   GstRTPBasePayload payload;
@@ -62,8 +55,6 @@ struct _GstRtpH265Pay
 
   GstH265StreamFormat stream_format;
   GstH265Alignment alignment;
-  gint fps_num;
-  gint fps_denum;
   guint nal_length_size;
   GArray *queue;
 
@@ -72,12 +63,6 @@ struct _GstRtpH265Pay
   gint vps_sps_pps_interval;
   gboolean send_vps_sps_pps;
   GstClockTime last_vps_sps_pps;
-
-  /* aggregate buffers with AP */
-  GstBufferList *bundle;
-  guint bundle_size;
-  gboolean bundle_contains_vcl_or_suffix;
-  GstRTPH265AggregateMode aggregate_mode;
 };
 
 struct _GstRtpH265PayClass
@@ -86,6 +71,8 @@ struct _GstRtpH265PayClass
 };
 
 GType gst_rtp_h265_pay_get_type (void);
+
+gboolean gst_rtp_h265_pay_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 #endif /* __GST_RTP_H265_PAY_H__ */

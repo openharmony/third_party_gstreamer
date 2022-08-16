@@ -26,8 +26,6 @@
 #include <stdarg.h>
 #include <math.h>
 
-#include <glib.h>
-
 #include "internal-check.h"
 #include "check_error.h"
 #include "check_list.h"
@@ -386,13 +384,13 @@ _ck_assert_failed (const char *file, int line, const char *expr, ...)
 
   va_end (ap);
   send_failure_info (to_send);
-#if defined(HAVE_FORK) && HAVE_FORK==1
   if (cur_fork_status () == CK_FORK) {
-    g_thread_pool_stop_unused_threads ();
+#if defined(HAVE_FORK) && HAVE_FORK==1
     _exit (1);
-  }
 #endif /* HAVE_FORK */
-  longjmp (error_jmp_buffer, 1);
+  } else {
+    longjmp (error_jmp_buffer, 1);
+  }
 }
 
 SRunner *

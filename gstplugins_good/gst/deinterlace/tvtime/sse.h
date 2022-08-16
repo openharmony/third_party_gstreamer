@@ -1,6 +1,6 @@
 /*	sse.h
 
-	Streaming SIMD Extensions (a.k.a. Katmai New Instructions)
+	Streaming SIMD Extenstions (a.k.a. Katmai New Instructions)
 	GCC interface library for IA32.
 
 	To use this library, simply include this header file
@@ -954,7 +954,7 @@ sse_ok(void)
 
 
 /*	Store FENCE - enforce ordering of stores before fence vs. stores
-	occurring after fence in source code.
+	occuring after fence in source code.
 */
 #ifdef	SSE_TRACE
 	#define	sfence() \

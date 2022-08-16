@@ -51,14 +51,7 @@ struct _GstRtpRedDec {
   gint pt;
   guint num_received;
 
-  /* Per ssrc */
-  GHashTable *rtp_histories;
-
-  /* To track all FEC payload types */
-  GHashTable *payloads;
-
-  /* Protects pt and payloads */
-  GMutex lock;
+  GQueue *rtp_history;
 };
 
 GType gst_rtp_red_dec_get_type (void);

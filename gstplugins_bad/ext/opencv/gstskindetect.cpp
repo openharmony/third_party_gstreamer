@@ -46,11 +46,12 @@
  *
  * Human skin detection on videos and images
  *
- * ## Example launch line
- *
+ * <refsect2>
+ * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 videotestsrc ! decodebin ! videoconvert ! skindetect ! videoconvert ! xvimagesink
  * ]|
+ * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -99,14 +100,7 @@ gst_skin_detect_method_get_type (void)
   return etype;
 }
 
-G_DEFINE_TYPE_WITH_CODE (GstSkinDetect, gst_skin_detect,
-    GST_TYPE_OPENCV_VIDEO_FILTER,
-    GST_DEBUG_CATEGORY_INIT (gst_skin_detect_debug, "skindetect", 0,
-        "Performs skin detection on videos and images");
-    );
-GST_ELEMENT_REGISTER_DEFINE (skindetect, "skindetect", GST_RANK_NONE,
-    GST_TYPE_SKIN_DETECT);
-
+G_DEFINE_TYPE (GstSkinDetect, gst_skin_detect, GST_TYPE_OPENCV_VIDEO_FILTER);
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
@@ -171,13 +165,11 @@ gst_skin_detect_class_init (GstSkinDetectClass * klass)
   gst_element_class_add_static_pad_template (element_class, &sink_factory);
 
   gstopencvbasefilter_class->cv_set_caps = gst_skin_detect_set_caps;
-
-  gst_type_mark_as_plugin_api (GST_TYPE_SKIN_DETECT_METHOD, (GstPluginAPIFlags) 0);
 }
 
 /* initialize the new element
  * instantiate pads and add them to element
- * set pad callback functions
+ * set pad calback functions
  * initialize instance structure
  */
 static void
@@ -391,4 +383,21 @@ gst_skin_detect_transform (GstOpencvVideoFilter * base, GstBuffer * buf,
   filter->cvRGB.copyTo (outimg);
 
   return GST_FLOW_OK;
+}
+
+/* entry point to initialize the plug-in
+ * initialize the plug-in itself
+ * register the element factories and other features
+ */
+gboolean
+gst_skin_detect_plugin_init (GstPlugin * plugin)
+{
+  /* debug category for fltering log messages
+   *
+   */
+  GST_DEBUG_CATEGORY_INIT (gst_skin_detect_debug, "skindetect",
+      0, "Performs skin detection on videos and images");
+
+  return gst_element_register (plugin, "skindetect", GST_RANK_NONE,
+      GST_TYPE_SKIN_DETECT);
 }

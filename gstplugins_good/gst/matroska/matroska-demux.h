@@ -90,7 +90,6 @@ typedef struct _GstMatroskaDemux {
   guint64                  next_cluster_offset;
   GstClockTime             requested_seek_time;
   guint64                  seek_offset;
-  GstClockTime             audio_lead_in_ts;
 
   /* alternative duration; optionally obtained from last cluster */
   guint64                  last_cluster_offset;
@@ -134,6 +133,8 @@ typedef struct _GstMatroskaDemux {
 typedef struct _GstMatroskaDemuxClass {
   GstElementClass parent;
 } GstMatroskaDemuxClass;
+
+gboolean gst_matroska_demux_plugin_init (GstPlugin *plugin);
 
 G_END_DECLS
 

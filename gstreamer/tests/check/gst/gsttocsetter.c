@@ -258,7 +258,7 @@ GST_START_TEST (test_set)
 
   fail_unless (toc == NULL);
 
-  gst_object_unref (enc);
+  g_object_unref (enc);
 }
 
 GST_END_TEST static int spin_and_wait = 1;
@@ -369,7 +369,7 @@ GST_START_TEST (test_threads)
   g_thread_join (threads[1]);
   g_thread_join (threads[2]);
 
-  gst_object_unref (setter);
+  g_object_unref (G_OBJECT (setter));
 }
 
 GST_END_TEST static Suite *

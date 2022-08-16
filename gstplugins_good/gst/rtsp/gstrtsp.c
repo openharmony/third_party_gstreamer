@@ -45,17 +45,26 @@
 #include "config.h"
 #endif
 
-#include "gstrtspelements.h"
+#include "gst/gst-i18n-plugin.h"
+
+#include "gstrtpdec.h"
+#include "gstrtspsrc.h"
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gboolean ret = FALSE;
+#ifdef ENABLE_NLS
+  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
+  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
+#endif /* ENABLE_NLS */
 
-  ret |= GST_ELEMENT_REGISTER (rtspsrc, plugin);
-  ret |= GST_ELEMENT_REGISTER (rtpdec, plugin);
+  if (!gst_element_register (plugin, "rtspsrc", GST_RANK_NONE,
+          GST_TYPE_RTSPSRC))
+    return FALSE;
+  if (!gst_element_register (plugin, "rtpdec", GST_RANK_NONE, GST_TYPE_RTP_DEC))
+    return FALSE;
 
-  return ret;
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

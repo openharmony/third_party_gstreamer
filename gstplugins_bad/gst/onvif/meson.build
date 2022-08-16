@@ -13,4 +13,3 @@ gstrtponvif = library('gstrtponvif',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstrtponvif, install_dir : plugins_pkgconfig_install_dir)
-plugins += [gstrtponvif]

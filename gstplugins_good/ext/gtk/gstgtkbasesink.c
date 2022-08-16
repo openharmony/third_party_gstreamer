@@ -35,10 +35,8 @@ GST_DEBUG_CATEGORY (gst_debug_gtk_base_sink);
 #define GST_CAT_DEFAULT gst_debug_gtk_base_sink
 
 #define DEFAULT_FORCE_ASPECT_RATIO  TRUE
-#define DEFAULT_DISPLAY_PAR_N       0
-#define DEFAULT_DISPLAY_PAR_D       1
-#define DEFAULT_VIDEO_PAR_N         0
-#define DEFAULT_VIDEO_PAR_D         1
+#define DEFAULT_PAR_N               0
+#define DEFAULT_PAR_D               1
 #define DEFAULT_IGNORE_ALPHA        TRUE
 
 static void gst_gtk_base_sink_finalize (GObject * object);
@@ -70,7 +68,6 @@ enum
   PROP_WIDGET,
   PROP_FORCE_ASPECT_RATIO,
   PROP_PIXEL_ASPECT_RATIO,
-  PROP_VIDEO_ASPECT_RATIO_OVERRIDE,
   PROP_IGNORE_ALPHA,
 };
 
@@ -103,9 +100,7 @@ gst_gtk_base_sink_class_init (GstGtkBaseSinkClass * klass)
       g_param_spec_object ("widget", "Gtk Widget",
           "The GtkWidget to place in the widget hierarchy "
           "(must only be get from the GTK main thread)",
-          GTK_TYPE_WIDGET,
-          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS |
-          GST_PARAM_DOC_SHOW_DEFAULT));
+          GTK_TYPE_WIDGET, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_FORCE_ASPECT_RATIO,
       g_param_spec_boolean ("force-aspect-ratio",
@@ -116,24 +111,8 @@ gst_gtk_base_sink_class_init (GstGtkBaseSinkClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_PIXEL_ASPECT_RATIO,
       gst_param_spec_fraction ("pixel-aspect-ratio", "Pixel Aspect Ratio",
-          "The pixel aspect ratio of the device",
-          0, G_MAXINT, G_MAXINT, 1, DEFAULT_DISPLAY_PAR_N,
-          DEFAULT_DISPLAY_PAR_D, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  /**
-   * GstGtkBaseSink:video-aspect-ratio-override:
-   *
-   * The pixel aspect ratio of the video (0/1 = follow stream)
-   *
-   * Since: 1.20
-   */
-  g_object_class_install_property (gobject_class,
-      PROP_VIDEO_ASPECT_RATIO_OVERRIDE,
-      gst_param_spec_fraction ("video-aspect-ratio-override",
-          "Video Pixel Aspect Ratio",
-          "The pixel aspect ratio of the video (0/1 = follow stream)", 0,
-          G_MAXINT, G_MAXINT, 1, DEFAULT_VIDEO_PAR_N, DEFAULT_VIDEO_PAR_D,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          "The pixel aspect ratio of the device", DEFAULT_PAR_N, DEFAULT_PAR_D,
+          G_MAXINT, 1, 1, 1, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_IGNORE_ALPHA,
       g_param_spec_boolean ("ignore-alpha", "Ignore Alpha",
@@ -149,18 +128,14 @@ gst_gtk_base_sink_class_init (GstGtkBaseSinkClass * klass)
   gstbasesink_class->stop = gst_gtk_base_sink_stop;
 
   gstvideosink_class->show_frame = gst_gtk_base_sink_show_frame;
-
-  gst_type_mark_as_plugin_api (GST_TYPE_GTK_BASE_SINK, 0);
 }
 
 static void
 gst_gtk_base_sink_init (GstGtkBaseSink * gtk_sink)
 {
   gtk_sink->force_aspect_ratio = DEFAULT_FORCE_ASPECT_RATIO;
-  gtk_sink->par_n = DEFAULT_DISPLAY_PAR_N;
-  gtk_sink->par_d = DEFAULT_DISPLAY_PAR_D;
-  gtk_sink->video_par_n = DEFAULT_VIDEO_PAR_N;
-  gtk_sink->video_par_d = DEFAULT_VIDEO_PAR_D;
+  gtk_sink->par_n = DEFAULT_PAR_N;
+  gtk_sink->par_d = DEFAULT_PAR_D;
   gtk_sink->ignore_alpha = DEFAULT_IGNORE_ALPHA;
 }
 
@@ -201,12 +176,12 @@ static GtkGstBaseWidget *
 gst_gtk_base_sink_get_widget (GstGtkBaseSink * gtk_sink)
 {
   if (gtk_sink->widget != NULL)
-    return g_object_ref (gtk_sink->widget);
+    return gtk_sink->widget;
 
   /* Ensure GTK is initialized, this has no side effect if it was already
    * initialized. Also, we do that lazily, so the application can be first */
   if (!gtk_init_check (NULL, NULL)) {
-    GST_INFO_OBJECT (gtk_sink, "Could not ensure GTK initialization.");
+    GST_ERROR_OBJECT (gtk_sink, "Could not ensure GTK initialization.");
     return NULL;
   }
 
@@ -220,16 +195,12 @@ gst_gtk_base_sink_get_widget (GstGtkBaseSink * gtk_sink)
   gtk_sink->bind_pixel_aspect_ratio =
       g_object_bind_property (gtk_sink, "pixel-aspect-ratio", gtk_sink->widget,
       "pixel-aspect-ratio", G_BINDING_BIDIRECTIONAL | G_BINDING_SYNC_CREATE);
-  gtk_sink->bind_video_aspect_ratio =
-      g_object_bind_property (gtk_sink, "video-aspect-ratio-override",
-      gtk_sink->widget, "video-aspect-ratio-override",
-      G_BINDING_BIDIRECTIONAL | G_BINDING_SYNC_CREATE);
   gtk_sink->bind_ignore_alpha =
       g_object_bind_property (gtk_sink, "ignore-alpha", gtk_sink->widget,
       "ignore-alpha", G_BINDING_BIDIRECTIONAL | G_BINDING_SYNC_CREATE);
 
   /* Take the floating ref, other wise the destruction of the container will
-   * make this widget disappear possibly before we are done. */
+   * make this widget disapear possibly before we are done. */
   gst_object_ref_sink (gtk_sink->widget);
   gtk_sink->widget_destroy_id = g_signal_connect (gtk_sink->widget, "destroy",
       G_CALLBACK (widget_destroy_cb), gtk_sink);
@@ -238,25 +209,7 @@ gst_gtk_base_sink_get_widget (GstGtkBaseSink * gtk_sink)
   gtk_gst_base_widget_set_element (GTK_GST_BASE_WIDGET (gtk_sink->widget),
       GST_ELEMENT (gtk_sink));
 
-  return g_object_ref (gtk_sink->widget);
-}
-
-GtkWidget *
-gst_gtk_base_sink_acquire_widget (GstGtkBaseSink * gtk_sink)
-{
-  gpointer widget = NULL;
-
-  GST_OBJECT_LOCK (gtk_sink);
-  if (gtk_sink->widget != NULL)
-    widget = g_object_ref (gtk_sink->widget);
-  GST_OBJECT_UNLOCK (gtk_sink);
-
-  if (!widget)
-    widget =
-        gst_gtk_invoke_on_main ((GThreadFunc) gst_gtk_base_sink_get_widget,
-        gtk_sink);
-
-  return widget;
+  return gtk_sink->widget;
 }
 
 static void
@@ -268,7 +221,19 @@ gst_gtk_base_sink_get_property (GObject * object, guint prop_id,
   switch (prop_id) {
     case PROP_WIDGET:
     {
-      g_value_take_object (value, gst_gtk_base_sink_acquire_widget (gtk_sink));
+      GObject *widget = NULL;
+
+      GST_OBJECT_LOCK (gtk_sink);
+      if (gtk_sink->widget != NULL)
+        widget = G_OBJECT (gtk_sink->widget);
+      GST_OBJECT_UNLOCK (gtk_sink);
+
+      if (!widget)
+        widget =
+            gst_gtk_invoke_on_main ((GThreadFunc) gst_gtk_base_sink_get_widget,
+            gtk_sink);
+
+      g_value_set_object (value, widget);
       break;
     }
     case PROP_FORCE_ASPECT_RATIO:
@@ -276,10 +241,6 @@ gst_gtk_base_sink_get_property (GObject * object, guint prop_id,
       break;
     case PROP_PIXEL_ASPECT_RATIO:
       gst_value_set_fraction (value, gtk_sink->par_n, gtk_sink->par_d);
-      break;
-    case PROP_VIDEO_ASPECT_RATIO_OVERRIDE:
-      gst_value_set_fraction (value, gtk_sink->video_par_n,
-          gtk_sink->video_par_d);
       break;
     case PROP_IGNORE_ALPHA:
       g_value_set_boolean (value, gtk_sink->ignore_alpha);
@@ -304,10 +265,6 @@ gst_gtk_base_sink_set_property (GObject * object, guint prop_id,
       gtk_sink->par_n = gst_value_get_fraction_numerator (value);
       gtk_sink->par_d = gst_value_get_fraction_denominator (value);
       break;
-    case PROP_VIDEO_ASPECT_RATIO_OVERRIDE:
-      gtk_sink->video_par_n = gst_value_get_fraction_numerator (value);
-      gtk_sink->video_par_d = gst_value_get_fraction_denominator (value);
-      break;
     case PROP_IGNORE_ALPHA:
       gtk_sink->ignore_alpha = g_value_get_boolean (value);
       break;
@@ -324,24 +281,6 @@ gst_gtk_base_sink_navigation_send_event (GstNavigation * navigation,
   GstGtkBaseSink *sink = GST_GTK_BASE_SINK (navigation);
   GstEvent *event;
   GstPad *pad;
-  gdouble x, y;
-
-  if (gst_structure_get_double (structure, "pointer_x", &x) &&
-      gst_structure_get_double (structure, "pointer_y", &y)) {
-    GtkGstBaseWidget *widget = gst_gtk_base_sink_get_widget (sink);
-    gdouble stream_x, stream_y;
-
-    if (widget == NULL) {
-      GST_ERROR_OBJECT (sink, "Could not ensure GTK initialization.");
-      return;
-    }
-
-    gtk_gst_base_widget_display_size_to_stream_size (widget,
-        x, y, &stream_x, &stream_y);
-    gst_structure_set (structure,
-        "pointer_x", G_TYPE_DOUBLE, (gdouble) stream_x,
-        "pointer_y", G_TYPE_DOUBLE, (gdouble) stream_y, NULL);
-  }
 
   event = gst_event_new_navigation (structure);
   pad = gst_pad_get_peer (GST_VIDEO_SINK_PAD (sink));
@@ -373,10 +312,8 @@ gst_gtk_base_sink_start_on_main (GstBaseSink * bsink)
   GstGtkBaseSinkClass *klass = GST_GTK_BASE_SINK_GET_CLASS (bsink);
   GtkWidget *toplevel;
 
-  if (gst_gtk_base_sink_get_widget (gst_sink) == NULL) {
-    GST_ERROR_OBJECT (bsink, "Could not ensure GTK initialization.");
+  if (gst_gtk_base_sink_get_widget (gst_sink) == NULL)
     return FALSE;
-  }
 
   /* After this point, gtk_sink->widget will always be set */
 

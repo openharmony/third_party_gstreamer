@@ -28,7 +28,7 @@
  * @see_also: #GstContext, #GstGLContext, #GstGLWindow
  *
  * #GstGLDisplay represents a connection to the underlying windowing system.
- * Elements are required to make use of #GstContext to share and propagate
+ * Elements are required to make use of #GstContext to share and propogate
  * a #GstGLDisplay.
  *
  * There are a number of environment variables that influence the choice of
@@ -67,7 +67,6 @@
 #endif
 #if GST_GL_HAVE_PLATFORM_EGL
 #include <gst/gl/egl/gstgldisplay_egl.h>
-#include <gst/gl/egl/gstgldisplay_egl_device.h>
 #include <gst/gl/egl/gsteglimage.h>
 #include <gst/gl/egl/gstglmemoryegl.h>
 #endif
@@ -108,8 +107,6 @@ struct _GstGLDisplayPrivate
 
   GMutex thread_lock;
   GCond thread_cond;
-
-  GMutex window_lock;
 };
 
 #define DEBUG_INIT \
@@ -172,8 +169,8 @@ gst_gl_display_class_init (GstGLDisplayClass * klass)
    */
   gst_gl_display_signals[CREATE_CONTEXT] =
       g_signal_new ("create-context", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, GST_TYPE_GL_CONTEXT, 1,
-      GST_TYPE_GL_CONTEXT);
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL, g_cclosure_marshal_generic,
+      GST_TYPE_GL_CONTEXT, 1, GST_TYPE_GL_CONTEXT);
 
   klass->get_handle = gst_gl_display_default_get_handle;
   klass->create_window = gst_gl_display_default_create_window;
@@ -192,8 +189,6 @@ gst_gl_display_init (GstGLDisplay * display)
 
   g_mutex_init (&display->priv->thread_lock);
   g_cond_init (&display->priv->thread_cond);
-
-  g_mutex_init (&display->priv->window_lock);
 
   display->priv->event_thread = g_thread_new ("gldisplay-event",
       (GThreadFunc) _event_thread_main, display);
@@ -260,187 +255,8 @@ gst_gl_display_finalize (GObject * object)
 
   g_cond_clear (&display->priv->thread_cond);
   g_mutex_clear (&display->priv->thread_lock);
-  g_mutex_clear (&display->priv->window_lock);
 
   G_OBJECT_CLASS (gst_gl_display_parent_class)->finalize (object);
-}
-
-static void
-init_debug (void)
-{
-  static gsize _init = 0;
-
-  if (g_once_init_enter (&_init)) {
-    GST_DEBUG_CATEGORY_INIT (gst_gl_display_debug, "gldisplay", 0,
-        "gldisplay element");
-    g_once_init_leave (&_init, 1);
-  }
-}
-
-static GstGLDisplayType
-gst_gl_display_type_from_environment (void)
-{
-  const char *env = g_getenv ("GST_GL_WINDOW");
-  const char *platform = g_getenv ("GST_GL_PLATFORM");
-
-  init_debug ();
-
-  GST_INFO ("creating a display, user choice:%s (platform: %s)",
-      GST_STR_NULL (env), GST_STR_NULL (platform));
-
-  if (!env && !platform)
-    return GST_GL_DISPLAY_TYPE_ANY;
-
-  if (env) {
-    if (g_strstr_len (env, 3, "x11")) {
-      return GST_GL_DISPLAY_TYPE_X11;
-    } else if (g_strstr_len (env, 7, "wayland")) {
-      return GST_GL_DISPLAY_TYPE_WAYLAND;
-    } else if (g_strstr_len (env, 5, "cocoa")) {
-      return GST_GL_DISPLAY_TYPE_COCOA;
-    } else if (g_strstr_len (env, 5, "win32")) {
-      return GST_GL_DISPLAY_TYPE_WIN32;
-    } else if (g_strstr_len (env, 8, "dispmanx")) {
-      return GST_GL_DISPLAY_TYPE_DISPMANX;
-    } else if (g_strstr_len (env, 10, "egl-device")) {
-      return GST_GL_DISPLAY_TYPE_EGL_DEVICE;
-    } else if (g_strstr_len (env, 3, "egl")) {
-      return GST_GL_DISPLAY_TYPE_EGL;
-    } else if (g_strstr_len (env, 6, "viv-fb")) {
-      return GST_GL_DISPLAY_TYPE_VIV_FB;
-    } else if (g_strstr_len (env, 3, "gbm")) {
-      return GST_GL_DISPLAY_TYPE_GBM;
-    } else if (g_strstr_len (env, 4, "eagl")) {
-      return GST_GL_DISPLAY_TYPE_EAGL;
-    } else if (g_strstr_len (env, 7, "android")) {
-      return GST_GL_DISPLAY_TYPE_EGL;
-    } else if (g_strstr_len (env, 4, "winrt")) {
-      return GST_GL_DISPLAY_TYPE_EGL;
-    } else {
-      return GST_GL_DISPLAY_TYPE_NONE;
-    }
-  }
-
-  return GST_GL_DISPLAY_TYPE_ANY;
-}
-
-static GstGLDisplay *
-create_dummy_display (void)
-{
-  GstGLDisplay *display = g_object_new (GST_TYPE_GL_DISPLAY, NULL);
-  return gst_object_ref_sink (display);
-}
-
-/**
- * gst_gl_display_new_with_type:
- * @type: #GstGLDisplayType
- *
- * Will always return a #GstGLDisplay of a single type.  This differs from
- * gst_gl_display_new() and the seemingly equivalent call
- * gst_gl_display_new_with_type (GST_GL_DISPLAY_TYPE_ANY) in that the latter
- * may return NULL.
- *
- * Returns: (transfer full) (nullable): a new #GstGLDisplay or %NULL if @type is
- *          not supported
- *
- * Since: 1.20
- */
-GstGLDisplay *
-gst_gl_display_new_with_type (GstGLDisplayType type)
-{
-  GstGLDisplay *display = NULL;
-  GstGLDisplayType custom_new_types = 0;
-
-  init_debug ();
-
-#if GST_GL_HAVE_WINDOW_COCOA
-  if (!display && (type & GST_GL_DISPLAY_TYPE_COCOA)) {
-    display = GST_GL_DISPLAY (gst_gl_display_cocoa_new ());
-    if (!display)
-      return NULL;
-  }
-#endif
-  custom_new_types |= GST_GL_DISPLAY_TYPE_COCOA;
-#if GST_GL_HAVE_WINDOW_WAYLAND
-  if (!display && (type & GST_GL_DISPLAY_TYPE_WAYLAND))
-    display = GST_GL_DISPLAY (gst_gl_display_wayland_new (NULL));
-#endif
-  custom_new_types |= GST_GL_DISPLAY_TYPE_WAYLAND;
-#if GST_GL_HAVE_WINDOW_X11
-  if (!display && (type & GST_GL_DISPLAY_TYPE_X11))
-    display = GST_GL_DISPLAY (gst_gl_display_x11_new (NULL));
-#endif
-  custom_new_types |= GST_GL_DISPLAY_TYPE_X11;
-#if GST_GL_HAVE_WINDOW_VIV_FB
-  if (!display && (GST_GL_DISPLAY_TYPE_VIV_FB)) {
-    const gchar *disp_idx_str = NULL;
-    gint disp_idx = 0;
-    disp_idx_str = g_getenv ("GST_GL_VIV_FB");
-    if (disp_idx_str) {
-      gint64 v = g_ascii_strtoll (disp_idx_str, NULL, 10);
-      if (v >= G_MININT && v <= G_MAXINT)
-        disp_idx = v;
-    }
-    display = GST_GL_DISPLAY (gst_gl_display_viv_fb_new (disp_idx));
-  }
-#endif
-  custom_new_types |= GST_GL_DISPLAY_TYPE_VIV_FB;
-#if GST_GL_HAVE_WINDOW_GBM
-  if (!display && (type & GST_GL_DISPLAY_TYPE_GBM)) {
-    display = GST_GL_DISPLAY (gst_gl_display_gbm_new ());
-  }
-#endif
-  custom_new_types |= GST_GL_DISPLAY_TYPE_GBM;
-#if GST_GL_HAVE_PLATFORM_EGL
-  if (!display && (type == GST_GL_DISPLAY_TYPE_EGL_DEVICE)) {
-    display = GST_GL_DISPLAY (gst_gl_display_egl_device_new (0));
-  }
-
-  if (!display && (type & GST_GL_DISPLAY_TYPE_EGL)) {
-    display = GST_GL_DISPLAY (gst_gl_display_egl_new ());
-  }
-#endif
-  custom_new_types |= GST_GL_DISPLAY_TYPE_EGL_DEVICE;
-  custom_new_types |= GST_GL_DISPLAY_TYPE_EGL;
-  custom_new_types |= GST_GL_DISPLAY_TYPE_DISPMANX;
-  custom_new_types |= GST_GL_DISPLAY_TYPE_WINRT;
-  custom_new_types |= GST_GL_DISPLAY_TYPE_ANDROID;
-#if GST_GL_HAVE_WINDOW_WIN32 || GST_GL_HAVE_WINDOW_EAGL
-  if (!display) {
-    GstGLDisplayType create_type = 0;
-#if GST_GL_HAVE_WINDOW_WIN32
-    if (type & GST_GL_DISPLAY_TYPE_WIN32)
-      create_type = GST_GL_DISPLAY_TYPE_WIN32;
-#endif
-#if GST_GL_HAVE_WINDOW_EAGL
-    if (type & GST_GL_DISPLAY_TYPE_EAGL)
-      create_type = GST_GL_DISPLAY_TYPE_EAGL;
-#endif
-    if (create_type) {
-      GST_INFO ("Creating display with type %u(0x%x)",
-          create_type, create_type);
-      display = create_dummy_display ();
-      display->type = create_type;
-    }
-  }
-#endif
-  custom_new_types |= GST_GL_DISPLAY_TYPE_WIN32;
-  custom_new_types |= GST_GL_DISPLAY_TYPE_EAGL;
-
-  if (!display && type != GST_GL_DISPLAY_TYPE_ANY
-      && type != GST_GL_DISPLAY_TYPE_NONE) {
-    /* remove all the display types that we know about */
-    type &= ~custom_new_types;
-    if (type && (type & (type - 1)) == 0) {
-      /* only create a dummy display if we only have a single type */
-      GST_INFO_OBJECT (display, "Creating dummy display with type %u(0x%x)",
-          type, type);
-      display = create_dummy_display ();
-      display->type = type;
-    }
-  }
-
-  return display;
 }
 
 /**
@@ -453,12 +269,65 @@ gst_gl_display_new_with_type (GstGLDisplayType type)
 GstGLDisplay *
 gst_gl_display_new (void)
 {
-  GstGLDisplayType env_choice = gst_gl_display_type_from_environment ();
-  GstGLDisplay *display = gst_gl_display_new_with_type (env_choice);
+  GstGLDisplay *display = NULL;
+  const gchar *user_choice, *platform_choice;
+  static volatile gsize _init = 0;
 
+  if (g_once_init_enter (&_init)) {
+    GST_DEBUG_CATEGORY_INIT (gst_gl_display_debug, "gldisplay", 0,
+        "gldisplay element");
+    g_once_init_leave (&_init, 1);
+  }
+
+  user_choice = g_getenv ("GST_GL_WINDOW");
+  platform_choice = g_getenv ("GST_GL_PLATFORM");
+  GST_INFO ("creating a display, user choice:%s (platform: %s)",
+      GST_STR_NULL (user_choice), GST_STR_NULL (platform_choice));
+
+#if GST_GL_HAVE_WINDOW_COCOA
+  if (!display && (!user_choice || g_strstr_len (user_choice, 5, "cocoa"))) {
+    display = GST_GL_DISPLAY (gst_gl_display_cocoa_new ());
+    if (!display)
+      return NULL;
+  }
+#endif
+#if GST_GL_HAVE_WINDOW_WAYLAND
+  if (!display && (!user_choice || g_strstr_len (user_choice, 7, "wayland")))
+    display = GST_GL_DISPLAY (gst_gl_display_wayland_new (NULL));
+#endif
+#if GST_GL_HAVE_WINDOW_X11
+  if (!display && (!user_choice || g_strstr_len (user_choice, 3, "x11")))
+    display = GST_GL_DISPLAY (gst_gl_display_x11_new (NULL));
+#endif
+#if GST_GL_HAVE_WINDOW_VIV_FB
+  if (!display && (!user_choice || g_strstr_len (user_choice, 6, "viv-fb"))) {
+    const gchar *disp_idx_str = NULL;
+    gint disp_idx = 0;
+    disp_idx_str = g_getenv ("GST_GL_VIV_FB");
+    if (disp_idx_str) {
+      gint64 v = g_ascii_strtoll (disp_idx_str, NULL, 10);
+      if (v >= G_MININT && v <= G_MAXINT)
+        disp_idx = v;
+    }
+    display = GST_GL_DISPLAY (gst_gl_display_viv_fb_new (disp_idx));
+  }
+#endif
+#if GST_GL_HAVE_WINDOW_GBM
+  if (!display && (!user_choice || g_strstr_len (user_choice, 3, "gbm"))) {
+    display = GST_GL_DISPLAY (gst_gl_display_gbm_new ());
+  }
+#endif
+#if GST_GL_HAVE_PLATFORM_EGL
+  if (!display && (!platform_choice
+          || g_strstr_len (platform_choice, 3, "egl")))
+    display = GST_GL_DISPLAY (gst_gl_display_egl_new ());
+#endif
   if (!display) {
+    GST_INFO ("Could not create platform/winsys display. user specified %s "
+        "(platform: %s), creating dummy",
+        GST_STR_NULL (user_choice), GST_STR_NULL (platform_choice));
+
     display = g_object_new (GST_TYPE_GL_DISPLAY, NULL);
-    GST_INFO_OBJECT (display, "Creating dummy display");
     gst_object_ref_sink (display);
   }
 
@@ -498,7 +367,7 @@ gst_gl_display_default_get_handle (GstGLDisplay * display)
  *
  * limit the use of OpenGL to the requested @gl_api.  This is intended to allow
  * application and elements to request a specific set of OpenGL API's based on
- * what they support.  See gst_gl_context_get_gl_api() for the retrieving the
+ * what they support.  See gst_gl_context_get_gl_api() for the retreiving the
  * API supported by a #GstGLContext.
  */
 void
@@ -664,8 +533,6 @@ gst_gl_display_create_context (GstGLDisplay * display,
 
   if (ret)
     *p_context = context;
-  else
-    gst_object_unref (context);
 
   return ret;
 }
@@ -674,10 +541,10 @@ gst_gl_display_create_context (GstGLDisplay * display,
  * gst_gl_display_create_window:
  * @display: a #GstGLDisplay
  *
+ * It requires the display's object lock to be held.
+ *
  * Returns: (transfer full): a new #GstGLWindow for @display or %NULL.
  */
-/* XXX: previous versions had documentation requiring the OBJECT lock to be
- * held when this fuction is called so that needs to always work. */
 GstGLWindow *
 gst_gl_display_create_window (GstGLDisplay * display)
 {
@@ -688,15 +555,10 @@ gst_gl_display_create_window (GstGLDisplay * display)
   klass = GST_GL_DISPLAY_GET_CLASS (display);
   g_return_val_if_fail (klass->create_window != NULL, NULL);
 
-  g_mutex_lock (&display->priv->window_lock);
   window = klass->create_window (display);
 
-  if (window) {
+  if (window)
     display->windows = g_list_prepend (display->windows, window);
-  }
-  g_mutex_unlock (&display->priv->window_lock);
-  GST_DEBUG_OBJECT (display, "Adding window %" GST_PTR_FORMAT
-      " (%p) to internal list", window, window);
 
   return window;
 }
@@ -722,15 +584,13 @@ gst_gl_display_remove_window (GstGLDisplay * display, GstGLWindow * window)
   gboolean ret = FALSE;
   GList *l;
 
-  g_mutex_lock (&display->priv->window_lock);
+  GST_OBJECT_LOCK (display);
   l = g_list_find (display->windows, window);
   if (l) {
     display->windows = g_list_delete_link (display->windows, l);
     ret = TRUE;
   }
-  GST_DEBUG_OBJECT (display, "Removing window %" GST_PTR_FORMAT
-      " (%p) from internal list", window, window);
-  g_mutex_unlock (&display->priv->window_lock);
+  GST_OBJECT_UNLOCK (display);
 
   return ret;
 }
@@ -741,10 +601,8 @@ gst_gl_display_remove_window (GstGLDisplay * display, GstGLWindow * window)
  * @data: (closure): some data to pass to @compare_func
  * @compare_func: (scope call): a comparison function to run
  *
- * Deprecated for gst_gl_display_retrieve_window().
- *
  * Execute @compare_func over the list of windows stored by @display.  The
- * first argument to @compare_func is the #GstGLWindow being checked and the
+ * first argment to @compare_func is the #GstGLWindow being checked and the
  * second argument is @data.
  *
  * Returns: (transfer none): The first #GstGLWindow that causes a match
@@ -756,45 +614,14 @@ GstGLWindow *
 gst_gl_display_find_window (GstGLDisplay * display, gpointer data,
     GCompareFunc compare_func)
 {
-  GstGLWindow *ret;
-
-  ret = gst_gl_display_retrieve_window (display, data, compare_func);
-  if (ret)
-    gst_object_unref (ret);
-
-  return ret;
-}
-
-/**
- * gst_gl_display_retrieve_window:
- * @display: a #GstGLDisplay
- * @data: (closure): some data to pass to @compare_func
- * @compare_func: (scope call): a comparison function to run
- *
- * Execute @compare_func over the list of windows stored by @display.  The
- * first argument to @compare_func is the #GstGLWindow being checked and the
- * second argument is @data.
- *
- * Returns: (transfer full): The first #GstGLWindow that causes a match
- *          from @compare_func
- *
- * Since: 1.18
- */
-GstGLWindow *
-gst_gl_display_retrieve_window (GstGLDisplay * display, gpointer data,
-    GCompareFunc compare_func)
-{
   GstGLWindow *ret = NULL;
   GList *l;
 
-  g_mutex_lock (&display->priv->window_lock);
+  GST_OBJECT_LOCK (display);
   l = g_list_find_custom (display->windows, data, compare_func);
   if (l)
-    ret = gst_object_ref (l->data);
-
-  GST_DEBUG_OBJECT (display, "Found window %" GST_PTR_FORMAT
-      " (%p) in internal list", ret, ret);
-  g_mutex_unlock (&display->priv->window_lock);
+    ret = l->data;
+  GST_OBJECT_UNLOCK (display);
 
   return ret;
 }
@@ -966,50 +793,4 @@ out:
       ret ? "" : "un", context);
 
   return ret;
-}
-
-/**
- * gst_gl_display_remove_context:
- * @display: a #GstGLDisplay
- * @context: (transfer none): the #GstGLContext to remove
- *
- * Must be called with the object lock held.
- *
- * Since: 1.18
- */
-void
-gst_gl_display_remove_context (GstGLDisplay * display, GstGLContext * needle)
-{
-  GstGLContext *context;
-  GList *prev = NULL, *l;
-
-  g_return_if_fail (GST_IS_GL_DISPLAY (display));
-  g_return_if_fail (GST_IS_GL_CONTEXT (needle));
-
-  l = display->priv->contexts;
-
-  while (l) {
-    GWeakRef *ref = l->data;
-
-    context = g_weak_ref_get (ref);
-    if (!context || context == needle) {
-      /* remove dead contexts */
-      g_weak_ref_clear (l->data);
-      g_free (l->data);
-      display->priv->contexts = g_list_delete_link (display->priv->contexts, l);
-      if (context) {
-        GST_INFO_OBJECT (display, "removed context %" GST_PTR_FORMAT
-            " from internal list", context);
-        gst_object_unref (context);
-        return;
-      }
-      l = prev ? prev->next : display->priv->contexts;
-      continue;
-    }
-    prev = l;
-    l = l->next;
-  }
-
-  GST_WARNING_OBJECT (display, "%" GST_PTR_FORMAT " was not found in this "
-      "display", needle);
 }

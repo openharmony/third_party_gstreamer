@@ -26,7 +26,6 @@
 #include <gst/video/navigation.h>
 #include <gst/controller/gstproxycontrolbinding.h>
 
-#include "gstglelements.h"
 #include "gstglsinkbin.h"
 
 GST_DEBUG_CATEGORY (gst_debug_gl_sink_bin);
@@ -106,8 +105,6 @@ G_DEFINE_TYPE_WITH_CODE (GstGLSinkBin, gst_gl_sink_bin,
         gst_gl_sink_bin_color_balance_init)
     GST_DEBUG_CATEGORY_INIT (gst_debug_gl_sink_bin, "glimagesink", 0,
         "OpenGL Video Sink Bin"));
-GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (glsinkbin, "glsinkbin",
-    GST_RANK_NONE, GST_TYPE_GL_SINK_BIN, gl_element_init (plugin));
 
 static void
 gst_gl_sink_bin_class_init (GstGLSinkBinClass * klass)
@@ -205,7 +202,7 @@ gst_gl_sink_bin_class_init (GstGLSinkBinClass * klass)
 
   /**
    * GstGLSinkBin::create-element:
-   * @object: the #glsinkbin
+   * @object: the #GstGLSinkBin
    *
    * Will be emitted when we need the processing element/s that this bin will use
    *
@@ -213,7 +210,8 @@ gst_gl_sink_bin_class_init (GstGLSinkBinClass * klass)
    */
   gst_gl_sink_bin_signals[SIGNAL_CREATE_ELEMENT] =
       g_signal_new ("create-element", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, GST_TYPE_ELEMENT, 0);
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL, g_cclosure_marshal_generic,
+      GST_TYPE_ELEMENT, 0);
 
   gst_element_class_set_metadata (element_class,
       "GL Sink Bin", "Sink/Video",
