@@ -69,6 +69,9 @@ gst_msdkenc_adaptive_i_get_type (void);
 GType
 gst_msdkenc_adaptive_b_get_type (void);
 
+GType
+gst_msdkenc_tune_mode_get_type (void);
+
 /*========= MSDK VPP Enums =========================*/
 
 GType
@@ -97,6 +100,12 @@ gst_msdkvpp_scaling_mode_get_type (void);
 #define _MFX_FRC_ALGORITHM_NONE 0
 GType
 gst_msdkvpp_frc_algorithm_get_type (void);
+
+GType
+gst_msdkenc_transform_skip_get_type (void);
+
+GType
+gst_msdkenc_intra_refresh_type_get_type (void);
 
 G_END_DECLS
 #endif

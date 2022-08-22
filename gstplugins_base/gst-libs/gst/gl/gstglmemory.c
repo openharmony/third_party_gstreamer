@@ -43,6 +43,12 @@
  * with #GstGLVideoAllocationParams.
  *
  * Data is uploaded or downloaded from the GPU as is necessary.
+ *
+ * The #GstCaps that is used for #GstGLMemory based buffers should contain
+ * the %GST_CAPS_FEATURE_MEMORY_GL_MEMORY as a #GstCapsFeatures and should
+ * contain a 'texture-target' field with one of the #GstGLTextureTarget values
+ * as a string, i.e. some combination of 'texture-target=(string){2D,
+ * rectangle, external-oes}'.
  */
 
 #define USING_OPENGL(context) (gst_gl_context_check_gl_version (context, GST_GL_API_OPENGL, 1, 0))
@@ -60,7 +66,7 @@ static GstAllocator *_gl_memory_allocator;
 GST_DEBUG_CATEGORY_STATIC (GST_CAT_GL_MEMORY);
 #define GST_CAT_DEFAULT GST_CAT_GL_MEMORY
 
-/* compatability definitions... */
+/* compatibility definitions... */
 #ifndef GL_UNPACK_ROW_LENGTH
 #define GL_UNPACK_ROW_LENGTH 0x0CF2
 #endif
@@ -82,6 +88,8 @@ GST_DEBUG_CATEGORY_STATIC (GST_CAT_GL_MEMORY);
 G_DEFINE_TYPE (GstGLMemoryAllocator, gst_gl_memory_allocator,
     GST_TYPE_GL_BASE_MEMORY_ALLOCATOR);
 
+GST_DEFINE_MINI_OBJECT_TYPE (GstGLMemory, gst_gl_memory);
+
 typedef struct
 {
   /* in */
@@ -97,27 +105,29 @@ typedef struct
 } GstGLMemoryCopyParams;
 
 static inline guint
-_get_plane_width (GstVideoInfo * info, guint plane)
+_get_plane_width (const GstVideoInfo * info, guint plane)
 {
-  if (GST_VIDEO_INFO_IS_YUV (info))
-    /* For now component width and plane width are the same and the
-     * plane-component mapping matches
-     */
-    return GST_VIDEO_INFO_COMP_WIDTH (info, plane);
-  else                          /* RGB, GRAY */
+  if (GST_VIDEO_INFO_IS_YUV (info)) {
+    gint comp[GST_VIDEO_MAX_COMPONENTS];
+    gst_video_format_info_component (info->finfo, plane, comp);
+    return GST_VIDEO_INFO_COMP_WIDTH (info, comp[0]);
+  } else {
+    /* RGB, GRAY */
     return GST_VIDEO_INFO_WIDTH (info);
+  }
 }
 
 static inline guint
-_get_plane_height (GstVideoInfo * info, guint plane)
+_get_plane_height (const GstVideoInfo * info, guint plane)
 {
-  if (GST_VIDEO_INFO_IS_YUV (info))
-    /* For now component width and plane width are the same and the
-     * plane-component mapping matches
-     */
-    return GST_VIDEO_INFO_COMP_HEIGHT (info, plane);
-  else                          /* RGB, GRAY */
+  if (GST_VIDEO_INFO_IS_YUV (info)) {
+    gint comp[GST_VIDEO_MAX_COMPONENTS];
+    gst_video_format_info_component (info->finfo, plane, comp);
+    return GST_VIDEO_INFO_COMP_HEIGHT (info, comp[0]);
+  } else {
+    /* RGB, GRAY */
     return GST_VIDEO_INFO_HEIGHT (info);
+  }
 }
 
 static inline void
@@ -308,8 +318,8 @@ _gst_gl_memory_end_log (GstGLMemory * gl_mem)
 void
 gst_gl_memory_init (GstGLMemory * mem, GstAllocator * allocator,
     GstMemory * parent, GstGLContext * context, GstGLTextureTarget target,
-    GstGLFormat tex_format, GstAllocationParams * params,
-    GstVideoInfo * info, guint plane, GstVideoAlignment * valign,
+    GstGLFormat tex_format, const GstAllocationParams * params,
+    const GstVideoInfo * info, guint plane, const GstVideoAlignment * valign,
     gpointer user_data, GDestroyNotify notify)
 {
   const gchar *target_str;
@@ -360,11 +370,11 @@ gst_gl_memory_init (GstGLMemory * mem, GstAllocator * allocator,
 /**
  * gst_gl_memory_read_pixels:
  * @gl_mem: a #GstGLMemory
- * @read_pointer: the data pointer to pass to glReadPixels
+ * @write_pointer: the data pointer to pass to glReadPixels
  *
- * Reads the texture in #GstGLMemory into @read_pointer if no buffer is bound
- * to %GL_PIXEL_PACK_BUFFER.  Otherwise @read_pointer is the byte offset into
- * the currently bound %GL_PIXEL_PACK_BUFFER buffer to store the result of
+ * Reads the texture in #GstGLMemory into @write_pointer if no buffer is bound
+ * to `GL_PIXEL_PACK_BUFFER`.  Otherwise @write_pointer is the byte offset into
+ * the currently bound `GL_PIXEL_PACK_BUFFER` buffer to store the result of
  * glReadPixels.  See the OpenGL specification for glReadPixels for more
  * details.
  *
@@ -373,7 +383,7 @@ gst_gl_memory_init (GstGLMemory * mem, GstAllocator * allocator,
  * Since: 1.8
  */
 gboolean
-gst_gl_memory_read_pixels (GstGLMemory * gl_mem, gpointer read_pointer)
+gst_gl_memory_read_pixels (GstGLMemory * gl_mem, gpointer write_pointer)
 {
   GstGLContext *context = gl_mem->mem.context;
   const GstGLFuncs *gl = context->gl_vtable;
@@ -419,7 +429,7 @@ gst_gl_memory_read_pixels (GstGLMemory * gl_mem, gpointer read_pointer)
 
   _gst_gl_memory_start_log (gl_mem, "glReadPixels");
   gl->ReadPixels (0, 0, gl_mem->tex_width, GL_MEM_HEIGHT (gl_mem), format,
-      type, read_pointer);
+      type, write_pointer);
   _gst_gl_memory_end_log (gl_mem);
 
   gl->BindFramebuffer (GL_FRAMEBUFFER, 0);
@@ -517,6 +527,8 @@ _upload_cpu_write (GstGLMemory * gl_mem, GstMapInfo * info, gsize maxsize)
  * gst_gl_memory_texsubimage:
  * @gl_mem: a #GstGLMemory
  * @read_pointer: the data pointer to pass to glTexSubImage
+ *
+ * Reads the texture in @read_pointer into @gl_mem.
  *
  * See gst_gl_memory_read_pixels() for what @read_pointer signifies.
  *
@@ -982,10 +994,10 @@ gst_gl_memory_allocator_init (GstGLMemoryAllocator * allocator)
  * @width: width of @tex_id
  * @height: height of @tex_id
  *
- * Copies @gl_mem into the texture specfified by @tex_id.  The format of @tex_id
+ * Copies @gl_mem into the texture specified by @tex_id.  The format of @tex_id
  * is specified by @tex_format, @width and @height.
  *
- * Returns: Whether the copy suceeded
+ * Returns: Whether the copy succeeded
  *
  * Since: 1.8
  */
@@ -1099,7 +1111,7 @@ gst_gl_memory_get_texture_id (GstGLMemory * gl_mem)
 void
 gst_gl_memory_init_once (void)
 {
-  static volatile gsize _init = 0;
+  static gsize _init = 0;
 
   if (g_once_init_enter (&_init)) {
     gst_gl_base_memory_init_once ();
@@ -1138,7 +1150,7 @@ G_DEFINE_BOXED_TYPE (GstGLVideoAllocationParams, gst_gl_video_allocation_params,
 
 static void
 _gst_gl_video_allocation_params_set_video_alignment (GstGLVideoAllocationParams
-    * params, GstVideoAlignment * valign)
+    * params, const GstVideoAlignment * valign)
 {
   g_return_if_fail (params != NULL);
 
@@ -1181,8 +1193,8 @@ gboolean
 gst_gl_video_allocation_params_init_full (GstGLVideoAllocationParams * params,
     gsize struct_size, guint alloc_flags, GstGLAllocationParamsCopyFunc copy,
     GstGLAllocationParamsFreeFunc free, GstGLContext * context,
-    GstAllocationParams * alloc_params, GstVideoInfo * v_info,
-    guint plane, GstVideoAlignment * valign, GstGLTextureTarget target,
+    const GstAllocationParams * alloc_params, const GstVideoInfo * v_info,
+    guint plane, const GstVideoAlignment * valign, GstGLTextureTarget target,
     GstGLFormat tex_format, gpointer wrapped_data, gpointer gl_handle,
     gpointer user_data, GDestroyNotify notify)
 {
@@ -1231,8 +1243,8 @@ gst_gl_video_allocation_params_init_full (GstGLVideoAllocationParams * params,
  */
 GstGLVideoAllocationParams *
 gst_gl_video_allocation_params_new (GstGLContext * context,
-    GstAllocationParams * alloc_params, GstVideoInfo * v_info, guint plane,
-    GstVideoAlignment * valign, GstGLTextureTarget target,
+    const GstAllocationParams * alloc_params, const GstVideoInfo * v_info,
+    guint plane, const GstVideoAlignment * valign, GstGLTextureTarget target,
     GstGLFormat tex_format)
 {
   GstGLVideoAllocationParams *params = g_new0 (GstGLVideoAllocationParams, 1);
@@ -1272,8 +1284,8 @@ gst_gl_video_allocation_params_new (GstGLContext * context,
  */
 GstGLVideoAllocationParams *
 gst_gl_video_allocation_params_new_wrapped_data (GstGLContext * context,
-    GstAllocationParams * alloc_params, GstVideoInfo * v_info, guint plane,
-    GstVideoAlignment * valign, GstGLTextureTarget target,
+    const GstAllocationParams * alloc_params, const GstVideoInfo * v_info,
+    guint plane, const GstVideoAlignment * valign, GstGLTextureTarget target,
     GstGLFormat tex_format, gpointer wrapped_data, gpointer user_data,
     GDestroyNotify notify)
 {
@@ -1319,8 +1331,8 @@ gst_gl_video_allocation_params_new_wrapped_data (GstGLContext * context,
  */
 GstGLVideoAllocationParams *
 gst_gl_video_allocation_params_new_wrapped_gl_handle (GstGLContext * context,
-    GstAllocationParams * alloc_params, GstVideoInfo * v_info, guint plane,
-    GstVideoAlignment * valign, GstGLTextureTarget target,
+    const GstAllocationParams * alloc_params, const GstVideoInfo * v_info,
+    guint plane, const GstVideoAlignment * valign, GstGLTextureTarget target,
     GstGLFormat tex_format, gpointer gl_handle, gpointer user_data,
     GDestroyNotify notify)
 {
@@ -1362,8 +1374,8 @@ gst_gl_video_allocation_params_new_wrapped_gl_handle (GstGLContext * context,
  */
 GstGLVideoAllocationParams *
 gst_gl_video_allocation_params_new_wrapped_texture (GstGLContext * context,
-    GstAllocationParams * alloc_params, GstVideoInfo * v_info, guint plane,
-    GstVideoAlignment * valign, GstGLTextureTarget target,
+    const GstAllocationParams * alloc_params, const GstVideoInfo * v_info,
+    guint plane, const GstVideoAlignment * valign, GstGLTextureTarget target,
     GstGLFormat tex_format, guint tex_id, gpointer user_data,
     GDestroyNotify notify)
 {
@@ -1470,6 +1482,8 @@ gst_gl_memory_setup_buffer (GstGLMemoryAllocator * allocator,
       || n_mem * views == n_wrapped_pointers, FALSE);
 
   for (v = 0; v < views; v++) {
+    GstVideoMeta *meta;
+
     for (i = 0; i < n_mem; i++) {
       GstGLMemory *gl_mem;
 
@@ -1498,11 +1512,14 @@ gst_gl_memory_setup_buffer (GstGLMemoryAllocator * allocator,
       gst_buffer_append_memory (buffer, (GstMemory *) gl_mem);
     }
 
-    gst_buffer_add_video_meta_full (buffer, v,
+    meta = gst_buffer_add_video_meta_full (buffer, v,
         GST_VIDEO_INFO_FORMAT (params->v_info),
         GST_VIDEO_INFO_WIDTH (params->v_info),
         GST_VIDEO_INFO_HEIGHT (params->v_info), n_mem, params->v_info->offset,
         params->v_info->stride);
+
+    if (params->valign)
+      gst_video_meta_set_alignment (meta, *params->valign);
   }
 
   return TRUE;

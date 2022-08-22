@@ -21,22 +21,22 @@
 
 /**
  * SECTION:element-icydemux
+ * @title: icydemux
  *
  * icydemux accepts data streams with ICY metadata at known intervals, as
  * transmitted from an upstream element (usually read as response headers from
  * an HTTP stream). The mime type of the data between the tag blocks is
  * detected using typefind functions, and the appropriate output mime type set
- * on outgoing buffers. 
+ * on outgoing buffers.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * gst-launch-1.0 souphttpsrc location=http://some.server/ iradio-mode=true ! icydemux ! fakesink -t
  * ]| This pipeline should read any available ICY tag information and output it.
  * The contents of the stream should be detected, and the appropriate mime
  * type set on buffers produced from icydemux. (Using gnomevfssrc, neonhttpsrc
  * or giosrc instead of souphttpsrc should also work.)
- * </refsect2>
+ *
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -87,7 +87,11 @@ static gboolean gst_icydemux_send_tag_event (GstICYDemux * icydemux,
 
 #define gst_icydemux_parent_class parent_class
 G_DEFINE_TYPE (GstICYDemux, gst_icydemux, GST_TYPE_ELEMENT);
-
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (icydemux, "icydemux",
+    GST_RANK_PRIMARY, GST_TYPE_ICYDEMUX,
+    GST_DEBUG_CATEGORY_INIT (icydemux_debug, "icydemux", 0,
+        "GStreamer ICY tag demuxer");
+    );
 static void
 gst_icydemux_class_init (GstICYDemuxClass * klass)
 {
@@ -662,11 +666,8 @@ gst_icydemux_send_tag_event (GstICYDemux * icydemux, GstTagList * tags)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  GST_DEBUG_CATEGORY_INIT (icydemux_debug, "icydemux", 0,
-      "GStreamer ICY tag demuxer");
+  return GST_ELEMENT_REGISTER (icydemux, plugin);
 
-  return gst_element_register (plugin, "icydemux",
-      GST_RANK_PRIMARY, GST_TYPE_ICYDEMUX);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

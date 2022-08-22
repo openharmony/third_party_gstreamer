@@ -115,8 +115,8 @@
  *
  */
 
+#include "gstsrtpelements.h"
 #include "gstsrtpdec.h"
-
 #include <gst/rtp/gstrtpbuffer.h>
 #include <string.h>
 
@@ -177,7 +177,11 @@ GST_STATIC_PAD_TEMPLATE ("rtcp_src",
 
 static guint gst_srtp_dec_signals[LAST_SIGNAL] = { 0 };
 
-G_DEFINE_TYPE (GstSrtpDec, gst_srtp_dec, GST_TYPE_ELEMENT);
+G_DEFINE_TYPE_WITH_CODE (GstSrtpDec, gst_srtp_dec, GST_TYPE_ELEMENT,
+    GST_DEBUG_CATEGORY_INIT (gst_srtp_dec_debug, "srtpdec", 0, "SRTP dec");
+    );
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (srtpdec, "srtpdec", GST_RANK_NONE,
+    GST_TYPE_SRTP_DEC, srtp_element_init (plugin));
 
 static void gst_srtp_dec_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -292,7 +296,7 @@ gst_srtp_dec_class_init (GstSrtpDecClass * klass)
    * @gstsrtpdec: the element on which the signal is emitted
    * @ssrc: The unique SSRC of the stream
    *
-   * Signal emited to get the parameters relevant to stream
+   * Signal emitted to get the parameters relevant to stream
    * with @ssrc. User should provide the key and the RTP and
    * RTCP encryption ciphers and authentication, and return
    * them wrapped in a GstCaps.
@@ -318,7 +322,7 @@ gst_srtp_dec_class_init (GstSrtpDecClass * klass)
    * @gstsrtpdec: the element on which the signal is emitted
    * @ssrc: The unique SSRC of the stream
    *
-   * Signal emited when the stream with @ssrc has reached the
+   * Signal emitted when the stream with @ssrc has reached the
    * soft limit of utilisation of it's master encryption key.
    * User should provide a new key and new RTP and RTCP encryption
    * ciphers and authentication, and return them wrapped in a
@@ -333,7 +337,7 @@ gst_srtp_dec_class_init (GstSrtpDecClass * klass)
    * @gstsrtpdec: the element on which the signal is emitted
    * @ssrc: The unique SSRC of the stream
    *
-   * Signal emited when the stream with @ssrc has reached the
+   * Signal emitted when the stream with @ssrc has reached the
    * hard limit of utilisation of it's master encryption key.
    * User should provide a new key and new RTP and RTCP encryption
    * ciphers and authentication, and return them wrapped in a
@@ -361,7 +365,7 @@ gst_srtp_dec_class_init (GstSrtpDecClass * klass)
 
 /* initialize the new element
  * instantiate pads and add them to element
- * set pad calback functions
+ * set pad callback functions
  * initialize instance structure
  */
 static void
@@ -415,10 +419,6 @@ gst_srtp_dec_init (GstSrtpDec * filter)
   gst_element_add_pad (GST_ELEMENT (filter), filter->rtcp_srcpad);
 
   filter->first_session = TRUE;
-
-#ifndef HAVE_SRTP2
-  filter->roc_changed = FALSE;
-#endif
 }
 
 static GstStructure *
@@ -611,8 +611,8 @@ get_stream_from_caps (GstSrtpDec * filter, GstCaps * caps, guint32 ssrc)
 
       mki_size = gst_buffer_get_size (mki);
       if (mki_size > SRTP_MAX_MKI_LEN) {
-        GST_WARNING_OBJECT (filter, "MKI is longer than allowed (%zu > %d).",
-            mki_size, SRTP_MAX_MKI_LEN);
+        GST_WARNING_OBJECT (filter, "MKI is longer than allowed (%"
+            G_GSIZE_FORMAT " > %d).", mki_size, SRTP_MAX_MKI_LEN);
         gst_buffer_unref (mki);
         gst_buffer_unref (buf);
         goto error;
@@ -635,8 +635,9 @@ get_stream_from_caps (GstSrtpDec * filter, GstCaps * caps, guint32 ssrc)
                 key_id, GST_TYPE_BUFFER, &buf, NULL)) {
           if (gst_buffer_get_size (mki) != mki_size) {
             GST_WARNING_OBJECT (filter,
-                "MKIs need to all have the same size (first was %zu,"
-                " current is %zu).", mki_size, gst_buffer_get_size (mki));
+                "MKIs need to all have the same size (first was %"
+                G_GSIZE_FORMAT ", current is %" G_GSIZE_FORMAT ").",
+                mki_size, gst_buffer_get_size (mki));
             gst_buffer_unref (mki);
             gst_buffer_unref (buf);
             goto error;
@@ -779,7 +780,7 @@ init_session_stream (GstSrtpDec * filter, guint32 ssrc,
       /* Here, we just set the ROC, but we also need to set the initial
        * RTP sequence number later, otherwise libsrtp will not be able
        * to get the right packet index. */
-      filter->roc_changed = TRUE;
+      g_hash_table_add (filter->streams_roc_changed, GUINT_TO_POINTER (ssrc));
     }
 #endif
 
@@ -1352,7 +1353,8 @@ unprotect:
 #ifndef HAVE_SRTP2
     /* If ROC has changed, we know we need to set the initial RTP
      * sequence number too. */
-    if (filter->roc_changed) {
+    if (g_hash_table_contains (filter->streams_roc_changed,
+            GUINT_TO_POINTER (ssrc))) {
       srtp_stream_t stream;
 
       stream = srtp_get_stream (filter->session, htonl (ssrc));
@@ -1372,7 +1374,8 @@ unprotect:
         stream->rtp_rdbx.index |= seqnum;
       }
 
-      filter->roc_changed = FALSE;
+      g_hash_table_remove (filter->streams_roc_changed,
+          GUINT_TO_POINTER (ssrc));
     }
 #endif
 
@@ -1394,8 +1397,12 @@ unprotect:
       /* success! */
       break;
     case srtp_err_status_replay_fail:
-      GST_INFO_OBJECT (filter,
+      GST_DEBUG_OBJECT (filter,
           "Dropping replayed packet, probably retransmission");
+      goto err;
+    case srtp_err_status_replay_old:
+      GST_DEBUG_OBJECT (filter,
+          "Dropping replayed old packet, probably retransmission");
       goto err;
     case srtp_err_status_key_expired:{
       GstSrtpDecSsrcStream *stream;
@@ -1526,6 +1533,12 @@ gst_srtp_dec_change_state (GstElement * element, GstStateChange transition)
     case GST_STATE_CHANGE_READY_TO_PAUSED:
       filter->streams = g_hash_table_new_full (g_direct_hash, g_direct_equal,
           NULL, (GDestroyNotify) free_stream);
+
+#ifndef HAVE_SRTP2
+      filter->streams_roc_changed =
+          g_hash_table_new (g_direct_hash, g_direct_equal);
+#endif
+
       filter->rtp_has_segment = FALSE;
       filter->rtcp_has_segment = FALSE;
       break;
@@ -1547,6 +1560,12 @@ gst_srtp_dec_change_state (GstElement * element, GstStateChange transition)
       gst_srtp_dec_clear_streams (filter);
       g_hash_table_unref (filter->streams);
       filter->streams = NULL;
+
+#ifndef HAVE_SRTP2
+      g_hash_table_unref (filter->streams_roc_changed);
+      filter->streams_roc_changed = NULL;
+#endif
+
       break;
     case GST_STATE_CHANGE_READY_TO_NULL:
       break;
@@ -1554,18 +1573,4 @@ gst_srtp_dec_change_state (GstElement * element, GstStateChange transition)
       break;
   }
   return res;
-}
-
-
-/* entry point to initialize the plug-in
- * initialize the plug-in itself
- * register the element factories and other features
- */
-gboolean
-gst_srtp_dec_plugin_init (GstPlugin * srtpdec)
-{
-  GST_DEBUG_CATEGORY_INIT (gst_srtp_dec_debug, "srtpdec", 0, "SRTP dec");
-
-  return gst_element_register (srtpdec, "srtpdec", GST_RANK_NONE,
-      GST_TYPE_SRTP_DEC);
 }

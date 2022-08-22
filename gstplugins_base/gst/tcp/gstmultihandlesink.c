@@ -21,83 +21,6 @@
  * Boston, MA 02110-1301, USA.
  */
 
-/**
- * SECTION:element-multihandlesink
- * @title: multihandlesink
- * @see_also: tcpserversink
- *
- * This plugin writes incoming data to a set of file descriptors. The
- * file descriptors can be added to multihandlesink by emitting the #GstMultiHandleSink::add signal.
- * For each descriptor added, the #GstMultiHandleSink::client-added signal will be called.
- *
- * A client can also be added with the #GstMultiHandleSink::add-full signal
- * that allows for more control over what and how much data a client
- * initially receives.
- *
- * Clients can be removed from multihandlesink by emitting the #GstMultiHandleSink::remove signal. For
- * each descriptor removed, the #GstMultiHandleSink::client-removed signal will be called. The
- * #GstMultiHandleSink::client-removed signal can also be fired when multihandlesink decides that a
- * client is not active anymore or, depending on the value of the
- * #GstMultiHandleSink:recover-policy property, if the client is reading too slowly.
- * In all cases, multihandlesink will never close a file descriptor itself.
- * The user of multihandlesink is responsible for closing all file descriptors.
- * This can for example be done in response to the #GstMultiHandleSink::client-fd-removed signal.
- * Note that multihandlesink still has a reference to the file descriptor when the
- * #GstMultiHandleSink::client-removed signal is emitted, so that "get-stats" can be performed on
- * the descriptor; it is therefore not safe to close the file descriptor in
- * the #GstMultiHandleSink::client-removed signal handler, and you should use the
- * #GstMultiHandleSink::client-fd-removed signal to safely close the fd.
- *
- * Multisocketsink internally keeps a queue of the incoming buffers and uses a
- * separate thread to send the buffers to the clients. This ensures that no
- * client write can block the pipeline and that clients can read with different
- * speeds.
- *
- * When adding a client to multihandlesink, the #GstMultiHandleSink:sync-method property will define
- * which buffer in the queued buffers will be sent first to the client. Clients
- * can be sent the most recent buffer (which might not be decodable by the
- * client if it is not a keyframe), the next keyframe received in
- * multihandlesink (which can take some time depending on the keyframe rate), or the
- * last received keyframe (which will cause a simple burst-on-connect).
- * Multisocketsink will always keep at least one keyframe in its internal buffers
- * when the sync-mode is set to latest-keyframe.
- *
- * There are additional values for the #GstMultiHandleSink:sync-method
- * property to allow finer control over burst-on-connect behaviour. By selecting
- * the 'burst' method a minimum burst size can be chosen, 'burst-keyframe'
- * additionally requires that the burst begin with a keyframe, and
- * 'burst-with-keyframe' attempts to burst beginning with a keyframe, but will
- * prefer a minimum burst size even if it requires not starting with a keyframe.
- *
- * Multisocketsink can be instructed to keep at least a minimum amount of data
- * expressed in time or byte units in its internal queues with the
- * #GstMultiHandleSink:time-min and #GstMultiHandleSink:bytes-min properties respectively.
- * These properties are useful if the application adds clients with the
- * #GstMultiHandleSink::add-full signal to make sure that a burst connect can
- * actually be honored.
- *
- * When streaming data, clients are allowed to read at a different rate than
- * the rate at which multihandlesink receives data. If the client is reading too
- * fast, no data will be send to the client until multihandlesink receives more
- * data. If the client, however, reads too slowly, data for that client will be
- * queued up in multihandlesink. Two properties control the amount of data
- * (buffers) that is queued in multihandlesink: #GstMultiHandleSink:buffers-max and
- * #GstMultiHandleSink:buffers-soft-max. A client that falls behind by
- * #GstMultiHandleSink:buffers-max is removed from multihandlesink forcibly.
- *
- * A client with a lag of at least #GstMultiHandleSink:buffers-soft-max enters the recovery
- * procedure which is controlled with the #GstMultiHandleSink:recover-policy property.
- * A recover policy of NONE will do nothing, RESYNC_LATEST will send the most recently
- * received buffer as the next buffer for the client, RESYNC_SOFT_LIMIT
- * positions the client to the soft limit in the buffer queue and
- * RESYNC_KEYFRAME positions the client at the most recent keyframe in the
- * buffer queue.
- *
- * multihandlesink will by default synchronize on the clock before serving the
- * buffers to the clients. This behaviour can be disabled by setting the sync
- * property to FALSE. Multisocketsink will by default not do QoS and will never
- * drop late buffers.
- */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -455,7 +378,7 @@ gst_multi_handle_sink_class_init (GstMultiHandleSinkClass * klass)
       g_signal_new ("clear", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST | G_SIGNAL_ACTION,
       G_STRUCT_OFFSET (GstMultiHandleSinkClass, clear), NULL, NULL,
-      g_cclosure_marshal_generic, G_TYPE_NONE, 0);
+      NULL, G_TYPE_NONE, 0);
 
   gst_element_class_add_static_pad_template (gstelement_class, &sinktemplate);
 
@@ -484,6 +407,11 @@ gst_multi_handle_sink_class_init (GstMultiHandleSinkClass * klass)
 
   GST_DEBUG_CATEGORY_INIT (multihandlesink_debug, "multihandlesink", 0,
       "Multi socket sink");
+
+  gst_type_mark_as_plugin_api (GST_TYPE_RECOVER_POLICY, 0);
+  gst_type_mark_as_plugin_api (GST_TYPE_SYNC_METHOD, 0);
+  gst_type_mark_as_plugin_api (GST_TYPE_CLIENT_STATUS, 0);
+  gst_type_mark_as_plugin_api (GST_TYPE_MULTI_HANDLE_SINK, 0);
 }
 
 static void
@@ -599,8 +527,6 @@ void
 gst_multi_handle_sink_client_init (GstMultiHandleClient * client,
     GstSyncMethod sync_method)
 {
-  GTimeVal now;
-
   client->status = GST_CLIENT_STATUS_OK;
   client->bufpos = -1;
   client->flushcount = -1;
@@ -616,11 +542,13 @@ gst_multi_handle_sink_client_init (GstMultiHandleClient * client,
   client->currently_removing = FALSE;
 
   /* update start time */
-  g_get_current_time (&now);
-  client->connect_time = GST_TIMEVAL_TO_TIME (now);
+  client->connect_time = g_get_real_time () * GST_USECOND;
+  client->connect_time_monotonic = g_get_monotonic_time () * GST_USECOND;
   client->disconnect_time = 0;
+  client->disconnect_time_monotonic = 0;
   /* set last activity time to connect time */
   client->last_activity_time = client->connect_time;
+  client->last_activity_time_monotonic = client->connect_time_monotonic;
 }
 
 static void
@@ -815,7 +743,7 @@ done:
   CLIENTS_UNLOCK (sink);
 }
 
-/* can be called both through the signal (i.e. from any thread) or when 
+/* can be called both through the signal (i.e. from any thread) or when
  * stopping, after the writing thread has shut down */
 static void
 gst_multi_handle_sink_clear (GstMultiHandleSink * mhsink)
@@ -882,25 +810,28 @@ gst_multi_handle_sink_get_stats (GstMultiHandleSink * sink,
 
     result = gst_structure_new_empty ("multihandlesink-stats");
 
-    if (mhclient->disconnect_time == 0) {
-      GTimeVal nowtv;
-
-      g_get_current_time (&nowtv);
-
-      interval = GST_TIMEVAL_TO_TIME (nowtv) - mhclient->connect_time;
+    if (mhclient->disconnect_time_monotonic == 0) {
+      interval =
+          (g_get_monotonic_time () * GST_USECOND) -
+          mhclient->connect_time_monotonic;
     } else {
-      interval = mhclient->disconnect_time - mhclient->connect_time;
+      interval =
+          mhclient->disconnect_time_monotonic -
+          mhclient->connect_time_monotonic;
     }
 
     gst_structure_set (result,
         "bytes-sent", G_TYPE_UINT64, mhclient->bytes_sent,
         "connect-time", G_TYPE_UINT64, mhclient->connect_time,
-        "disconnect-time", G_TYPE_UINT64, mhclient->disconnect_time,
-        "connect-duration", G_TYPE_UINT64, interval,
-        "last-activity-time", G_TYPE_UINT64, mhclient->last_activity_time,
-        "buffers-dropped", G_TYPE_UINT64, mhclient->dropped_buffers,
-        "first-buffer-ts", G_TYPE_UINT64, mhclient->first_buffer_ts,
-        "last-buffer-ts", G_TYPE_UINT64, mhclient->last_buffer_ts, NULL);
+        "connect-time-monotonic", G_TYPE_UINT64,
+        mhclient->connect_time_monotonic, "disconnect-time", G_TYPE_UINT64,
+        mhclient->disconnect_time, "disconnect-time-monotonic", G_TYPE_UINT64,
+        mhclient->disconnect_time_monotonic, "connect-duration", G_TYPE_UINT64,
+        interval, "last-activity-time-monotonic", G_TYPE_UINT64,
+        mhclient->last_activity_time_monotonic, "buffers-dropped",
+        G_TYPE_UINT64, mhclient->dropped_buffers, "first-buffer-ts",
+        G_TYPE_UINT64, mhclient->first_buffer_ts, "last-buffer-ts",
+        G_TYPE_UINT64, mhclient->last_buffer_ts, NULL);
   }
 
 noclient:
@@ -924,7 +855,6 @@ void
 gst_multi_handle_sink_remove_client_link (GstMultiHandleSink * sink,
     GList * link)
 {
-  GTimeVal now;
   GstMultiHandleClient *mhclient = (GstMultiHandleClient *) link->data;
   GstMultiHandleSinkClass *mhsinkclass = GST_MULTI_HANDLE_SINK_GET_CLASS (sink);
 
@@ -970,8 +900,8 @@ gst_multi_handle_sink_remove_client_link (GstMultiHandleSink * sink,
 
   mhsinkclass->hash_removing (sink, mhclient);
 
-  g_get_current_time (&now);
-  mhclient->disconnect_time = GST_TIMEVAL_TO_TIME (now);
+  mhclient->disconnect_time = g_get_real_time () * GST_USECOND;
+  mhclient->disconnect_time_monotonic = g_get_monotonic_time () * GST_USECOND;
 
   /* free client buffers */
   g_slist_foreach (mhclient->sending, (GFunc) gst_mini_object_unref, NULL);
@@ -1047,7 +977,7 @@ gst_multi_handle_sink_client_queue_buffer (GstMultiHandleSink * mhsink,
     }
   } else {
     /* there were previous caps recorded, so compare */
-    if (!gst_caps_is_equal (caps, mhclient->caps)) {
+    if (caps && !gst_caps_is_equal (caps, mhclient->caps)) {
       const GValue *sh1, *sh2;
 
       /* caps are not equal, but could still have the same streamheader */
@@ -1150,7 +1080,7 @@ is_sync_frame (GstMultiHandleSink * sink, GstBuffer * buffer)
 }
 
 /* find the keyframe in the list of buffers starting the
- * search from @idx. @direction as -1 will search backwards, 
+ * search from @idx. @direction as -1 will search backwards,
  * 1 will search forwards.
  * Returns: the index or -1 if there is no keyframe after idx.
  */
@@ -1183,7 +1113,7 @@ find_syncframe (GstMultiHandleSink * sink, gint idx, gint direction)
 /* Get the number of buffers from the buffer queue needed to satisfy
  * the maximum max in the configured units.
  * If units are not BUFFERS, and there are insufficient buffers in the
- * queue to satify the limit, return len(queue) + 1 */
+ * queue to satisfy the limit, return len(queue) + 1 */
 gint
 get_buffers_max (GstMultiHandleSink * sink, gint64 max)
 {
@@ -1241,7 +1171,7 @@ get_buffers_max (GstMultiHandleSink * sink, gint64 max)
  * is satisfied
  */
 /* count the amount of data in the buffers and return the index
- * that satifies the given limits.
+ * that satisfies the given limits.
  *
  * Returns: index @idx in the buffer queue so that the given limits are
  * satisfied. TRUE if all the limits could be satisfied, FALSE if not
@@ -1287,7 +1217,7 @@ find_limits (GstMultiHandleSink * sink,
   max_hit = FALSE;
 
   i = 0;
-  /* loop through the buffers, when a limit is ok, mark it 
+  /* loop through the buffers, when a limit is ok, mark it
    * as -1, we have at least one buffer in the queue. */
   do {
     GstBuffer *buf;
@@ -1352,7 +1282,7 @@ find_limits (GstMultiHandleSink * sink,
 }
 
 /* parse the unit/value pair and assign it to the result value of the
- * right type, leave the other values untouched 
+ * right type, leave the other values untouched
  *
  * Returns: FALSE if the unit is unknown or undefined. TRUE otherwise.
  */
@@ -1681,7 +1611,6 @@ gst_multi_handle_sink_queue_buffer (GstMultiHandleSink * mhsink,
   gboolean hash_changed = FALSE;
   gint max_buffer_usage;
   gint i;
-  GTimeVal nowtv;
   GstClockTime now;
   gint max_buffers, soft_max_buffers;
   guint cookie;
@@ -1734,8 +1663,7 @@ gst_multi_handle_sink_queue_buffer (GstMultiHandleSink * mhsink,
   }
 
   max_buffer_usage = 0;
-  g_get_current_time (&nowtv);
-  now = GST_TIMEVAL_TO_TIME (nowtv);
+  now = g_get_monotonic_time () * GST_USECOND;
 
   /* now check for new or slow clients */
 restart:
@@ -1753,7 +1681,8 @@ restart:
     /* check hard max and timeout, remove client */
     if ((max_buffers > 0 && mhclient->bufpos >= max_buffers) ||
         (mhsink->timeout > 0
-            && now - mhclient->last_activity_time > mhsink->timeout)) {
+            && now - mhclient->last_activity_time_monotonic >
+            mhsink->timeout)) {
       /* remove client */
       GST_WARNING_OBJECT (sink, "%s client %p is too slow, removing",
           mhclient->debug, mhclient);
@@ -1799,7 +1728,7 @@ restart:
   }
 
   /* now look for sync points and make sure there is at least one
-   * sync point in the queue. We only do this if the LATEST_KEYFRAME or 
+   * sync point in the queue. We only do this if the LATEST_KEYFRAME or
    * BURST_KEYFRAME mode is selected */
   if (mhsink->def_sync_method == GST_SYNC_METHOD_LATEST_KEYFRAME ||
       mhsink->def_sync_method == GST_SYNC_METHOD_BURST_KEYFRAME) {

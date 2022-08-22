@@ -2,7 +2,7 @@
  * Copyright (C) 2018, Collabora Ltd.
  * Copyright (C) 2018, SK Telecom, Co., Ltd.
  *   Author: Jeongseok Kim <jeongseok.kim@sk.com>
- * 
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
  * License as published by the Free Software Foundation; either
@@ -49,6 +49,8 @@ struct _GstSRTSrc {
 
   GstSRTObject *srtobject;
   GCancellable *cancellable;
+
+  guint32       next_pktseq;
 };
 
 struct _GstSRTSrcClass {
@@ -56,6 +58,10 @@ struct _GstSRTSrcClass {
 
   void (*caller_added)      (GstSRTSrc *self, int sock, GSocketAddress * addr);
   void (*caller_removed)    (GstSRTSrc *self, int sock, GSocketAddress * addr);
+  void (*caller_rejected)   (GstSRTSrc *self, GSocketAddress * peer_address,
+    const gchar * stream_id, gpointer data);
+  gboolean (*caller_connecting) (GstSRTSrc *self, GSocketAddress * peer_address,
+    const gchar * stream_id, gpointer data);
 };
 
 GType   gst_srt_src_get_type (void);

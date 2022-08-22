@@ -19,10 +19,10 @@
  */
 
 /**
- * SECTION:element-deinterlace
- * @title: deinterlace
+ * SECTION:element-gldeinterlace
+ * @title: gldeinterlace
  *
- * Deinterlacing using based on fragment shaders.
+ * Deinterlace video using OpenGL fragment shaders.
  *
  * ## Examples
  * |[
@@ -38,6 +38,7 @@
 
 #include <gst/gl/gstglfuncs.h>
 
+#include "gstglelements.h"
 #include "gstgldeinterlace.h"
 
 #define GST_CAT_DEFAULT gst_gl_deinterlace_debug
@@ -54,6 +55,8 @@ enum
 #define gst_gl_deinterlace_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstGLDeinterlace, gst_gl_deinterlace,
     GST_TYPE_GL_FILTER, DEBUG_INIT);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (gldeinterlace, "gldeinterlace",
+    GST_RANK_NONE, GST_TYPE_GL_DEINTERLACE, gl_element_init (plugin));
 
 static void gst_gl_deinterlace_set_property (GObject * object,
     guint prop_id, const GValue * value, GParamSpec * pspec);
@@ -269,6 +272,8 @@ gst_gl_deinterlace_class_init (GstGLDeinterlaceClass * klass)
 
   GST_GL_BASE_FILTER_CLASS (klass)->supported_gl_api =
       GST_GL_API_OPENGL | GST_GL_API_GLES2 | GST_GL_API_OPENGL3;
+
+  gst_type_mark_as_plugin_api (GST_TYPE_GL_DEINTERLACE_METHODS, 0);
 }
 
 static void

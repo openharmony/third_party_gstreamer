@@ -21,19 +21,22 @@
 #define __GST_CORE_VIDEO_TEXTURE_CACHE_H__
 
 #include <gst/video/gstvideometa.h>
-#include <gst/gl/gl.h>
 #include "corevideomemory.h"
 
 G_BEGIN_DECLS
 
+#define GST_TYPE_VIDEO_TEXTURE_CACHE         (gst_video_texture_cache_get_type())
+#define GST_VIDEO_TEXTURE_CACHE(o)           (G_TYPE_CHECK_INSTANCE_CAST((o), GST_TYPE_VIDEO_TEXTURE_CACHE, GstVideoTextureCache))
+#define GST_VIDEO_TEXTURE_CACHE_CLASS(k)     (G_TYPE_CHECK_CLASS_CAST((k), GST_TYPE_VIDEO_TEXTURE_CACHE, GstVideoTextureCacheClass))
+#define GST_IS_VIDEO_TEXTURE_CACHE(o)        (G_TYPE_CHECK_INSTANCE_TYPE((o), GST_TYPE_VIDEO_TEXTURE_CACHE))
+#define GST_IS_VIDEO_TEXTURE_CACHE_CLASS(k)  (G_TYPE_CHECK_CLASS_TYPE((k), GST_TYPE_VIDEO_TEXTURE_CACHE))
+#define GST_VIDEO_TEXTURE_CACHE_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS((o), GST_TYPE_VIDEO_TEXTURE_CACHE, GstVideoTextureCacheClass))
+GType gst_video_texture_cache_get_type     (void);
+
 typedef struct _GstVideoTextureCache
 {
-  GstGLContext *ctx;
-#if HAVE_IOS
-  CVOpenGLESTextureCacheRef cache;
-#else
-  GstBufferPool *pool;
-#endif
+  GObject parent;
+
   GstVideoInfo input_info;
   GstVideoInfo output_info;
 
@@ -42,13 +45,27 @@ typedef struct _GstVideoTextureCache
   GstCaps *out_caps;
 } GstVideoTextureCache;
 
-GstVideoTextureCache *gst_video_texture_cache_new (GstGLContext * ctx);
-void gst_video_texture_cache_free (GstVideoTextureCache * cache);
-void gst_video_texture_cache_set_format (GstVideoTextureCache * cache,
-    GstVideoFormat in_format, GstCaps * out_caps);
-gboolean gst_video_texture_cache_upload (GstVideoGLTextureUploadMeta * meta, guint texture_id[4]);
-GstMemory *gst_video_texture_cache_create_memory (GstVideoTextureCache * cache,
-    GstAppleCoreVideoPixelBuffer *gpixbuf, guint plane, gsize size);
+typedef struct _GstVideoTextureCacheClass
+{
+  GObjectClass parent_class;
+
+  void              (*set_format)           (GstVideoTextureCache * cache,
+                                             GstVideoFormat in_format,
+                                             GstCaps * out_caps);
+
+  GstMemory *       (*create_memory)        (GstVideoTextureCache * cache,
+                                             GstAppleCoreVideoPixelBuffer *gpixbuf,
+                                             guint plane,
+                                             gsize size);
+} GstVideoTextureCacheClass;
+
+void                    gst_video_texture_cache_set_format      (GstVideoTextureCache * cache,
+                                                                 GstVideoFormat in_format,
+                                                                 GstCaps * out_caps);
+GstMemory *             gst_video_texture_cache_create_memory   (GstVideoTextureCache * cache,
+                                                                 GstAppleCoreVideoPixelBuffer *gpixbuf,
+                                                                 guint plane,
+                                                                 gsize size);
 
 G_END_DECLS
 

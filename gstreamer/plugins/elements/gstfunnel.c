@@ -28,13 +28,9 @@
  *
  * Takes packets from various input sinks into one output source.
  *
- * funnel always outputs a single, open ended segment from
- * 0 with in %GST_FORMAT_TIME and outputs the buffers of the
- * different sinkpads with timestamps that are set to the
- * running time for that stream. funnel does not synchronize
- * the different input streams but simply forwards all buffers
- * immediately when they arrive.
- *
+ * #GstFunnel will forward sticky events from its first active sink pad
+ * and, if #GstFunnel:forward-sticky-events is set to true, it will
+ * forward sticky events each time a pad becomes active.
  */
 
 #ifdef HAVE_CONFIG_H
@@ -42,6 +38,7 @@
 #endif
 
 #include "gstfunnel.h"
+#include "gstcoreelementselements.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_funnel_debug);
 #define GST_CAT_DEFAULT gst_funnel_debug
@@ -110,6 +107,7 @@ static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
   GST_DEBUG_CATEGORY_INIT (gst_funnel_debug, "funnel", 0, "funnel element");
 #define gst_funnel_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstFunnel, gst_funnel, GST_TYPE_ELEMENT, _do_init);
+GST_ELEMENT_REGISTER_DEFINE (funnel, "funnel", GST_RANK_NONE, GST_TYPE_FUNNEL);
 
 static GstStateChangeReturn gst_funnel_change_state (GstElement * element,
     GstStateChange transition);

@@ -22,12 +22,9 @@
 #ifndef __GSTURI_DOWNLOADER_H__
 #define __GSTURI_DOWNLOADER_H__
 
-#ifndef OHOS_EXT_FUNC
-// ohos.ext.func.0013
 #ifndef GST_USE_UNSTABLE_API
 #warning "The UriDownloaded library from gst-plugins-bad is unstable API and may change in future."
 #warning "You can define GST_USE_UNSTABLE_API to avoid this warning."
-#endif
 #endif
 
 #include <glib-object.h>

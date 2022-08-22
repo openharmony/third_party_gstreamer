@@ -482,6 +482,7 @@ gst_ffmpegmux_setcaps (GstPad * pad, GstCaps * caps)
   st = ffmpegmux->context->streams[collect_pad->padnum];
   av_opt_set_int (ffmpegmux->context, "preload", ffmpegmux->preload, 0);
   ffmpegmux->context->max_delay = ffmpegmux->max_delay;
+  memset (&tmp, 0, sizeof (tmp));
 
   /* for the format-specific guesses, we'll go to
    * our famous codec mapper */
@@ -728,7 +729,7 @@ gst_ffmpegmux_collected (GstCollectPads * pads, gpointer user_data)
    * no buffers left */
   if (best_pad != NULL) {
     GstBuffer *buf;
-    AVPacket pkt;
+    AVPacket pkt = { 0, };
     GstMapInfo map;
 
     /* push out current buffer */
@@ -745,7 +746,6 @@ gst_ffmpegmux_collected (GstCollectPads * pads, gpointer user_data)
     pkt.size = map.size;
 
     pkt.stream_index = best_pad->padnum;
-    pkt.flags = 0;
 
     if (!GST_BUFFER_FLAG_IS_SET (buf, GST_BUFFER_FLAG_DELTA_UNIT))
       pkt.flags |= AV_PKT_FLAG_KEY;
@@ -754,8 +754,6 @@ gst_ffmpegmux_collected (GstCollectPads * pads, gpointer user_data)
       pkt.duration =
           gst_ffmpeg_time_gst_to_ff (GST_BUFFER_DURATION (buf),
           ffmpegmux->context->streams[best_pad->padnum]->time_base);
-    else
-      pkt.duration = 0;
     av_write_frame (ffmpegmux->context, &pkt);
     gst_buffer_unmap (buf, &map);
     gst_buffer_unref (buf);
@@ -910,6 +908,7 @@ gst_ffmpegmux_register (GstPlugin * plugin)
         (!strncmp (in_plugin->name, "ffmetadata", 10)) ||
         (!strncmp (in_plugin->name, "srt", 3)) ||
         (!strncmp (in_plugin->name, "scc", 3)) ||
+        !strcmp (in_plugin->name, "ttml") ||
         !strcmp (in_plugin->name, "segment") ||
         !strcmp (in_plugin->name, "stream_segment,ssegment") ||
         !strcmp (in_plugin->name, "jacosub") ||
@@ -923,9 +922,11 @@ gst_ffmpegmux_register (GstPlugin * plugin)
       continue;
     }
 
-    if ((!strncmp (in_plugin->long_name, "raw ", 4))) {
-      GST_LOG ("Ignoring raw muxer %s", in_plugin->name);
-      continue;
+    if (in_plugin->long_name != NULL) {
+      if ((!strncmp (in_plugin->long_name, "raw ", 4))) {
+        GST_LOG ("Ignoring raw muxer %s", in_plugin->name);
+        continue;
+      }
     }
 
     if (gst_ffmpegmux_get_replacement (in_plugin->name))

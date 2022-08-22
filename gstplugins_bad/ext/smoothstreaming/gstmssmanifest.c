@@ -54,6 +54,8 @@ GST_DEBUG_CATEGORY_EXTERN (mssdemux_debug);
 #define MSS_PROP_TIMESCALE            "TimeScale"
 #define MSS_PROP_URL                  "Url"
 
+#define GST_MSSMANIFEST_LIVE_MIN_FRAGMENT_DISTANCE 3
+
 typedef struct _GstMssStreamFragment
 {
   guint number;
@@ -286,7 +288,21 @@ _gst_mss_stream_init (GstMssManifest * manifest, GstMssStream * stream,
 
   if (builder.fragments) {
     stream->fragments = g_list_reverse (builder.fragments);
-    stream->current_fragment = stream->fragments;
+    if (manifest->is_live) {
+      GList *iter = g_list_last (stream->fragments);
+      gint i;
+
+      for (i = 0; i < GST_MSSMANIFEST_LIVE_MIN_FRAGMENT_DISTANCE; i++) {
+        if (g_list_previous (iter)) {
+          iter = g_list_previous (iter);
+        } else {
+          break;
+        }
+      }
+      stream->current_fragment = iter;
+    } else {
+      stream->current_fragment = stream->fragments;
+    }
   }
 
   /* order them from smaller to bigger based on bitrates */
@@ -629,15 +645,15 @@ _gst_mss_stream_add_h264_codec_data (GstCaps * caps, const gchar * codecdatastr)
 
   nalu.ref_idc = (spsinfo.data[0] & 0x60) >> 5;
   nalu.type = GST_H264_NAL_SPS;
-  nalu.size = spsinfo.size;
-  nalu.data = spsinfo.data;
+  nalu.size = spsinfo.size - 1;
+  nalu.data = spsinfo.data + 1;
   nalu.offset = 0;
   nalu.sc_offset = 0;
   nalu.valid = TRUE;
   nalu.header_bytes = 0;
   nalu.extension_type = GST_H264_NAL_EXTENSION_NONE;
 
-  parseres = gst_h264_parse_sps (&nalu, &sps_struct, TRUE);
+  parseres = gst_h264_parse_sps (&nalu, &sps_struct);
   if (parseres == GST_H264_PARSER_OK) {
     gint fps_num, fps_den;
 
@@ -975,7 +991,7 @@ gst_mss_manifest_get_duration (GstMssManifest * manifest)
 }
 
 
-/**
+/*
  * Gets the duration in nanoseconds
  */
 GstClockTime
@@ -1194,7 +1210,7 @@ gst_mss_stream_type_name (GstMssStreamType streamtype)
   }
 }
 
-/**
+/*
  * Seeks all streams to the fragment that contains the set time
  *
  * @forward: if this is forward playback
@@ -1207,7 +1223,10 @@ gst_mss_manifest_seek (GstMssManifest * manifest, gboolean forward,
   GSList *iter;
 
   for (iter = manifest->streams; iter; iter = g_slist_next (iter)) {
-    gst_mss_stream_seek (iter->data, forward, 0, time, NULL);
+    GstMssStream *stream = iter->data;
+
+    gst_mss_manifest_live_adapter_clear (stream);
+    gst_mss_stream_seek (stream, forward, 0, time, NULL);
   }
 }
 
@@ -1215,7 +1234,7 @@ gst_mss_manifest_seek (GstMssManifest * manifest, gboolean forward,
     ((forward && (flags & GST_SEEK_FLAG_SNAP_AFTER)) || \
     (!forward && (flags & GST_SEEK_FLAG_SNAP_BEFORE)))
 
-/**
+/*
  * Seeks this stream to the fragment that contains the sample at time
  *
  * @time: time in nanoseconds
@@ -1594,6 +1613,13 @@ GstBuffer *
 gst_mss_manifest_live_adapter_take_buffer (GstMssStream * stream, gsize nbytes)
 {
   return gst_adapter_take_buffer (stream->live_adapter, nbytes);
+}
+
+void
+gst_mss_manifest_live_adapter_clear (GstMssStream * stream)
+{
+  if (stream->live_adapter)
+    gst_adapter_clear (stream->live_adapter);
 }
 
 gboolean

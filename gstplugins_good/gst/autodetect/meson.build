@@ -2,6 +2,8 @@ autodetect_sources = [
   'gstautoaudiosink.c',
   'gstautoaudiosrc.c',
   'gstautodetect.c',
+  'gstautodetectplugin.c',
+  'gstautodetectelement.c',
   'gstautovideosink.c',
   'gstautovideosrc.c',
 ]
@@ -15,3 +17,4 @@ gstautodetect = library('gstautodetect',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstautodetect, install_dir : plugins_pkgconfig_install_dir)
+plugins += [gstautodetect]

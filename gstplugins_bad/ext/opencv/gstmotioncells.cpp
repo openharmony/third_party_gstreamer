@@ -47,12 +47,11 @@
  *
  * Performs motion detection on videos.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
+ *
  * |[
  * gst-launch-1.0 videotestsrc pattern=18 ! videorate ! videoscale ! video/x-raw,width=320,height=240,framerate=5/1 ! videoconvert ! motioncells ! videoconvert ! xvimagesink
  * ]|
- * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -141,7 +140,12 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("RGB")));
 
-G_DEFINE_TYPE (GstMotioncells, gst_motion_cells, GST_TYPE_OPENCV_VIDEO_FILTER);
+G_DEFINE_TYPE_WITH_CODE (GstMotioncells, gst_motion_cells,
+    GST_TYPE_OPENCV_VIDEO_FILTER,
+    GST_DEBUG_CATEGORY_INIT (gst_motion_cells_debug, "motioncells", 0,
+        "Performs motion detection on videos, providing detected positions via bus messages"););
+GST_ELEMENT_REGISTER_DEFINE (motioncells, "motioncells", GST_RANK_NONE,
+    GST_TYPE_MOTIONCELLS);
 
 static void gst_motion_cells_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -360,8 +364,7 @@ gst_motion_cells_init (GstMotioncells * filter)
   filter->prev_buff_timestamp = 0;
   filter->cur_buff_timestamp = 0;
   filter->diff_timestamp = -1;
-  g_get_current_time (&filter->tv);
-  filter->starttime = 1000 * filter->tv.tv_sec;
+  filter->starttime = 1000 * g_get_real_time();
   filter->previous_motion = FALSE;
   filter->changed_datafile = FALSE;
   filter->postallmotion = FALSE;
@@ -1119,21 +1122,4 @@ gst_motion_cells_transform_ip (GstOpencvVideoFilter * base, GstBuffer * buf,
     GST_OBJECT_UNLOCK (filter);
   }
   return GST_FLOW_OK;
-}
-
-/* entry point to initialize the plug-in
- * initialize the plug-in itself
- * register the element factories and other features
- */
-gboolean
-gst_motion_cells_plugin_init (GstPlugin * plugin)
-{
-  /* debug category for fltering log messages */
-  GST_DEBUG_CATEGORY_INIT (gst_motion_cells_debug,
-      "motioncells",
-      0,
-      "Performs motion detection on videos, providing detected positions via bus messages");
-
-  return gst_element_register (plugin, "motioncells", GST_RANK_NONE,
-      GST_TYPE_MOTIONCELLS);
 }

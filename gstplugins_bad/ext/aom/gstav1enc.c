@@ -21,12 +21,11 @@
  *
  * AV1 Encoder.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
+ *
  * |[
  * gst-launch-1.0 videotestsrc num-buffers=50 ! av1enc ! webmmux ! filesink location=av1.webm
  * ]|
- * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -143,7 +142,11 @@ enum
   PROP_OVERSHOOT_PCT,
   PROP_BUF_SZ,
   PROP_BUF_INITIAL_SZ,
-  PROP_BUF_OPTIMAL_SZ
+  PROP_BUF_OPTIMAL_SZ,
+  PROP_THREADS,
+  PROP_ROW_MT,
+  PROP_TILE_COLUMNS,
+  PROP_TILE_ROWS
 };
 
 /* From av1/av1_cx_iface.c */
@@ -170,6 +173,10 @@ enum
 #define DEFAULT_TIMEBASE_N                                      1
 #define DEFAULT_TIMEBASE_D                                     30
 #define DEFAULT_BIT_DEPTH                              AOM_BITS_8
+#define DEFAULT_THREADS                                         0
+#define DEFAULT_ROW_MT                                       TRUE
+#define DEFAULT_TILE_COLUMNS                                    0
+#define DEFAULT_TILE_ROWS                                       0
 
 static void gst_av1_enc_finalize (GObject * object);
 static void gst_av1_enc_set_property (GObject * object, guint prop_id,
@@ -191,6 +198,8 @@ static void gst_av1_enc_destroy_encoder (GstAV1Enc * av1enc);
 
 #define gst_av1_enc_parent_class parent_class
 G_DEFINE_TYPE (GstAV1Enc, gst_av1_enc, GST_TYPE_VIDEO_ENCODER);
+GST_ELEMENT_REGISTER_DEFINE (av1enc, "av1enc", GST_RANK_PRIMARY,
+    GST_TYPE_AV1_ENC);
 
 /* *INDENT-OFF* */
 static GstStaticPadTemplate gst_av1_enc_sink_pad_template =
@@ -250,7 +259,7 @@ gst_av1_enc_class_init (GstAV1EncClass * klass)
   g_object_class_install_property (gobject_class, PROP_CPU_USED,
       g_param_spec_int ("cpu-used", "CPU Used",
           "CPU Used. A Value greater than 0 will increase encoder speed at the expense of quality.",
-          0, 8, DEFAULT_CPU_USED, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          0, 5, DEFAULT_CPU_USED, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /* Rate control configurations */
   g_object_class_install_property (gobject_class, PROP_DROP_FRAME,
@@ -324,7 +333,7 @@ gst_av1_enc_class_init (GstAV1EncClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_MIN_QUANTIZER,
       g_param_spec_uint ("min-quantizer", "Minimum (best quality) quantizer",
-          "Mininum (best quality) quantizer",
+          "Minimum (best quality) quantizer",
           0, G_MAXUINT, DEFAULT_MIN_QUANTIZER,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
@@ -363,6 +372,37 @@ gst_av1_enc_class_init (GstAV1EncClass * klass)
           "Decoder buffer optimal size, expressed in units of time (milliseconds)",
           0, G_MAXUINT, DEFAULT_BUF_OPTIMAL_SZ,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_THREADS,
+      g_param_spec_uint ("threads", "Max number of threads to use",
+          "Max number of threads to use encoding, set to 0 determine the "
+          "approximate number of threads that the system schedule",
+          0, G_MAXUINT, DEFAULT_THREADS,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+#ifdef AOM_CTRL_AV1E_SET_ROW_MT
+  g_object_class_install_property (gobject_class, PROP_ROW_MT,
+      g_param_spec_boolean ("row-mt", "Row based multi-threading",
+          "Enable row based multi-threading",
+          DEFAULT_ROW_MT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#endif
+
+  g_object_class_install_property (gobject_class, PROP_TILE_COLUMNS,
+      g_param_spec_uint ("tile-columns", "Number of tile columns",
+          "Partition into separate vertical tile columns from image frame which "
+          "can enable parallel encoding",
+          0, 6, DEFAULT_TILE_COLUMNS,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_TILE_ROWS,
+      g_param_spec_uint ("tile-rows", "Number of tile rows",
+          "Partition into separate horizontal tile rows from image frame which "
+          "can enable parallel encoding",
+          0, 6, DEFAULT_TILE_ROWS, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  gst_type_mark_as_plugin_api (GST_TYPE_END_USAGE_MODE, 0);
+  gst_type_mark_as_plugin_api (GST_TYPE_RESIZE_MODE, 0);
+  gst_type_mark_as_plugin_api (GST_TYPE_SUPERRES_MODE, 0);
 }
 
 static void
@@ -383,7 +423,18 @@ gst_av1_enc_init (GstAV1Enc * av1enc)
   av1enc->keyframe_dist = 30;
   av1enc->cpu_used = DEFAULT_CPU_USED;
   av1enc->format = AOM_IMG_FMT_I420;
+  av1enc->threads = DEFAULT_THREADS;
+  av1enc->row_mt = DEFAULT_ROW_MT;
+  av1enc->tile_columns = DEFAULT_TILE_COLUMNS;
+  av1enc->tile_rows = DEFAULT_TILE_ROWS;
 
+#ifdef FIXED_QP_OFFSET_COUNT
+  av1enc->aom_cfg.fixed_qp_offsets[0] = -1;
+  av1enc->aom_cfg.fixed_qp_offsets[1] = -1;
+  av1enc->aom_cfg.fixed_qp_offsets[2] = -1;
+  av1enc->aom_cfg.fixed_qp_offsets[3] = -1;
+  av1enc->aom_cfg.fixed_qp_offsets[4] = -1;
+#endif
   av1enc->aom_cfg.rc_dropframe_thresh = DEFAULT_DROP_FRAME;
   av1enc->aom_cfg.rc_resize_mode = DEFAULT_RESIZE_MODE;
   av1enc->aom_cfg.rc_resize_denominator = DEFAULT_RESIZE_DENOMINATOR;
@@ -393,7 +444,7 @@ gst_av1_enc_init (GstAV1Enc * av1enc)
   av1enc->aom_cfg.rc_superres_kf_denominator = DEFAULT_SUPERRES_KF_DENOMINATOR;
   av1enc->aom_cfg.rc_superres_qthresh = DEFAULT_SUPERRES_QTHRESH;
   av1enc->aom_cfg.rc_superres_kf_qthresh = DEFAULT_SUPERRES_KF_QTHRESH;
-  av1enc->aom_cfg.rc_end_usage = DEFAULT_END_USAGE;
+  av1enc->aom_cfg.rc_end_usage = (enum aom_rc_mode) DEFAULT_END_USAGE;
   av1enc->aom_cfg.rc_target_bitrate = DEFAULT_TARGET_BITRATE;
   av1enc->aom_cfg.rc_min_quantizer = DEFAULT_MIN_QUANTIZER;
   av1enc->aom_cfg.rc_max_quantizer = DEFAULT_MAX_QUANTIZER;
@@ -538,10 +589,24 @@ gst_av1_enc_get_downstream_profile (GstAV1Enc * av1enc)
       if (profile_str) {
         gchar *endptr = NULL;
 
-        profile = g_ascii_strtoull (profile_str, &endptr, 10);
-        if (*endptr != '\0' || profile < 0 || profile > 3) {
-          GST_ERROR_OBJECT (av1enc, "Invalid profile '%s'", profile_str);
-          profile = DEFAULT_PROFILE;
+        if (g_strcmp0 (profile_str, "main") == 0) {
+          GST_DEBUG_OBJECT (av1enc, "Downstream profile is \"main\"");
+          profile = 0;
+        } else if (g_strcmp0 (profile_str, "high") == 0) {
+          profile = 1;
+          GST_DEBUG_OBJECT (av1enc, "Downstream profile is \"high\"");
+        } else if (g_strcmp0 (profile_str, "professional") == 0) {
+          profile = 2;
+          GST_DEBUG_OBJECT (av1enc, "Downstream profile is \"professional\"");
+        } else {
+          profile = g_ascii_strtoull (profile_str, &endptr, 10);
+          if (*endptr != '\0' || profile < 0 || profile > 3) {
+            GST_ERROR_OBJECT (av1enc, "Invalid profile '%s'", profile_str);
+            profile = DEFAULT_PROFILE;
+          } else {
+            GST_DEBUG_OBJECT (av1enc,
+                "Downstream profile is \"%s\"", profile_str);
+          }
         }
       }
     }
@@ -638,6 +703,11 @@ gst_av1_enc_set_format (GstVideoEncoder * encoder, GstVideoCodecState * state)
   av1enc->aom_cfg.g_timebase.num = GST_VIDEO_INFO_FPS_D (info);
   av1enc->aom_cfg.g_timebase.den = GST_VIDEO_INFO_FPS_N (info);
   av1enc->aom_cfg.g_error_resilient = AOM_ERROR_RESILIENT_DEFAULT;
+
+  if (av1enc->threads == DEFAULT_THREADS)
+    av1enc->aom_cfg.g_threads = g_get_num_processors ();
+  else
+    av1enc->aom_cfg.g_threads = av1enc->threads;
   /* TODO: do more configuration including bit_depth config */
 
   av1enc->format =
@@ -658,11 +728,20 @@ gst_av1_enc_set_format (GstVideoEncoder * encoder, GstVideoCodecState * state)
   if (aom_codec_enc_init (&av1enc->encoder, av1enc_class->codec_algo,
           &av1enc->aom_cfg, 0)) {
     gst_av1_codec_error (&av1enc->encoder, "Failed to initialize encoder");
+    g_mutex_unlock (&av1enc->encoder_lock);
     return FALSE;
   }
   av1enc->encoder_inited = TRUE;
 
   GST_AV1_ENC_APPLY_CODEC_CONTROL (av1enc, AOME_SET_CPUUSED, av1enc->cpu_used);
+#ifdef AOM_CTRL_AV1E_SET_ROW_MT
+  GST_AV1_ENC_APPLY_CODEC_CONTROL (av1enc, AV1E_SET_ROW_MT,
+      (av1enc->row_mt ? 1 : 0));
+#endif
+  GST_AV1_ENC_APPLY_CODEC_CONTROL (av1enc, AV1E_SET_TILE_COLUMNS,
+      av1enc->tile_columns);
+  GST_AV1_ENC_APPLY_CODEC_CONTROL (av1enc, AV1E_SET_TILE_ROWS,
+      av1enc->tile_rows);
   g_mutex_unlock (&av1enc->encoder_lock);
 
   return TRUE;
@@ -696,8 +775,7 @@ gst_av1_enc_process (GstAV1Enc * encoder)
       }
 
       frame->output_buffer =
-          gst_buffer_new_wrapped (g_memdup (pkt->data.frame.buf,
-              pkt->data.frame.sz), pkt->data.frame.sz);
+          gst_buffer_new_memdup (pkt->data.frame.buf, pkt->data.frame.sz);
 
       if ((pkt->data.frame.flags & AOM_FRAME_IS_DROPPABLE) != 0)
         GST_BUFFER_FLAG_SET (frame->output_buffer, GST_BUFFER_FLAG_DROPPABLE);
@@ -908,6 +986,27 @@ gst_av1_enc_set_property (GObject * object, guint prop_id,
       av1enc->aom_cfg.rc_buf_optimal_sz = g_value_get_uint (value);
       global = TRUE;
       break;
+    case PROP_THREADS:
+      av1enc->threads = g_value_get_uint (value);
+      global = TRUE;
+      break;
+#ifdef AOM_CTRL_AV1E_SET_ROW_MT
+    case PROP_ROW_MT:
+      av1enc->row_mt = g_value_get_boolean (value);
+      GST_AV1_ENC_APPLY_CODEC_CONTROL (av1enc, AV1E_SET_ROW_MT,
+          (av1enc->row_mt ? 1 : 0));
+      break;
+#endif
+    case PROP_TILE_COLUMNS:
+      av1enc->tile_columns = g_value_get_uint (value);
+      GST_AV1_ENC_APPLY_CODEC_CONTROL (av1enc, AV1E_SET_TILE_COLUMNS,
+          av1enc->tile_columns);
+      break;
+    case PROP_TILE_ROWS:
+      av1enc->tile_rows = g_value_get_uint (value);
+      GST_AV1_ENC_APPLY_CODEC_CONTROL (av1enc, AV1E_SET_TILE_ROWS,
+          av1enc->tile_rows);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -988,6 +1087,20 @@ gst_av1_enc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_BUF_OPTIMAL_SZ:
       g_value_set_uint (value, av1enc->aom_cfg.rc_buf_optimal_sz);
+      break;
+    case PROP_THREADS:
+      g_value_set_uint (value, av1enc->threads);
+      break;
+#ifdef AOM_CTRL_AV1E_SET_ROW_MT
+    case PROP_ROW_MT:
+      g_value_set_boolean (value, av1enc->row_mt);
+      break;
+#endif
+    case PROP_TILE_COLUMNS:
+      g_value_set_uint (value, av1enc->tile_columns);
+      break;
+    case PROP_TILE_ROWS:
+      g_value_set_uint (value, av1enc->tile_rows);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);

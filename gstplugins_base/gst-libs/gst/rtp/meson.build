@@ -1,4 +1,4 @@
-rtp_sources = [
+rtp_sources = files([
   'gstrtpbuffer.c',
   'gstrtcpbuffer.c',
   'gstrtppayloads.c',
@@ -7,9 +7,9 @@ rtp_sources = [
   'gstrtpbaseaudiopayload.c',
   'gstrtpbasepayload.c',
   'gstrtpbasedepayload.c'
-  ]
+  ])
 
-rtp_headers = [
+rtp_headers = files([
   'gstrtcpbuffer.h',
   'gstrtpbaseaudiopayload.h',
   'gstrtpbasedepayload.h',
@@ -21,7 +21,7 @@ rtp_headers = [
   'gstrtppayloads.h',
   'rtp-prelude.h',
   'rtp.h',
-]
+])
 install_headers(rtp_headers, subdir : 'gstreamer-1.0/gst/rtp/')
 
 rtp_enums = gnome.mkenums_simple('gstrtp-enumtypes',
@@ -37,7 +37,7 @@ gstrtp_enum_h = rtp_enums[1]
 gstrtp_deps = [audio_dep, gst_base_dep]
 gst_rtp = library('gstrtp-@0@'.format(api_version),
   rtp_sources, gstrtp_enum_c, gstrtp_enum_h,
-  c_args : gst_plugins_base_args + ['-DBUILDING_GST_RTP'],
+  c_args : gst_plugins_base_args + ['-DBUILDING_GST_RTP', '-DG_LOG_DOMAIN="GStreamer-RTP"'],
   include_directories: [configinc, libsinc],
   version : libversion,
   soversion : soversion,
@@ -46,25 +46,42 @@ gst_rtp = library('gstrtp-@0@'.format(api_version),
   dependencies : gstrtp_deps,
 )
 
+library_def = {'lib': gst_rtp}
+pkg_name = 'gstreamer-rtp-1.0'
+pkgconfig.generate(gst_rtp,
+  libraries : [gst_dep, gst_base_dep],
+  variables : pkgconfig_variables,
+  subdirs : pkgconfig_subdirs,
+  name : pkg_name,
+  description : 'RTP base classes and helper functions',
+)
+
 rtp_gen_sources = [gstrtp_enum_h]
 if build_gir
   gst_gir_extra_args = gir_init_section + [ '--c-include=gst/rtp/rtp.h' ]
-  rtp_gen_sources += [gnome.generate_gir(gst_rtp,
-    sources : rtp_sources + rtp_headers + [gstrtp_enum_c] + [gstrtp_enum_h],
-    namespace : 'GstRtp',
-    nsversion : api_version,
-    identifier_prefix : 'Gst',
-    symbol_prefix : 'gst',
-    export_packages : 'gstreamer-rtp-1.0',
-    includes : ['Gst-1.0', 'GstBase-1.0'],
-    install : true,
-    extra_args : gst_gir_extra_args,
-    dependencies : gstrtp_deps
-  )]
+  gir = {
+    'sources' : rtp_sources + rtp_headers + [gstrtp_enum_c] + [gstrtp_enum_h],
+    'namespace' : 'GstRtp',
+    'nsversion' : api_version,
+    'identifier_prefix' : 'Gst',
+    'symbol_prefix' : 'gst',
+    'export_packages' : pkg_name,
+    'includes' : ['Gst-1.0', 'GstBase-1.0'],
+    'install' : true,
+    'extra_args' : gst_gir_extra_args,
+    'dependencies' : gstrtp_deps
+  }
+  library_def = {'lib': library_def['lib'], 'gir': [gir]}
+  if not static_build
+    rtp_gir = gnome.generate_gir(gst_rtp, kwargs: gir)
+    rtp_gen_sources += [rtp_gir]
+  endif
 endif
-
+libraries += [[pkg_name, library_def]]
 
 rtp_dep = declare_dependency(link_with : gst_rtp,
   include_directories : [libsinc],
   dependencies : gstrtp_deps,
   sources : rtp_gen_sources)
+
+meson.override_dependency(pkg_name, rtp_dep)

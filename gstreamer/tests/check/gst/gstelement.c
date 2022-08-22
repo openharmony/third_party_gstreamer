@@ -345,8 +345,8 @@ GST_START_TEST (test_pad_templates)
   test = g_object_new (gst_test_element_get_type (), NULL);
   test2 = g_object_new (gst_test_element2_get_type (), NULL);
 
-  g_object_unref (test);
-  g_object_unref (test2);
+  gst_object_unref (test);
+  gst_object_unref (test2);
 }
 
 GST_END_TEST;
@@ -729,7 +729,7 @@ GST_START_TEST (test_request_pad_templates)
     pad_name = (const gchar *) key;
     templ_name = (const gchar *) value;
 
-    pad = gst_element_get_request_pad (GST_ELEMENT (test), pad_name);
+    pad = gst_element_request_pad_simple (GST_ELEMENT (test), pad_name);
     fail_unless (pad != NULL);
     gst_element_release_request_pad (GST_ELEMENT (test), pad);
     gst_object_unref (pad);
@@ -748,7 +748,7 @@ GST_START_TEST (test_request_pad_templates)
   while (item) {
     pad_name = (const gchar *) (item->data);
     item = g_slist_next (item);
-    pad = gst_element_get_request_pad (GST_ELEMENT (test), pad_name);
+    pad = gst_element_request_pad_simple (GST_ELEMENT (test), pad_name);
     fail_unless (pad == NULL);
   }
 
@@ -763,8 +763,8 @@ GST_START_TEST (test_request_pad_templates)
           "sink"));
   gst_element_unlink (GST_ELEMENT (test), sink);
 
-  g_object_unref (test);
-  g_object_unref (sink);
+  gst_object_unref (test);
+  gst_object_unref (sink);
 
   /* gst_parse_launch */
   gst_plugin_register_static (GST_VERSION_MAJOR,
@@ -870,7 +870,7 @@ GST_START_TEST (test_foreach_pad)
   MAIN_START_THREAD_FUNCTION (0, thread_add_remove_pads, e);
   MAIN_SYNCHRONIZE ();
 
-  for (i = 0; i < 10000; ++i) {
+  for (i = 0; i < 1000; ++i) {
     gchar num[32];
 
     g_snprintf (num, 32, "foreach-test-%u", i);

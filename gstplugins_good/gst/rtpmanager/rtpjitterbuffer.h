@@ -73,7 +73,7 @@ GType rtp_jitter_buffer_mode_get_type (void);
 struct _RTPJitterBuffer {
   GObject        object;
 
-  GQueue        *packets;
+  GQueue         packets;
 
   RTPJitterBufferMode mode;
 
@@ -116,6 +116,12 @@ struct _RTPJitterBufferClass {
   GObjectClass   parent_class;
 };
 
+#define IS_DROPABLE(it) (((it)->type == ITEM_TYPE_BUFFER) || ((it)->type == ITEM_TYPE_LOST))
+#define ITEM_TYPE_BUFFER        0
+#define ITEM_TYPE_LOST          1
+#define ITEM_TYPE_EVENT         2
+#define ITEM_TYPE_QUERY         3
+
 /**
  * RTPJitterBufferItem:
  * @data: the data of the item
@@ -129,19 +135,27 @@ struct _RTPJitterBufferClass {
  *   append.
  * @count: amount of seqnum in this item
  * @rtptime: rtp timestamp
+ * @data_free: Function to free @data (optional)
  *
- * An object containing an RTP packet or event.
+ * An object containing an RTP packet or event. First members of this structure
+ * copied from GList so they can be inserted into lists without doing more
+ * allocations.
  */
 struct _RTPJitterBufferItem {
+  /* a GList */
   gpointer data;
   GList *next;
   GList *prev;
+
+  /* item metadata */
   guint type;
   GstClockTime dts;
   GstClockTime pts;
   guint seqnum;
   guint count;
   guint rtptime;
+
+  GDestroyNotify free_data;
 };
 
 GType rtp_jitter_buffer_get_type (void);
@@ -166,9 +180,14 @@ void                  rtp_jitter_buffer_set_rfc7273_sync (RTPJitterBuffer *jbuf,
 
 void                  rtp_jitter_buffer_reset_skew       (RTPJitterBuffer *jbuf);
 
-gboolean              rtp_jitter_buffer_insert           (RTPJitterBuffer *jbuf,
-                                                          RTPJitterBufferItem *item,
-                                                          gboolean *head, gint *percent);
+gboolean              rtp_jitter_buffer_append_event      (RTPJitterBuffer * jbuf, GstEvent * event);
+gboolean              rtp_jitter_buffer_append_query      (RTPJitterBuffer * jbuf, GstQuery * query);
+gboolean              rtp_jitter_buffer_append_lost_event (RTPJitterBuffer * jbuf, GstEvent * event,
+                                                           guint16 seqnum, guint lost_packets);
+gboolean              rtp_jitter_buffer_append_buffer     (RTPJitterBuffer * jbuf, GstBuffer * buf,
+                                                           GstClockTime dts, GstClockTime pts,
+                                                           guint16 seqnum, guint rtptime,
+                                                           gboolean * duplicate, gint * percent);
 
 void                  rtp_jitter_buffer_disable_buffering (RTPJitterBuffer *jbuf, gboolean disabled);
 
@@ -184,15 +203,19 @@ gint                  rtp_jitter_buffer_get_percent      (RTPJitterBuffer * jbuf
 
 guint                 rtp_jitter_buffer_num_packets      (RTPJitterBuffer *jbuf);
 guint32               rtp_jitter_buffer_get_ts_diff      (RTPJitterBuffer *jbuf);
-guint16               rtp_jitter_buffer_get_seqnum_diff  (RTPJitterBuffer * jbuf);
 
 void                  rtp_jitter_buffer_get_sync         (RTPJitterBuffer *jbuf, guint64 *rtptime,
                                                           guint64 *timestamp, guint32 *clock_rate,
                                                           guint64 *last_rtptime);
 
 GstClockTime          rtp_jitter_buffer_calculate_pts    (RTPJitterBuffer * jbuf, GstClockTime dts, gboolean estimated_dts,
-                                                          guint32 rtptime, GstClockTime base_time);
+                                                          guint32 rtptime, GstClockTime base_time, gint gap,
+                                                          gboolean is_rtx);
 
 gboolean              rtp_jitter_buffer_can_fast_start   (RTPJitterBuffer * jbuf, gint num_packet);
+
+gboolean              rtp_jitter_buffer_is_full          (RTPJitterBuffer * jbuf);
+
+void                  rtp_jitter_buffer_free_item        (RTPJitterBufferItem * item);
 
 #endif /* __RTP_JITTER_BUFFER_H__ */

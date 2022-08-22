@@ -20,20 +20,20 @@
 
 /**
  * SECTION:element-audiodynamic
+ * @title: audiodynamic
  *
  * This element can act as a compressor or expander. A compressor changes the
  * amplitude of all samples above a specific threshold with a specific ratio,
  * a expander does the same for all samples below a specific threshold. If
  * soft-knee mode is selected the ratio is applied smoothly.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * gst-launch-1.0 audiotestsrc wave=saw ! audiodynamic characteristics=soft-knee mode=compressor threshold=0.5 ratio=0.5 ! alsasink
  * gst-launch-1.0 filesrc location="melo1.ogg" ! oggdemux ! vorbisdec ! audioconvert ! audiodynamic characteristics=hard-knee mode=expander threshold=0.2 ratio=4.0 ! alsasink
  * gst-launch-1.0 audiotestsrc wave=saw ! audioconvert ! audiodynamic ! audioconvert ! alsasink
  * ]|
- * </refsect2>
+ *
  */
 
 /* TODO: Implement attack and release parameters */
@@ -76,6 +76,8 @@ enum
     " layout=(string) {interleaved, non-interleaved}"
 
 G_DEFINE_TYPE (GstAudioDynamic, gst_audio_dynamic, GST_TYPE_AUDIO_FILTER);
+GST_ELEMENT_REGISTER_DEFINE (audiodynamic, "audiodynamic",
+    GST_RANK_NONE, GST_TYPE_AUDIO_DYNAMIC);
 
 static void gst_audio_dynamic_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -254,6 +256,9 @@ gst_audio_dynamic_class_init (GstAudioDynamicClass * klass)
   GST_BASE_TRANSFORM_CLASS (klass)->transform_ip =
       GST_DEBUG_FUNCPTR (gst_audio_dynamic_transform_ip);
   GST_BASE_TRANSFORM_CLASS (klass)->transform_ip_on_passthrough = FALSE;
+
+  gst_type_mark_as_plugin_api (GST_TYPE_AUDIO_DYNAMIC_CHARACTERISTICS, 0);
+  gst_type_mark_as_plugin_api (GST_TYPE_AUDIO_DYNAMIC_MODE, 0);
 }
 
 static void
@@ -457,7 +462,7 @@ gst_audio_dynamic_transform_soft_knee_compressor_float (GstAudioDynamic *
    * f(x) = ax^2 + bx + c
    */
 
-  /* FIXME: If treshold is the same as the maximum
+  /* FIXME: If threshold is the same as the maximum
    * we need to raise it a bit to prevent
    * division by zero. */
   if (threshold == 1.0)

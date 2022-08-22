@@ -178,10 +178,11 @@ extern "C" {
  * "625-line television Wide Screen Signalling (WSS)"</a>.
  *
  * vbi_sliced payload:
- * <pre>
+ * ```
  * Byte         0                  1
  *       msb         lsb  msb             lsb
- * bit   7 6 5 4 3 2 1 0  x x 13 12 11 10 9 8<br></pre>
+ * bit   7 6 5 4 3 2 1 0  x x 13 12 11 10 9 8
+ * ```
  * according to EN 300 294, Table 1, lsb first transmitted.
  */
 #define VBI_SLICED_WSS_625              0x00000400
@@ -280,11 +281,11 @@ extern "C" {
  * Reference: <a href="http://www.jeita.or.jp">EIA-J CPR-1204</a>
  *
  * vbi_sliced payload:
- * <pre>
+ * ```
  * Byte         0                    1                  2
  *       msb         lsb  msb               lsb  msb             lsb
  * bit   7 6 5 4 3 2 1 0  15 14 13 12 11 10 9 8  x x x x 19 18 17 16
- * </pre>
+ * ```
  */
 
 #define VBI_SLICED_WSS_CPR1204		0x00000800
@@ -319,7 +320,7 @@ typedef unsigned int vbi_service_set;
  */
 typedef struct {
 	/**
-	 * A @ref VBI_SLICED_ symbol identifying the data service. Under cirumstances
+	 * A @ref VBI_SLICED_ symbol identifying the data service. Under circumstances
 	 * (see VBI_SLICED_TELETEXT_B) this can be a set of VBI_SLICED_ symbols.
 	 */
 	uint32_t		id;

@@ -20,23 +20,24 @@
 
 /**
  * SECTION:element-rtpklvpay
+ * @title: rtpklvpay
  * @see_also: rtpklvdepay
  *
  * Payloads KLV metadata into RTP packets according to RFC 6597.
  * For detailed information see: http://tools.ietf.org/html/rfc6597
  *
- * <refsect2>
- * <title>Example pipeline</title>
+ * ## Example pipeline
  * |[
  * gst-launch-1.0 filesrc location=video-with-klv.ts ! tsdemux ! rtpklvpay ! udpsink
  * ]| This example pipeline will payload an RTP KLV stream extracted from an
  * MPEG-TS stream and send it via UDP to an RTP receiver.
- * </refsect2>
+ *
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
+#include "gstrtpelements.h"
 #include "gstrtpklvpay.h"
 #include "gstrtputils.h"
 
@@ -60,6 +61,8 @@ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
 
 #define gst_rtp_klv_pay_parent_class parent_class
 G_DEFINE_TYPE (GstRtpKlvPay, gst_rtp_klv_pay, GST_TYPE_RTP_BASE_PAYLOAD);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpklvpay, "rtpklvpay",
+    GST_RANK_SECONDARY, GST_TYPE_RTP_KLV_PAY, rtp_element_init (plugin));
 
 static gboolean gst_rtp_klv_pay_setcaps (GstRTPBasePayload * pay,
     GstCaps * caps);
@@ -147,7 +150,7 @@ gst_rtp_klv_pay_handle_buffer (GstRTPBasePayload * basepayload, GstBuffer * buf)
     bytes_left = map.size - offset;
     payload_size = MIN (bytes_left, max_payload_size);
 
-    outbuf = gst_rtp_buffer_new_allocate (0, 0, 0);
+    outbuf = gst_rtp_base_payload_allocate_output_buffer (basepayload, 0, 0, 0);
 
     if (payload_size == bytes_left) {
       GST_LOG_OBJECT (pay, "last packet of KLV unit");
@@ -194,11 +197,4 @@ bad_input:
     GST_ERROR_OBJECT (pay, "Input doesn't look like a KLV packet, ignoring");
     goto done;
   }
-}
-
-gboolean
-gst_rtp_klv_pay_plugin_init (GstPlugin * plugin)
-{
-  return gst_element_register (plugin, "rtpklvpay",
-      GST_RANK_SECONDARY, GST_TYPE_RTP_KLV_PAY);
 }

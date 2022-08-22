@@ -30,7 +30,6 @@
 
 typedef struct _GstRtpSsrcDemux GstRtpSsrcDemux;
 typedef struct _GstRtpSsrcDemuxClass GstRtpSsrcDemuxClass;
-typedef struct _GstRtpSsrcDemuxPad GstRtpSsrcDemuxPad;
 
 struct _GstRtpSsrcDemux
 {
@@ -41,6 +40,7 @@ struct _GstRtpSsrcDemux
 
   GRecMutex padlock;
   GSList *srcpads;
+  guint max_streams;
 };
 
 struct _GstRtpSsrcDemuxClass
@@ -56,5 +56,7 @@ struct _GstRtpSsrcDemuxClass
 };
 
 GType gst_rtp_ssrc_demux_get_type (void);
+
+GST_ELEMENT_REGISTER_DECLARE (rtpssrcdemux);
 
 #endif /* __GST_RTP_SSRC_DEMUX_H__ */

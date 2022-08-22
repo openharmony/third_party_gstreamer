@@ -24,41 +24,13 @@
 #include <gst/gst.h>
 #include <gst/base/gstadapter.h>
 
-GST_DEBUG_CATEGORY_EXTERN (sub_parse_debug);
-#define GST_CAT_DEFAULT sub_parse_debug
+#include "gstsubparseelements.h"
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_SUBPARSE \
-  (gst_sub_parse_get_type ())
-#define GST_SUBPARSE(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST ((obj), GST_TYPE_SUBPARSE, GstSubParse))
-#define GST_SUBPARSE_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST ((klass), GST_TYPE_SUBPARSE, GstSubParseClass))
-#define GST_IS_SUBPARSE(obj) \
-  (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GST_TYPE_SUBPARSE))
-#define GST_IS_SUBPARSE_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_TYPE ((klass), GST_TYPE_SUBPARSE))
+#define GST_TYPE_SUBPARSE (gst_sub_parse_get_type ())
+G_DECLARE_FINAL_TYPE (GstSubParse, gst_sub_parse, GST, SUBPARSE, GstElement)
 
-typedef struct _GstSubParse GstSubParse;
-typedef struct _GstSubParseClass GstSubParseClass;
-
-/* format enum */
-typedef enum
-{
-  GST_SUB_PARSE_FORMAT_UNKNOWN = 0,
-  GST_SUB_PARSE_FORMAT_MDVDSUB = 1,
-  GST_SUB_PARSE_FORMAT_SUBRIP = 2,
-  GST_SUB_PARSE_FORMAT_MPSUB = 3,
-  GST_SUB_PARSE_FORMAT_SAMI = 4,
-  GST_SUB_PARSE_FORMAT_TMPLAYER = 5,
-  GST_SUB_PARSE_FORMAT_MPL2 = 6,
-  GST_SUB_PARSE_FORMAT_SUBVIEWER = 7,
-  GST_SUB_PARSE_FORMAT_DKS = 8,
-  GST_SUB_PARSE_FORMAT_QTTEXT = 9,
-  GST_SUB_PARSE_FORMAT_LRC = 10,
-  GST_SUB_PARSE_FORMAT_VTT = 11
-} GstSubParseFormat;
 
 typedef struct {
   int      state;
@@ -110,18 +82,13 @@ struct _GstSubParse {
   gboolean valid_utf8;
   gchar   *detected_encoding;
   gchar   *encoding;
+  gboolean strip_pango_markup;
 
   gboolean first_buffer;
 
   /* used by frame based parsers */
   gint fps_n, fps_d;          
 };
-
-struct _GstSubParseClass {
-  GstElementClass parent_class;
-};
-
-GType gst_sub_parse_get_type (void);
 
 G_END_DECLS
 

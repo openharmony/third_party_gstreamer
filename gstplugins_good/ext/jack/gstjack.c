@@ -22,13 +22,11 @@
 #endif
 
 #include "gstjack.h"
-#include "gstjackaudiosrc.h"
-#include "gstjackaudiosink.h"
 
 GType
 gst_jack_connect_get_type (void)
 {
-  static volatile gsize jack_connect_type = 0;
+  static gsize jack_connect_type = 0;
 
   if (g_once_init_enter (&jack_connect_type)) {
     static const GEnumValue jack_connect_enums[] = {
@@ -39,6 +37,9 @@ gst_jack_connect_get_type (void)
       {GST_JACK_CONNECT_AUTO_FORCED,
             "Automatically connect ports to as many physical ports as possible",
           "auto-forced"},
+      {GST_JACK_CONNECT_EXPLICIT,
+            "Connect ports to explicitly requested physical ports",
+          "explicit"},
       {0, NULL, NULL},
     };
     GType tmp = g_enum_register_static ("GstJackConnect", jack_connect_enums);
@@ -50,7 +51,7 @@ gst_jack_connect_get_type (void)
 GType
 gst_jack_transport_get_type (void)
 {
-  static volatile gsize type = 0;
+  static gsize type = 0;
 
   if (g_once_init_enter (&type)) {
     static const GFlagsValue flag_values[] = {
@@ -84,7 +85,7 @@ gst_jack_client_free (gpointer jclient)
 GType
 gst_jack_client_get_type (void)
 {
-  static volatile gsize jack_client_type = 0;
+  static gsize jack_client_type = 0;
 
   if (g_once_init_enter (&jack_client_type)) {
     /* hackish, but makes it show up nicely in gst-inspect */
@@ -100,14 +101,12 @@ gst_jack_client_get_type (void)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  if (!gst_element_register (plugin, "jackaudiosrc", GST_RANK_PRIMARY,
-          GST_TYPE_JACK_AUDIO_SRC))
-    return FALSE;
-  if (!gst_element_register (plugin, "jackaudiosink", GST_RANK_PRIMARY,
-          GST_TYPE_JACK_AUDIO_SINK))
-    return FALSE;
+  gboolean ret = FALSE;
 
-  return TRUE;
+  ret |= GST_ELEMENT_REGISTER (jackaudiosrc, plugin);
+  ret |= GST_ELEMENT_REGISTER (jackaudiosink, plugin);
+
+  return ret;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

@@ -25,6 +25,7 @@
 /**
  * SECTION:gstglmemoryegl
  * @short_description: memory subclass for EGLImage's
+ * @title: GstGLMemoryEGL
  * @see_also: #GstGLMemory, #GstGLBaseMemoryAllocator, #GstGLBufferPool
  *
  * #GstGLMemoryEGL is created or wrapped through gst_gl_base_memory_alloc()
@@ -53,6 +54,8 @@ GST_DEBUG_CATEGORY_STATIC (GST_CAT_GL_MEMORY);
 #define parent_class gst_gl_memory_egl_allocator_parent_class
 G_DEFINE_TYPE (GstGLMemoryEGLAllocator, gst_gl_memory_egl_allocator,
     GST_TYPE_GL_MEMORY_ALLOCATOR);
+
+GST_DEFINE_MINI_OBJECT_TYPE (GstGLMemoryEGL, gst_gl_memory_egl);
 
 /**
  * gst_is_gl_memory_egl:
@@ -146,12 +149,14 @@ _gl_mem_egl_alloc (GstGLBaseMemoryAllocator * allocator,
 
   mem = g_new0 (GstGLMemoryEGL, 1);
   if (alloc_flags & GST_GL_ALLOCATION_PARAMS_ALLOC_FLAG_WRAP_GPU_HANDLE) {
-    if (params->target != GST_GL_TEXTURE_TARGET_2D) {
+    if (params->target != GST_GL_TEXTURE_TARGET_2D &&
+        params->target != GST_GL_TEXTURE_TARGET_EXTERNAL_OES) {
       g_free (mem);
       GST_CAT_ERROR (GST_CAT_GL_MEMORY, "GstGLMemoryEGL only supports wrapping "
-          "2D textures");
+          "2D and external-oes textures");
       return NULL;
     }
+    mem->mem.tex_target = params->target;
     mem->image = gst_egl_image_ref (params->parent.gl_handle);
   }
 
@@ -196,9 +201,18 @@ _gl_mem_create (GstGLMemoryEGL * gl_mem, GError ** error)
       return FALSE;
     }
   } else {
+    guint gl_target = gst_gl_texture_target_to_gl (gl_mem->mem.tex_target);
+
+    if (!gl->EGLImageTargetTexture2D) {
+      g_set_error (error, GST_GL_CONTEXT_ERROR, GST_GL_CONTEXT_ERROR_FAILED,
+          "Required function glEGLImageTargetTexture2D() is not available for "
+          "attaching an EGLImage to a texture");
+      return FALSE;
+    }
+
     gl->ActiveTexture (GL_TEXTURE0 + gl_mem->mem.plane);
-    gl->BindTexture (GL_TEXTURE_2D, gl_mem->mem.tex_id);
-    gl->EGLImageTargetTexture2D (GL_TEXTURE_2D,
+    gl->BindTexture (gl_target, gl_mem->mem.tex_id);
+    gl->EGLImageTargetTexture2D (gl_target,
         gst_egl_image_get_image (GST_EGL_IMAGE (gl_mem->image)));
   }
 
@@ -252,7 +266,7 @@ gst_gl_memory_egl_allocator_init (GstGLMemoryEGLAllocator * allocator)
 void
 gst_gl_memory_egl_init_once (void)
 {
-  static volatile gsize _init = 0;
+  static gsize _init = 0;
 
   if (g_once_init_enter (&_init)) {
     gst_gl_memory_init_once ();

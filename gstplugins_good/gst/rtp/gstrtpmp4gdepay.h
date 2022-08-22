@@ -68,6 +68,7 @@ struct _GstRtpMP4GDepay
   guint prev_AU_num;
 
   gboolean check_adts; /* check for ADTS headers */
+  gboolean warn_adts;  /* warn about ADTS headers */
 
   GQueue *packets;
   
@@ -80,8 +81,6 @@ struct _GstRtpMP4GDepayClass
 };
 
 GType gst_rtp_mp4g_depay_get_type (void);
-
-gboolean gst_rtp_mp4g_depay_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 

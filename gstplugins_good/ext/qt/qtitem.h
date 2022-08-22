@@ -42,6 +42,7 @@ public:
 
     void invalidateRef();
 
+    void setSink (GstElement * sink);
     void setBuffer (GstBuffer * buffer);
     gboolean setCaps (GstCaps *caps);
     gboolean initWinSys ();
@@ -59,8 +60,6 @@ private:
     QMutex lock;
 };
 
-class InitializeSceneGraph;
-
 class QtGLVideoItem : public QQuickItem, protected QOpenGLFunctions
 {
     Q_OBJECT
@@ -68,6 +67,10 @@ class QtGLVideoItem : public QQuickItem, protected QOpenGLFunctions
     Q_PROPERTY(bool itemInitialized
                READ itemInitialized
                NOTIFY itemInitializedChanged)
+    Q_PROPERTY(bool forceAspectRatio
+               READ getForceAspectRatio
+               WRITE setForceAspectRatio
+               NOTIFY forceAspectRatioChanged)
 
 public:
     QtGLVideoItem();
@@ -85,6 +88,7 @@ public:
 
 Q_SIGNALS:
     void itemInitializedChanged();
+    void forceAspectRatioChanged(bool);
 
 private Q_SLOTS:
     void handleWindowChanged(QQuickWindow * win);
@@ -92,16 +96,26 @@ private Q_SLOTS:
     void onSceneGraphInvalidated();
 
 protected:
-    QSGNode * updatePaintNode (QSGNode * oldNode, UpdatePaintNodeData * updatePaintNodeData);
+    QSGNode * updatePaintNode (QSGNode * oldNode, UpdatePaintNodeData * updatePaintNodeData) override;
+    void wheelEvent(QWheelEvent *) override;
+    void hoverEnterEvent(QHoverEvent *) override;
+    void hoverLeaveEvent (QHoverEvent *) override;
+    void hoverMoveEvent (QHoverEvent *) override;
+    void mousePressEvent(QMouseEvent*) override;
+    void mouseReleaseEvent(QMouseEvent*) override;
 
 private:
 
-    friend class InitializeSceneGraph;
     void setViewportSize(const QSize &size);
     void shareContext();
 
-    QSize m_viewportSize;
-    bool m_openGlContextInitialized;
+    void fitStreamToAllocatedSize(GstVideoRectangle * result);
+    QPointF mapPointToStreamSize(QPointF);
+
+    void sendMouseEvent(QMouseEvent * event, const gchar * type);
+
+    quint32 mousePressedButton;
+    bool mouseHovering;
 
     QSharedPointer<QtGLVideoItemInterface> proxy;
 };

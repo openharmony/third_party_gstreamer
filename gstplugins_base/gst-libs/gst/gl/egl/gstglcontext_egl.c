@@ -30,9 +30,8 @@
 
 #include "gstglcontext_egl.h"
 
+#include <gst/gl/gl.h>
 #include <gst/gl/gstglcontext_private.h>
-#include <gst/gl/gstglfeature.h>
-#include <gst/gl/gstglwindow.h>
 
 #include "gstegl.h"
 #include "../utils/opengl_versions.h"
@@ -54,6 +53,9 @@
 #if GST_GL_HAVE_WINDOW_GBM
 #include "../gbm/gstglwindow_gbm_egl.h"
 #endif
+#if GST_GL_HAVE_WINDOW_VIV_FB
+#include "../viv-fb/gstglwindow_viv_fb_egl.h"
+#endif
 
 #define GST_CAT_DEFAULT gst_gl_context_debug
 
@@ -74,6 +76,9 @@ static gboolean gst_gl_context_egl_check_feature (GstGLContext * context,
     const gchar * feature);
 static void gst_gl_context_egl_get_gl_platform_version (GstGLContext * context,
     gint * major, gint * minor);
+static GstStructure *gst_gl_context_egl_get_config (GstGLContext * context);
+static gboolean gst_gl_context_egl_request_config (GstGLContext * context,
+    GstStructure * config);
 
 G_DEFINE_TYPE (GstGLContextEGL, gst_gl_context_egl, GST_TYPE_GL_CONTEXT);
 
@@ -105,6 +110,9 @@ gst_gl_context_egl_class_init (GstGLContextEGLClass * klass)
       GST_DEBUG_FUNCPTR (gst_gl_context_egl_get_current_context);
   context_class->get_gl_platform_version =
       GST_DEBUG_FUNCPTR (gst_gl_context_egl_get_gl_platform_version);
+  context_class->get_config = GST_DEBUG_FUNCPTR (gst_gl_context_egl_get_config);
+  context_class->request_config =
+      GST_DEBUG_FUNCPTR (gst_gl_context_egl_request_config);
 }
 
 static void
@@ -150,6 +158,226 @@ gst_gl_context_egl_choose_format (GstGLContext * context, GError ** error)
 #endif
 
   return TRUE;
+}
+
+static GstGLAPI
+egl_conformant_to_gst (int conformant)
+{
+  GstGLAPI ret = GST_GL_API_NONE;
+
+  if (conformant & EGL_OPENGL_BIT)
+    ret |= GST_GL_API_OPENGL | GST_GL_API_OPENGL3;
+  if (conformant & EGL_OPENGL_ES_BIT)
+    ret |= GST_GL_API_GLES1;
+  if (conformant & EGL_OPENGL_ES2_BIT)
+    ret |= GST_GL_API_GLES2;
+#if defined(EGL_KHR_create_context)
+  if (conformant & EGL_OPENGL_ES3_BIT_KHR)
+    /* FIXME: need another gles3 value? */
+    ret |= GST_GL_API_GLES2;
+#endif
+#if 0
+  if (conformant & EGL_OPENVG_BIT)
+    conformant_values[i++] = "OpenVG";
+#endif
+
+  return ret;
+}
+
+static GstGLConfigSurfaceType
+egl_surface_type_to_gst (int surface)
+{
+  GstGLConfigSurfaceType ret = GST_GL_CONFIG_SURFACE_TYPE_NONE;
+
+  if (surface & EGL_WINDOW_BIT)
+    ret |= GST_GL_CONFIG_SURFACE_TYPE_WINDOW;
+  if (surface & EGL_PBUFFER_BIT)
+    ret |= GST_GL_CONFIG_SURFACE_TYPE_PBUFFER;
+#if 0
+  if (surface & EGL_MULTISAMPLE_RESOLVE_BOX_BIT)
+    surface_values[i++] = "multisample-resolve-box";
+  if (surface & EGL_SWAP_BEHAVIOR_PRESERVED_BIT)
+    surface_values[i++] = "swap-behaviour-preserved";
+  if (surface & EGL_VG_ALPHA_FORMAT_PRE_BIT)
+    surface_values[i++] = "vg-alpha-format-pre";
+  if (surface & EGL_VG_COLORSPACE_LINEAR_BIT)
+    surface_values[i++] = "vg-colorspace-linear";
+#endif
+  return ret;
+}
+
+static GstGLConfigCaveat
+egl_caveat_to_gst (int caveat)
+{
+  switch (caveat) {
+    case EGL_NONE:
+      return GST_GL_CONFIG_CAVEAT_NONE;
+    case EGL_SLOW_CONFIG:
+      return GST_GL_CONFIG_CAVEAT_SLOW;
+    case EGL_NON_CONFORMANT_CONFIG:
+      return GST_GL_CONFIG_CAVEAT_NON_CONFORMANT;
+    default:
+      GST_WARNING ("unknown EGL caveat value %u (0x%x)", caveat, caveat);
+      return GST_GL_CONFIG_CAVEAT_NON_CONFORMANT;
+  }
+}
+
+static GstStructure *
+egl_config_to_structure (EGLDisplay egl_display, EGLConfig config)
+{
+  GstStructure *ret;
+  int val;
+  int buffer_type;
+
+  if (!egl_display)
+    return NULL;
+
+  ret = gst_structure_new (GST_GL_CONFIG_STRUCTURE_NAME,
+      GST_GL_CONFIG_STRUCTURE_SET_ARGS (PLATFORM, GstGLPlatform,
+          GST_GL_PLATFORM_EGL), NULL);
+
+  if (!eglGetConfigAttrib (egl_display, config, EGL_CONFIG_ID, &val))
+    goto failure;
+  gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (CONFIG_ID, int,
+          val), NULL);
+
+#if 0
+  {
+    /* Don't know how to translate this value, it's platform and implementation
+     * dependant
+     */
+    int native_visual_type;
+    if (!eglGetConfigAttrib (egl_display, config, EGL_NATIVE_VISUAL_TYPE,
+            &native_visual_type))
+      goto failure;
+  }
+#endif
+
+  if (!eglGetConfigAttrib (egl_display, config, EGL_NATIVE_VISUAL_ID, &val))
+    goto failure;
+  gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (NATIVE_VISUAL_ID,
+          guint, val), NULL);
+
+  if (!eglGetConfigAttrib (egl_display, config, EGL_NATIVE_RENDERABLE, &val))
+    goto failure;
+  gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (NATIVE_RENDERABLE,
+          gboolean, val), NULL);
+
+  if (!eglGetConfigAttrib (egl_display, config, EGL_CONFORMANT, &val))
+    goto failure;
+  gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (CONFORMANT_API,
+          GstGLAPI, egl_conformant_to_gst (val)), NULL);
+
+  if (!eglGetConfigAttrib (egl_display, config, EGL_RENDERABLE_TYPE, &val))
+    goto failure;
+  gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (RENDERABLE_API,
+          GstGLAPI, egl_conformant_to_gst (val)), NULL);
+
+  if (!eglGetConfigAttrib (egl_display, config, EGL_SURFACE_TYPE, &val))
+    goto failure;
+  gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (SURFACE_TYPE,
+          GstGLConfigSurfaceType, egl_surface_type_to_gst (val)), NULL);
+
+  if (!eglGetConfigAttrib (egl_display, config, EGL_CONFIG_CAVEAT, &val))
+    goto failure;
+  gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (CAVEAT,
+          GstGLConfigCaveat, egl_caveat_to_gst (val)), NULL);
+
+  if (!eglGetConfigAttrib (egl_display, config, EGL_LEVEL, &val))
+    goto failure;
+  gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (LEVEL, int, val),
+      NULL);
+
+
+  if (!eglGetConfigAttrib (egl_display, config, EGL_COLOR_BUFFER_TYPE,
+          &buffer_type))
+    goto failure;
+
+  if (buffer_type == EGL_RGB_BUFFER) {
+    if (!eglGetConfigAttrib (egl_display, config, EGL_RED_SIZE, &val))
+      goto failure;
+    gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (RED_SIZE, int,
+            val), NULL);
+
+    if (!eglGetConfigAttrib (egl_display, config, EGL_GREEN_SIZE, &val))
+      goto failure;
+    gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (GREEN_SIZE, int,
+            val), NULL);
+
+    if (!eglGetConfigAttrib (egl_display, config, EGL_BLUE_SIZE, &val))
+      goto failure;
+    gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (BLUE_SIZE, int,
+            val), NULL);
+
+    if (!eglGetConfigAttrib (egl_display, config, EGL_ALPHA_SIZE, &val))
+      goto failure;
+    gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (ALPHA_SIZE, int,
+            val), NULL);
+  } else if (buffer_type == EGL_LUMINANCE_BUFFER) {
+    if (!eglGetConfigAttrib (egl_display, config, EGL_LUMINANCE_SIZE, &val))
+      goto failure;
+    gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (LUMINANCE_SIZE,
+            int, val), NULL);
+
+    if (!eglGetConfigAttrib (egl_display, config, EGL_ALPHA_SIZE, &val))
+      goto failure;
+    gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (ALPHA_SIZE, int,
+            val), NULL);
+  } else {
+    GST_WARNING ("unknown EGL_COLOR_BUFFER_TYPE value %x", buffer_type);
+    goto failure;
+  }
+
+  if (!eglGetConfigAttrib (egl_display, config, EGL_DEPTH_SIZE, &val))
+    goto failure;
+  gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (DEPTH_SIZE, int,
+          val), NULL);
+
+  if (!eglGetConfigAttrib (egl_display, config, EGL_STENCIL_SIZE, &val))
+    goto failure;
+  gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (STENCIL_SIZE, int,
+          val), NULL);
+
+  if (!eglGetConfigAttrib (egl_display, config, EGL_MIN_SWAP_INTERVAL, &val))
+    goto failure;
+  gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (MIN_SWAP_INTERVAL,
+          int, val), NULL);
+
+  if (!eglGetConfigAttrib (egl_display, config, EGL_MAX_SWAP_INTERVAL, &val))
+    goto failure;
+  gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (MAX_SWAP_INTERVAL,
+          int, val), NULL);
+
+  if (!eglGetConfigAttrib (egl_display, config, EGL_MAX_PBUFFER_WIDTH, &val))
+    goto failure;
+  gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (MAX_PBUFFER_WIDTH,
+          int, val), NULL);
+
+  if (!eglGetConfigAttrib (egl_display, config, EGL_MAX_PBUFFER_HEIGHT, &val))
+    goto failure;
+  gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (MAX_PBUFFER_HEIGHT,
+          int, val), NULL);
+
+  if (!eglGetConfigAttrib (egl_display, config, EGL_MAX_PBUFFER_PIXELS, &val))
+    goto failure;
+  gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (MAX_PBUFFER_PIXELS,
+          int, val), NULL);
+
+  if (!eglGetConfigAttrib (egl_display, config, EGL_SAMPLE_BUFFERS, &val))
+    goto failure;
+  gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (SAMPLE_BUFFERS, int,
+          val), NULL);
+
+  if (!eglGetConfigAttrib (egl_display, config, EGL_SAMPLES, &val))
+    goto failure;
+  gst_structure_set (ret, GST_GL_CONFIG_STRUCTURE_SET_ARGS (SAMPLES, int, val),
+      NULL);
+
+  return ret;
+
+failure:
+  gst_structure_free (ret);
+  return NULL;
 }
 
 static void
@@ -270,7 +498,7 @@ gst_gl_context_egl_dump_config (GstGLContextEGL * egl, EGLConfig config)
     g_assert (i < MAX_SURFACE);
 
     surface_str = g_strjoinv ("|", (char **) surface_values);
-    GST_DEBUG_OBJECT (egl, "Surface for %s", surface_str);
+    GST_DEBUG_OBJECT (egl, "Surface for (0x%x) %s", surface, surface_str);
     g_free (surface_str);
 #undef MAX_RENDERABLE
   }
@@ -405,9 +633,24 @@ gst_gl_context_egl_choose_config (GstGLContextEGL * egl, GstGLAPI gl_api,
 {
   gboolean create_context;
   EGLint numConfigs;
-  gint i = 0;
+  gint i, n;
   EGLint config_attrib[20];
   EGLint egl_api = 0;
+  EGLBoolean ret = EGL_FALSE;
+  EGLint surface_type = EGL_WINDOW_BIT;
+  EGLint alpha_size = 1;
+  GstGLWindow *window;
+
+  window = gst_gl_context_get_window (GST_GL_CONTEXT (egl));
+
+  if (!window || !gst_gl_window_has_output_surface (window)) {
+    GST_INFO_OBJECT (egl,
+        "gl window has no output surface, use pixel buffer surfaces");
+    surface_type = EGL_PBUFFER_BIT;
+  }
+
+  if (window)
+    gst_object_unref (window);
 
   create_context =
       gst_gl_check_extension ("EGL_KHR_create_context", egl->egl_exts);
@@ -430,38 +673,92 @@ gst_gl_context_egl_choose_config (GstGLContextEGL * egl, GstGLAPI gl_api,
   } else
     egl_api = EGL_OPENGL_BIT;
 
+try_again:
+  i = 0;
+  n = G_N_ELEMENTS (config_attrib);
   config_attrib[i++] = EGL_SURFACE_TYPE;
-  config_attrib[i++] = EGL_WINDOW_BIT;
+  config_attrib[i++] = surface_type;
   config_attrib[i++] = EGL_RENDERABLE_TYPE;
   config_attrib[i++] = egl_api;
-#if defined(USE_EGL_RPI) && GST_GL_HAVE_WINDOW_WAYLAND
-  /* The configurations with a=0 seems to be buggy whereas
-   * it works when using dispmanx directly */
-  config_attrib[i++] = EGL_ALPHA_SIZE;
-  config_attrib[i++] = 1;
-#endif
-  config_attrib[i++] = EGL_DEPTH_SIZE;
-  config_attrib[i++] = 16;
-  config_attrib[i++] = EGL_RED_SIZE;
-  config_attrib[i++] = 1;
-  config_attrib[i++] = EGL_GREEN_SIZE;
-  config_attrib[i++] = 1;
-  config_attrib[i++] = EGL_BLUE_SIZE;
-  config_attrib[i++] = 1;
-  config_attrib[i++] = EGL_NONE;
 
-  if (eglChooseConfig (egl->egl_display, config_attrib,
-          &egl->egl_config, 1, &numConfigs)) {
+  if (egl->requested_config) {
+#define TRANSFORM_VALUE(GL_CONF_NAME,EGL_ATTR_NAME) \
+  G_STMT_START { \
+    if (gst_structure_has_field_typed (egl->requested_config, \
+          GST_GL_CONFIG_ATTRIB_NAME(GL_CONF_NAME), \
+          GST_GL_CONFIG_ATTRIB_GTYPE(GL_CONF_NAME))) { \
+      int val; \
+      if (gst_structure_get (egl->requested_config, \
+          GST_GL_CONFIG_ATTRIB_NAME(GL_CONF_NAME), \
+          GST_GL_CONFIG_ATTRIB_GTYPE(GL_CONF_NAME), &val, NULL)) { \
+        config_attrib[i++] = EGL_ATTR_NAME; \
+        config_attrib[i++] = (int) val; \
+        g_assert (i <= n); \
+      } \
+    } \
+  } G_STMT_END
+
+    TRANSFORM_VALUE (CONFIG_ID, EGL_CONFIG_ID);
+    TRANSFORM_VALUE (RED_SIZE, EGL_RED_SIZE);
+    TRANSFORM_VALUE (GREEN_SIZE, EGL_GREEN_SIZE);
+    TRANSFORM_VALUE (BLUE_SIZE, EGL_BLUE_SIZE);
+    TRANSFORM_VALUE (ALPHA_SIZE, EGL_ALPHA_SIZE);
+    TRANSFORM_VALUE (DEPTH_SIZE, EGL_DEPTH_SIZE);
+    TRANSFORM_VALUE (STENCIL_SIZE, EGL_STENCIL_SIZE);
+    /* TODO: more values */
+#undef TRANSFORM_VALUE
+  } else {
+    config_attrib[i++] = EGL_DEPTH_SIZE;
+    config_attrib[i++] = 16;
+    config_attrib[i++] = EGL_RED_SIZE;
+    config_attrib[i++] = 1;
+    config_attrib[i++] = EGL_GREEN_SIZE;
+    config_attrib[i++] = 1;
+    config_attrib[i++] = EGL_BLUE_SIZE;
+    config_attrib[i++] = 1;
+    config_attrib[i++] = EGL_ALPHA_SIZE;
+    config_attrib[i++] = alpha_size;
+  }
+
+  config_attrib[i++] = EGL_NONE;
+  g_assert (i <= n);
+
+  ret = eglChooseConfig (egl->egl_display, config_attrib,
+      &egl->egl_config, 1, &numConfigs);
+
+  if (ret && numConfigs == 0) {
+    if (surface_type == EGL_PBUFFER_BIT) {
+      surface_type = EGL_WINDOW_BIT;
+      GST_TRACE_OBJECT (egl, "Retrying config with window bit");
+      goto try_again;
+    }
+
+    if (alpha_size == 1) {
+      alpha_size = 0;
+      GST_TRACE_OBJECT (egl, "Retrying config not forcing an alpha channel");
+      goto try_again;
+    }
+  }
+
+  if (ret && numConfigs == 1) {
     GST_INFO ("config set: %" G_GUINTPTR_FORMAT ", %u",
         (guintptr) egl->egl_config, (unsigned int) numConfigs);
   } else {
-    g_set_error (error, GST_GL_CONTEXT_ERROR, GST_GL_CONTEXT_ERROR_WRONG_CONFIG,
-        "Failed to set window configuration: %s",
-        gst_egl_get_error_string (eglGetError ()));
+    if (!ret) {
+      g_set_error (error, GST_GL_CONTEXT_ERROR,
+          GST_GL_CONTEXT_ERROR_WRONG_CONFIG, "Failed to choose EGLConfig: %s",
+          gst_egl_get_error_string (eglGetError ()));
+    } else if (numConfigs <= 1) {
+      g_set_error_literal (error, GST_GL_CONTEXT_ERROR,
+          GST_GL_CONTEXT_ERROR_WRONG_CONFIG,
+          "Could not find a compatible EGLConfig:");
+    } else {
+      g_warn_if_reached ();
+    }
     goto failure;
   }
 
-  GST_DEBUG_OBJECT (egl, "chosen EGLConfig");
+  GST_DEBUG_OBJECT (egl, "chosen EGLConfig:");
   gst_gl_context_egl_dump_config (egl, egl->egl_config);
 
   return TRUE;
@@ -535,6 +832,18 @@ _create_context_with_flags (GstGLContextEGL * egl, EGLContext share_context,
       attribs);
 }
 
+static void
+gst_gl_context_egl_window_handle_changed_cb (GstGLContextEGL * egl,
+    GstGLWindow * window)
+{
+  if (egl->egl_surface != EGL_NO_SURFACE) {
+    if (!eglDestroySurface (egl->egl_display, egl->egl_surface))
+      GST_WARNING_OBJECT (egl, "Failed to destroy old window surface: %s",
+          gst_egl_get_error_string (eglGetError ()));
+    egl->egl_surface = EGL_NO_SURFACE;
+  }
+}
+
 static gboolean
 gst_gl_context_egl_create_context (GstGLContext * context,
     GstGLAPI gl_api, GstGLContext * other_context, GError ** error)
@@ -599,6 +908,7 @@ gst_gl_context_egl_create_context (GstGLContext * context,
   }
 
   egl->egl_exts = eglQueryString (egl->egl_display, EGL_EXTENSIONS);
+  GST_DEBUG_OBJECT (egl, "Have EGL extensions: %s", egl->egl_exts);
 
   gst_gl_context_egl_dump_all_configs (egl);
 
@@ -770,7 +1080,8 @@ gst_gl_context_egl_create_context (GstGLContext * context,
 #endif
 #if GST_GL_HAVE_WINDOW_WIN32
     if (GST_IS_GL_WINDOW_WIN32 (context->window)) {
-      gst_gl_window_win32_create_window ((GstGLWindowWin32 *) context->window);
+      gst_gl_window_win32_create_window ((GstGLWindowWin32 *) context->window,
+          NULL);
     }
 #endif
 #if GST_GL_HAVE_WINDOW_DISPMANX
@@ -785,19 +1096,34 @@ gst_gl_context_egl_create_context (GstGLContext * context,
           context->window);
     }
 #endif
+#if GST_GL_HAVE_WINDOW_VIV_FB
+    if (GST_IS_GL_WINDOW_VIV_FB_EGL (context->window)) {
+      gst_gl_window_viv_fb_egl_create_window ((GstGLWindowVivFBEGL *)
+          context->window);
+    }
+#endif
   }
 
   if (window)
     window_handle = gst_gl_window_get_window_handle (window);
 
   if (window_handle) {
+#if GST_GL_HAVE_WINDOW_WINRT && defined (EGL_ANGLE_SURFACE_RENDER_TO_BACK_BUFFER)
+    const EGLint attrs[] = {
+      /* EGL_ANGLE_SURFACE_RENDER_TO_BACK_BUFFER is an optimization that can
+       * have large performance benefits on mobile devices. */
+      EGL_ANGLE_SURFACE_RENDER_TO_BACK_BUFFER, EGL_TRUE,
+      EGL_NONE
+    };
+#else
+    const EGLint *attrs = NULL;
+#endif
+
     GST_DEBUG ("Creating EGLSurface from window_handle %p",
         (void *) window_handle);
     egl->egl_surface =
         eglCreateWindowSurface (egl->egl_display, egl->egl_config,
-        (EGLNativeWindowType) window_handle, NULL);
-    /* Store window handle for later comparision */
-    egl->window_handle = window_handle;
+        (EGLNativeWindowType) window_handle, attrs);
   } else if (!gst_gl_check_extension ("EGL_KHR_surfaceless_context",
           egl->egl_exts)) {
     EGLint surface_attrib[7];
@@ -836,8 +1162,12 @@ gst_gl_context_egl_create_context (GstGLContext * context,
   egl->egl_major = egl_major;
   egl->egl_minor = egl_minor;
 
-  if (window)
+  if (window) {
+    egl->window_handle_signal = g_signal_connect_swapped (window,
+        "window-handle-changed",
+        G_CALLBACK (gst_gl_context_egl_window_handle_changed_cb), egl);
     gst_object_unref (window);
+  }
 
   return TRUE;
 
@@ -852,8 +1182,18 @@ static void
 gst_gl_context_egl_destroy_context (GstGLContext * context)
 {
   GstGLContextEGL *egl;
+  GstGLWindow *window;
 
   egl = GST_GL_CONTEXT_EGL (context);
+  window = gst_gl_context_get_window (context);
+
+  if (window && egl->window_handle_signal) {
+    g_signal_handler_disconnect (window, egl->window_handle_signal);
+    egl->window_handle_signal = 0;
+  }
+  if (window) {
+    gst_object_unref (window);
+  }
 
   gst_gl_context_egl_activate (context, FALSE);
 
@@ -866,7 +1206,6 @@ gst_gl_context_egl_destroy_context (GstGLContext * context)
     eglDestroyContext (egl->egl_display, egl->egl_context);
     egl->egl_context = NULL;
   }
-  egl->window_handle = 0;
 
   eglReleaseThread ();
 
@@ -874,6 +1213,10 @@ gst_gl_context_egl_destroy_context (GstGLContext * context)
     gst_object_unref (egl->display_egl);
     egl->display_egl = NULL;
   }
+
+  if (egl->requested_config)
+    gst_structure_free (egl->requested_config);
+  egl->requested_config = NULL;
 }
 
 static gboolean
@@ -892,22 +1235,23 @@ gst_gl_context_egl_activate (GstGLContext * context, gboolean activate)
       handle = gst_gl_window_get_window_handle (window);
       gst_object_unref (window);
     }
-    if (handle && handle != egl->window_handle) {
+    if (handle && (egl->egl_surface == EGL_NO_SURFACE)) {
+#if GST_GL_HAVE_WINDOW_WINRT && defined (EGL_ANGLE_SURFACE_RENDER_TO_BACK_BUFFER)
+      const EGLint attrs[] = {
+        /* EGL_ANGLE_SURFACE_RENDER_TO_BACK_BUFFER is an optimization that can
+         * have large performance benefits on mobile devices. */
+        EGL_ANGLE_SURFACE_RENDER_TO_BACK_BUFFER, EGL_TRUE,
+        EGL_NONE
+      };
+#else
+      const EGLint *attrs = NULL;
+#endif
       GST_DEBUG_OBJECT (context,
           "Handle changed (have:%p, now:%p), switching surface",
           (void *) egl->window_handle, (void *) handle);
-      if (egl->egl_surface) {
-        result = eglDestroySurface (egl->egl_display, egl->egl_surface);
-        egl->egl_surface = EGL_NO_SURFACE;
-        if (!result) {
-          GST_ERROR_OBJECT (context, "Failed to destroy old window surface: %s",
-              gst_egl_get_error_string (eglGetError ()));
-          goto done;
-        }
-      }
       egl->egl_surface =
           eglCreateWindowSurface (egl->egl_display, egl->egl_config,
-          (EGLNativeWindowType) handle, NULL);
+          (EGLNativeWindowType) handle, attrs);
       egl->window_handle = handle;
 
       if (egl->egl_surface == EGL_NO_SURFACE) {
@@ -1059,4 +1403,106 @@ gst_gl_context_egl_get_gl_platform_version (GstGLContext * context,
 
   *major = context_egl->egl_major;
   *minor = context_egl->egl_minor;
+}
+
+static GstStructure *
+gst_gl_context_egl_get_config (GstGLContext * context)
+{
+  GstGLContextEGL *egl = GST_GL_CONTEXT_EGL (context);
+
+  g_return_val_if_fail (egl->egl_config, NULL);
+
+  return egl_config_to_structure (egl->egl_display, egl->egl_config);
+}
+
+static gboolean
+gst_gl_context_egl_request_config (GstGLContext * context,
+    GstStructure * config)
+{
+  GstGLContextEGL *egl = GST_GL_CONTEXT_EGL (context);
+
+  if (egl->requested_config)
+    gst_structure_free (egl->requested_config);
+  egl->requested_config = config;
+
+  return TRUE;
+}
+
+gboolean
+gst_gl_context_egl_fill_info (GstGLContext * context, GError ** error)
+{
+  EGLContext egl_context = (EGLContext) gst_gl_context_get_gl_context (context);
+  GstGLDisplay *display_egl;
+  GstStructure *config;
+  EGLDisplay *egl_display;
+  EGLConfig egl_config;
+  int config_id, n_configs;
+  int attrs[3];
+
+  if (!egl_context) {
+    g_set_error (error, GST_GL_CONTEXT_ERROR,
+        GST_GL_CONTEXT_ERROR_RESOURCE_UNAVAILABLE, "no EGL context");
+    return FALSE;
+  }
+
+  display_egl =
+      GST_GL_DISPLAY (gst_gl_display_egl_from_gl_display (context->display));
+  egl_display = (EGLDisplay) gst_gl_display_get_handle (display_egl);
+
+  if (EGL_TRUE != eglQueryContext (egl_display, egl_context, EGL_CONFIG_ID,
+          &config_id)) {
+    GST_WARNING_OBJECT (context,
+        "could not retrieve egl config id from egl context: %s",
+        gst_egl_get_error_string (eglGetError ()));
+    g_set_error (error, GST_GL_CONTEXT_ERROR,
+        GST_GL_CONTEXT_ERROR_WRONG_CONFIG,
+        "could not retrieve egl config id from egl context: %s",
+        gst_egl_get_error_string (eglGetError ()));
+    goto failure;
+  }
+
+  if (config_id == 0) {
+    GST_INFO_OBJECT (context, "egl config not available. ID is 0");
+    gst_object_unref (display_egl);
+    return TRUE;
+  }
+
+  attrs[0] = EGL_CONFIG_ID;
+  attrs[1] = config_id;
+  attrs[2] = EGL_NONE;
+
+  if (EGL_TRUE != eglChooseConfig (egl_display, attrs, &egl_config, 1,
+          &n_configs) || n_configs <= 0) {
+    GST_WARNING_OBJECT (context,
+        "could not retrieve egl config from its ID 0x%x. "
+        "Wrong EGLDisplay or context?", config_id);
+    g_set_error (error, GST_GL_CONTEXT_ERROR,
+        GST_GL_CONTEXT_ERROR_WRONG_CONFIG,
+        "could not retrieve egl config from its ID 0x%x. "
+        "Wrong EGLDisplay or context?", config_id);
+    goto failure;
+  }
+
+  config = egl_config_to_structure (egl_display, egl_config);
+  if (!config) {
+    GST_WARNING_OBJECT (context, "could not transform config id 0x%x into "
+        "GstStructure", config_id);
+    g_set_error (error, GST_GL_CONTEXT_ERROR,
+        GST_GL_CONTEXT_ERROR_WRONG_CONFIG,
+        "could not transform config id 0x%x into GstStructure", config_id);
+    goto failure;
+  }
+
+  GST_INFO_OBJECT (context, "found config %" GST_PTR_FORMAT, config);
+
+  g_object_set_data_full (G_OBJECT (context),
+      GST_GL_CONTEXT_WRAPPED_GL_CONFIG_NAME, config,
+      (GDestroyNotify) gst_structure_free);
+
+  gst_object_unref (display_egl);
+  return TRUE;
+
+failure:
+  gst_object_unref (display_egl);
+  return FALSE;
 }

@@ -23,6 +23,7 @@
 
 /**
  * SECTION:element-rtprtxreceive
+ * @title: rtprtxreceive
  * @see_also: rtprtxsend, rtpsession, rtpjitterbuffer
  *
  * rtprtxreceive listens to the retransmission events from the
@@ -45,7 +46,8 @@
  * rtpbin instead, with its #GstRtpBin::request-aux-sender and
  * #GstRtpBin::request-aux-receiver signals. See #GstRtpBin.
  *
- * # Example pipelines
+ * ## Example pipelines
+ *
  * |[
  * gst-launch-1.0 rtpsession name=rtpsession rtp-profile=avpf \
  *     audiotestsrc is-live=true ! opusenc ! rtpopuspay pt=96 ! \
@@ -58,6 +60,7 @@
  *         sync=false async=false
  * ]| Send audio stream through port 5000 (5001 and 5002 are just the rtcp
  * link with the receiver)
+ *
  * |[
  * gst-launch-1.0 rtpsession name=rtpsession rtp-profile=avpf \
  *     udpsrc port=5000 caps="application/x-rtp,media=(string)audio,clock-rate=(int)48000,encoding-name=(string)OPUS,payload=(int)96" ! \
@@ -69,7 +72,8 @@
  *     rtpsession.send_rtcp_src ! \
  *         udpsink host="127.0.0.1" port=5001 sync=false async=false \
  *     udpsrc port=5002 ! rtpsession.recv_rtcp_sink
- * ]| Receive audio stream from port 5000 (5001 and 5002 are just the rtcp
+ * ]|
+ * Receive audio stream from port 5000 (5001 and 5002 are just the rtcp
  * link with the sender)
  *
  * In this example we can see a simple streaming of an OPUS stream with some
@@ -102,7 +106,8 @@
  *     udpsrc port=5001 ! rtpsession.recv_rtcp_sink \
  *     rtpsession.send_rtcp_src ! udpsink host="127.0.0.1" port=5002 \
  *         sync=false async=false
- * ]| Send two audio streams to port 5000.
+ * ]|
+ * Send two audio streams to port 5000.
  * |[
  * gst-launch-1.0 rtpsession name=rtpsession rtp-profile=avpf \
  *     udpsrc port=5000 caps="application/x-rtp,media=(string)audio,clock-rate=(int)48000,encoding-name=(string)OPUS,payload=(int)97" ! \
@@ -117,7 +122,8 @@
  *     udpsrc port=5002 ! rtpsession.recv_rtcp_sink \
  *     rtpsession.send_rtcp_src ! udpsink host="127.0.0.1" port=5001 \
  *         sync=false async=false
- * ]| Receive two audio streams from port 5000.
+ * ]|
+ * Receive two audio streams from port 5000.
  *
  * In this example we are streaming two streams of the same type through the
  * same port. They, however, are using a different SSRC (ssrc is randomly
@@ -131,7 +137,7 @@
  * It is an error, according to RFC4588 to have two retransmission requests for
  * packets belonging to two different streams but with the same sequence number.
  * Note that the default seqnum-offset value (-1, which means random) would
- * work just fine, but it is overriden here for illustration purposes.
+ * work just fine, but it is overridden here for illustration purposes.
  */
 
 #ifdef HAVE_CONFIG_H
@@ -185,7 +191,11 @@ static void gst_rtp_rtx_receive_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 static void gst_rtp_rtx_receive_finalize (GObject * object);
 
-G_DEFINE_TYPE (GstRtpRtxReceive, gst_rtp_rtx_receive, GST_TYPE_ELEMENT);
+G_DEFINE_TYPE_WITH_CODE (GstRtpRtxReceive, gst_rtp_rtx_receive,
+    GST_TYPE_ELEMENT, GST_DEBUG_CATEGORY_INIT (gst_rtp_rtx_receive_debug,
+        "rtprtxreceive", 0, "rtp retransmission receiver"));
+GST_ELEMENT_REGISTER_DEFINE (rtprtxreceive, "rtprtxreceive", GST_RANK_NONE,
+    GST_TYPE_RTP_RTX_RECEIVE);
 
 static void
 gst_rtp_rtx_receive_class_init (GstRtpRtxReceiveClass * klass)
@@ -248,7 +258,7 @@ gst_rtp_rtx_receive_reset (GstRtpRtxReceive * rtx)
 static void
 gst_rtp_rtx_receive_finalize (GObject * object)
 {
-  GstRtpRtxReceive *rtx = GST_RTP_RTX_RECEIVE (object);
+  GstRtpRtxReceive *rtx = GST_RTP_RTX_RECEIVE_CAST (object);
 
   g_hash_table_unref (rtx->ssrc2_ssrc1_map);
   g_hash_table_unref (rtx->seqnum_ssrc1_map);
@@ -316,7 +326,7 @@ static gboolean
 gst_rtp_rtx_receive_src_event (GstPad * pad, GstObject * parent,
     GstEvent * event)
 {
-  GstRtpRtxReceive *rtx = GST_RTP_RTX_RECEIVE (parent);
+  GstRtpRtxReceive *rtx = GST_RTP_RTX_RECEIVE_CAST (parent);
   gboolean res;
 
   switch (GST_EVENT_TYPE (event)) {
@@ -355,7 +365,7 @@ gst_rtp_rtx_receive_src_event (GstPad * pad, GstObject * parent,
         if (g_hash_table_lookup_extended (rtx->ssrc2_ssrc1_map,
                 GUINT_TO_POINTER (ssrc), NULL, &ssrc2)
             && GPOINTER_TO_UINT (ssrc2) != GPOINTER_TO_UINT (ssrc)) {
-          GST_TRACE_OBJECT (rtx, "Retransmited stream %X already associated "
+          GST_TRACE_OBJECT (rtx, "Retransmitted stream %X already associated "
               "to its master, %X", GPOINTER_TO_UINT (ssrc2), ssrc);
         } else {
           SsrcAssoc *assoc;
@@ -372,7 +382,7 @@ gst_rtp_rtx_receive_src_event (GstPad * pad, GstObject * parent,
                * The jitter may be too impatient of the rtx packet has been
                * lost too.
                * It does not mean we reject the event, we still want to forward
-               * the request to the gstrtpsession to be translater into a FB NACK
+               * the request to the gstrtpsession to be translator into a FB NACK
                */
               GST_LOG_OBJECT (rtx, "Duplicate request: seqnum: %u, ssrc: %X",
                   seqnum, ssrc);
@@ -424,7 +434,7 @@ gst_rtp_rtx_receive_src_event (GstPad * pad, GstObject * parent,
         GST_OBJECT_UNLOCK (rtx);
       }
 
-      /* Transfer event upstream so that the request can acutally by translated
+      /* Transfer event upstream so that the request can actually by translated
        * through gstrtpsession through the network */
       res = gst_pad_event_default (pad, parent, event);
       break;
@@ -505,7 +515,7 @@ _gst_rtp_buffer_new_from_rtx (GstRTPBuffer * rtp, guint32 ssrc1,
 static GstFlowReturn
 gst_rtp_rtx_receive_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
 {
-  GstRtpRtxReceive *rtx = GST_RTP_RTX_RECEIVE (parent);
+  GstRtpRtxReceive *rtx = GST_RTP_RTX_RECEIVE_CAST (parent);
   GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
   GstFlowReturn ret = GST_FLOW_OK;
   GstBuffer *new_buffer = NULL;
@@ -682,7 +692,7 @@ static void
 gst_rtp_rtx_receive_get_property (GObject * object,
     guint prop_id, GValue * value, GParamSpec * pspec)
 {
-  GstRtpRtxReceive *rtx = GST_RTP_RTX_RECEIVE (object);
+  GstRtpRtxReceive *rtx = GST_RTP_RTX_RECEIVE_CAST (object);
 
   switch (prop_id) {
     case PROP_PAYLOAD_TYPE_MAP:
@@ -732,7 +742,7 @@ static void
 gst_rtp_rtx_receive_set_property (GObject * object,
     guint prop_id, const GValue * value, GParamSpec * pspec)
 {
-  GstRtpRtxReceive *rtx = GST_RTP_RTX_RECEIVE (object);
+  GstRtpRtxReceive *rtx = GST_RTP_RTX_RECEIVE_CAST (object);
 
   switch (prop_id) {
     case PROP_PAYLOAD_TYPE_MAP:
@@ -758,7 +768,7 @@ gst_rtp_rtx_receive_change_state (GstElement * element,
   GstStateChangeReturn ret;
   GstRtpRtxReceive *rtx;
 
-  rtx = GST_RTP_RTX_RECEIVE (element);
+  rtx = GST_RTP_RTX_RECEIVE_CAST (element);
 
   switch (transition) {
     default:
@@ -778,14 +788,4 @@ gst_rtp_rtx_receive_change_state (GstElement * element,
   }
 
   return ret;
-}
-
-gboolean
-gst_rtp_rtx_receive_plugin_init (GstPlugin * plugin)
-{
-  GST_DEBUG_CATEGORY_INIT (gst_rtp_rtx_receive_debug, "rtprtxreceive", 0,
-      "rtp retransmission receiver");
-
-  return gst_element_register (plugin, "rtprtxreceive", GST_RANK_NONE,
-      GST_TYPE_RTP_RTX_RECEIVE);
 }

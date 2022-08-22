@@ -24,7 +24,14 @@
 #  include "config.h"
 #endif
 
-#include <unistd.h>
+#ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+#endif
+#ifdef _MSC_VER
+/* ssize_t is not available, so match return value of recv()/send() on MSVC */
+#  define ssize_t int
+#  include <winsock2.h>
+#endif
 #include <errno.h>
 #include <string.h>
 #include <gst/base/gstbytewriter.h>
@@ -219,8 +226,23 @@ write_to_fd_raw (GstIpcPipelineComm * comm, const void *data, size_t size)
   gboolean ret = TRUE;
 
   offset = 0;
-  GST_TRACE_OBJECT (comm->element, "Writing %zu bytes to fdout", size);
+  GST_TRACE_OBJECT (comm->element, "Writing %u bytes to fdout",
+      (unsigned) size);
   while (size) {
+#ifdef _MSC_VER
+    ssize_t written =
+        send (comm->fdout, (const unsigned char *) data + offset, size, 0);
+    if (written < 0) {
+      int last_error = WSAGetLastError ();
+      if (last_error == WSAEWOULDBLOCK)
+        continue;
+      gchar *error_text = g_win32_error_message (last_error);
+      GST_ERROR_OBJECT (comm->element, "Failed to write to fd: %s", error_text);
+      g_free (error_text);
+      ret = FALSE;
+      goto done;
+    }
+#else
     ssize_t written =
         write (comm->fdout, (const unsigned char *) data + offset, size);
     if (written < 0) {
@@ -231,6 +253,7 @@ write_to_fd_raw (GstIpcPipelineComm * comm, const void *data, size_t size)
       ret = FALSE;
       goto done;
     }
+#endif
     size -= written;
     offset += written;
   }
@@ -1745,7 +1768,19 @@ again:
       mem = gst_allocator_alloc (NULL, comm->read_chunk_size, NULL);
 
     gst_memory_map (mem, &map, GST_MAP_WRITE);
+#ifdef _MSC_VER
+    sz = recv (comm->pollFDin.fd, map.data, map.size, 0);
+    if (sz < 0) {
+      int last_error = WSAGetLastError ();
+      if (last_error == WSAEWOULDBLOCK) {
+        errno = EAGAIN;
+      } else {
+        errno = last_error;
+      }
+    }
+#else
     sz = read (comm->pollFDin.fd, map.data, map.size);
+#endif
     gst_memory_unmap (mem, &map);
 
     if (sz <= 0) {
@@ -2311,7 +2346,7 @@ G_STMT_START {                                                          \
 void
 gst_ipc_pipeline_comm_plugin_init (void)
 {
-  static volatile gsize once = 0;
+  static gsize once = 0;
 
   if (g_once_init_enter (&once)) {
     GST_DEBUG_CATEGORY_INIT (gst_ipc_pipeline_comm_debug, "ipcpipelinecomm", 0,

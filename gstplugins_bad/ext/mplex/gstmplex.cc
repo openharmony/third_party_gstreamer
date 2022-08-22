@@ -26,25 +26,23 @@
  *
  * This element is an audio/video multiplexer for MPEG-1/2 video streams
  * and (un)compressed audio streams such as AC3, MPEG layer I/II/III.
- * It is based on the <ulink url="http://mjpeg.sourceforge.net/">mjpegtools</ulink> library.
+ * It is based on the [mjpegtools](http://mjpeg.sourceforge.net/) library.
  * Documentation on creating MPEG videos in general can be found in the
- * <ulink url="https://sourceforge.net/docman/display_doc.php?docid=3456&group_id=5776">MJPEG Howto</ulink>
+ * [MJPEG Howto](https://sourceforge.net/docman/display_doc.php?docid=3456&group_id=5776)
  * and the man-page of the mplex tool documents the properties of this element,
  * which are shared with the mplex tool.
  *
- * <refsect2>
- * <title>Example pipeline</title>
+ * ## Example pipeline
+ *
  * |[
  * gst-launch-1.0 -v videotestsrc num-buffers=1000 ! mpeg2enc ! mplex ! filesink location=videotestsrc.mpg
  * ]| This example pipeline will encode a test video source to an
  * MPEG1 elementary stream and multiplexes this to an MPEG system stream.
- * <para>
+ *
  * If several streams are being multiplexed, there should (as usual) be
  * a queue in each stream, and due to mplex' buffering the capacities of these
  * may have to be set to a few times the default settings to prevent the
  * pipeline stalling.
- * </para>
- * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -117,9 +115,11 @@ static void gst_mplex_get_property (GObject * object,
     guint prop_id, GValue * value, GParamSpec * pspec);
 static void gst_mplex_set_property (GObject * object,
     guint prop_id, const GValue * value, GParamSpec * pspec);
+static gboolean mplex_element_init (GstPlugin * plugin);
 
 #define parent_class gst_mplex_parent_class
 G_DEFINE_TYPE (GstMplex, gst_mplex, GST_TYPE_ELEMENT);
+GST_ELEMENT_REGISTER_DEFINE_CUSTOM (mplex, mplex_element_init);
 
 static void
 gst_mplex_class_init (GstMplexClass * klass)
@@ -804,7 +804,7 @@ gst_mplex_log_callback (log_level_t level, const char *message)
 #endif
 
 static gboolean
-plugin_init (GstPlugin * plugin)
+mplex_element_init (GstPlugin * plugin)
 {
 #ifndef GST_DISABLE_GST_DEBUG
   old_handler = mjpeg_log_set_handler (gst_mplex_log_callback);
@@ -814,6 +814,12 @@ plugin_init (GstPlugin * plugin)
   mjpeg_default_handler_verbosity (0);
 
   return gst_element_register (plugin, "mplex", GST_RANK_NONE, GST_TYPE_MPLEX);
+}
+
+static gboolean
+plugin_init (GstPlugin * plugin)
+{
+  return GST_ELEMENT_REGISTER (mplex, plugin);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

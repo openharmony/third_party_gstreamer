@@ -24,12 +24,13 @@
 #ifndef __M3U8_H__
 #define __M3U8_H__
 
-#include <glib.h>
+#include <gst/gst.h>
 
 G_BEGIN_DECLS
 
 typedef struct _GstM3U8 GstM3U8;
 typedef struct _GstM3U8MediaFile GstM3U8MediaFile;
+typedef struct _GstM3U8InitFile GstM3U8InitFile;
 typedef struct _GstHLSMedia GstHLSMedia;
 typedef struct _GstM3U8Client GstM3U8Client;
 typedef struct _GstHLSVariantStream GstHLSVariantStream;
@@ -99,6 +100,14 @@ struct _GstM3U8MediaFile
   guint8 iv[16];
   gint64 offset, size;
   gint ref_count;               /* ATOMIC */
+  GstM3U8InitFile *init_file;   /* Media Initialization (hold ref) */
+};
+
+struct _GstM3U8InitFile
+{
+  gchar *uri;
+  gint64 offset, size;
+  guint ref_count;      /* ATOMIC */
 };
 
 GstM3U8MediaFile * gst_m3u8_media_file_ref   (GstM3U8MediaFile * mfile);
@@ -166,6 +175,8 @@ struct _GstHLSMedia {
 GstHLSMedia * gst_hls_media_ref   (GstHLSMedia * media);
 
 void          gst_hls_media_unref (GstHLSMedia * media);
+
+const gchar * gst_hls_media_type_get_name (GstHLSMediaType mtype);
 
 
 struct _GstHLSVariantStream {

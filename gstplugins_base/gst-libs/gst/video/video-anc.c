@@ -26,17 +26,6 @@
 #include <gst/base/gstbytereader.h>
 #include "video-anc.h"
 
-#if !GLIB_CHECK_VERSION(2, 47, 4)
-#ifdef __GNUC__
-#define G_GNUC_CHECK_VERSION(major, minor) \
-    ((__GNUC__ > (major)) || \
-     ((__GNUC__ == (major)) && \
-      (__GNUC_MINOR__ >= (minor))))
-#else
-#define G_GNUC_CHECK_VERSION(major, minor) 0
-#endif
-#endif
-
 /**
  * SECTION:gstvideoanc
  * @title: GstVideo Ancillary
@@ -932,7 +921,7 @@ gst_video_vbi_encoder_write_line (GstVideoVBIEncoder * encoder, guint8 * data)
 GType
 gst_video_caption_meta_api_get_type (void)
 {
-  static volatile GType type;
+  static GType type = 0;
 
   if (g_once_init_enter (&type)) {
     static const gchar *tags[] = { NULL };
@@ -1042,7 +1031,7 @@ gst_buffer_add_video_caption_meta (GstBuffer * buffer,
   g_return_val_if_fail (meta != NULL, NULL);
 
   meta->caption_type = caption_type;
-  meta->data = g_memdup (data, size);
+  meta->data = g_memdup2 (data, size);
   meta->size = size;
 
   return meta;
@@ -1128,4 +1117,255 @@ gst_video_caption_type_to_caps (GstVideoCaptionType type)
   }
 
   return caption_caps;
+}
+
+/* Active Format Description (AFD) Meta implementation */
+
+GType
+gst_video_afd_meta_api_get_type (void)
+{
+  static GType type = 0;
+
+  if (g_once_init_enter (&type)) {
+    static const gchar *tags[] = {
+      GST_META_TAG_VIDEO_SIZE_STR,
+      GST_META_TAG_VIDEO_ORIENTATION_STR,
+      GST_META_TAG_VIDEO_STR,
+      NULL
+    };
+    GType _type = gst_meta_api_type_register ("GstVideoAFDMetaAPI", tags);
+    g_once_init_leave (&type, _type);
+  }
+  return type;
+}
+
+static gboolean
+gst_video_afd_meta_init (GstMeta * meta, gpointer params, GstBuffer * buffer)
+{
+  GstVideoAFDMeta *emeta = (GstVideoAFDMeta *) meta;
+
+  emeta->field = 0;
+  emeta->spec = GST_VIDEO_AFD_SPEC_ATSC_A53;
+  emeta->afd = GST_VIDEO_AFD_UNAVAILABLE;
+
+  return TRUE;
+}
+
+static gboolean
+gst_video_afd_meta_transform (GstBuffer * dest, GstMeta * meta,
+    GstBuffer * buffer, GQuark type, gpointer data)
+{
+  GstVideoAFDMeta *smeta = (GstVideoAFDMeta *) meta;
+
+  if (GST_META_TRANSFORM_IS_COPY (type)) {
+    GST_DEBUG ("copy AFD metadata");
+    gst_buffer_add_video_afd_meta (dest, smeta->field, smeta->spec, smeta->afd);
+    return TRUE;
+  } else if (GST_VIDEO_META_TRANSFORM_IS_SCALE (type)) {
+    GstVideoMetaTransform *trans = data;
+    gdouble diff;
+    gint ow, oh, nw, nh;
+    gint opn, opd, npn, npd;
+
+    ow = GST_VIDEO_INFO_WIDTH (trans->in_info);
+    nw = GST_VIDEO_INFO_WIDTH (trans->out_info);
+    oh = GST_VIDEO_INFO_HEIGHT (trans->in_info);
+    nh = GST_VIDEO_INFO_HEIGHT (trans->out_info);
+    opn = GST_VIDEO_INFO_PAR_N (trans->in_info);
+    opd = GST_VIDEO_INFO_PAR_D (trans->in_info);
+    npn = GST_VIDEO_INFO_PAR_N (trans->out_info);
+    npd = GST_VIDEO_INFO_PAR_D (trans->out_info);
+
+    /* if the aspect ratio stays the same we can copy the meta, otherwise
+     * we can't know if the aspect ratio was changed or black borders were
+     * introduced. Both would invalidate the AFD meta */
+
+    diff =
+        ABS (((gdouble) ow / (gdouble) oh) * ((gdouble) opn / (gdouble) opd) -
+        ((gdouble) nw / (gdouble) nh) * ((gdouble) npn / (gdouble) npd));
+    if (diff < 0.0001) {
+      GST_DEBUG ("copying AFD metadata, aspect ratio did not change");
+      gst_buffer_add_video_afd_meta (dest, smeta->field, smeta->spec,
+          smeta->afd);
+      return TRUE;
+    } else {
+      return FALSE;
+    }
+  } else {
+    /* return FALSE, if transform type is not supported */
+    return FALSE;
+  }
+
+}
+
+const GstMetaInfo *
+gst_video_afd_meta_get_info (void)
+{
+  static const GstMetaInfo *meta_info = NULL;
+
+  if (g_once_init_enter ((GstMetaInfo **) & meta_info)) {
+    const GstMetaInfo *mi = gst_meta_register (GST_VIDEO_AFD_META_API_TYPE,
+        "GstVideoAFDMeta",
+        sizeof (GstVideoAFDMeta),
+        gst_video_afd_meta_init,
+        NULL,
+        gst_video_afd_meta_transform);
+    g_once_init_leave ((GstMetaInfo **) & meta_info, (GstMetaInfo *) mi);
+  }
+  return meta_info;
+}
+
+/**
+ * gst_buffer_add_video_afd_meta:
+ * @buffer: a #GstBuffer
+ * @field: 0 for progressive or field 1 and 1 for field 2
+ * @spec: #GstVideoAFDSpec that applies to AFD value
+ * @afd: #GstVideoAFDValue AFD enumeration
+ *
+ * Attaches #GstVideoAFDMeta metadata to @buffer with the given
+ * parameters.
+ *
+ * Returns: (transfer none): the #GstVideoAFDMeta on @buffer.
+ *
+ * Since: 1.18
+ */
+GstVideoAFDMeta *
+gst_buffer_add_video_afd_meta (GstBuffer * buffer, guint8 field,
+    GstVideoAFDSpec spec, GstVideoAFDValue afd)
+{
+  GstVideoAFDMeta *meta;
+  gint8 afd_data = (gint8) afd;
+  g_return_val_if_fail (GST_IS_BUFFER (buffer), NULL);
+  g_return_val_if_fail (field <= 1, NULL);
+  g_return_val_if_fail ((guint8) spec <= 2, NULL);
+  /* AFD is stored in a nybble */
+  g_return_val_if_fail (afd_data <= 0xF, NULL);
+  /* reserved values for all specifications */
+  g_return_val_if_fail (afd_data != 1 && (afd_data < 5 || afd_data > 7)
+      && afd_data != 12, NULL);
+  /* reserved for DVB/ETSI */
+  g_return_val_if_fail ((spec != GST_VIDEO_AFD_SPEC_DVB_ETSI)
+      || (afd_data != 0), NULL);
+
+  meta = (GstVideoAFDMeta *) gst_buffer_add_meta (buffer,
+      GST_VIDEO_AFD_META_INFO, NULL);
+  g_assert (meta != NULL);
+
+  meta->field = field;
+  meta->spec = spec;
+  meta->afd = afd;
+
+  return meta;
+}
+
+/* Bar Meta implementation */
+
+GType
+gst_video_bar_meta_api_get_type (void)
+{
+  static GType type = 0;
+
+  if (g_once_init_enter (&type)) {
+    static const gchar *tags[] = {
+      GST_META_TAG_VIDEO_SIZE_STR,
+      GST_META_TAG_VIDEO_ORIENTATION_STR,
+      GST_META_TAG_VIDEO_STR,
+      NULL
+    };
+    GType _type = gst_meta_api_type_register ("GstVideoBarMetaAPI", tags);
+    g_once_init_leave (&type, _type);
+  }
+  return type;
+}
+
+static gboolean
+gst_video_bar_meta_init (GstMeta * meta, gpointer params, GstBuffer * buffer)
+{
+  GstVideoBarMeta *emeta = (GstVideoBarMeta *) meta;
+
+  emeta->field = 0;
+  emeta->is_letterbox = FALSE;
+  emeta->bar_data1 = 0;
+  emeta->bar_data2 = 0;
+
+  return TRUE;
+}
+
+static gboolean
+gst_video_bar_meta_transform (GstBuffer * dest, GstMeta * meta,
+    GstBuffer * buffer, GQuark type, gpointer data)
+{
+  GstVideoBarMeta *smeta = (GstVideoBarMeta *) meta;
+
+  if (GST_META_TRANSFORM_IS_COPY (type)) {
+    GST_DEBUG ("copy Bar metadata");
+    gst_buffer_add_video_bar_meta (dest, smeta->field, smeta->is_letterbox,
+        smeta->bar_data1, smeta->bar_data2);
+    return TRUE;
+  } else {
+    /* return FALSE, if transform type is not supported */
+    return FALSE;
+  }
+}
+
+const GstMetaInfo *
+gst_video_bar_meta_get_info (void)
+{
+  static const GstMetaInfo *meta_info = NULL;
+
+  if (g_once_init_enter ((GstMetaInfo **) & meta_info)) {
+    const GstMetaInfo *mi = gst_meta_register (GST_VIDEO_BAR_META_API_TYPE,
+        "GstVideoBarMeta",
+        sizeof (GstVideoBarMeta),
+        gst_video_bar_meta_init,
+        NULL,
+        gst_video_bar_meta_transform);
+    g_once_init_leave ((GstMetaInfo **) & meta_info, (GstMetaInfo *) mi);
+  }
+  return meta_info;
+}
+
+/**
+ * gst_buffer_add_video_bar_meta:
+ * @buffer: a #GstBuffer
+ * @field: 0 for progressive or field 1 and 1 for field 2
+ * @is_letterbox: if true then bar data specifies letterbox, otherwise pillarbox
+ * @bar_data1: If @is_letterbox is true, then the value specifies the
+ *      last line of a horizontal letterbox bar area at top of reconstructed frame.
+ *      Otherwise, it specifies the last horizontal luminance sample of a vertical pillarbox
+ *      bar area at the left side of the reconstructed frame
+ * @bar_data2: If @is_letterbox is true, then the value specifies the
+ *      first line of a horizontal letterbox bar area at bottom of reconstructed frame.
+ *      Otherwise, it specifies the first horizontal
+ *      luminance sample of a vertical pillarbox bar area at the right side of the reconstructed frame.
+ *
+ * Attaches #GstVideoBarMeta metadata to @buffer with the given
+ * parameters.
+ *
+ * Returns: (transfer none): the #GstVideoBarMeta on @buffer.
+ *
+ * See Table 6.11 Bar Data Syntax
+ *
+ * https://www.atsc.org/wp-content/uploads/2015/03/a_53-Part-4-2009.pdf
+ *
+ * Since: 1.18
+ */
+GstVideoBarMeta *
+gst_buffer_add_video_bar_meta (GstBuffer * buffer, guint8 field,
+    gboolean is_letterbox, guint bar_data1, guint bar_data2)
+{
+  GstVideoBarMeta *meta;
+
+  g_return_val_if_fail (GST_IS_BUFFER (buffer), NULL);
+  g_return_val_if_fail (field <= 1, NULL);
+
+  meta = (GstVideoBarMeta *) gst_buffer_add_meta (buffer,
+      GST_VIDEO_BAR_META_INFO, NULL);
+  g_assert (meta != NULL);
+
+  meta->field = field;
+  meta->is_letterbox = is_letterbox;
+  meta->bar_data1 = bar_data1;
+  meta->bar_data2 = bar_data2;
+  return meta;
 }

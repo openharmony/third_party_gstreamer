@@ -59,7 +59,7 @@ struct _GstAvdtpSrc
 
   GstPoll *poll;
   GstPollFD pfd;
-  volatile gint unlocked;
+  gint unlocked;
 
   GstClockTime duration;
 
@@ -67,8 +67,6 @@ struct _GstAvdtpSrc
 };
 
 GType gst_avdtp_src_get_type (void);
-
-gboolean gst_avdtp_src_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 #endif

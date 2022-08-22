@@ -8,8 +8,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: gst-plugins-good 1.15.1\n"
-"Report-Msgid-Bugs-To: http://bugzilla.gnome.org/\n"
-"POT-Creation-Date: 2019-12-03 11:06+0000\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-25 01:02+0100\n"
 "PO-Revision-Date: 2019-11-23 22:07+0100\n"
 "Last-Translator: Balázs Úr <ur.balazs@fsf.hu>\n"
 "Language-Team: Hungarian <translation-team-hu@lists.sourceforge.net>\n"
@@ -29,12 +29,20 @@ msgstr "Jack kiszolgáló nem található"
 msgid "Failed to decode JPEG image"
 msgstr "A JPEG kép visszafejtése meghiúsult"
 
+#, fuzzy
+msgid "Failed to read memory"
+msgstr "Nem sikerült lefoglalni a szükséges memóriát."
+
 msgid ""
 "Failed to configure LAME mp3 audio encoder. Check your encoding parameters."
 msgstr ""
 "Nem sikerült beállítani a LAME mp3 hangkódolót. Ellenőrizze a kódolási "
 "paramétereket."
 
+#. <php-emulation-mode>three underscores for ___rate is really really really
+#. * private as opposed to one underscore<php-emulation-mode>
+#. call this MACRO outside of the NULL state so that we have a higher chance
+#. * of actually having a pipeline and bus to get the message through
 #, c-format
 msgid ""
 "The requested bitrate %d kbit/s for property '%s' is not allowed. The "
@@ -171,6 +179,9 @@ msgstr "A CoreAudio eszköz nem található"
 msgid "CoreAudio device could not be opened"
 msgstr "A CoreAudio eszköz nem nyitható meg"
 
+msgid "Raspberry Pi Camera Module"
+msgstr ""
+
 #, c-format
 msgid "Error reading %d bytes from device '%s'."
 msgstr "Hiba %d bájt olvasásakor a következő eszközről: „%s”."
@@ -193,6 +204,10 @@ msgstr "A(z) „%s” eszköz illesztőprogramja nem támogatja a(z) %d. IO mód
 msgid "The driver of device '%s' does not support any known IO method."
 msgstr ""
 "A(z) „%s” eszköz illesztőprogramja nem támogat egyetlen ismert IO módot sem."
+
+#, fuzzy
+msgid "Invalid caps"
+msgstr "Érvénytelen atom méret."
 
 #, c-format
 msgid "Device '%s' has no supported format"
@@ -397,11 +412,20 @@ msgid "Failed to set value %d for control %d on device '%s'."
 msgstr ""
 "A(z) $%2d érték beállítása $%1d vezérlőelemhez meghiúsult a(z) „%s” eszközön."
 
+#, fuzzy, c-format
+msgid "Failed to set value %s for control %d on device '%s'."
+msgstr ""
+"A(z) $%2d érték beállítása $%1d vezérlőelemhez meghiúsult a(z) „%s” eszközön."
+
 #, c-format
 msgid "Failed to get current input on device '%s'. May be it is a radio device"
 msgstr ""
 "Az aktuális bemenet lekérése meghiúsult a(z) „%s” eszközről. Lehet, hogy ez "
 "egy rádióeszköz."
+
+#, fuzzy, c-format
+msgid "Failed to set input %u on device %s."
+msgstr "A(z) %d. bemenet beállítása meghiúsult a(z) „%s” eszközön."
 
 #, c-format
 msgid ""
@@ -410,8 +434,8 @@ msgstr ""
 "Az aktuális kimenet lekérése meghiúsult a(z) „%s” eszközről. Lehet, hogy ez "
 "egy rádióeszköz."
 
-#, c-format
-msgid "Failed to set output %d on device %s."
+#, fuzzy, c-format
+msgid "Failed to set output %u on device %s."
 msgstr "A(z) %d. kimenet beállítása meghiúsult a(z) „%s” eszközön."
 
 msgid "Changing resolution at runtime is not yet supported."

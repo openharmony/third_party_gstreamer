@@ -48,8 +48,9 @@
  * @title: katedec
  * @see_also: oggdemux
  *
- * This element decodes Kate streams
- * <ulink url="http://libkate.googlecode.com/">Kate</ulink> is a free codec
+ * This element decodes Kate streams.
+ *
+ * [Kate](http://libkate.googlecode.com/) is a free codec
  * for text based data, such as subtitles. Any number of kate streams can be
  * embedded in an Ogg stream.
  *
@@ -57,7 +58,7 @@
  *
  * ## Example pipeline
  *
- * This explicitely decodes a Kate stream:
+ * This explicitly decodes a Kate stream:
  * |[
  * gst-launch-1.0 filesrc location=test.ogg ! oggdemux ! katedec ! fakesink silent=TRUE
  * ]|
@@ -78,7 +79,7 @@
 
 #include <gst/gst.h>
 
-#include "gstkate.h"
+#include "gstkateelements.h"
 #include "gstkatespu.h"
 #include "gstkatedec.h"
 
@@ -114,8 +115,15 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
         GST_KATE_SPU_MIME_TYPE)
     );
 
+GST_DEBUG_CATEGORY (gst_katedec_debug);
+
 #define gst_kate_dec_parent_class parent_class
 G_DEFINE_TYPE (GstKateDec, gst_kate_dec, GST_TYPE_ELEMENT);
+#define _do_init \
+  kate_element_init (plugin); \
+  GST_DEBUG_CATEGORY_INIT (gst_katedec_debug, "katedec", 0, "Kate decoder");
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (katedec, "katedec", GST_RANK_PRIMARY,
+    GST_TYPE_KATE_DEC, _do_init);
 
 static void gst_kate_dec_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);

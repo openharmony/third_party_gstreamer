@@ -75,10 +75,22 @@ G_DEFINE_TYPE_WITH_CODE (GstGLSLStage, gst_glsl_stage, GST_TYPE_OBJECT,
         "GLSL Stage"););
 
 static void
+_delete_shader (GstGLContext * context, GstGLSLStage * stage)
+{
+  GstGLSLStagePrivate *priv = stage->priv;
+
+  if (priv->handle)
+    priv->vtable.DeleteShader (priv->handle);
+}
+
+static void
 gst_glsl_stage_finalize (GObject * object)
 {
   GstGLSLStage *stage = GST_GLSL_STAGE (object);
   gint i;
+
+  gst_gl_context_thread_add (stage->context,
+      (GstGLContextThreadFunc) _delete_shader, stage);
 
   if (stage->context) {
     gst_object_unref (stage->context);
@@ -158,9 +170,9 @@ _shader_type_to_string (GLenum type)
     case GL_FRAGMENT_SHADER:
       return "fragment";
     case GL_TESS_CONTROL_SHADER:
-      return "tesselation control";
+      return "tessellation control";
     case GL_TESS_EVALUATION_SHADER:
-      return "tesselation evaluation";
+      return "tessellation evaluation";
     case GL_GEOMETRY_SHADER:
       return "geometry";
     case GL_COMPUTE_SHADER:
@@ -261,7 +273,7 @@ gst_glsl_stage_new (GstGLContext * context, guint type)
 }
 
 /**
- * gst_glsl_stage_new_with_default_vertex:
+ * gst_glsl_stage_new_default_vertex:
  * @context: a #GstGLContext
  *
  * Returns: (transfer floating): a new #GstGLSLStage with the default vertex shader
@@ -278,7 +290,7 @@ gst_glsl_stage_new_default_vertex (GstGLContext * context)
 }
 
 /**
- * gst_glsl_stage_new_with_default_fragment:
+ * gst_glsl_stage_new_default_fragment:
  * @context: a #GstGLContext
  *
  * Returns: (transfer floating): a new #GstGLSLStage with the default fragment shader
@@ -526,7 +538,7 @@ _compile_shader (GstGLContext * context, struct compile *data)
  * @stage: a #GstGLSLStage
  * @error: a #GError to use on failure
  *
- * Returns: whether the compilation suceeded
+ * Returns: whether the compilation succeeded
  *
  * Since: 1.8
  */

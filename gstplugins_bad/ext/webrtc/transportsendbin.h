@@ -34,18 +34,6 @@ GType transport_send_bin_get_type(void);
 
 typedef struct _TransportSendBinDTLSContext TransportSendBinDTLSContext;
 
-struct _TransportSendBinDTLSContext {
-  GstElement *dtlssrtpenc;
-  GstElement *nicesink;
-
-  /* Block on the dtlssrtpenc RTP sink pad, if any */
-  struct pad_block          *rtp_block;
-  /* Block on the dtlssrtpenc RTCP sink pad, if any */
-  struct pad_block          *rtcp_block;
-  /* Block on the nicesink sink pad, if any */
-  struct pad_block          *nice_block;
-};
-
 struct _TransportSendBin
 {
   GstBin                     parent;
@@ -54,21 +42,16 @@ struct _TransportSendBin
   gboolean                   active; /* Flag that's cleared on shutdown */
 
   TransportStream           *stream;        /* parent transport stream */
-  gboolean                   rtcp_mux;
 
-  GstElement                *outputselector;
+  GstElement *dtlssrtpenc;
+  GstElement *nicesink;
 
-  TransportSendBinDTLSContext rtp_ctx;
-  TransportSendBinDTLSContext rtcp_ctx;
+  gboolean has_clientness;
 
-  /*
+  /* Block on the dtlssrtpenc RTP sink pad, if any */
   struct pad_block          *rtp_block;
-  struct pad_block          *rtcp_mux_block;
-  struct pad_block          *rtp_nice_block;
-
+  /* Block on the dtlssrtpenc RTCP sink pad, if any */
   struct pad_block          *rtcp_block;
-  struct pad_block          *rtcp_nice_block;
-  */
 };
 
 struct _TransportSendBinClass

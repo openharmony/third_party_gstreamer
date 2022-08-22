@@ -1,6 +1,6 @@
-project('gst-libav', 'c', 'cpp',
-  version : '1.16.2',
-  meson_version : '>= 0.46.0',
+project('gst-libav', 'c',
+  version : '1.20.3',
+  meson_version : '>= 0.59',
   default_options : [ 'warning_level=1',
                       'buildtype=debugoptimized' ])
 
@@ -14,7 +14,10 @@ gst_version_micro = version_arr[2].to_int()
 else
   gst_version_nano = 0
 endif
+gst_version_is_stable = gst_version_minor.is_even()
+gst_version_is_dev = gst_version_minor.is_odd() and gst_version_micro < 90
 
+api_version = '1.0'
 libavfilter_dep = dependency('libavfilter', version: '>= 7.16.100',
   fallback: ['FFmpeg', 'libavfilter_dep'])
 libavformat_dep = dependency('libavformat', version: '>= 58.12.100',
@@ -78,11 +81,19 @@ foreach h : check_headers
   endif
 endforeach
 
-gst_req = '>= @0@.@1@.0'.format(gst_version_major, gst_version_minor)
+if gst_version_is_stable
+  gst_req = '>= @0@.@1@.0'.format(gst_version_major, gst_version_minor)
+else
+  gst_req = '>= ' + gst_version
+endif
+
 gst_dep = dependency('gstreamer-1.0', version : gst_req,
   fallback : ['gstreamer', 'gst_dep'])
 gstbase_dep = dependency('gstreamer-base-1.0', version : gst_req,
   fallback : ['gstreamer', 'gst_base_dep'])
+gstcheck_dep = dependency('gstreamer-check-1.0', version : gst_req,
+  required : get_option('tests'),
+  fallback : ['gstreamer', 'gst_check_dep'])
 
 gstvideo_dep = dependency('gstreamer-video-1.0', version : gst_req,
     fallback : ['gst-plugins-base', 'video_dep'])
@@ -92,20 +103,25 @@ gstpbutils_dep = dependency('gstreamer-pbutils-1.0', version : gst_req,
     fallback : ['gst-plugins-base', 'pbutils_dep'])
 libm = cc.find_library('m', required : false)
 
-configure_file(output : 'config.h', configuration : cdata)
-
 gst_libav_args = ['-DHAVE_CONFIG_H']
 if cc.get_id() == 'msvc'
-  # Ignore several spurious warnings for things gstreamer does very commonly
-  # If a warning is completely useless and spammy, use '/wdXXXX' to suppress it
-  # If a warning is harmless but hard to fix, use '/woXXXX' so it's shown once
-  # NOTE: Only add warnings here if you are sure they're spurious
-  add_project_arguments(
+  msvc_args = [
+      # Ignore several spurious warnings for things gstreamer does very commonly
+      # If a warning is completely useless and spammy, use '/wdXXXX' to suppress it
+      # If a warning is harmless but hard to fix, use '/woXXXX' so it's shown once
+      # NOTE: Only add warnings here if you are sure they're spurious
       '/wd4018', # implicit signed/unsigned conversion
       '/wd4146', # unary minus on unsigned (beware INT_MIN)
       '/wd4244', # lossy type conversion (e.g. double -> int)
       '/wd4305', # truncating type conversion (e.g. double -> float)
-      language : 'c')
+      cc.get_supported_arguments(['/utf-8']), # set the input encoding to utf-8
+
+      # Enable some warnings on MSVC to match GCC/Clang behaviour
+      '/w14062', # enumerator 'identifier' in switch of enum 'enumeration' is not handled
+      '/w14101', # 'identifier' : unreferenced local variable
+      '/w14189', # 'identifier' : local variable is initialized but not referenced
+  ]
+  add_project_arguments(msvc_args, language: ['c', 'cpp'])
 endif
 
 # Symbol visibility
@@ -175,13 +191,26 @@ endforeach
 
 configinc = include_directories('.')
 plugins_install_dir = '@0@/gstreamer-1.0'.format(get_option('libdir'))
+
 pkgconfig = import('pkgconfig')
 plugins_pkgconfig_install_dir = join_paths(plugins_install_dir, 'pkgconfig')
 if get_option('default_library') == 'shared'
   # If we don't build static plugins there is no need to generate pc files
   plugins_pkgconfig_install_dir = disabler()
 endif
-subdir('ext/libav')
 
-python3 = import('python').find_installation()
-run_command(python3, '-c', 'import shutil; shutil.copy("hooks/pre-commit.hook", ".git/hooks/pre-commit")')
+plugins = []
+subdir('ext/libav')
+subdir('docs')
+subdir('tests')
+
+# Set release date
+if gst_version_nano == 0
+  extract_release_date = find_program('scripts/extract-release-date-from-doap-file.py')
+  run_result = run_command(extract_release_date, gst_version, files('gst-libav.doap'), check: true)
+  release_date = run_result.stdout().strip()
+  cdata.set_quoted('GST_PACKAGE_RELEASE_DATETIME', release_date)
+  message('Package release date: ' + release_date)
+endif
+
+configure_file(output: 'config.h', configuration: cdata)

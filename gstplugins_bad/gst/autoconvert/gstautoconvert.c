@@ -30,7 +30,7 @@
  * no longer matches the caps.
  *
  * The list of element it will look into can be specified in the
- * #GstAutoConvert::factories property, otherwise it will look at all available
+ * #GstAutoConvert:factories property, otherwise it will look at all available
  * elements.
  */
 
@@ -145,6 +145,8 @@ static GQuark internal_sinkpad_quark = 0;
 static GQuark parent_quark = 0;
 
 G_DEFINE_TYPE (GstAutoConvert, gst_auto_convert, GST_TYPE_BIN);
+GST_ELEMENT_REGISTER_DEFINE (autoconvert, "autoconvert",
+    GST_RANK_NONE, GST_TYPE_AUTO_CONVERT);
 
 static void
 gst_auto_convert_class_init (GstAutoConvertClass * klass)
@@ -164,7 +166,7 @@ gst_auto_convert_class_init (GstAutoConvertClass * klass)
   gst_element_class_add_static_pad_template (gstelement_class, &sinktemplate);
 
   gst_element_class_set_static_metadata (gstelement_class,
-      "Select convertor based on caps", "Generic/Bin",
+      "Select converter based on caps", "Generic/Bin",
       "Selects the right transform element based on the caps",
       "Olivier Crete <olivier.crete@collabora.com>");
 
@@ -248,7 +250,7 @@ gst_auto_convert_set_property (GObject * object,
         GList *factories = g_value_get_pointer (value);
         factories = g_list_copy (factories);
         if (g_atomic_pointer_compare_and_exchange (&autoconvert->factories,
-                NULL, factories))
+                (GList *) NULL, factories))
           g_list_foreach (factories, (GFunc) g_object_ref, NULL);
         else
           g_list_free (factories);
@@ -895,8 +897,8 @@ gst_auto_convert_load_factories (GstAutoConvert * autoconvert)
 
   g_assert (all_factories);
 
-  if (g_atomic_pointer_compare_and_exchange (&autoconvert->factories, NULL,
-          all_factories)) {
+  if (!g_atomic_pointer_compare_and_exchange (&autoconvert->factories,
+          (GList *) NULL, all_factories)) {
     gst_plugin_feature_list_free (all_factories);
   }
 

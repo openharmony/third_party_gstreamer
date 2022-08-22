@@ -622,7 +622,7 @@ gst_preset_default_get_property_names (GstPreset * preset)
         g_free (props);
       }
 
-      g_object_unref (child);
+      gst_object_unref (child);
     }
   }
   if (!result) {
@@ -1054,7 +1054,7 @@ no_presets:
  *
  * Get a copy of preset names as a %NULL terminated string array.
  *
- * Returns: (transfer full) (array zero-terminated=1) (element-type gchar*):
+ * Returns: (transfer full) (array zero-terminated=1) (element-type utf8):
  *     list with names, use g_strfreev() after usage.
  */
 gchar **
@@ -1071,7 +1071,7 @@ gst_preset_get_preset_names (GstPreset * preset)
  *
  * Get a the names of the GObject properties that can be used for presets.
  *
- * Returns: (transfer full) (array zero-terminated=1) (element-type gchar*): an
+ * Returns: (transfer full) (array zero-terminated=1) (element-type utf8): an
  *   array of property names which should be freed with g_strfreev() after use.
  */
 gchar **
@@ -1322,7 +1322,7 @@ gst_preset_base_init (gpointer g_class)
 GType
 gst_preset_get_type (void)
 {
-  static volatile gsize type = 0;
+  static gsize type = 0;
 
   if (g_once_init_enter (&type)) {
     GType _type;

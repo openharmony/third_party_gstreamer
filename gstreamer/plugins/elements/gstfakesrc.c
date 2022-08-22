@@ -28,7 +28,7 @@
  * a wide range of buffers and can operate in various scheduling modes.
  *
  * It is mostly used as a testing element, one trivial example for testing
- * basic <application>GStreamer</application> core functionality is:
+ * basic GStreamer core functionality is:
  *
  * ## Example launch line
  * |[
@@ -51,6 +51,7 @@
 
 #include "gstelements_private.h"
 #include "gstfakesrc.h"
+#include "gstcoreelementselements.h"
 
 static GstStaticPadTemplate srctemplate = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
@@ -203,6 +204,8 @@ gst_fake_src_filltype_get_type (void)
     GST_DEBUG_CATEGORY_INIT (gst_fake_src_debug, "fakesrc", 0, "fakesrc element");
 #define gst_fake_src_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstFakeSrc, gst_fake_src, GST_TYPE_BASE_SRC, _do_init);
+GST_ELEMENT_REGISTER_DEFINE (fakesrc, "fakesrc", GST_RANK_NONE,
+    GST_TYPE_FAKE_SRC);
 
 static void gst_fake_src_finalize (GObject * object);
 static void gst_fake_src_set_property (GObject * object, guint prop_id,
@@ -332,8 +335,8 @@ gst_fake_src_class_init (GstFakeSrcClass * klass)
   gst_fake_src_signals[SIGNAL_HANDOFF] =
       g_signal_new ("handoff", G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
       G_STRUCT_OFFSET (GstFakeSrcClass, handoff), NULL, NULL,
-      g_cclosure_marshal_generic, G_TYPE_NONE, 2,
-      GST_TYPE_BUFFER | G_SIGNAL_TYPE_STATIC_SCOPE, GST_TYPE_PAD);
+      NULL, G_TYPE_NONE, 2, GST_TYPE_BUFFER | G_SIGNAL_TYPE_STATIC_SCOPE,
+      GST_TYPE_PAD);
 
   gst_element_class_set_static_metadata (gstelement_class,
       "Fake Source",
@@ -348,6 +351,10 @@ gst_fake_src_class_init (GstFakeSrcClass * klass)
   gstbase_src_class->event = GST_DEBUG_FUNCPTR (gst_fake_src_event_handler);
   gstbase_src_class->get_times = GST_DEBUG_FUNCPTR (gst_fake_src_get_times);
   gstbase_src_class->create = GST_DEBUG_FUNCPTR (gst_fake_src_create);
+
+  gst_type_mark_as_plugin_api (GST_TYPE_FAKE_SRC_DATA, 0);
+  gst_type_mark_as_plugin_api (GST_TYPE_FAKE_SRC_SIZETYPE, 0);
+  gst_type_mark_as_plugin_api (GST_TYPE_FAKE_SRC_FILLTYPE, 0);
 }
 
 static void

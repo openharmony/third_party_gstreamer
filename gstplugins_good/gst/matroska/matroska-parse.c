@@ -27,21 +27,21 @@
  *       chained oggs. Fixes #334082
  * TODO: Test samples: http://www.matroska.org/samples/matrix/index.html
  *                     http://samples.mplayerhq.hu/Matroska/
- * TODO: check if parseing is done correct for all codecs according to spec
+ * TODO: check if parsing is done correct for all codecs according to spec
  * TODO: seeking with incomplete or without CUE
  */
 
 /**
  * SECTION:element-matroskaparse
+ * @title: matroskaparse
  *
  * matroskaparse parsees a Matroska file into the different contained streams.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * gst-launch-1.0 -v filesrc location=/path/to/mkv ! matroskaparse ! vorbisdec ! audioconvert ! audioresample ! autoaudiosink
  * ]| This pipeline parsees a Matroska file and outputs the contained Vorbis audio.
- * </refsect2>
+ *
  */
 
 
@@ -63,6 +63,7 @@
 
 #include <gst/pbutils/pbutils.h>
 
+#include "gstmatroskaelements.h"
 #include "matroska-parse.h"
 #include "matroska-ids.h"
 
@@ -141,6 +142,11 @@ static GstCaps *gst_matroska_parse_forge_caps (gboolean is_webm,
 GType gst_matroska_parse_get_type (void);
 #define parent_class gst_matroska_parse_parent_class
 G_DEFINE_TYPE (GstMatroskaParse, gst_matroska_parse, GST_TYPE_ELEMENT);
+#define _do_init \
+  gst_riff_init (); \
+  matroska_element_init (plugin);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (matroskaparse, "matroskaparse",
+    GST_RANK_NONE, GST_TYPE_MATROSKA_PARSE, _do_init);
 
 static void
 gst_matroska_parse_finalize (GObject * object)
@@ -554,6 +560,44 @@ gst_matroska_parse_add_stream (GstMatroskaParse * parse, GstEbmlRead * ebml)
 
               GST_DEBUG_OBJECT (parse, "video track interlacing mode: %d",
                   videocontext->interlace_mode);
+              break;
+            }
+
+              /* interlaced field order */
+            case GST_MATROSKA_ID_VIDEOFIELDORDER:{
+              guint64 num;
+
+              if ((ret = gst_ebml_read_uint (ebml, &id, &num)) != GST_FLOW_OK)
+                break;
+
+              if (videocontext->interlace_mode !=
+                  GST_MATROSKA_INTERLACE_MODE_INTERLACED) {
+                GST_WARNING_OBJECT (parse,
+                    "FieldOrder element when not interlaced - ignoring");
+                break;
+              }
+
+              if (num == 0)
+                /* turns out we're actually progressive */
+                videocontext->interlace_mode =
+                    GST_MATROSKA_INTERLACE_MODE_PROGRESSIVE;
+              else if (num == 2)
+                videocontext->field_order = GST_VIDEO_FIELD_ORDER_UNKNOWN;
+              else if (num == 9)
+                videocontext->field_order =
+                    GST_VIDEO_FIELD_ORDER_TOP_FIELD_FIRST;
+              else if (num == 14)
+                videocontext->field_order =
+                    GST_VIDEO_FIELD_ORDER_BOTTOM_FIELD_FIRST;
+              else {
+                GST_FIXME_OBJECT (parse,
+                    "Unknown or unsupported FieldOrder %" G_GUINT64_FORMAT,
+                    num);
+                videocontext->field_order = GST_VIDEO_FIELD_ORDER_UNKNOWN;
+              }
+
+              GST_DEBUG_OBJECT (parse, "video track field order: %d",
+                  videocontext->field_order);
               break;
             }
 
@@ -1832,7 +1876,7 @@ gst_matroska_parse_parse_blockgroup_or_simpleblock (GstMatroskaParse * parse,
 
       /* QoS for video track with an index. the assumption is that
          index entries point to keyframes, but if that is not true we
-         will instad skip until the next keyframe. */
+         will instead skip until the next keyframe. */
       if (GST_CLOCK_TIME_IS_VALID (lace_time) &&
           stream->type == GST_MATROSKA_TRACK_TYPE_VIDEO &&
           stream->index_table && parse->common.segment.rate > 0.0) {
@@ -2263,7 +2307,7 @@ gst_matroska_parse_check_read_size (GstMatroskaParse * parse, guint64 bytes)
 }
 
 #if 0
-/* returns TRUE if we truely are in error state, and should give up */
+/* returns TRUE if we truly are in error state, and should give up */
 static inline gboolean
 gst_matroska_parse_check_parse_error (GstMatroskaParse * parse)
 {
@@ -3225,17 +3269,4 @@ gst_matroska_parse_change_state (GstElement * element,
   }
 
   return ret;
-}
-
-gboolean
-gst_matroska_parse_plugin_init (GstPlugin * plugin)
-{
-  gst_riff_init ();
-
-  /* create an elementfactory for the matroska_parse element */
-  if (!gst_element_register (plugin, "matroskaparse",
-          GST_RANK_NONE, GST_TYPE_MATROSKA_PARSE))
-    return FALSE;
-
-  return TRUE;
 }
