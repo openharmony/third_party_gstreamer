@@ -262,7 +262,7 @@ gst_directsound_src_set_property (GObject * object, guint prop_id,
         src->device_name = NULL;
       }
       if (g_value_get_string (value)) {
-        src->device_name = g_strdup (g_value_get_string (value));
+        src->device_name = g_value_dup_string (value);
       }
       break;
     case PROP_VOLUME:
@@ -536,7 +536,7 @@ gst_directsound_src_prepare (GstAudioSrc * asrc, GstAudioRingBufferSpec * spec)
   GST_INFO_OBJECT (asrc, "actual latency time: %" G_GUINT64_FORMAT,
       spec->latency_time);
 
-  /* Init secondary buffer desciption */
+  /* Init secondary buffer description */
   memset (&descSecondary, 0, sizeof (DSCBUFFERDESC));
   descSecondary.dwSize = sizeof (DSCBUFFERDESC);
   descSecondary.dwFlags = 0;

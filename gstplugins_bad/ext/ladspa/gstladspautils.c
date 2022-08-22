@@ -346,7 +346,7 @@ gst_ladspa_object_class_get_param_spec (GstLADSPAClass * ladspa_class,
   GParamSpec *ret;
   gchar *name;
   gint hintdesc, perms;
-  gfloat lower, upper, def;
+  gdouble lower, upper, def;
 
   name =
       gst_ladspa_object_class_get_param_name (ladspa_class, object_class,
@@ -380,8 +380,10 @@ gst_ladspa_object_class_get_param_spec (GstLADSPAClass * ladspa_class,
 
   if (LADSPA_IS_HINT_SAMPLE_RATE (hintdesc)) {
     /* FIXME:! (*= ladspa->rate?, *= GST_AUDIO_DEF_RATE?) */
-    lower *= 44100;
-    upper *= 44100;
+    if (LADSPA_IS_HINT_BOUNDED_BELOW (hintdesc))
+      lower *= 44100;
+    if (LADSPA_IS_HINT_BOUNDED_ABOVE (hintdesc))
+      upper *= 44100;
   }
 
   if (LADSPA_IS_HINT_INTEGER (hintdesc)) {
@@ -501,9 +503,11 @@ gst_ladspa_object_get_property (GstLADSPA * ladspa, GObject * object,
     case G_TYPE_BOOLEAN:
       g_value_set_boolean (value, controls[prop_id] > 0.5);
       break;
-    case G_TYPE_INT:
-      g_value_set_int (value, CLAMP (controls[prop_id], G_MININT, G_MAXINT));
+    case G_TYPE_INT:{
+      gint64 ival = CLAMP ((gint64) controls[prop_id], G_MININT, G_MAXINT);
+      g_value_set_int (value, ival);
       break;
+    }
     case G_TYPE_FLOAT:
       g_value_set_float (value, controls[prop_id]);
       break;

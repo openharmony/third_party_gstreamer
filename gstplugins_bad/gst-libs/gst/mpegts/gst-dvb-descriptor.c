@@ -204,7 +204,7 @@ gst_mpegts_descriptor_parse_dvb_stuffing (const GstMpegtsDescriptor *
 
   data = (guint8 *) descriptor->data + 2;
 
-  *stuffing_bytes = g_memdup (data, descriptor->length);
+  *stuffing_bytes = g_memdup2 (data, descriptor->length);
 
   return TRUE;
 }
@@ -600,7 +600,7 @@ _gst_mpegts_dvb_linkage_descriptor_copy (GstMpegtsDVBLinkageDescriptor * source)
       break;
   }
 
-  copy->private_data_bytes = g_memdup (source->private_data_bytes,
+  copy->private_data_bytes = g_memdup2 (source->private_data_bytes,
       source->private_data_length);
 
   return copy;
@@ -825,7 +825,7 @@ gst_mpegts_descriptor_parse_dvb_linkage (const GstMpegtsDescriptor * descriptor,
   }
 
   res->private_data_length = end - data;
-  res->private_data_bytes = g_memdup (data, res->private_data_length);
+  res->private_data_bytes = g_memdup2 (data, res->private_data_length);
 
   *desc = res;
 
@@ -1289,7 +1289,7 @@ gst_mpegts_descriptor_parse_dvb_component (const GstMpegtsDescriptor
  *
  * Extracts the component tag from @descriptor.
  *
- * Returns: %TRUE if the parsing happended correctly, else %FALSE.
+ * Returns: %TRUE if the parsing happened correctly, else %FALSE.
  */
 gboolean
 gst_mpegts_descriptor_parse_dvb_stream_identifier (const GstMpegtsDescriptor
@@ -1988,7 +1988,7 @@ gst_mpegts_descriptor_parse_dvb_multilingual_component (const
  * @private_data_specifier: (out): the private data specifier id
  * registered by http://www.dvbservices.com/
  * @private_data: (out) (transfer full) (allow-none) (array length=length): additional data or NULL
- * @length: (out) (allow-none): length of %private_data
+ * @length: (out) (allow-none): length of @private_data
  *
  * Parses out the private data specifier from the @descriptor.
  *
@@ -2013,7 +2013,7 @@ gst_mpegts_descriptor_parse_dvb_private_data_specifier (const
   if (length && private_data) {
     *length = descriptor->length - 4;
 
-    *private_data = g_memdup (data + 4, *length);
+    *private_data = g_memdup2 (data + 4, *length);
   }
   return TRUE;
 }
@@ -2024,7 +2024,7 @@ gst_mpegts_descriptor_parse_dvb_private_data_specifier (const
  * @descriptor: a %GST_MTS_DESC_DVB_FREQUENCY_LIST #GstMpegtsDescriptor
  * @offset: (out): %FALSE in Hz, %TRUE in kHz
  * @list: (out) (transfer full) (element-type guint32): a list of all frequencies in Hz/kHz
- * depending on %offset
+ * depending on @offset
  *
  * Parses out a list of frequencies from the @descriptor.
  *
@@ -2091,7 +2091,7 @@ _gst_mpegts_dvb_data_broadcast_descriptor_copy (GstMpegtsDataBroadcastDescriptor
 
   copy = g_slice_dup (GstMpegtsDataBroadcastDescriptor, source);
 
-  copy->selector_bytes = g_memdup (source->selector_bytes, source->length);
+  copy->selector_bytes = g_memdup2 (source->selector_bytes, source->length);
   copy->language_code = g_strdup (source->language_code);
   copy->text = g_strdup (source->text);
 
@@ -2145,7 +2145,7 @@ gst_mpegts_descriptor_parse_dvb_data_broadcast (const GstMpegtsDescriptor
   res->length = *data;
   data += 1;
 
-  res->selector_bytes = g_memdup (data, res->length);
+  res->selector_bytes = g_memdup2 (data, res->length);
   data += res->length;
 
   res->language_code = convert_lang_code (data);
@@ -2195,7 +2195,7 @@ gst_mpegts_descriptor_parse_dvb_scrambling (const GstMpegtsDescriptor *
  * @descriptor: a %GST_MTS_DESC_DVB_DATA_BROADCAST_ID #GstMpegtsDescriptor
  * @data_broadcast_id: (out): the data broadcast id
  * @id_selector_bytes: (out) (transfer full) (array length=len): the selector bytes, if present
- * @len: (out): the length of #id_selector_bytes
+ * @len: (out): the length of @id_selector_bytes
  *
  * Parses out the data broadcast id from the @descriptor.
  *
@@ -2220,7 +2220,7 @@ gst_mpegts_descriptor_parse_dvb_data_broadcast_id (const GstMpegtsDescriptor
 
   *len = descriptor->length - 2;
 
-  *id_selector_bytes = g_memdup (data, *len);
+  *id_selector_bytes = g_memdup2 (data, *len);
 
   return TRUE;
 }
@@ -2459,4 +2459,118 @@ gst_mpegts_descriptor_parse_dvb_t2_delivery_system (const GstMpegtsDescriptor
 
   *desc = res;
   return TRUE;
+}
+
+/**
+ * gst_mpegts_descriptor_parse_audio_preselection_list:
+ * @descriptor: a %GST_MTS_DESC_EXT_DVB_AUDIO_PRESELECTION #GstMpegtsDescriptor
+ * @list: (out) (transfer full) (element-type GstMpegtsAudioPreselectionDescriptor):
+ * the list of audio preselection
+ *
+ * Parses out a list of audio preselection from the @descriptor.
+ *
+ * Returns: %TRUE if the parsing happened correctly, else %FALSE.
+ *
+ * Since: 1.20
+ */
+gboolean
+gst_mpegts_descriptor_parse_audio_preselection_list (const GstMpegtsDescriptor
+    * descriptor, GPtrArray ** list)
+{
+  guint8 *data;
+  guint8 i, num_preselections, num_aux_components, future_extension_length;
+  GstMpegtsAudioPreselectionDescriptor *item;
+
+  g_return_val_if_fail (descriptor != NULL && list != NULL, FALSE);
+  __common_desc_ext_check_base (descriptor,
+      GST_MTS_DESC_EXT_DVB_AUDIO_PRESELECTION, FALSE);
+
+  *list = g_ptr_array_new_with_free_func ((GDestroyNotify)
+      gst_mpegts_descriptor_parse_audio_preselection_free);
+
+  data = (guint8 *) descriptor->data + 3;
+  num_preselections = (guint8) ((*data & 0xF8) >> 3);
+  data += 1;
+
+  for (i = 0; i < num_preselections; i++) {
+    item = g_slice_new0 (GstMpegtsAudioPreselectionDescriptor);
+    g_ptr_array_add (*list, item);
+
+    item->preselection_id = (*data & 0xF8) >> 3;
+    item->audio_rendering_indication = *data & 0x7;
+    data += 1;
+
+    item->audio_description = (*data & 0x80) >> 7;
+    item->spoken_subtitles = (*data & 0x40) >> 6;
+    item->dialogue_enhancement = (*data & 0x20) >> 5;
+    item->interactivity_enabled = (*data & 0x10) >> 4;
+    item->language_code_present = (*data & 0x08) >> 3;
+    item->text_label_present = (*data & 0x04) >> 2;
+    item->multi_stream_info_present = (*data & 0x02) >> 1;
+    item->future_extension = (*data) & 0x01;
+    data += 1;
+
+    if (item->language_code_present == 1) {
+      item->language_code = convert_lang_code (data);
+      data += 3;
+    }
+
+    if (item->text_label_present == 1) {
+      item->message_id = *data;
+      data += 1;
+    }
+
+    if (item->multi_stream_info_present == 1) {
+      num_aux_components = (*data & 0xE0) >> 5;
+      data += 1;
+      for (i = 0; i < num_aux_components; i++) {
+        data += 1;
+      }
+    }
+
+    if (item->future_extension == 1) {
+      future_extension_length = *data & 0x1F;
+      data += 1;
+      for (i = 0; i < future_extension_length; i++) {
+        data += 1;
+      }
+    }
+  }
+
+  return TRUE;
+}
+
+void gst_mpegts_descriptor_parse_audio_preselection_free
+    (GstMpegtsAudioPreselectionDescriptor * source)
+{
+  if (source->language_code_present == 1) {
+    g_free (source->language_code);
+  }
+  g_slice_free (GstMpegtsAudioPreselectionDescriptor, source);
+}
+
+void gst_mpegts_descriptor_parse_audio_preselection_dump
+    (GstMpegtsAudioPreselectionDescriptor * source)
+{
+  GST_DEBUG ("[Audio Preselection Descriptor]");
+  GST_DEBUG ("           preselection_id: 0x%02x", source->preselection_id);
+  GST_DEBUG ("audio_rendering_indication: 0x%02x",
+      source->audio_rendering_indication);
+  GST_DEBUG ("         audio_description: %d", source->audio_description);
+  GST_DEBUG ("          spoken_subtitles: %d", source->spoken_subtitles);
+  GST_DEBUG ("      dialogue_enhancement: %d", source->dialogue_enhancement);
+  GST_DEBUG ("     interactivity_enabled: %d", source->interactivity_enabled);
+  GST_DEBUG ("     language_code_present: %d", source->language_code_present);
+  GST_DEBUG ("        text_label_present: %d", source->text_label_present);
+  GST_DEBUG (" multi_stream_info_present: %d",
+      source->multi_stream_info_present);
+  GST_DEBUG ("          future_extension: %d", source->future_extension);
+
+  if (source->language_code_present == 1) {
+    GST_DEBUG ("             language_code: %s", source->language_code);
+  }
+  if (source->text_label_present == 1) {
+    GST_DEBUG ("                message_id: 0x%02x", source->message_id);
+  }
+  GST_DEBUG ("-------------------------------");
 }

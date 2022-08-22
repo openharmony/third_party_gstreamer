@@ -23,9 +23,10 @@
 
 /**
  * SECTION:element-rtprtxsend
+ * @title: rtprtxsend
  *
  * See #GstRtpRtxReceive for examples
- * 
+ *
  * The purpose of the sender RTX object is to keep a history of RTP packets up
  * to a configurable limit (max-size-time or max-size-packets). It will listen
  * for upstream custom retransmission events (GstRTPRetransmissionRequest) that
@@ -61,7 +62,8 @@ enum
   PROP_MAX_SIZE_TIME,
   PROP_MAX_SIZE_PACKETS,
   PROP_NUM_RTX_REQUESTS,
-  PROP_NUM_RTX_PACKETS
+  PROP_NUM_RTX_PACKETS,
+  PROP_CLOCK_RATE_MAP,
 };
 
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
@@ -73,7 +75,7 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("application/x-rtp, " "clock-rate = (int) [1, MAX]")
+    GST_STATIC_CAPS ("application/x-rtp")
     );
 
 static gboolean gst_rtp_rtx_send_queue_check_full (GstDataQueue * queue,
@@ -101,7 +103,11 @@ static void gst_rtp_rtx_send_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 static void gst_rtp_rtx_send_finalize (GObject * object);
 
-G_DEFINE_TYPE (GstRtpRtxSend, gst_rtp_rtx_send, GST_TYPE_ELEMENT);
+G_DEFINE_TYPE_WITH_CODE (GstRtpRtxSend, gst_rtp_rtx_send, GST_TYPE_ELEMENT,
+    GST_DEBUG_CATEGORY_INIT (gst_rtp_rtx_send_debug, "rtprtxsend", 0,
+        "rtp retransmission sender"));
+GST_ELEMENT_REGISTER_DEFINE (rtprtxsend, "rtprtxsend", GST_RANK_NONE,
+    GST_TYPE_RTP_RTX_SEND);
 
 typedef struct
 {
@@ -191,6 +197,11 @@ gst_rtp_rtx_send_class_init (GstRtpRtxSendClass * klass)
           " Number of retransmission packets sent", 0, G_MAXUINT,
           0, G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_CLOCK_RATE_MAP,
+      g_param_spec_boxed ("clock-rate-map", "Clock Rate Map",
+          "Map of payload types to their clock rates",
+          GST_TYPE_STRUCTURE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   gst_element_class_add_static_pad_template (gstelement_class, &src_factory);
   gst_element_class_add_static_pad_template (gstelement_class, &sink_factory);
 
@@ -218,7 +229,7 @@ gst_rtp_rtx_send_reset (GstRtpRtxSend * rtx)
 static void
 gst_rtp_rtx_send_finalize (GObject * object)
 {
-  GstRtpRtxSend *rtx = GST_RTP_RTX_SEND (object);
+  GstRtpRtxSend *rtx = GST_RTP_RTX_SEND_CAST (object);
 
   g_hash_table_unref (rtx->ssrc_data);
   g_hash_table_unref (rtx->rtx_ssrcs);
@@ -227,6 +238,9 @@ gst_rtp_rtx_send_finalize (GObject * object)
   g_hash_table_unref (rtx->rtx_pt_map);
   if (rtx->rtx_pt_map_structure)
     gst_structure_free (rtx->rtx_pt_map_structure);
+  g_hash_table_unref (rtx->clock_rate_map);
+  if (rtx->clock_rate_map_structure)
+    gst_structure_free (rtx->clock_rate_map_structure);
   g_object_unref (rtx->queue);
 
   G_OBJECT_CLASS (gst_rtp_rtx_send_parent_class)->finalize (object);
@@ -267,6 +281,7 @@ gst_rtp_rtx_send_init (GstRtpRtxSend * rtx)
       NULL, (GDestroyNotify) ssrc_rtx_data_free);
   rtx->rtx_ssrcs = g_hash_table_new (g_direct_hash, g_direct_equal);
   rtx->rtx_pt_map = g_hash_table_new (g_direct_hash, g_direct_equal);
+  rtx->clock_rate_map = g_hash_table_new (g_direct_hash, g_direct_equal);
 
   rtx->max_size_time = DEFAULT_MAX_SIZE_TIME;
   rtx->max_size_packets = DEFAULT_MAX_SIZE_PACKETS;
@@ -449,7 +464,7 @@ buffer_queue_items_cmp (BufferQueueItem * a, BufferQueueItem * b,
 static gboolean
 gst_rtp_rtx_send_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
 {
-  GstRtpRtxSend *rtx = GST_RTP_RTX_SEND (parent);
+  GstRtpRtxSend *rtx = GST_RTP_RTX_SEND_CAST (parent);
   gboolean res;
 
   switch (GST_EVENT_TYPE (event)) {
@@ -534,7 +549,7 @@ gst_rtp_rtx_send_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
 
         GST_OBJECT_LOCK (rtx);
 
-        /* choose another ssrc for our retransmited stream */
+        /* choose another ssrc for our retransmitted stream */
         if (g_hash_table_contains (rtx->rtx_ssrcs, GUINT_TO_POINTER (ssrc))) {
           guint master_ssrc;
           SSRCRtxData *data;
@@ -589,7 +604,7 @@ gst_rtp_rtx_send_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
 static gboolean
 gst_rtp_rtx_send_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
 {
-  GstRtpRtxSend *rtx = GST_RTP_RTX_SEND (parent);
+  GstRtpRtxSend *rtx = GST_RTP_RTX_SEND_CAST (parent);
 
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_FLUSH_START:
@@ -623,6 +638,9 @@ gst_rtp_rtx_send_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
         ssrc = -1;
       if (!gst_structure_get_int (s, "payload", &payload))
         payload = -1;
+
+      if (payload == -1 || ssrc == G_MAXUINT)
+        break;
 
       if (payload == -1)
         GST_WARNING_OBJECT (rtx, "No payload in caps");
@@ -722,6 +740,12 @@ process_buffer (GstRtpRtxSend * rtx, GstBuffer * buffer)
   if (g_hash_table_contains (rtx->rtx_pt_map, GUINT_TO_POINTER (payload_type))) {
     data = gst_rtp_rtx_send_get_ssrc_data (rtx, ssrc);
 
+    if (data->clock_rate == 0 && rtx->clock_rate_map_structure) {
+      data->clock_rate =
+          GPOINTER_TO_INT (g_hash_table_lookup (rtx->clock_rate_map,
+              GUINT_TO_POINTER (payload_type)));
+    }
+
     /* add current rtp buffer to queue history */
     item = g_slice_new0 (BufferQueueItem);
     item->seqnum = seqnum;
@@ -744,7 +768,7 @@ process_buffer (GstRtpRtxSend * rtx, GstBuffer * buffer)
 static GstFlowReturn
 gst_rtp_rtx_send_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
 {
-  GstRtpRtxSend *rtx = GST_RTP_RTX_SEND (parent);
+  GstRtpRtxSend *rtx = GST_RTP_RTX_SEND_CAST (parent);
   GstFlowReturn ret;
 
   GST_OBJECT_LOCK (rtx);
@@ -766,7 +790,7 @@ static GstFlowReturn
 gst_rtp_rtx_send_chain_list (GstPad * pad, GstObject * parent,
     GstBufferList * list)
 {
-  GstRtpRtxSend *rtx = GST_RTP_RTX_SEND (parent);
+  GstRtpRtxSend *rtx = GST_RTP_RTX_SEND_CAST (parent);
   GstFlowReturn ret;
 
   GST_OBJECT_LOCK (rtx);
@@ -817,7 +841,7 @@ static gboolean
 gst_rtp_rtx_send_activate_mode (GstPad * pad, GstObject * parent,
     GstPadMode mode, gboolean active)
 {
-  GstRtpRtxSend *rtx = GST_RTP_RTX_SEND (parent);
+  GstRtpRtxSend *rtx = GST_RTP_RTX_SEND_CAST (parent);
   gboolean ret = FALSE;
 
   switch (mode) {
@@ -842,7 +866,7 @@ static void
 gst_rtp_rtx_send_get_property (GObject * object,
     guint prop_id, GValue * value, GParamSpec * pspec)
 {
-  GstRtpRtxSend *rtx = GST_RTP_RTX_SEND (object);
+  GstRtpRtxSend *rtx = GST_RTP_RTX_SEND_CAST (object);
 
   switch (prop_id) {
     case PROP_PAYLOAD_TYPE_MAP:
@@ -868,6 +892,11 @@ gst_rtp_rtx_send_get_property (GObject * object,
     case PROP_NUM_RTX_PACKETS:
       GST_OBJECT_LOCK (rtx);
       g_value_set_uint (value, rtx->num_rtx_packets);
+      GST_OBJECT_UNLOCK (rtx);
+      break;
+    case PROP_CLOCK_RATE_MAP:
+      GST_OBJECT_LOCK (rtx);
+      g_value_set_boxed (value, rtx->clock_rate_map_structure);
       GST_OBJECT_UNLOCK (rtx);
       break;
     default:
@@ -896,7 +925,7 @@ static void
 gst_rtp_rtx_send_set_property (GObject * object,
     guint prop_id, const GValue * value, GParamSpec * pspec)
 {
-  GstRtpRtxSend *rtx = GST_RTP_RTX_SEND (object);
+  GstRtpRtxSend *rtx = GST_RTP_RTX_SEND_CAST (object);
 
   switch (prop_id) {
     case PROP_SSRC_MAP:
@@ -926,6 +955,16 @@ gst_rtp_rtx_send_set_property (GObject * object,
       rtx->max_size_packets = g_value_get_uint (value);
       GST_OBJECT_UNLOCK (rtx);
       break;
+    case PROP_CLOCK_RATE_MAP:
+      GST_OBJECT_LOCK (rtx);
+      if (rtx->clock_rate_map_structure)
+        gst_structure_free (rtx->clock_rate_map_structure);
+      rtx->clock_rate_map_structure = g_value_dup_boxed (value);
+      g_hash_table_remove_all (rtx->clock_rate_map);
+      gst_structure_foreach (rtx->clock_rate_map_structure,
+          structure_to_hash_table, rtx->clock_rate_map);
+      GST_OBJECT_UNLOCK (rtx);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -938,7 +977,7 @@ gst_rtp_rtx_send_change_state (GstElement * element, GstStateChange transition)
   GstStateChangeReturn ret;
   GstRtpRtxSend *rtx;
 
-  rtx = GST_RTP_RTX_SEND (element);
+  rtx = GST_RTP_RTX_SEND_CAST (element);
 
   switch (transition) {
     default:
@@ -958,14 +997,4 @@ gst_rtp_rtx_send_change_state (GstElement * element, GstStateChange transition)
   }
 
   return ret;
-}
-
-gboolean
-gst_rtp_rtx_send_plugin_init (GstPlugin * plugin)
-{
-  GST_DEBUG_CATEGORY_INIT (gst_rtp_rtx_send_debug, "rtprtxsend", 0,
-      "rtp retransmission sender");
-
-  return gst_element_register (plugin, "rtprtxsend", GST_RANK_NONE,
-      GST_TYPE_RTP_RTX_SEND);
 }

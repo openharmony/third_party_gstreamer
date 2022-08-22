@@ -19,6 +19,29 @@
  * Boston, MA 02110-1301, USA.
  */
 
+/**
+ * SECTION:element-rtpopuspay
+ * @title: rtpopuspay
+ *
+ * rtpopuspay encapsulates Opus-encoded audio data into RTP packets following
+ * the payload format described in RFC 7587.
+ *
+ * In addition to the RFC, which assumes only mono and stereo payload,
+ * the element supports multichannel Opus audio streams using a non-standardized
+ * SDP config and "multiopus" codec developed by Google for libwebrtc. When the
+ * input data have more than 2 channels, rtpopuspay will add extra fields to
+ * output caps that can be used to generate SDP in the syntax understood by
+ * libwebrtc. For example in the case of 5.1 audio:
+ *
+ * |[
+ *  a=rtpmap:96 multiopus/48000/6
+ *  a=fmtp:96 num_streams=4;coupled_streams=2;channel_mapping=0,4,1,2,3,5
+ * ]|
+ *
+ * See https://webrtc-review.googlesource.com/c/src/+/129768 for more details on
+ * multichannel Opus in libwebrtc.
+ */
+
 #ifdef HAVE_CONFIG_H
 #  include "config.h"
 #endif
@@ -28,19 +51,28 @@
 #include <gst/rtp/gstrtpbuffer.h>
 #include <gst/audio/audio.h>
 
+#include "gstrtpelements.h"
 #include "gstrtpopuspay.h"
 #include "gstrtputils.h"
 
 GST_DEBUG_CATEGORY_STATIC (rtpopuspay_debug);
 #define GST_CAT_DEFAULT (rtpopuspay_debug)
 
+enum
+{
+  PROP_0,
+  PROP_DTX,
+};
+
+#define DEFAULT_DTX FALSE
 
 static GstStaticPadTemplate gst_rtp_opus_pay_sink_template =
-GST_STATIC_PAD_TEMPLATE ("sink",
+    GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS
-    ("audio/x-opus, channels = (int) [1, 2], channel-mapping-family = (int) 0")
+    GST_STATIC_CAPS ("audio/x-opus, channel-mapping-family = (int) 0;"
+        "audio/x-opus, channel-mapping-family = (int) 0, channels = (int) [1, 2];"
+        "audio/x-opus, channel-mapping-family = (int) 1, channels = (int) [3, 255]")
     );
 
 static GstStaticPadTemplate gst_rtp_opus_pay_src_template =
@@ -51,8 +83,7 @@ GST_STATIC_PAD_TEMPLATE ("src",
         "media = (string) \"audio\", "
         "payload = (int) " GST_RTP_PAYLOAD_DYNAMIC_STRING ", "
         "clock-rate = (int) 48000, "
-        "encoding-params = (string) \"2\", "
-        "encoding-name = (string) { \"OPUS\", \"X-GST-OPUS-DRAFT-SPITTKA-00\" }")
+        "encoding-name = (string) { \"OPUS\", \"X-GST-OPUS-DRAFT-SPITTKA-00\", \"multiopus\" }")
     );
 
 static gboolean gst_rtp_opus_pay_setcaps (GstRTPBasePayload * payload,
@@ -63,24 +94,107 @@ static GstFlowReturn gst_rtp_opus_pay_handle_buffer (GstRTPBasePayload *
     payload, GstBuffer * buffer);
 
 G_DEFINE_TYPE (GstRtpOPUSPay, gst_rtp_opus_pay, GST_TYPE_RTP_BASE_PAYLOAD);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpopuspay, "rtpopuspay",
+    GST_RANK_PRIMARY, GST_TYPE_RTP_OPUS_PAY, rtp_element_init (plugin));
+
+#define GST_RTP_OPUS_PAY_CAST(obj) ((GstRtpOPUSPay *)(obj))
+
+static void
+gst_rtp_opus_pay_set_property (GObject * object,
+    guint prop_id, const GValue * value, GParamSpec * pspec)
+{
+  GstRtpOPUSPay *self = GST_RTP_OPUS_PAY (object);
+
+  switch (prop_id) {
+    case PROP_DTX:
+      self->dtx = g_value_get_boolean (value);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+  }
+}
+
+static void
+gst_rtp_opus_pay_get_property (GObject * object,
+    guint prop_id, GValue * value, GParamSpec * pspec)
+{
+  GstRtpOPUSPay *self = GST_RTP_OPUS_PAY (object);
+
+  switch (prop_id) {
+    case PROP_DTX:
+      g_value_set_boolean (value, self->dtx);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+  }
+}
+
+static GstStateChangeReturn
+gst_rtp_opus_pay_change_state (GstElement * element, GstStateChange transition)
+{
+  GstRtpOPUSPay *self = GST_RTP_OPUS_PAY (element);
+  GstStateChangeReturn ret;
+
+  switch (transition) {
+    case GST_STATE_CHANGE_READY_TO_PAUSED:
+      self->marker = TRUE;
+      break;
+    default:
+      break;
+  }
+
+  ret =
+      GST_ELEMENT_CLASS (gst_rtp_opus_pay_parent_class)->change_state (element,
+      transition);
+
+  switch (transition) {
+    default:
+      break;
+  }
+
+  return ret;
+}
 
 static void
 gst_rtp_opus_pay_class_init (GstRtpOPUSPayClass * klass)
 {
   GstRTPBasePayloadClass *gstbasertppayload_class;
   GstElementClass *element_class;
+  GObjectClass *gobject_class;
 
   gstbasertppayload_class = (GstRTPBasePayloadClass *) klass;
   element_class = GST_ELEMENT_CLASS (klass);
+  gobject_class = (GObjectClass *) klass;
+
+  element_class->change_state = gst_rtp_opus_pay_change_state;
 
   gstbasertppayload_class->set_caps = gst_rtp_opus_pay_setcaps;
   gstbasertppayload_class->get_caps = gst_rtp_opus_pay_getcaps;
   gstbasertppayload_class->handle_buffer = gst_rtp_opus_pay_handle_buffer;
 
+  gobject_class->set_property = gst_rtp_opus_pay_set_property;
+  gobject_class->get_property = gst_rtp_opus_pay_get_property;
+
   gst_element_class_add_static_pad_template (element_class,
       &gst_rtp_opus_pay_src_template);
   gst_element_class_add_static_pad_template (element_class,
       &gst_rtp_opus_pay_sink_template);
+
+  /**
+   * GstRtpOPUSPay:dtx:
+   *
+   * If enabled, the payloader will not transmit empty packets.
+   *
+   * Since: 1.20
+   */
+  g_object_class_install_property (gobject_class, PROP_DTX,
+      g_param_spec_boolean ("dtx", "Discontinuous Transmission",
+          "If enabled, the payloader will not transmit empty packets",
+          DEFAULT_DTX,
+          G_PARAM_READWRITE | GST_PARAM_MUTABLE_PLAYING |
+          G_PARAM_STATIC_STRINGS));
 
   gst_element_class_set_static_metadata (element_class,
       "RTP Opus payloader",
@@ -95,6 +209,7 @@ gst_rtp_opus_pay_class_init (GstRtpOPUSPayClass * klass)
 static void
 gst_rtp_opus_pay_init (GstRtpOPUSPay * rtpopuspay)
 {
+  rtpopuspay->dtx = DEFAULT_DTX;
 }
 
 static gboolean
@@ -102,11 +217,13 @@ gst_rtp_opus_pay_setcaps (GstRTPBasePayload * payload, GstCaps * caps)
 {
   gboolean res;
   GstCaps *src_caps;
-  GstStructure *s;
+  GstStructure *s, *outcaps;
   const char *encoding_name = "OPUS";
-  gint channels, rate;
-  const char *sprop_stereo = NULL;
-  char *sprop_maxcapturerate = NULL;
+  gint channels = 2;
+  gint rate;
+  gchar *encoding_params;
+
+  outcaps = gst_structure_new_empty ("unused");
 
   src_caps = gst_pad_get_allowed_caps (GST_RTP_BASE_PAYLOAD_SRCPAD (payload));
   if (src_caps) {
@@ -131,41 +248,75 @@ gst_rtp_opus_pay_setcaps (GstRTPBasePayload * payload, GstCaps * caps)
   s = gst_caps_get_structure (caps, 0);
   if (gst_structure_get_int (s, "channels", &channels)) {
     if (channels > 2) {
-      GST_ERROR_OBJECT (payload,
-          "More than 2 channels with channel-mapping-family=0 is invalid");
-      return FALSE;
-    } else if (channels == 2) {
-      sprop_stereo = "1";
+      /* Implies channel-mapping-family = 1. */
+
+      gint stream_count, coupled_count;
+      const GValue *channel_mapping_array;
+
+      /* libwebrtc only supports "multiopus" when channels > 2. Mono and stereo
+       * sound must always be payloaded according to RFC 7587. */
+      encoding_name = "multiopus";
+
+      if (gst_structure_get_int (s, "stream-count", &stream_count)) {
+        char *num_streams = g_strdup_printf ("%d", stream_count);
+        gst_structure_set (outcaps, "num_streams", G_TYPE_STRING, num_streams,
+            NULL);
+        g_free (num_streams);
+      }
+      if (gst_structure_get_int (s, "coupled-count", &coupled_count)) {
+        char *coupled_streams = g_strdup_printf ("%d", coupled_count);
+        gst_structure_set (outcaps, "coupled_streams", G_TYPE_STRING,
+            coupled_streams, NULL);
+        g_free (coupled_streams);
+      }
+
+      channel_mapping_array = gst_structure_get_value (s, "channel-mapping");
+      if (GST_VALUE_HOLDS_ARRAY (channel_mapping_array)) {
+        GString *str = g_string_new (NULL);
+        guint i;
+
+        for (i = 0; i < gst_value_array_get_size (channel_mapping_array); ++i) {
+          if (i != 0) {
+            g_string_append_c (str, ',');
+          }
+          g_string_append_printf (str, "%d",
+              g_value_get_int (gst_value_array_get_value (channel_mapping_array,
+                      i)));
+        }
+
+        gst_structure_set (outcaps, "channel_mapping", G_TYPE_STRING, str->str,
+            NULL);
+
+        g_string_free (str, TRUE);
+      }
     } else {
-      sprop_stereo = "0";
+      gst_structure_set (outcaps, "sprop-stereo", G_TYPE_STRING,
+          (channels == 2) ? "1" : "0", NULL);
+      /* RFC 7587 requires the number of channels always be 2. */
+      channels = 2;
     }
   }
 
+  encoding_params = g_strdup_printf ("%d", channels);
+  gst_structure_set (outcaps, "encoding-params", G_TYPE_STRING,
+      encoding_params, NULL);
+  g_free (encoding_params);
+
   if (gst_structure_get_int (s, "rate", &rate)) {
-    sprop_maxcapturerate = g_strdup_printf ("%d", rate);
+    gchar *sprop_maxcapturerate = g_strdup_printf ("%d", rate);
+
+    gst_structure_set (outcaps, "sprop-maxcapturerate", G_TYPE_STRING,
+        sprop_maxcapturerate, NULL);
+
+    g_free (sprop_maxcapturerate);
   }
 
   gst_rtp_base_payload_set_options (payload, "audio", FALSE,
       encoding_name, 48000);
 
-  if (sprop_maxcapturerate && sprop_stereo) {
-    res =
-        gst_rtp_base_payload_set_outcaps (payload, "sprop-maxcapturerate",
-        G_TYPE_STRING, sprop_maxcapturerate, "sprop-stereo", G_TYPE_STRING,
-        sprop_stereo, NULL);
-  } else if (sprop_maxcapturerate) {
-    res =
-        gst_rtp_base_payload_set_outcaps (payload, "sprop-maxcapturerate",
-        G_TYPE_STRING, sprop_maxcapturerate, NULL);
-  } else if (sprop_stereo) {
-    res =
-        gst_rtp_base_payload_set_outcaps (payload, "sprop-stereo",
-        G_TYPE_STRING, sprop_stereo, NULL);
-  } else {
-    res = gst_rtp_base_payload_set_outcaps (payload, NULL);
-  }
+  res = gst_rtp_base_payload_set_outcaps_structure (payload, outcaps);
 
-  g_free (sprop_maxcapturerate);
+  gst_structure_free (outcaps);
 
   return res;
 }
@@ -174,14 +325,24 @@ static GstFlowReturn
 gst_rtp_opus_pay_handle_buffer (GstRTPBasePayload * basepayload,
     GstBuffer * buffer)
 {
+  GstRtpOPUSPay *self = GST_RTP_OPUS_PAY_CAST (basepayload);
   GstBuffer *outbuf;
   GstClockTime pts, dts, duration;
+
+  /* DTX packets are zero-length frames, with a 1 or 2-bytes header */
+  if (self->dtx && gst_buffer_get_size (buffer) <= 2) {
+    GST_LOG_OBJECT (self,
+        "discard empty buffer as DTX is enabled: %" GST_PTR_FORMAT, buffer);
+    self->marker = TRUE;
+    gst_buffer_unref (buffer);
+    return GST_FLOW_OK;
+  }
 
   pts = GST_BUFFER_PTS (buffer);
   dts = GST_BUFFER_DTS (buffer);
   duration = GST_BUFFER_DURATION (buffer);
 
-  outbuf = gst_rtp_buffer_new_allocate (0, 0, 0);
+  outbuf = gst_rtp_base_payload_allocate_output_buffer (basepayload, 0, 0, 0);
 
   gst_rtp_copy_audio_meta (basepayload, outbuf, buffer);
 
@@ -190,6 +351,17 @@ gst_rtp_opus_pay_handle_buffer (GstRTPBasePayload * basepayload,
   GST_BUFFER_PTS (outbuf) = pts;
   GST_BUFFER_DTS (outbuf) = dts;
   GST_BUFFER_DURATION (outbuf) = duration;
+
+  if (self->marker) {
+    GstRTPBuffer rtp = GST_RTP_BUFFER_INIT;
+
+    gst_rtp_buffer_map (outbuf, GST_MAP_READWRITE, &rtp);
+    gst_rtp_buffer_set_marker (&rtp, TRUE);
+    gst_rtp_buffer_unmap (&rtp);
+
+    GST_BUFFER_FLAG_SET (outbuf, GST_BUFFER_FLAG_MARKER);
+    self->marker = FALSE;
+  }
 
   /* Push out */
   return gst_rtp_base_payload_push (basepayload, outbuf);
@@ -252,11 +424,4 @@ gst_rtp_opus_pay_getcaps (GstRTPBasePayload * payload,
 
   GST_DEBUG_OBJECT (payload, "Returning caps: %" GST_PTR_FORMAT, caps);
   return caps;
-}
-
-gboolean
-gst_rtp_opus_pay_plugin_init (GstPlugin * plugin)
-{
-  return gst_element_register (plugin, "rtpopuspay",
-      GST_RANK_PRIMARY, GST_TYPE_RTP_OPUS_PAY);
 }

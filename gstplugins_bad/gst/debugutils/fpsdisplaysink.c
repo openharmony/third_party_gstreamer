@@ -47,6 +47,7 @@
 #include "config.h"
 #endif
 
+#include "gstdebugutilsbadelements.h"
 #include "fpsdisplaysink.h"
 
 #define DEFAULT_SIGNAL_FPS_MEASUREMENTS FALSE
@@ -179,7 +180,7 @@ fps_display_sink_class_init (GstFPSDisplaySinkClass * klass)
   g_object_class_install_property (gobject_klass, PROP_SIGNAL_FPS_MEASUREMENTS,
       g_param_spec_boolean ("signal-fps-measurements",
           "Signal fps measurements",
-          "If the fps-measurements signal should be emited.",
+          "If the fps-measurements signal should be emitted.",
           DEFAULT_SIGNAL_FPS_MEASUREMENTS,
           G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
 
@@ -723,3 +724,6 @@ fps_display_sink_get_type (void)
 
   return fps_display_sink_type;
 }
+
+GST_ELEMENT_REGISTER_DEFINE (fpsdisplaysink, "fpsdisplaysink",
+    GST_RANK_NONE, fps_display_sink_get_type ());

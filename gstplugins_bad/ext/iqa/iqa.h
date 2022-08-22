@@ -51,6 +51,7 @@ struct _GstIqa
   gboolean do_dssim;
   gdouble ssim_threshold;
   gdouble max_dssim;
+  gint mode;
 };
 
 struct _GstIqaClass
@@ -59,6 +60,8 @@ struct _GstIqaClass
 };
 
 GType gst_iqa_get_type (void);
+
+GST_ELEMENT_REGISTER_DECLARE (iqa);
 
 G_END_DECLS
 #endif /* __GST_IQA_H__ */

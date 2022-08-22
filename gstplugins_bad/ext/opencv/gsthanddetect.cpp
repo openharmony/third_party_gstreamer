@@ -47,13 +47,12 @@
  * FIXME:operates hand gesture detection in video streams and images,
  * and enable media operation e.g. play/stop/fast forward/back rewind.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
+ *
  * |[
  * gst-launch-1.0 autovideosrc ! videoconvert ! "video/x-raw, format=RGB, width=320, height=240" ! \
  * videoscale ! handdetect ! videoconvert ! xvimagesink
  * ]|
- * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -128,7 +127,11 @@ static void gst_handdetect_navigation_send_event (GstNavigation * navigation,
 G_DEFINE_TYPE_WITH_CODE (GstHanddetect, gst_handdetect,
     GST_TYPE_OPENCV_VIDEO_FILTER,
     G_IMPLEMENT_INTERFACE (GST_TYPE_NAVIGATION,
-        gst_handdetect_navigation_interface_init););
+        gst_handdetect_navigation_interface_init);
+    GST_DEBUG_CATEGORY_INIT (gst_handdetect_debug,
+        "handdetect", 0, "opencv hand gesture detection"));
+GST_ELEMENT_REGISTER_DEFINE (handdetect, "handdetect", GST_RANK_NONE,
+    GST_TYPE_HANDDETECT);
 
 static void
 gst_handdetect_navigation_interface_init (GstNavigationInterface * iface)
@@ -508,7 +511,7 @@ gst_handdetect_transform_ip (GstOpencvVideoFilter * transform,
         Point c;
 
         if (filter->display) {
-          GST_DEBUG_OBJECT (filter, "%d PALM gestures detected\n",
+          GST_DEBUG_OBJECT (filter, "%d PALM gestures detected",
               (int) hands.size ());
         }
         /* Go through all detected PALM gestures to get the best one
@@ -624,17 +627,4 @@ gst_handdetect_load_profile (GstHanddetect * filter, gchar * profile)
   }
 
   return cascade;
-}
-
-/* Entry point to initialize the plug-in
- * Initialize the plug-in itself
- * Register the element factories and other features
- */
-gboolean
-gst_handdetect_plugin_init (GstPlugin * plugin)
-{
-  GST_DEBUG_CATEGORY_INIT (gst_handdetect_debug,
-      "handdetect", 0, "opencv hand gesture detection");
-  return gst_element_register (plugin, "handdetect", GST_RANK_NONE,
-      GST_TYPE_HANDDETECT);
 }

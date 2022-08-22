@@ -56,7 +56,7 @@ static GstElementClass *parent_class;
 GType
 gst_segment_clip_get_type (void)
 {
-  static volatile gsize segment_clip_type = 0;
+  static gsize segment_clip_type = 0;
 
   if (g_once_init_enter (&segment_clip_type)) {
     GType _type;
@@ -83,6 +83,8 @@ gst_segment_clip_class_init (GstSegmentClipClass * klass)
 
   gstelement_class->change_state =
       GST_DEBUG_FUNCPTR (gst_segment_clip_change_state);
+
+  gst_type_mark_as_plugin_api (GST_TYPE_SEGMENT_CLIP, 0);
 }
 
 static void

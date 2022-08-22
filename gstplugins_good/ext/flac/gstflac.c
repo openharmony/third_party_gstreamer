@@ -21,36 +21,18 @@
 #include "config.h"
 #endif
 
-#include "gstflacenc.h"
-#include "gstflacdec.h"
-#include "gstflactag.h"
-
-#include <gst/tag/tag.h>
-#include <gst/gst-i18n-plugin.h>
+#include "gstflacelements.h"
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-#ifdef ENABLE_NLS
-  GST_DEBUG ("binding text domain %s to locale dir %s", GETTEXT_PACKAGE,
-      LOCALEDIR);
-  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
-  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
-#endif
+  gboolean ret = FALSE;
 
-  if (!gst_element_register (plugin, "flacenc", GST_RANK_PRIMARY,
-          GST_TYPE_FLAC_ENC))
-    return FALSE;
-  if (!gst_element_register (plugin, "flacdec", GST_RANK_PRIMARY,
-          GST_TYPE_FLAC_DEC))
-    return FALSE;
-  if (!gst_element_register (plugin, "flactag", GST_RANK_PRIMARY,
-          gst_flac_tag_get_type ()))
-    return FALSE;
+  ret |= GST_ELEMENT_REGISTER (flacdec, plugin);
+  ret |= GST_ELEMENT_REGISTER (flacenc, plugin);
+  ret |= GST_ELEMENT_REGISTER (flactag, plugin);
 
-  gst_tag_register_musicbrainz_tags ();
-
-  return TRUE;
+  return ret;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

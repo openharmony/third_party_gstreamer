@@ -56,6 +56,8 @@ static GstFlowReturn
 gst_pnmdec_parse_ascii (GstPnmdec * s, const guint8 * b, guint bs);
 
 G_DEFINE_TYPE (GstPnmdec, gst_pnmdec, GST_TYPE_VIDEO_DECODER);
+GST_ELEMENT_REGISTER_DEFINE (pnmdec, "pnmdec", GST_RANK_PRIMARY,
+    GST_TYPE_PNMDEC);
 
 static GstStaticPadTemplate gst_pnmdec_src_pad_template =
 GST_STATIC_PAD_TEMPLATE ("src",
@@ -149,7 +151,7 @@ gst_pnmdec_negotiate (GstVideoDecoder * decoder)
         const gchar *fmtstr;
 
         pnmdec->size = pnmdec->mngr.info.width * pnmdec->mngr.info.height * 2;
-        /* perform some basic negotiation to resolve which endianess,
+        /* perform some basic negotiation to resolve which endianness,
          * if any, is supported by the component downstream. Query
          * the peer caps, intersecting with our preferred caps
          */

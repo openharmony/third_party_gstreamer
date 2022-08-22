@@ -52,12 +52,12 @@ GST_DEBUG_CATEGORY (videoconvert_debug);
 #define GST_CAT_DEFAULT videoconvert_debug
 GST_DEBUG_CATEGORY_STATIC (CAT_PERFORMANCE);
 
-GType gst_video_convert_get_type (void);
-
 static GQuark _colorspace_quark;
 
 #define gst_video_convert_parent_class parent_class
 G_DEFINE_TYPE (GstVideoConvert, gst_video_convert, GST_TYPE_VIDEO_FILTER);
+GST_ELEMENT_REGISTER_DEFINE (videoconvert, "videoconvert",
+    GST_RANK_NONE, GST_TYPE_VIDEO_CONVERT);
 
 #define DEFAULT_PROP_DITHER      GST_VIDEO_DITHER_BAYER
 #define DEFAULT_PROP_DITHER_QUANTIZATION 1
@@ -113,6 +113,9 @@ static gboolean gst_video_convert_set_info (GstVideoFilter * filter,
 static GstFlowReturn gst_video_convert_transform_frame (GstVideoFilter * filter,
     GstVideoFrame * in_frame, GstVideoFrame * out_frame);
 
+static GstCapsFeatures *features_format_interlaced,
+    *features_format_interlaced_sysmem;
+
 /* copies the given caps */
 static GstCaps *
 gst_video_convert_caps_remove_format_info (GstCaps * caps)
@@ -137,10 +140,14 @@ gst_video_convert_caps_remove_format_info (GstCaps * caps)
     st = gst_structure_copy (st);
     /* Only remove format info for the cases when we can actually convert */
     if (!gst_caps_features_is_any (f)
-        && gst_caps_features_is_equal (f,
-            GST_CAPS_FEATURES_MEMORY_SYSTEM_MEMORY))
+        && (gst_caps_features_is_equal (f,
+                GST_CAPS_FEATURES_MEMORY_SYSTEM_MEMORY)
+            || gst_caps_features_is_equal (f, features_format_interlaced)
+            || gst_caps_features_is_equal (f,
+                features_format_interlaced_sysmem))) {
       gst_structure_remove_fields (st, "format", "colorimetry", "chroma-site",
           NULL);
+    }
 
     gst_caps_append_structure_full (res, st, gst_caps_features_copy (f));
   }
@@ -149,7 +156,7 @@ gst_video_convert_caps_remove_format_info (GstCaps * caps)
 }
 
 /*
- * This is an incomplete matrix of in formats and a score for the prefered output
+ * This is an incomplete matrix of in formats and a score for the preferred output
  * format.
  *
  *         out: RGB24   RGB16  ARGB  AYUV  YUV444  YUV422 YUV420 YUV411 YUV410  PAL  GRAY
@@ -166,9 +173,9 @@ gst_video_convert_caps_remove_format_info (GstCaps * caps)
  * PAL            1      3       2     6     4       6      7      8      9      0    10
  * GRAY           1      4       3     2     1       5      6      7      8      9    0
  *
- * PAL or GRAY are never prefered, if we can we would convert to PAL instead
+ * PAL or GRAY are never preferred, if we can we would convert to PAL instead
  * of GRAY, though
- * less subsampling is prefered and if any, preferably horizontal
+ * less subsampling is preferred and if any, preferably horizontal
  * We would like to keep the alpha, even if we would need to to colorspace conversion
  * or lose depth.
  */
@@ -332,6 +339,105 @@ gst_video_convert_fixate_format (GstBaseTransform * base, GstCaps * caps,
         GST_VIDEO_FORMAT_INFO_NAME (out_info), NULL);
 }
 
+static gboolean
+subsampling_unchanged (GstVideoInfo * in_info, GstVideoInfo * out_info)
+{
+  gint i;
+  const GstVideoFormatInfo *in_format, *out_format;
+
+  if (GST_VIDEO_INFO_N_COMPONENTS (in_info) !=
+      GST_VIDEO_INFO_N_COMPONENTS (out_info))
+    return FALSE;
+
+  in_format = in_info->finfo;
+  out_format = out_info->finfo;
+
+  for (i = 0; i < GST_VIDEO_INFO_N_COMPONENTS (in_info); i++) {
+    if (GST_VIDEO_FORMAT_INFO_W_SUB (in_format,
+            i) != GST_VIDEO_FORMAT_INFO_W_SUB (out_format, i))
+      return FALSE;
+    if (GST_VIDEO_FORMAT_INFO_H_SUB (in_format,
+            i) != GST_VIDEO_FORMAT_INFO_H_SUB (out_format, i))
+      return FALSE;
+  }
+
+  return TRUE;
+}
+
+static void
+transfer_colorimetry_from_input (GstBaseTransform * trans, GstCaps * in_caps,
+    GstCaps * out_caps)
+{
+  GstStructure *out_caps_s = gst_caps_get_structure (out_caps, 0);
+  GstStructure *in_caps_s = gst_caps_get_structure (in_caps, 0);
+  gboolean have_colorimetry =
+      gst_structure_has_field (out_caps_s, "colorimetry");
+  gboolean have_chroma_site =
+      gst_structure_has_field (out_caps_s, "chroma-site");
+
+  /* If the output already has colorimetry and chroma-site, stop,
+   * otherwise try and transfer what we can from the input caps */
+  if (have_colorimetry && have_chroma_site)
+    return;
+
+  {
+    GstVideoInfo in_info, out_info;
+    const GValue *in_colorimetry =
+        gst_structure_get_value (in_caps_s, "colorimetry");
+
+    if (!gst_video_info_from_caps (&in_info, in_caps)) {
+      GST_WARNING_OBJECT (trans,
+          "Failed to convert sink pad caps to video info");
+      return;
+    }
+    if (!gst_video_info_from_caps (&out_info, out_caps)) {
+      GST_WARNING_OBJECT (trans,
+          "Failed to convert src pad caps to video info");
+      return;
+    }
+
+    if (!have_colorimetry && in_colorimetry != NULL) {
+      if ((GST_VIDEO_INFO_IS_YUV (&out_info)
+              && GST_VIDEO_INFO_IS_YUV (&in_info))
+          || (GST_VIDEO_INFO_IS_RGB (&out_info)
+              && GST_VIDEO_INFO_IS_RGB (&in_info))
+          || (GST_VIDEO_INFO_IS_GRAY (&out_info)
+              && GST_VIDEO_INFO_IS_GRAY (&in_info))) {
+        /* Can transfer the colorimetry intact from the input if it has it */
+        gst_structure_set_value (out_caps_s, "colorimetry", in_colorimetry);
+      } else {
+        gchar *colorimetry_str;
+
+        /* Changing between YUV/RGB - forward primaries and transfer function, but use
+         * default range and matrix.
+         * the primaries is used for conversion between RGB and XYZ (CIE 1931 coordinate).
+         * the transfer function could be another reference (e.g., HDR)
+         */
+        out_info.colorimetry.primaries = in_info.colorimetry.primaries;
+        out_info.colorimetry.transfer = in_info.colorimetry.transfer;
+
+        colorimetry_str =
+            gst_video_colorimetry_to_string (&out_info.colorimetry);
+        gst_caps_set_simple (out_caps, "colorimetry", G_TYPE_STRING,
+            colorimetry_str, NULL);
+        g_free (colorimetry_str);
+      }
+    }
+
+    /* Only YUV output needs chroma-site. If the input was also YUV and had the same chroma
+     * subsampling, transfer the siting. If the sub-sampling is changing, then the planes get
+     * scaled anyway so there's no real reason to prefer the input siting. */
+    if (!have_chroma_site && GST_VIDEO_INFO_IS_YUV (&out_info)) {
+      if (GST_VIDEO_INFO_IS_YUV (&in_info)) {
+        const GValue *in_chroma_site =
+            gst_structure_get_value (in_caps_s, "chroma-site");
+        if (in_chroma_site != NULL
+            && subsampling_unchanged (&in_info, &out_info))
+          gst_structure_set_value (out_caps_s, "chroma-site", in_chroma_site);
+      }
+    }
+  }
+}
 
 static GstCaps *
 gst_video_convert_fixate_caps (GstBaseTransform * trans,
@@ -361,6 +467,9 @@ gst_video_convert_fixate_caps (GstBaseTransform * trans,
   if (direction == GST_PAD_SINK) {
     if (gst_caps_is_subset (caps, result)) {
       gst_caps_replace (&result, caps);
+    } else {
+      /* Try and preserve input colorimetry / chroma information */
+      transfer_colorimetry_from_input (trans, caps, result);
     }
   }
 
@@ -432,6 +541,9 @@ gst_video_convert_set_info (GstVideoFilter * filter,
     GstVideoInfo * out_info)
 {
   GstVideoConvert *space;
+  GstBaseTransformClass *gstbasetransform_class =
+      GST_BASE_TRANSFORM_GET_CLASS (filter);
+  GstVideoInfo tmp_info;
 
   space = GST_VIDEO_CONVERT_CAST (filter);
 
@@ -453,6 +565,21 @@ gst_video_convert_set_info (GstVideoFilter * filter,
   if (in_info->interlace_mode != out_info->interlace_mode)
     goto format_mismatch;
 
+  /* if the only thing different in the caps is the transfer function, and
+   * we're converting between equivalent transfer functions, do passthrough */
+  tmp_info = *in_info;
+  tmp_info.colorimetry.transfer = out_info->colorimetry.transfer;
+  if (gst_video_info_is_equal (&tmp_info, out_info)) {
+    if (gst_video_transfer_function_is_equivalent (in_info->
+            colorimetry.transfer, in_info->finfo->bits,
+            out_info->colorimetry.transfer, out_info->finfo->bits)) {
+      gstbasetransform_class->passthrough_on_same_caps = FALSE;
+      gst_base_transform_set_passthrough (GST_BASE_TRANSFORM (filter), TRUE);
+      return TRUE;
+    }
+  }
+  gstbasetransform_class->passthrough_on_same_caps = TRUE;
+  gst_base_transform_set_passthrough (GST_BASE_TRANSFORM (filter), FALSE);
 
   space->convert = gst_video_converter_new (in_info, out_info,
       gst_structure_new ("GstVideoConvertConfig",
@@ -479,8 +606,9 @@ gst_video_convert_set_info (GstVideoFilter * filter,
   if (space->convert == NULL)
     goto no_convert;
 
-  GST_DEBUG ("reconfigured %d %d", GST_VIDEO_INFO_FORMAT (in_info),
-      GST_VIDEO_INFO_FORMAT (out_info));
+  GST_DEBUG_OBJECT (filter, "converting format %s -> %s",
+      gst_video_format_to_string (GST_VIDEO_INFO_FORMAT (in_info)),
+      gst_video_format_to_string (GST_VIDEO_INFO_FORMAT (out_info)));
 
   return TRUE;
 
@@ -726,8 +854,14 @@ plugin_init (GstPlugin * plugin)
 
   _colorspace_quark = g_quark_from_static_string ("colorspace");
 
-  return gst_element_register (plugin, "videoconvert",
-      GST_RANK_NONE, GST_TYPE_VIDEO_CONVERT);
+  features_format_interlaced =
+      gst_caps_features_new (GST_CAPS_FEATURE_FORMAT_INTERLACED, NULL);
+  features_format_interlaced_sysmem =
+      gst_caps_features_copy (features_format_interlaced);
+  gst_caps_features_add (features_format_interlaced_sysmem,
+      GST_CAPS_FEATURE_MEMORY_SYSTEM_MEMORY);
+
+  return GST_ELEMENT_REGISTER (videoconvert, plugin);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

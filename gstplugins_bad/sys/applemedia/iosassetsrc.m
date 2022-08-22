@@ -21,17 +21,16 @@
  * Boston, MA 02111-1307, USA.
  */
 /**
- * SECTION:element-ios_assetsrc
+ * SECTION:element-iosassetsrc
  * @see_also: #GstIOSAssetSrc
  *
  * Read data from an iOS asset from the media library.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
+ *
  * |[
  * gst-launch-1.0 iosassetsrc uri=assets-library://asset/asset.M4V?id=11&ext=M4V ! decodebin ! autoaudiosink
  * ]| Plays asset with id a song.ogg from local dir.
- * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H

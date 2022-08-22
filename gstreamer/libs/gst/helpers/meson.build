@@ -29,9 +29,11 @@ elif host_system == 'windows'
   message('PTP not supported on Windows, not ported yet.')
 elif host_system == 'ios'
   message('PTP not supported on iOS because of permissions.')
-elif ['linux', 'darwin', 'netbsd', 'freebsd', 'openbsd', 'kfreebsd', 'dragonfly', 'solaris'].contains(host_system)
+elif ['linux', 'darwin', 'netbsd', 'freebsd', 'openbsd', 'kfreebsd', 'dragonfly', 'sunos', 'gnu', 'gnu/kfreebsd'].contains(host_system)
   message('PTP supported on ' + host_system + '.')
   have_ptp = true
+else
+  message('PTP not supported on ' + host_system + ', not ported yet.')
 endif
 
 if have_ptp
@@ -64,16 +66,8 @@ if have_ptp
       description : 'getifaddrs() and AF_LINK is available')
   endif
 
-  gst_ptp_have_cap = false
-  cap_dep = []
-  if cc.has_header('sys/capability.h')
-    cap_dep = cc.find_library('cap', required : false)
-    if cap_dep.found() and cc.has_function('cap_init', dependencies : cap_dep)
-      gst_ptp_have_cap = true
-    endif
-  endif
-
-  setcap = find_program('setcap', '/usr/sbin/setcap', '/sbin/setcap', required : false)
+  setcap_prog = find_program('setcap', '/usr/sbin/setcap', '/sbin/setcap', required : false)
+  cap_dep = dependency('libcap', required: false)
 
   # user/group to change to in gst-ptp-helper
   ptp_helper_setuid_user = get_option('ptp-helper-setuid-user')
@@ -90,7 +84,7 @@ if have_ptp
   # how to install gst-ptp-helper
   with_ptp_helper_permissions = get_option('ptp-helper-permissions')
   if with_ptp_helper_permissions == 'auto'
-    if gst_ptp_have_cap and setcap.found()
+    if setcap_prog.found() and cap_dep.found()
       with_ptp_helper_permissions = 'capabilities'
     else
       with_ptp_helper_permissions = 'setuid-root'
@@ -104,8 +98,10 @@ if have_ptp
     cdata.set('HAVE_PTP_HELPER_SETUID', 1,
         description : 'Use setuid-root for permissions in PTP helper')
   elif with_ptp_helper_permissions == 'capabilities'
-    if not setcap.found()
+    if not setcap_prog.found()
       error('capabilities-based ptp-helper-permissions requested, but could not find setcap tool.')
+    elif not cap_dep.found()
+      error('capabilities-based ptp-helper-permissions requested, but could not find libcap.')
     endif
     cdata.set('HAVE_PTP_HELPER_CAPABILITIES', 1,
         description : 'Use capabilities for permissions in PTP helper')
@@ -122,7 +118,7 @@ if have_ptp
 
   meson.add_install_script('ptp_helper_post_install.sh',
       helpers_install_dir, with_ptp_helper_permissions,
-      setcap.found() ? setcap.path() : '')
+      setcap_prog.found() ? setcap_prog.full_path() : '')
 endif
 
 install_data(['gst_gdb.py', 'glib_gobject_helper.py'],

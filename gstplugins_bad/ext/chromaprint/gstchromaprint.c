@@ -27,8 +27,8 @@
  *
  * The chromaprint element calculates an acoustic fingerprint for an
  * audio stream which can be used to identify a song and look up
- * further metadata from the <ulink url="http://acoustid.org/">Acoustid</ulink>
- * and Musicbrainz databases.
+ * further metadata from the [Acoustid](http://acoustid.org/) and Musicbrainz
+ * databases.
  *
  * ## Example launch line
  * |[
@@ -61,8 +61,11 @@ enum
   PROP_MAX_DURATION
 };
 
+static gboolean chromaprint_element_init (GstPlugin * plugin);
+
 #define parent_class gst_chromaprint_parent_class
 G_DEFINE_TYPE (GstChromaprint, gst_chromaprint, GST_TYPE_AUDIO_FILTER);
+GST_ELEMENT_REGISTER_DEFINE_CUSTOM (chromaprint, chromaprint_element_init);
 
 static void gst_chromaprint_finalize (GObject * object);
 static void gst_chromaprint_set_property (GObject * object, guint prop_id,
@@ -292,7 +295,7 @@ gst_chromaprint_get_property (GObject * object, guint prop_id,
 }
 
 static gboolean
-plugin_init (GstPlugin * plugin)
+chromaprint_element_init (GstPlugin * plugin)
 {
   gboolean ret;
 
@@ -311,6 +314,12 @@ plugin_init (GstPlugin * plugin)
   }
 
   return ret;
+}
+
+static gboolean
+plugin_init (GstPlugin * plugin)
+{
+  return GST_ELEMENT_REGISTER (chromaprint, plugin);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

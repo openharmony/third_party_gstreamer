@@ -21,7 +21,6 @@
  * SECTION:element-curlhttpsink
  * @title: curlhttpsink
  * @short_description: sink that uploads data to a server using libcurl
- * @see_also:
  *
  * This is a network sink that uses libcurl as a client to upload data to
  * an HTTP server.
@@ -65,6 +64,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include "gstcurlelements.h"
 #include "gstcurltlssink.h"
 #include "gstcurlhttpsink.h"
 
@@ -112,7 +112,8 @@ static void gst_curl_http_sink_transfer_prepare_poll_wait
 
 #define gst_curl_http_sink_parent_class parent_class
 G_DEFINE_TYPE (GstCurlHttpSink, gst_curl_http_sink, GST_TYPE_CURL_TLS_SINK);
-
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (curlhttpsink, "curlhttpsink",
+    GST_RANK_NONE, GST_TYPE_CURL_HTTP_SINK, curl_element_init (plugin));
 /* private functions */
 
 static gboolean proxy_setup (GstCurlBaseSink * bcsink);
@@ -126,7 +127,6 @@ gst_curl_http_sink_class_init (GstCurlHttpSinkClass * klass)
 
   GST_DEBUG_CATEGORY_INIT (gst_curl_http_sink_debug, "curlhttpsink", 0,
       "curl http sink element");
-  GST_DEBUG_OBJECT (klass, "class_init");
 
   gst_element_class_set_static_metadata (element_class,
       "Curl http sink",
@@ -336,10 +336,14 @@ gst_curl_http_sink_set_header_unlocked (GstCurlBaseSink * bcsink)
   if (sink->use_content_length) {
     /* if content length is used we assume that every buffer is one
      * entire file, which is the case when uploading several jpegs */
-    tmp =
-        g_strdup_printf ("Content-Length: %d", (int) bcsink->transfer_buf->len);
-    sink->header_list = curl_slist_append (sink->header_list, tmp);
-    g_free (tmp);
+    res =
+        curl_easy_setopt (bcsink->curl, CURLOPT_POSTFIELDSIZE,
+        (long) bcsink->transfer_buf->len);
+    if (res != CURLE_OK) {
+      bcsink->error = g_strdup_printf ("failed to set HTTP content-length: %s",
+          curl_easy_strerror (res));
+      return FALSE;
+    }
   } else {
     /* when sending a POST request to a HTTP 1.1 server, you can send data
      * without knowing the size before starting the POST if you use chunked
@@ -360,6 +364,13 @@ set_headers:
     sink->header_list = curl_slist_append (sink->header_list, tmp);
     g_free (tmp);
   }
+
+  /* set 'Expect: 100-continue'-header explicitly */
+  if (sink->use_content_length) {
+    sink->header_list =
+        curl_slist_append (sink->header_list, "Expect: 100-continue");
+  }
+
   res = curl_easy_setopt (bcsink->curl, CURLOPT_HTTPHEADER, sink->header_list);
   if (res != CURLE_OK) {
     bcsink->error = g_strdup_printf ("failed to set HTTP headers: %s",

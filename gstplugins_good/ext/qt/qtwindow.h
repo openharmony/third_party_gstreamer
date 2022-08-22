@@ -31,8 +31,6 @@
 
 typedef struct _QtGLWindowPrivate QtGLWindowPrivate;
 
-class InitQtGLContext;
-
 class QtGLWindow : public QQuickWindow, protected QOpenGLFunctions
 {
     Q_OBJECT
@@ -52,7 +50,6 @@ private Q_SLOTS:
     void aboutToQuit();
 
 private:
-    friend class InitQtGLContext;
     QQuickWindow * source;
     QScopedPointer<QOpenGLFramebufferObject> fbo;
 };
@@ -62,6 +59,8 @@ extern "C"
 gboolean        qt_window_set_buffer (QtGLWindow * qt_window, GstBuffer * buffer);
 gboolean        qt_window_set_caps (QtGLWindow * qt_window, GstCaps * caps);
 GstGLContext *  qt_window_get_qt_context (QtGLWindow * qt_window);
+GstGLContext *  qt_window_get_context (QtGLWindow * qt_window);
+gboolean        qt_window_set_context (QtGLWindow * qt_window, GstGLContext * context);
 GstGLDisplay *  qt_window_get_display (QtGLWindow * qt_window);
 gboolean        qt_window_is_scenegraph_initialized (QtGLWindow * qt_window);
 void            qt_window_use_default_fbo (QtGLWindow * qt_window, gboolean useDefaultFbo);

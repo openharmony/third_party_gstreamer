@@ -20,6 +20,7 @@
 
 /**
  * SECTION:element-ximagesrc
+ * @title: ximagesrc
  *
  * This element captures your X Display and creates raw RGB video.  It uses
  * the XDamage extension if available to only capture areas of the screen that
@@ -27,12 +28,11 @@
  * available to also capture your mouse pointer.  By default it will fixate to
  * 25 frames per second.
  *
- * <refsect2>
- * <title>Example pipelines</title>
+ * ## Example pipelines
  * |[
  * gst-launch-1.0 ximagesrc ! video/x-raw,framerate=5/1 ! videoconvert ! theoraenc ! oggmux ! filesink location=desktop.ogg
  * ]| Encodes your X display to an Ogg theora video at 5 frames per second.
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -547,9 +547,8 @@ gst_ximage_src_ximage_get (GstXImageSrc * ximagesrc)
     do {
       XDamageNotifyEvent *damage_ev = (XDamageNotifyEvent *) (&ev);
 
-      XNextEvent (ximagesrc->xcontext->disp, &ev);
-
-      if (ev.type == ximagesrc->damage_event_base + XDamageNotify &&
+      if (XCheckTypedEvent (ximagesrc->xcontext->disp,
+              ximagesrc->damage_event_base + XDamageNotify, &ev) &&
           damage_ev->level == XDamageReportNonEmpty) {
 
         XDamageSubtract (ximagesrc->xcontext->disp, ximagesrc->damage, None,
@@ -929,7 +928,7 @@ gst_ximage_src_set_property (GObject * object, guint prop_id,
     case PROP_DISPLAY_NAME:
 
       g_free (src->display_name);
-      src->display_name = g_strdup (g_value_get_string (value));
+      src->display_name = g_value_dup_string (value);
       break;
     case PROP_SHOW_POINTER:
       src->show_pointer = g_value_get_boolean (value);
@@ -965,7 +964,7 @@ gst_ximage_src_set_property (GObject * object, guint prop_id,
         break;
       }
       g_free (src->xname);
-      src->xname = g_strdup (g_value_get_string (value));
+      src->xname = g_value_dup_string (value);
       break;
     default:
       break;
@@ -1259,7 +1258,7 @@ gst_ximage_src_class_init (GstXImageSrcClass * klass)
    * known to work better with remote displays.
    */
   g_object_class_install_property (gc, PROP_REMOTE,
-      g_param_spec_boolean ("remote", "Remote dispay",
+      g_param_spec_boolean ("remote", "Remote display",
           "Whether the display is remote", FALSE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   /**

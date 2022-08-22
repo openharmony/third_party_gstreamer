@@ -30,8 +30,8 @@
  *
  * This element encodes raw integer audio into an MPEG-1 layer 2 (MP2) stream.
  *
- * <refsect2>
- * <title>Example pipelines</title>
+ * ## Example pipelines
+ *
  * |[
  * gst-launch-1.0 -v audiotestsrc wave=sine num-buffers=100 ! audioconvert ! twolame ! filesink location=sine.mp2
  * ]| Encode a test sine signal to MP2.
@@ -44,7 +44,6 @@
  * |[
  * gst-launch-1.0 -v cdda://5 ! audioconvert ! twolame bitrate=192 ! filesink location=track5.mp2
  * ]| Encode Audio CD track 5 to MP2
- * </refsect2>
  *
  */
 
@@ -202,8 +201,11 @@ static void gst_two_lame_set_property (GObject * object, guint prop_id,
 static void gst_two_lame_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 static gboolean gst_two_lame_setup (GstTwoLame * twolame);
+static gboolean two_lame_element_init (void);
 
 G_DEFINE_TYPE (GstTwoLame, gst_two_lame, GST_TYPE_AUDIO_ENCODER);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (twolamemp2enc, "twolamemp2enc",
+    GST_RANK_PRIMARY, GST_TYPE_TWO_LAME, two_lame_element_init (););
 
 static void
 gst_two_lame_release_memory (GstTwoLame * twolame)
@@ -336,6 +338,10 @@ gst_two_lame_class_init (GstTwoLameClass * klass)
       "TwoLAME mp2 encoder", "Codec/Encoder/Audio",
       "High-quality free MP2 encoder",
       "Sebastian Dröge <sebastian.droege@collabora.co.uk>");
+
+  gst_type_mark_as_plugin_api (GST_TYPE_TWO_LAME_MODE, 0);
+  gst_type_mark_as_plugin_api (GST_TYPE_TWO_LAME_PADDING, 0);
+  gst_type_mark_as_plugin_api (GST_TYPE_TWO_LAME_EMPHASIS, 0);
 }
 
 static gboolean
@@ -865,7 +871,7 @@ gst_two_lame_get_default_settings (void)
 }
 
 static gboolean
-plugin_init (GstPlugin * plugin)
+two_lame_element_init (void)
 {
   GST_DEBUG_CATEGORY_INIT (debug, "twolame", 0, "twolame mp2 encoder");
 
@@ -878,12 +884,13 @@ plugin_init (GstPlugin * plugin)
   bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
   bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
 #endif /* ENABLE_NLS */
-
-  if (!gst_element_register (plugin, "twolamemp2enc", GST_RANK_PRIMARY,
-          GST_TYPE_TWO_LAME))
-    return FALSE;
-
   return TRUE;
+}
+
+static gboolean
+plugin_init (GstPlugin * plugin)
+{
+  return GST_ELEMENT_REGISTER (twolamemp2enc, plugin);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

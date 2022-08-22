@@ -19,7 +19,6 @@ group("gstreamer_packages") {
     ":gst-launch",
     ":gstbase",
     ":gstcoreelements",
-    ":gstcoretracers",
     ":gstreamer",
   ]
 }
@@ -40,7 +39,7 @@ config("gst_config") {
     "-Wall",
     "-Werror",
     "-DBUILDING_GST",
-    "-DG_LOG_DOMAIN=g_log_domain_gstreamer",
+    "-DG_LOG_DOMAIN=\"Gstreamer\"",
     "-DGST_DISABLE_DEPRECATED",
     "-DHAVE_CONFIG_H",
     "-DOHOS_EXT_FUNC",
@@ -151,6 +150,7 @@ config("gstprintf_config") {
     "-fno-strict-aliasing",
     "-Wno-sign-compare",
     "-Wno-builtin-requires-header",
+    "-DG_LOG_DOMAIN=\"GStreamer\"",
   ]
 }
 
@@ -205,6 +205,7 @@ config("gstbase_config") {
     "-DOHOS_OPT_COMPAT",
     "-DOHOS_OPT_PERFORMANCE",
     "-DOHOS_GLIB_COMPATIBLE",
+    "-DG_LOG_DOMAIN=\"GStreamer\"",
   ]
 }
 
@@ -223,8 +224,6 @@ ohos_source_set("gstbase_source") {
     "libs/gst/base/gstcollectpads.c",
     "libs/gst/base/gstdataqueue.c",
     "libs/gst/base/gstflowcombiner.c",
-    "libs/gst/base/gstindex.c",
-    "libs/gst/base/gstmemindex.c",
     "libs/gst/base/gstpushsrc.c",
     "libs/gst/base/gstqueuearray.c",
     "libs/gst/base/gsttypefindhelper.c",
@@ -238,9 +237,7 @@ ohos_shared_library("gstbase") {
     ":gstbase_source",
     ":gstreamer",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
-    "//third_party/zlib:libz",
   ]
   part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
@@ -265,35 +262,26 @@ config("gstcoreelements_config") {
     "-Wno-error=incompatible-pointer-types",
     "-DOHOS_OPT_COMPAT",
     "-DOHOS_EXT_FUNC",
+    "-DG_LOG_DOMAIN=\"GStreamer\"",
   ]
 }
 
 ohos_source_set("gstcoreelements_source") {
   sources = [
     "plugins/elements/gstcapsfilter.c",
-    "plugins/elements/gstconcat.c",
-    "plugins/elements/gstdataurisrc.c",
-    "plugins/elements/gstdownloadbuffer.c",
-    "plugins/elements/gstelements.c",
+    "plugins/elements/gstcoreelementsplugin.c",
     "plugins/elements/gstelements_private.c",
     "plugins/elements/gstfakesink.c",
-    "plugins/elements/gstfakesrc.c",
     "plugins/elements/gstfdsink.c",
     "plugins/elements/gstfdsrc.c",
-    "plugins/elements/gstfilesink.c",
     "plugins/elements/gstfilesrc.c",
-    "plugins/elements/gstfunnel.c",
     "plugins/elements/gstidentity.c",
     "plugins/elements/gstinputselector.c",
     "plugins/elements/gstmultiqueue.c",
-    "plugins/elements/gstoutputselector.c",
     "plugins/elements/gstqueue.c",
     "plugins/elements/gstqueue2.c",
-    "plugins/elements/gstsparsefile.c",
-    "plugins/elements/gststreamiddemux.c",
     "plugins/elements/gsttee.c",
     "plugins/elements/gsttypefindelement.c",
-    "plugins/elements/gstvalve.c",
   ]
 
   configs = [ ":gstcoreelements_config" ]
@@ -305,7 +293,6 @@ ohos_shared_library("gstcoreelements") {
     ":gstcoreelements_source",
     ":gstreamer",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
   ]
 
@@ -333,11 +320,13 @@ config("gstcoretracers_config") {
     "-Wno-builtin-requires-header",
     "-Wno-undefined-internal",
     "-Wno-unused-function",
+    "-DG_LOG_DOMAIN=\"GStreamer\"",
   ]
 }
 
 ohos_source_set("gstcoretracers_source") {
   sources = [
+    "plugins/tracers/gstfactories.c",
     "plugins/tracers/gstlatency.c",
     "plugins/tracers/gstleaks.c",
     "plugins/tracers/gstlog.c",
@@ -354,7 +343,6 @@ ohos_shared_library("gstcoretracers") {
     ":gstcoretracers_source",
     ":gstreamer",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
   ]
 
@@ -380,6 +368,7 @@ config("gsttools_config") {
     "-Wno-sign-compare",
     "-Wno-builtin-requires-header",
     "-Wno-error=incompatible-pointer-types",
+    "-DG_LOG_DOMAIN=\"GStreamer\"",
   ]
 }
 
@@ -392,10 +381,8 @@ ohos_source_set("gst_inspect_source") {
 ohos_executable("gst-inspect") {
   deps = [
     ":gst_inspect_source",
-    ":gstbase",
     ":gstreamer",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
   ]
   part_name = "multimedia_player_framework"
@@ -411,10 +398,8 @@ ohos_source_set("gst_launch_source") {
 ohos_executable("gst-launch") {
   deps = [
     ":gst_launch_source",
-    ":gstbase",
     ":gstreamer",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
   ]
   part_name = "multimedia_player_framework"

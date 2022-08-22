@@ -24,12 +24,12 @@
 
 /**
  * SECTION:element-v4l2sink
+ * @title: v4l2sink
  *
  * v4l2sink can be used to display video to v4l2 devices (screen overlays
  * provided by the graphics hardware, tv-out, etc)
  *
- * <refsect2>
- * <title>Example launch lines</title>
+ * ## Example launch lines
  * |[
  * gst-launch-1.0 videotestsrc ! v4l2sink device=/dev/video1
  * ]| This pipeline displays a test pattern on /dev/video1
@@ -45,7 +45,7 @@
  * original video frame geometry so that the box can be drawn to the correct
  * position. This also handles borders correctly, limiting coordinates to the
  * image area
- * </refsect2>
+ *
  */
 
 
@@ -59,6 +59,7 @@
 #include "gstv4l2tuner.h"
 #include "gstv4l2vidorient.h"
 
+#include "gstv4l2elements.h"
 #include "gstv4l2sink.h"
 #include "gst/gst-i18n-plugin.h"
 
@@ -95,7 +96,8 @@ G_DEFINE_TYPE_WITH_CODE (GstV4l2Sink, gst_v4l2sink, GST_TYPE_VIDEO_SINK,
         gst_v4l2sink_color_balance_interface_init);
     G_IMPLEMENT_INTERFACE (GST_TYPE_VIDEO_ORIENTATION,
         gst_v4l2sink_video_orientation_interface_init));
-
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (v4l2sink,
+    "v4l2sink", GST_RANK_NONE, GST_TYPE_V4L2SINK, v4l2_element_init (plugin));
 
 static void gst_v4l2sink_finalize (GstV4l2Sink * v4l2sink);
 
@@ -437,6 +439,7 @@ gst_v4l2sink_change_state (GstElement * element, GstStateChange transition)
 {
   GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
   GstV4l2Sink *v4l2sink = GST_V4L2SINK (element);
+  GstV4l2Error error = GST_V4L2_ERROR_INIT;
 
   GST_DEBUG_OBJECT (v4l2sink, "%d -> %d",
       GST_STATE_TRANSITION_CURRENT (transition),
@@ -445,8 +448,10 @@ gst_v4l2sink_change_state (GstElement * element, GstStateChange transition)
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
       /* open the device */
-      if (!gst_v4l2_object_open (v4l2sink->v4l2object))
+      if (!gst_v4l2_object_open (v4l2sink->v4l2object, &error)) {
+        gst_v4l2_error (v4l2sink, &error);
         return GST_STATE_CHANGE_FAILURE;
+      }
       break;
     default:
       break;
@@ -607,7 +612,7 @@ gst_v4l2sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
   gst_buffer_ref (buf);
 again:
   ret = gst_v4l2_buffer_pool_process (GST_V4L2_BUFFER_POOL_CAST (obj->pool),
-      &buf);
+      &buf, NULL);
   if (ret == GST_FLOW_FLUSHING) {
     ret = gst_base_sink_wait_preroll (GST_BASE_SINK (vsink));
     if (ret == GST_FLOW_OK)

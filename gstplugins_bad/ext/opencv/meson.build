@@ -1,4 +1,5 @@
 if get_option('opencv').disabled()
+  opencv_dep = disabler()
   subdir_done()
 endif
 
@@ -29,7 +30,8 @@ gstopencv_sources = [
   'camerautils.cpp',
   'cameraevent.cpp',
   'gstcameracalibrate.cpp',
-  'gstcameraundistort.cpp'
+  'gstcameraundistort.cpp',
+  'gstcvtracker.cpp'
 ]
 
 libopencv_headers = [
@@ -40,6 +42,7 @@ libopencv_headers = [
   'opencv2/objdetect.hpp',
   'opencv2/opencv.hpp',
   'opencv2/video.hpp',
+  'opencv2/tracking.hpp',
 ]
 
 libopencv4_headers = [
@@ -50,6 +53,7 @@ libopencv4_headers = [
   'opencv4/opencv2/objdetect.hpp',
   'opencv4/opencv2/opencv.hpp',
   'opencv4/opencv2/video.hpp',
+  'opencv4/opencv2/tracking.hpp',
 ]
 
 gstopencv_cargs = ['-DGST_HAAR_CASCADES_DIR="@0@"']
@@ -64,8 +68,10 @@ if opencv_found
       opencv_found = false
     endif
   endforeach
-else
-  opencv_dep = dependency('opencv4', version : ['>= 4.0.0', '< 4.2.0'], required : false)
+endif
+
+if not opencv_found
+  opencv_dep = dependency('opencv4', version : ['>= 4.0.0', '< 4.7.0'], required : false)
   opencv_found = opencv_dep.found()
   if opencv_found
     foreach h : libopencv4_headers
@@ -78,37 +84,48 @@ else
 endif
 
 if opencv_found
-  opencv_prefix = opencv_dep.get_pkgconfig_variable('prefix')
+  opencv_prefix = opencv_dep.get_variable('prefix')
   gstopencv_cargs += ['-DOPENCV_PREFIX="' + opencv_prefix + '"']
 
   # Check the data dir used by opencv for its xml data files
   # Use prefix from pkg-config to be compatible with cross-compilation
-  r = run_command('test', '-d', opencv_prefix + '/share/opencv')
+  r = run_command('test', '-d', opencv_prefix + '/share/opencv', check: false)
   if r.returncode() == 0
     gstopencv_cargs += '-DOPENCV_PATH_NAME="opencv"'
   else
-    r = run_command('test', '-d', opencv_prefix + '/share/OpenCV')
+    r = run_command('test', '-d', opencv_prefix + '/share/OpenCV', check: false)
     if r.returncode() == 0
       gstopencv_cargs += '-DOPENCV_PATH_NAME="OpenCV"'
     else
-      r = run_command('test', '-d', opencv_prefix + '/share/opencv4')
+      r = run_command('test', '-d', opencv_prefix + '/share/opencv4', check: false)
       if r.returncode() == 0
         gstopencv_cargs += '-DOPENCV_PATH_NAME="opencv4"'
       else
-        error('Unable to detect OpenCV data directory')
+        message('Unable to detect OpenCV data directory')
+        opencv_found = false
       endif
     endif
   endif
+endif
+
+if opencv_found
+  # opencv4 seems to ship with .pc file that references non-existent include dir
+  # (/usr/include/opencv4/opencv instead of /usr/include/opencv4/opencv2)
+  # clang 10 complains about the following header in opencv4
+  # /usr/include/opencv4/opencv2/flann/logger.h:83:36: error: format string is not a string literal [-Werror,-Wformat-nonliteral]
+  gstopencv_cargs += cxx.get_supported_arguments(['-Wno-missing-include-dirs', '-Wno-format-nonliteral'])
+
   gstopencv = library('gstopencv',
     gstopencv_sources,
     cpp_args : gst_plugins_bad_args + gstopencv_cargs + [ '-DGST_USE_UNSTABLE_API' ],
-    link_args : noseh_link_args,
+    link_args : [noseh_link_args, '-lopencv_tracking'],
     include_directories : [configinc, libsinc],
     dependencies : [gstbase_dep, gstvideo_dep, opencv_dep, gstopencv_dep],
     install : true,
     install_dir : plugins_install_dir,
   )
   pkgconfig.generate(gstopencv, install_dir : plugins_pkgconfig_install_dir)
+  plugins += [gstopencv]
 elif get_option('opencv').enabled()
   error('OpenCV support enabled but required dependencies were not found.')
 endif

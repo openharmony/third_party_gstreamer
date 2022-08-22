@@ -25,13 +25,12 @@
  * Extract raw audio from RTP packets according to RFC 3551.
  * For detailed information see: http://www.rfc-editor.org/rfc/rfc3551.txt
  *
- * <refsect2>
- * <title>Example pipeline</title>
+ * ## Example pipeline
+ *
  * |[
  * gst-launch udpsrc caps='application/x-rtp, media=(string)audio, clock-rate=(int)44100, encoding-name=(string)L8, encoding-params=(string)1, channels=(int)1, payload=(int)96' ! rtpL8depay ! pulsesink
  * ]| This example pipeline will depayload an RTP raw audio stream. Refer to
  * the rtpL8pay example to create the RTP stream.
- * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -43,6 +42,7 @@
 
 #include <gst/audio/audio.h>
 
+#include "gstrtpelements.h"
 #include "gstrtpL8depay.h"
 #include "gstrtpchannels.h"
 
@@ -73,6 +73,10 @@ static GstStaticPadTemplate gst_rtp_L8_depay_sink_template =
 
 #define gst_rtp_L8_depay_parent_class parent_class
 G_DEFINE_TYPE (GstRtpL8Depay, gst_rtp_L8_depay, GST_TYPE_RTP_BASE_DEPAYLOAD);
+
+
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpL8depay, "rtpL8depay",
+    GST_RANK_SECONDARY, GST_TYPE_RTP_L8_DEPAY, rtp_element_init (plugin));
 
 static gboolean gst_rtp_L8_depay_setcaps (GstRTPBaseDepayload * depayload,
     GstCaps * caps);
@@ -187,6 +191,7 @@ gst_rtp_L8_depay_setcaps (GstRTPBaseDepayload * depayload, GstCaps * caps)
             GST_STR_NULL (channel_order), channels));
     /* create default NONE layout */
     gst_rtp_channels_create_default (channels, info->position);
+    info->flags |= GST_AUDIO_FLAG_UNPOSITIONED;
   }
 
   srccaps = gst_audio_info_to_caps (info);
@@ -257,11 +262,4 @@ reorder_failed:
     gst_rtp_buffer_unmap (&rtp);
     return NULL;
   }
-}
-
-gboolean
-gst_rtp_L8_depay_plugin_init (GstPlugin * plugin)
-{
-  return gst_element_register (plugin, "rtpL8depay",
-      GST_RANK_SECONDARY, GST_TYPE_RTP_L8_DEPAY);
 }

@@ -109,15 +109,7 @@ id3v2_parse_frame (ID3TagsWorking * work)
 
   if (work->frame_flags & (ID3V2_FRAME_FORMAT_COMPRESSION |
           ID3V2_FRAME_FORMAT_DATA_LENGTH_INDICATOR)) {
-#ifdef OHOS_OPT_CVE
-    /*
-     * ohos.opt.cve.0002
-     * CVE-2021-3522 : https://gstreamer.freedesktop.org/security/sa-2021-0001.html
-     */
     if (frame_data_size <= 4)
-#else
-    if (work->hdr.frame_data_size <= 4)
-#endif
       return FALSE;
     if (ID3V2_VER_MAJOR (work->hdr.version) == 3) {
       work->parse_size = GST_READ_UINT32_BE (frame_data);

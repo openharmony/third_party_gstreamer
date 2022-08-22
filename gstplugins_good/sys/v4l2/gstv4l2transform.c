@@ -115,9 +115,11 @@ gst_v4l2_transform_get_property (GObject * object,
 static gboolean
 gst_v4l2_transform_open (GstV4l2Transform * self)
 {
+  GstV4l2Error error = GST_V4L2_ERROR_INIT;
+
   GST_DEBUG_OBJECT (self, "Opening");
 
-  if (!gst_v4l2_object_open (self->v4l2output))
+  if (!gst_v4l2_object_open (self->v4l2output, &error))
     goto failure;
 
   if (!gst_v4l2_object_open_shared (self->v4l2capture, self->v4l2output))
@@ -159,6 +161,8 @@ failure:
 
   gst_caps_replace (&self->probed_srccaps, NULL);
   gst_caps_replace (&self->probed_sinkcaps, NULL);
+
+  gst_v4l2_error (self, &error);
 
   return FALSE;
 }
@@ -208,12 +212,8 @@ gst_v4l2_transform_set_caps (GstBaseTransform * trans, GstCaps * incaps,
     }
   }
 
-  /* TODO Add renegotiation support */
-  g_return_val_if_fail (!GST_V4L2_IS_ACTIVE (self->v4l2output), FALSE);
-  g_return_val_if_fail (!GST_V4L2_IS_ACTIVE (self->v4l2capture), FALSE);
-
-  gst_caps_replace (&self->incaps, incaps);
-  gst_caps_replace (&self->outcaps, outcaps);
+  gst_v4l2_object_stop (self->v4l2output);
+  gst_v4l2_object_stop (self->v4l2capture);
 
   if (!gst_v4l2_object_set_format (self->v4l2output, incaps, &error))
     goto incaps_failed;
@@ -221,11 +221,14 @@ gst_v4l2_transform_set_caps (GstBaseTransform * trans, GstCaps * incaps,
   if (!gst_v4l2_object_set_format (self->v4l2capture, outcaps, &error))
     goto outcaps_failed;
 
+  gst_caps_replace (&self->incaps, incaps);
+  gst_caps_replace (&self->outcaps, outcaps);
+
   /* FIXME implement fallback if crop not supported */
-  if (!gst_v4l2_object_set_crop (self->v4l2output))
+  if (!gst_v4l2_object_setup_padding (self->v4l2output))
     goto failed;
 
-  if (!gst_v4l2_object_set_crop (self->v4l2capture))
+  if (!gst_v4l2_object_setup_padding (self->v4l2capture))
     goto failed;
 
   return TRUE;
@@ -754,7 +757,7 @@ gst_v4l2_transform_fixate_caps (GstBaseTransform * trans,
         goto done;
       }
 
-      /* If all this failed, keep the height that was nearest to the orignal
+      /* If all this failed, keep the height that was nearest to the original
        * height and the nearest possible width. This changes the DAR but
        * there's not much else to do here.
        */
@@ -893,8 +896,24 @@ gst_v4l2_transform_prepare_output_buffer (GstBaseTransform * trans,
   /* Ensure input internal pool is active */
   if (!gst_buffer_pool_is_active (pool)) {
     GstStructure *config = gst_buffer_pool_get_config (pool);
-    gint min = self->v4l2output->min_buffers == 0 ? GST_V4L2_MIN_BUFFERS :
-        self->v4l2output->min_buffers;
+    gint min = MAX (GST_V4L2_MIN_BUFFERS (self->v4l2output),
+        self->v4l2output->min_buffers);
+
+    if (self->v4l2output->mode == GST_V4L2_IO_USERPTR ||
+        self->v4l2output->mode == GST_V4L2_IO_DMABUF_IMPORT) {
+      if (!gst_v4l2_object_try_import (self->v4l2output, inbuf)) {
+        GST_ERROR_OBJECT (self, "cannot import buffers from upstream");
+        return GST_FLOW_ERROR;
+      }
+
+      if (self->v4l2output->need_video_meta) {
+        /* We may need video meta if imported buffer is using non-standard
+         * stride/padding */
+        gst_buffer_pool_config_add_option (config,
+            GST_BUFFER_POOL_OPTION_VIDEO_META);
+      }
+    }
+
     gst_buffer_pool_config_set_params (config, self->incaps,
         self->v4l2output->info.size, min, min);
 
@@ -907,7 +926,8 @@ gst_v4l2_transform_prepare_output_buffer (GstBaseTransform * trans,
   }
 
   GST_DEBUG_OBJECT (self, "Queue input buffer");
-  ret = gst_v4l2_buffer_pool_process (GST_V4L2_BUFFER_POOL (pool), &inbuf);
+  ret =
+      gst_v4l2_buffer_pool_process (GST_V4L2_BUFFER_POOL (pool), &inbuf, NULL);
   if (G_UNLIKELY (ret != GST_FLOW_OK))
     goto beach;
 
@@ -925,7 +945,9 @@ gst_v4l2_transform_prepare_output_buffer (GstBaseTransform * trans,
       goto alloc_failed;
 
     pool = self->v4l2capture->pool;
-    ret = gst_v4l2_buffer_pool_process (GST_V4L2_BUFFER_POOL (pool), outbuf);
+    ret =
+        gst_v4l2_buffer_pool_process (GST_V4L2_BUFFER_POOL (pool), outbuf,
+        NULL);
 
   } while (ret == GST_V4L2_FLOW_CORRUPTED_BUFFER);
 
@@ -1154,7 +1176,6 @@ gst_v4l2_transform_subclass_init (gpointer g_class, gpointer data)
 
   klass->default_device = cdata->device;
 
-  /* Note: gst_pad_template_new() take the floating ref from the caps */
   gst_element_class_add_pad_template (element_class,
       gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
           cdata->sink_caps));

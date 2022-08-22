@@ -1,3 +1,4 @@
+
 /*
  * gstdvb.c - 
  * Copyright (C) 2007 Alessandro Decina
@@ -26,26 +27,17 @@
 
 #include <gst/gst-i18n-plugin.h>
 
-#include "gstdvbsrc.h"
-#include "dvbbasebin.h"
+#include "gstdvbelements.h"
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-#ifdef ENABLE_NLS
-  GST_DEBUG ("binding text domain %s to locale dir %s", GETTEXT_PACKAGE,
-      LOCALEDIR);
-  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
-  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
-#endif /* ENABLE_NLS */
+  gboolean ret = FALSE;
 
-  if (!gst_dvbsrc_plugin_init (plugin))
-    return FALSE;
+  ret |= GST_ELEMENT_REGISTER (dvbsrc, plugin);
+  ret |= GST_ELEMENT_REGISTER (dvbbasebin, plugin);
 
-  if (!gst_dvb_base_bin_plugin_init (plugin))
-    return FALSE;
-
-  return TRUE;
+  return ret;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

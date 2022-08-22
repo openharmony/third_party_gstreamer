@@ -85,7 +85,7 @@ setup_output_pad (GstElement * element, GstStaticPadTemplate * tmpl)
       GINT_TO_POINTER (probe_id));
 
   /* request src pad */
-  srcpad = gst_element_get_request_pad (element, "src_%u");
+  srcpad = gst_element_request_pad_simple (element, "src_%u");
   fail_if (srcpad == NULL, "Could not get source pad from %s",
       GST_ELEMENT_NAME (element));
 
@@ -303,7 +303,7 @@ setup_input_pad (GstElement * element)
   fail_if (input_pad == NULL, "Could not create a input_pad");
 
   /* request sink pad */
-  sinkpad = gst_element_get_request_pad (element, "sink_%u");
+  sinkpad = gst_element_request_pad_simple (element, "sink_%u");
   fail_if (sinkpad == NULL, "Could not get sink pad from %s",
       GST_ELEMENT_NAME (element));
 
@@ -500,10 +500,12 @@ input_selector_push_buffer (gint stream, enum InputSelectorResult res)
   }
 }
 
+/* Consumes a ref to the passed pad */
 static gpointer
 input_selector_do_push_eos (GstPad * pad)
 {
   gst_pad_push_event (pad, gst_event_new_eos ());
+  gst_object_unref (pad);
   return NULL;
 }
 
@@ -533,7 +535,7 @@ input_selector_push_eos (gint stream, gboolean active)
      * from a separate thread. This makes this test racy, but it should only
      * cause false positives, not false negatives */
     GThread *t = g_thread_new ("selector-test-push-eos",
-        (GThreadFunc) input_selector_do_push_eos, pad);
+        (GThreadFunc) input_selector_do_push_eos, gst_object_ref (pad));
 
     /* Sleep half a second to allow the other thread to execute, this is not
      * a definitive solution but there is no way to know when the

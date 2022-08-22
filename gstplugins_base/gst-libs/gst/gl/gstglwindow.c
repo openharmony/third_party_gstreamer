@@ -68,6 +68,9 @@
 #if GST_GL_HAVE_WINDOW_DISPMANX
 #include "dispmanx/gstglwindow_dispmanx_egl.h"
 #endif
+#if GST_GL_HAVE_WINDOW_WINRT
+#include "winrt/gstglwindow_winrt_egl.h"
+#endif
 
 #define USING_OPENGL(context) (gst_gl_context_check_gl_version (context, GST_GL_API_OPENGL, 1, 0))
 #define USING_OPENGL3(context) (gst_gl_context_check_gl_version (context, GST_GL_API_OPENGL3, 3, 1))
@@ -85,6 +88,7 @@ static void gst_gl_window_default_send_message (GstGLWindow * window,
     GstGLWindowCB callback, gpointer data);
 static void gst_gl_window_default_send_message_async (GstGLWindow * window,
     GstGLWindowCB callback, gpointer data, GDestroyNotify destroy);
+static gboolean gst_gl_window_default_has_output_surface (GstGLWindow * window);
 
 struct _GstGLWindowPrivate
 {
@@ -92,8 +96,6 @@ struct _GstGLWindowPrivate
 
   guint surface_width;
   guint surface_height;
-
-  gboolean alive;
 
   GMutex sync_message_lock;
   GCond sync_message_cond;
@@ -124,11 +126,18 @@ enum
   SIGNAL_0,
   EVENT_MOUSE_SIGNAL,
   EVENT_KEY_SIGNAL,
+  EVENT_SCROLL_SIGNAL,
+  WINDOW_HANDLE_CHANGED_SIGNAL,
   LAST_SIGNAL
 };
 
 static guint gst_gl_window_signals[LAST_SIGNAL] = { 0 };
 
+/**
+ * gst_gl_window_error_quark:
+ *
+ * Returns: the quark used for #GstGLWindow in #GError's
+ */
 GQuark
 gst_gl_window_error_quark (void)
 {
@@ -138,18 +147,21 @@ gst_gl_window_error_quark (void)
 static gboolean
 gst_gl_window_default_open (GstGLWindow * window, GError ** error)
 {
+  g_main_context_push_thread_default (window->main_context);
+
   return TRUE;
 }
 
 static void
 gst_gl_window_default_close (GstGLWindow * window)
 {
+  g_main_context_pop_thread_default (window->main_context);
 }
 
 static void
 _init_debug (void)
 {
-  static volatile gsize _init = 0;
+  static gsize _init = 0;
 
   if (g_once_init_enter (&_init)) {
     GST_DEBUG_CATEGORY_INIT (gst_gl_window_debug, "glwindow", 0,
@@ -187,6 +199,8 @@ gst_gl_window_class_init (GstGLWindowClass * klass)
   klass->send_message = GST_DEBUG_FUNCPTR (gst_gl_window_default_send_message);
   klass->send_message_async =
       GST_DEBUG_FUNCPTR (gst_gl_window_default_send_message_async);
+  klass->has_output_surface =
+      GST_DEBUG_FUNCPTR (gst_gl_window_default_has_output_surface);
 
   G_OBJECT_CLASS (klass)->finalize = gst_gl_window_finalize;
 
@@ -204,8 +218,8 @@ gst_gl_window_class_init (GstGLWindowClass * klass)
    */
   gst_gl_window_signals[EVENT_MOUSE_SIGNAL] =
       g_signal_new ("mouse-event", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, g_cclosure_marshal_generic,
-      G_TYPE_NONE, 4, G_TYPE_STRING, G_TYPE_INT, G_TYPE_DOUBLE, G_TYPE_DOUBLE);
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 4, G_TYPE_STRING,
+      G_TYPE_INT, G_TYPE_DOUBLE, G_TYPE_DOUBLE);
 
   /**
    * GstGLWindow::key-event:
@@ -219,8 +233,42 @@ gst_gl_window_class_init (GstGLWindowClass * klass)
    */
   gst_gl_window_signals[EVENT_KEY_SIGNAL] =
       g_signal_new ("key-event", G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 2, G_TYPE_STRING,
+      G_TYPE_STRING);
+
+  /**
+   * GstGLWindow::scroll-event:
+   * @object: the #GstGLWindow
+   * @x: the x coordinate of the mouse event
+   * @y: the y coordinate of the mouse event
+   * @delta_x: the x offset of the scroll event
+   * @delta_y: the y offset of the scroll event
+   *
+   * Will be emitted when a mouse scroll event is received by the GstGLwindow.
+   *
+   * Since: 1.18
+   */
+  gst_gl_window_signals[EVENT_SCROLL_SIGNAL] =
+      g_signal_new ("scroll-event", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, 0, NULL, NULL, g_cclosure_marshal_generic,
-      G_TYPE_NONE, 2, G_TYPE_STRING, G_TYPE_STRING);
+      G_TYPE_NONE, 4, G_TYPE_DOUBLE, G_TYPE_DOUBLE, G_TYPE_DOUBLE,
+      G_TYPE_DOUBLE);
+
+  /**
+   * GstGLWindow::window-handle-changed:
+   * @object: the #GstGLWindow
+   *
+   * Will be emitted when the window handle has been set into the native
+   * implementation, but before the context is re-activated. By using this
+   * signal, elements can refresh associated resource without relying on
+   * direct handle comparision.
+   *
+   * Since: 1.20
+   */
+  gst_gl_window_signals[WINDOW_HANDLE_CHANGED_SIGNAL] =
+      g_signal_new ("window-handle_changed", G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL, g_cclosure_marshal_generic,
+      G_TYPE_NONE, 0);
 
   _init_debug ();
 }
@@ -282,6 +330,10 @@ gst_gl_window_new (GstGLDisplay * display)
   if (!window && (!user_choice || g_strstr_len (user_choice, 3, "gbm")))
     window = GST_GL_WINDOW (gst_gl_window_gbm_egl_new (display));
 #endif
+#if GST_GL_HAVE_WINDOW_WINRT
+  if (!window && (!user_choice || g_strstr_len (user_choice, 5, "winrt")))
+    window = GST_GL_WINDOW (gst_gl_window_winrt_egl_new (display));
+#endif
 
   if (!window) {
     /* subclass returned a NULL window */
@@ -301,6 +353,8 @@ gst_gl_window_finalize (GObject * object)
 {
   GstGLWindow *window = GST_GL_WINDOW (object);
   GstGLWindowPrivate *priv = window->priv;
+
+  gst_gl_display_remove_window (window->display, window);
 
   if (priv->loop)
     g_main_loop_unref (priv->loop);
@@ -343,6 +397,12 @@ _set_window_handle_cb (GstSetWindowHandleCb * data)
   }
 
   window_class->set_window_handle (data->window, data->handle);
+
+  /* Let's assume users don't call this without a new handle, this is the
+   * safest since we don't know the nature of the handle and direct
+   * comparision might not be safe */
+  g_signal_emit (data->window,
+      gst_gl_window_signals[WINDOW_HANDLE_CHANGED_SIGNAL], 0, NULL);
 
   /* reactivate */
   if (context && thread)
@@ -494,11 +554,7 @@ gst_gl_window_default_run (GstGLWindow * window)
 {
   GstGLWindowPrivate *priv = window->priv;
 
-  g_main_context_push_thread_default (window->main_context);
-
   g_main_loop_run (priv->loop);
-
-  g_main_context_pop_thread_default (window->main_context);
 }
 
 /**
@@ -518,14 +574,22 @@ gst_gl_window_run (GstGLWindow * window)
   window_class = GST_GL_WINDOW_GET_CLASS (window);
   g_return_if_fail (window_class->run != NULL);
 
-  window->priv->alive = TRUE;
   window_class->run (window);
+}
+
+static void
+window_default_quit_func (GstGLWindow * window)
+{
+  gst_gl_display_remove_window (window->display, window);
+  g_main_loop_quit (window->priv->loop);
 }
 
 static void
 gst_gl_window_default_quit (GstGLWindow * window)
 {
-  g_main_loop_quit (window->priv->loop);
+  gst_gl_window_send_message_async (window,
+      (GstGLWindowCB) window_default_quit_func, gst_object_ref (window),
+      gst_object_unref);
 }
 
 /**
@@ -546,8 +610,6 @@ gst_gl_window_quit (GstGLWindow * window)
   g_return_if_fail (window_class->quit != NULL);
 
   GST_GL_WINDOW_LOCK (window);
-
-  window->priv->alive = FALSE;
 
   window_class->quit (window);
 
@@ -607,7 +669,7 @@ gst_gl_window_default_send_message (GstGLWindow * window,
  * @callback: (scope async): function to invoke
  * @data: (closure): data to invoke @callback with
  *
- * Invoke @callback with data on the window thread.  @callback is guarenteed to
+ * Invoke @callback with data on the window thread.  @callback is guaranteed to
  * have executed when this function returns.
  *
  * Since: 1.4
@@ -661,6 +723,36 @@ gst_gl_window_default_send_message_async (GstGLWindow * window,
       message);
 }
 
+static gboolean
+gst_gl_window_default_has_output_surface (GstGLWindow * window)
+{
+  return TRUE;
+}
+
+/**
+ * gst_gl_window_has_output_surface:
+ * @window: a #GstGLWindow
+ *
+ * Query whether @window has output surface or not
+ *
+ * Returns: %TRUE if @window has useable output surface
+ *
+ * Since: 1.18
+ */
+gboolean
+gst_gl_window_has_output_surface (GstGLWindow * window)
+{
+  GstGLWindowClass *window_class;
+
+  g_return_val_if_fail (GST_IS_GL_WINDOW (window), FALSE);
+
+  window_class = GST_GL_WINDOW_GET_CLASS (window);
+
+  g_assert (window_class->has_output_surface);
+
+  return window_class->has_output_surface (window);
+}
+
 /**
  * gst_gl_window_send_message_async:
  * @window: a #GstGLWindow
@@ -694,7 +786,7 @@ gst_gl_window_send_message_async (GstGLWindow * window, GstGLWindowCB callback,
  * @data: (closure): data to invoke @callback with
  * @destroy_notify: called when @data is not needed any more
  *
- * Sets the draw callback called everytime gst_gl_window_draw() is called
+ * Sets the draw callback called every time gst_gl_window_draw() is called
  *
  * Since: 1.4
  */
@@ -723,7 +815,7 @@ gst_gl_window_set_draw_callback (GstGLWindow * window, GstGLWindowCB callback,
  * @data: (closure): data to invoke @callback with
  * @destroy_notify: called when @data is not needed any more
  *
- * Sets the resize callback called everytime a resize of the window occurs.
+ * Sets the resize callback called every time a resize of the window occurs.
  *
  * Since: 1.4
  */
@@ -842,10 +934,12 @@ void
 gst_gl_window_get_surface_dimensions (GstGLWindow * window, guint * width,
     guint * height)
 {
+  GST_GL_WINDOW_LOCK (window);
   if (width)
     *width = window->priv->surface_width;
   if (height)
     *height = window->priv->surface_height;
+  GST_GL_WINDOW_UNLOCK (window);
 }
 
 void
@@ -863,6 +957,28 @@ gst_gl_window_send_mouse_event (GstGLWindow * window, const char *event_type,
   g_signal_emit (window, gst_gl_window_signals[EVENT_MOUSE_SIGNAL], 0,
       event_type, button, posx, posy);
 }
+
+/**
+ * gst_gl_window_send_scroll_event:
+ * @window: a #GstGLWindow
+ * @posx: x position of the mouse cursor
+ * @posy: y position of the mouse cursor
+ * @delta_x: the x offset of the scroll event
+ * @delta_y: the y offset of the scroll event
+ *
+ * Notify a @window about a scroll event. A scroll signal holding the event
+ * coordinates will be emitted.
+ *
+ * Since: 1.18
+ */
+void
+gst_gl_window_send_scroll_event (GstGLWindow * window,
+    double posx, double posy, double delta_x, double delta_y)
+{
+  g_signal_emit (window, gst_gl_window_signals[EVENT_SCROLL_SIGNAL], 0,
+      posx, posy, delta_x, delta_y);
+}
+
 
 /**
  * gst_gl_window_handle_events:
@@ -910,6 +1026,7 @@ gst_gl_window_set_render_rectangle (GstGLWindow * window, gint x, gint y,
   g_return_val_if_fail (GST_IS_GL_WINDOW (window), FALSE);
   window_class = GST_GL_WINDOW_GET_CLASS (window);
 
+  GST_GL_WINDOW_LOCK (window);
   /* When x/y is smaller then reset the render rectangle */
   if (x < 0 || y < 0) {
     x = y = 0;
@@ -917,11 +1034,15 @@ gst_gl_window_set_render_rectangle (GstGLWindow * window, gint x, gint y,
     height = window->priv->surface_height;
   }
 
-  if (x < 0 || y < 0 || width <= 0 || height <= 0)
+  if (x < 0 || y < 0 || width <= 0 || height <= 0) {
+    GST_GL_WINDOW_UNLOCK (window);
     return FALSE;
+  }
 
   if (window_class->set_render_rectangle)
     ret = window_class->set_render_rectangle (window, x, y, width, height);
+
+  GST_GL_WINDOW_UNLOCK (window);
 
   return ret;
 }
@@ -956,8 +1077,18 @@ _on_resize (gpointer data)
 {
   struct resize_data *resize = data;
 
-  resize->window->resize (resize->window->resize_data, resize->width,
-      resize->height);
+  GST_GL_WINDOW_LOCK (resize->window);
+
+  if (resize->window->resize)
+    resize->window->resize (resize->window->resize_data, resize->width,
+        resize->height);
+
+  resize->window->priv->surface_width = resize->width;
+  resize->window->priv->surface_height = resize->height;
+
+  GST_GL_WINDOW_UNLOCK (resize->window);
+
+  resize->window->queue_resize = FALSE;
 }
 
 /**
@@ -971,22 +1102,15 @@ _on_resize (gpointer data)
 void
 gst_gl_window_resize (GstGLWindow * window, guint width, guint height)
 {
+  struct resize_data resize = { 0, };
+
   g_return_if_fail (GST_IS_GL_WINDOW (window));
 
-  if (window->resize) {
-    struct resize_data resize = { 0, };
+  resize.window = window;
+  resize.width = width;
+  resize.height = height;
 
-    resize.window = window;
-    resize.width = width;
-    resize.height = height;
-
-    gst_gl_window_send_message (window, (GstGLWindowCB) _on_resize, &resize);
-  }
-
-  window->priv->surface_width = width;
-  window->priv->surface_height = height;
-
-  window->queue_resize = FALSE;
+  gst_gl_window_send_message (window, (GstGLWindowCB) _on_resize, &resize);
 }
 
 /**
@@ -1014,6 +1138,12 @@ gst_gl_window_controls_viewport (GstGLWindow * window)
 }
 
 static GType gst_gl_dummy_window_get_type (void);
+
+static gboolean
+gst_gl_dummy_window_has_output_surface (GstGLWindow * window)
+{
+  return FALSE;
+}
 
 G_DEFINE_TYPE (GstGLDummyWindow, gst_gl_dummy_window, GST_TYPE_GL_WINDOW);
 
@@ -1050,6 +1180,8 @@ gst_gl_dummy_window_class_init (GstGLDummyWindowClass * klass)
       GST_DEBUG_FUNCPTR (gst_gl_dummy_window_get_window_handle);
   window_class->set_window_handle =
       GST_DEBUG_FUNCPTR (gst_gl_dummy_window_set_window_handle);
+  window_class->has_output_surface =
+      GST_DEBUG_FUNCPTR (gst_gl_dummy_window_has_output_surface);
 }
 
 static void

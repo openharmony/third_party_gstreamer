@@ -17,7 +17,7 @@
  * Boston, MA 02110-1301, USA.
  */
 /**
- * SECTION:element-gstviewfinderbin
+ * SECTION:element-viewfinderbin
  * @title: gstviewfinderbin
  *
  * The gstviewfinderbin element is a displaying element for camerabin2.
@@ -63,6 +63,11 @@ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
 /* class initialization */
 #define gst_viewfinder_bin_parent_class parent_class
 G_DEFINE_TYPE (GstViewfinderBin, gst_viewfinder_bin, GST_TYPE_BIN);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (viewfinderbin, "viewfinderbin",
+    GST_RANK_NONE, gst_viewfinder_bin_get_type (),
+    GST_DEBUG_CATEGORY_INIT (gst_viewfinder_bin_debug, "viewfinderbin", 0,
+        "ViewFinderBin");
+    );
 
 static void gst_viewfinder_bin_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * spec);
@@ -205,7 +210,7 @@ gst_viewfinder_bin_create_elements (GstViewfinderBin * vfbin)
     }
     gst_bin_add (GST_BIN_CAST (vfbin), csp);
 
-    videoscale = gst_element_factory_make ("videoscale", "vfbin->videoscale");
+    videoscale = gst_element_factory_make ("videoscale", "vfbin-videoscale");
     if (!videoscale) {
       missing_element_name = "videoscale";
       goto missing_element;
@@ -216,7 +221,7 @@ gst_viewfinder_bin_create_elements (GstViewfinderBin * vfbin)
         GST_PAD_LINK_CHECK_NOTHING);
 
     vfbin->elements_created = TRUE;
-    GST_DEBUG_OBJECT (vfbin, "Elements succesfully created and linked");
+    GST_DEBUG_OBJECT (vfbin, "Elements successfully created and linked");
 
     updated_converters = TRUE;
   }
@@ -227,7 +232,7 @@ gst_viewfinder_bin_create_elements (GstViewfinderBin * vfbin)
     gboolean unref = FALSE;
     if (!videoscale) {
       videoscale = gst_bin_get_by_name (GST_BIN_CAST (vfbin),
-          "vfbin-videscale");
+          "vfbin-videoscale");
       unref = TRUE;
     }
 
@@ -357,13 +362,4 @@ gst_viewfinder_bin_get_property (GObject * object, guint prop_id,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
-}
-
-gboolean
-gst_viewfinder_bin_plugin_init (GstPlugin * plugin)
-{
-  GST_DEBUG_CATEGORY_INIT (gst_viewfinder_bin_debug, "viewfinderbin", 0,
-      "ViewFinderBin");
-  return gst_element_register (plugin, "viewfinderbin", GST_RANK_NONE,
-      gst_viewfinder_bin_get_type ());
 }

@@ -19,6 +19,7 @@
 
  /**
  * SECTION:element-rtpj2kpay
+ * @title: rtpj2kpay
  *
  * Payload encode JPEG 2000 images into RTP packets according to RFC 5371
  * and RFC 5372.
@@ -30,7 +31,6 @@
  * codestream. A "packetization unit" is defined as either a JPEG 2000 main header,
  * a JPEG 2000 tile-part header, or a JPEG 2000 packet.
  *
- *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -40,6 +40,7 @@
 #include <string.h>
 #include <gst/rtp/gstrtpbuffer.h>
 #include <gst/video/video.h>
+#include "gstrtpelements.h"
 #include "gstrtpj2kcommon.h"
 #include "gstrtpj2kpay.h"
 #include "gstrtputils.h"
@@ -97,6 +98,8 @@ static GstFlowReturn gst_rtp_j2k_pay_handle_buffer (GstRTPBasePayload * pad,
 
 #define gst_rtp_j2k_pay_parent_class parent_class
 G_DEFINE_TYPE (GstRtpJ2KPay, gst_rtp_j2k_pay, GST_TYPE_RTP_BASE_PAYLOAD);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpj2kpay, "rtpj2kpay",
+    GST_RANK_SECONDARY, GST_TYPE_RTP_J2K_PAY, rtp_element_init (plugin));
 
 static void
 gst_rtp_j2k_pay_class_init (GstRtpJ2KPayClass * klass)
@@ -440,7 +443,9 @@ gst_rtp_j2k_pay_handle_buffer (GstRTPBasePayload * basepayload,
       data_size = payload_size - GST_RTP_J2K_HEADER_SIZE;
 
       /* make buffer for header */
-      outbuf = gst_rtp_buffer_new_allocate (GST_RTP_J2K_HEADER_SIZE, 0, 0);
+      outbuf =
+          gst_rtp_base_payload_allocate_output_buffer (basepayload,
+          GST_RTP_J2K_HEADER_SIZE, 0, 0);
 
       GST_BUFFER_PTS (outbuf) = timestamp;
 
@@ -559,11 +564,4 @@ gst_rtp_j2k_pay_get_property (GObject * object, guint prop_id,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
-}
-
-gboolean
-gst_rtp_j2k_pay_plugin_init (GstPlugin * plugin)
-{
-  return gst_element_register (plugin, "rtpj2kpay", GST_RANK_SECONDARY,
-      GST_TYPE_RTP_J2K_PAY);
 }
