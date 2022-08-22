@@ -1,8 +1,9 @@
-/* A Bison parser, made by GNU Bison 3.0.4.  */
+/* A Bison parser, made by GNU Bison 3.5.1.  */
 
 /* Bison interface for Yacc-like parsers in C
 
-   Copyright (C) 1984, 1989-1990, 2000-2015 Free Software Foundation, Inc.
+   Copyright (C) 1984, 1989-1990, 2000-2015, 2018-2020 Free Software Foundation,
+   Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -30,8 +31,11 @@
    This special exception was added by the Free Software Foundation in
    version 2.2 of Bison.  */
 
-#ifndef YY_PRIV_GST_PARSE_YY_GRAMMAR_TAB_H_INCLUDED
-# define YY_PRIV_GST_PARSE_YY_GRAMMAR_TAB_H_INCLUDED
+/* Undocumented macros, especially those whose name start with YY_,
+   are private implementation details.  Do not rely on them.  */
+
+#ifndef YY_PRIV_GST_PARSE_YY_SUBPROJECTS_GSTREAMER_GST_PARSE_GRAMMAR_TAB_H_INCLUDED
+# define YY_PRIV_GST_PARSE_YY_SUBPROJECTS_GSTREAMER_GST_PARSE_GRAMMAR_TAB_H_INCLUDED
 /* Debug traces.  */
 #ifndef YYDEBUG
 # define YYDEBUG 0
@@ -51,17 +55,17 @@ extern int priv_gst_parse_yydebug;
     PADREF = 261,
     BINREF = 262,
     ASSIGNMENT = 263,
-    LINK = 264,
-    LINK_ALL = 265
+    PRESET = 264,
+    LINK = 265,
+    LINK_ALL = 266
   };
 #endif
 
 /* Value type.  */
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
-
 union YYSTYPE
 {
-#line 750 "./grammar.y" /* yacc.c:1909  */
+#line 785 "subprojects/gstreamer/gst/parse/grammar.y"
 
     gchar *ss;
     chain_t *cc;
@@ -71,9 +75,9 @@ union YYSTYPE
     GSList *pp;
     graph_t *gg;
 
-#line 75 "grammar.tab.h" /* yacc.c:1909  */
-};
+#line 79 "subprojects/gstreamer/gst/parse/grammar.tab.h"
 
+};
 typedef union YYSTYPE YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define YYSTYPE_IS_DECLARED 1
@@ -83,4 +87,4 @@ typedef union YYSTYPE YYSTYPE;
 
 int priv_gst_parse_yyparse (void *scanner, graph_t *graph);
 
-#endif /* !YY_PRIV_GST_PARSE_YY_GRAMMAR_TAB_H_INCLUDED  */
+#endif /* !YY_PRIV_GST_PARSE_YY_SUBPROJECTS_GSTREAMER_GST_PARSE_GRAMMAR_TAB_H_INCLUDED  */

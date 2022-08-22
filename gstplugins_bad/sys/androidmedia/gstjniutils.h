@@ -29,6 +29,16 @@
 #include <glib.h>
 #include <gst/gst.h>
 
+#if GLIB_SIZEOF_VOID_P == 8
+#define JLONG_TO_GPOINTER(value) (gpointer)(value)
+#define GPOINTER_TO_JLONG(value) (jlong)(value)
+#else
+#define JLONG_TO_GPOINTER(value) (gpointer)(jint)(value)
+#define GPOINTER_TO_JLONG(value) (jlong)(jint)(value)
+#endif
+
+gint      gst_amc_jni_get_android_level(void);
+
 jclass    gst_amc_jni_get_class              (JNIEnv * env,
                                              GError ** err,
                                              const gchar * name);
@@ -172,22 +182,5 @@ DEF_GET_STATIC_TYPE_FIELD (gint64, long, Long);
 DEF_GET_STATIC_TYPE_FIELD (gfloat, float, Float);
 DEF_GET_STATIC_TYPE_FIELD (gdouble, double, Double);
 DEF_GET_STATIC_TYPE_FIELD (jobject, object, Object);
-
-typedef struct _GstAmcBuffer GstAmcBuffer;
-
-struct _GstAmcBuffer {
-  jobject object; /* global reference */
-  guint8 *data;
-  gsize size;
-};
-
-gboolean gst_amc_buffer_get_position_and_limit (GstAmcBuffer * buffer, GError ** err, gint * position, gint * limit);
-gboolean gst_amc_buffer_set_position_and_limit (GstAmcBuffer * buffer, GError ** err, gint position, gint limit);
-gboolean gst_amc_buffer_clear (GstAmcBuffer * buffer, GError ** err);
-GstAmcBuffer * gst_amc_buffer_copy (GstAmcBuffer * buffer);
-void     gst_amc_buffer_free (GstAmcBuffer * buffer);
-
-gboolean gst_amc_jni_get_buffer_array (JNIEnv * env, GError ** err, jobject array, GstAmcBuffer ** buffers, gsize * n_buffers);
-void gst_amc_jni_free_buffer_array (JNIEnv * env, GstAmcBuffer * buffers, gsize n_buffers);
 
 #endif

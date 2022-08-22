@@ -22,16 +22,15 @@
  */
 
 /**
- * SECTION:element-plugin
+ * SECTION:element-avfassetsrc
  *
  * Read and decode samples from AVFoundation assets using the AVFAssetReader API
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
+ *
  * |[
  * gst-launch-1.0 -v -m avfassetsrc uri="file://movie.mp4" ! autovideosink
  * ]|
- * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -150,12 +149,6 @@ gst_avf_asset_src_class_init (GstAVFAssetSrcClass * klass)
   gobject_class->get_property = gst_avf_asset_src_get_property;
   gobject_class->dispose = gst_avf_asset_src_dispose;
 
-  /**
-   * GstAVFAssetSrc:uri
-   *
-   * URI of the asset to read
-   *
-   **/
   g_object_class_install_property (gobject_class, PROP_URI,
       g_param_spec_string ("uri", "Asset URI",
           "URI of the asset to read", NULL,
@@ -1018,18 +1011,15 @@ gst_avf_asset_src_uri_handler_init (gpointer g_iface, gpointer iface_data)
 {
   CMSampleBufferRef cmbuf;
   AVAssetReaderTrackOutput *areader = NULL;
-  GstCaps *caps;
   GstBuffer *buf;
   CMTime dur, ts;
 
   GST_LOG ("Reading %s next buffer", MEDIA_TYPE_TO_STR (type));
   if (type == GST_AVF_ASSET_READER_MEDIA_TYPE_AUDIO && audio_track != NULL) {
     areader = audio_track;
-    caps = audio_caps;
   } else if (type == GST_AVF_ASSET_READER_MEDIA_TYPE_VIDEO &&
       video_track != NULL) {
     areader = video_track;
-    caps = video_caps;
   }
 
   if (areader == NULL) {

@@ -23,6 +23,8 @@
 #include <gst/gst.h>
 #include <gst/audio/audio.h>
 
+G_GNUC_INTERNAL void oss4_element_init (GstPlugin * plugin);
+
 /* This is the minimum version we require */
 #define GST_MIN_OSS4_VERSION  0x040003
 

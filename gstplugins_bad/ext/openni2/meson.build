@@ -1,4 +1,4 @@
-if not add_languages('cpp', required: get_option('openni2'))
+if not add_languages('cpp', native: false, required: get_option('openni2'))
   subdir_done()
 endif
 
@@ -14,4 +14,5 @@ if openni2_dep.found()
     install_dir: plugins_install_dir,
   )
   pkgconfig.generate(gstopenni2, install_dir: plugins_pkgconfig_install_dir)
+  plugins += [gstopenni2]
 endif

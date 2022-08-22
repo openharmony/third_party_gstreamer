@@ -22,7 +22,8 @@
 
 /**
  * SECTION:element-alpha
- * 
+ * @title: alpha
+ *
  * The alpha element adds an alpha channel to a video stream. The values
  * of the alpha channel can be either be set to a constant or can be
  * dynamically calculated via chroma keying, e.g. blue can be set as
@@ -183,6 +184,7 @@ static void gst_alpha_finalize (GObject * object);
 
 #define gst_alpha_parent_class parent_class
 G_DEFINE_TYPE (GstAlpha, gst_alpha, GST_TYPE_VIDEO_FILTER);
+GST_ELEMENT_REGISTER_DEFINE (alpha, "alpha", GST_RANK_NONE, GST_TYPE_ALPHA);
 
 #define GST_TYPE_ALPHA_METHOD (gst_alpha_method_get_type())
 static GType
@@ -285,6 +287,8 @@ gst_alpha_class_init (GstAlphaClass * klass)
   vfilter_class->set_info = GST_DEBUG_FUNCPTR (gst_alpha_set_info);
   vfilter_class->transform_frame =
       GST_DEBUG_FUNCPTR (gst_alpha_transform_frame);
+
+  gst_type_mark_as_plugin_api (GST_TYPE_ALPHA_METHOD, 0);
 }
 
 static void
@@ -2603,7 +2607,7 @@ not_negotiated:
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return gst_element_register (plugin, "alpha", GST_RANK_NONE, GST_TYPE_ALPHA);
+  return GST_ELEMENT_REGISTER (alpha, plugin);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

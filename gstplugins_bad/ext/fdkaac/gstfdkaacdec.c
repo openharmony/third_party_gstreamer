@@ -43,7 +43,7 @@ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS ("audio/mpeg, "
-        "mpegversion = (int) 4, "
+        "mpegversion = (int) {2, 4}, "
         "stream-format = (string) { adts, adif, raw }, " CHANNELS_CAPS_STR)
     );
 
@@ -68,6 +68,8 @@ static GstFlowReturn gst_fdkaacdec_handle_frame (GstAudioDecoder * dec,
 static void gst_fdkaacdec_flush (GstAudioDecoder * dec, gboolean hard);
 
 G_DEFINE_TYPE (GstFdkAacDec, gst_fdkaacdec, GST_TYPE_AUDIO_DECODER);
+GST_ELEMENT_REGISTER_DEFINE (fdkaacdec, "fdkaacdec", GST_RANK_MARGINAL,
+    GST_TYPE_FDKAACDEC);
 
 static gboolean
 gst_fdkaacdec_start (GstAudioDecoder * dec)

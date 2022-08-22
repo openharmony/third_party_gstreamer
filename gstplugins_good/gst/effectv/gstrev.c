@@ -42,17 +42,17 @@
 
 /**
  * SECTION:element-revtv
+ * @title: revtv
  *
  * RevTV acts like a video waveform monitor for each line of video
  * processed. This creates a pseudo 3D effect based on the brightness
  * of the video along each line.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * gst-launch-1.0 -v videotestsrc ! revtv ! videoconvert ! autovideosink
  * ]| This pipeline shows the effect of revtv on a test stream.
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -62,6 +62,7 @@
 #include <math.h>
 #include <string.h>
 
+#include "gsteffectv.h"
 #include "gstrev.h"
 
 #define THE_COLOR 0xffffffff
@@ -76,6 +77,8 @@ enum
 
 #define gst_revtv_parent_class parent_class
 G_DEFINE_TYPE (GstRevTV, gst_revtv, GST_TYPE_VIDEO_FILTER);
+GST_ELEMENT_REGISTER_DEFINE (revtv, "revtv", GST_RANK_NONE,
+    gst_revtv_get_type ());
 
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
 #define CAPS_STR GST_VIDEO_CAPS_MAKE ("{ BGRx, RGBx }")

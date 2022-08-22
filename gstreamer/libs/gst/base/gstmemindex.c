@@ -18,7 +18,6 @@
  */
 
 #include <gst/gst.h>
-#include "gstindex.h"
 
 #define GST_TYPE_MEM_INDEX              \
   (gst_index_get_type ())

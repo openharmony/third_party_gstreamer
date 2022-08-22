@@ -27,7 +27,7 @@ if not have_osxaudio and osxaudio_option.enabled()
 endif
 
 if have_osxaudio
-  modules = ['CoreAudio', 'AudioToolBox']
+  modules = ['CoreAudio', 'AudioToolbox']
   if host_system == 'darwin'
     modules += ['AudioUnit', 'CoreServices']
   endif
@@ -41,4 +41,5 @@ if have_osxaudio
     install : true,
     install_dir : plugins_install_dir)
   pkgconfig.generate(gstosxaudio, install_dir : plugins_pkgconfig_install_dir)
+  plugins += [gstosxaudio]
 endif

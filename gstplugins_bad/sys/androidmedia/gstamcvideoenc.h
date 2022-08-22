@@ -52,8 +52,13 @@ struct _GstAmcVideoEnc
   GstVideoEncoder parent;
 
   /* < private > */
+  GMutex codec_lock; // Protect creation / destruction of the codec
   GstAmcCodec *codec;
   GstAmcFormat *amc_format;
+
+  /* Set to TRUE if codec headers should be placed
+   * in the stream, or FALSE if they go in the headers */
+  gboolean codec_data_in_bytestream;
 
   GstVideoCodecState *input_state;
 
@@ -62,7 +67,7 @@ struct _GstAmcVideoEnc
   GstAmcColorFormatInfo color_format_info;
 
   guint bitrate;
-  guint i_frame_int;
+  gfloat i_frame_int;
 
   /* TRUE if the component is configured and saw
    * the first buffer */

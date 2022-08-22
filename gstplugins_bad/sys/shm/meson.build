@@ -6,12 +6,14 @@ shm_sources = [
   'gstshmsink.c',
 ]
 
+shm_deps = []
+shm_enabled = false
 if get_option('shm').disabled()
   subdir_done()
 endif
 
-shm_deps = []
-if ['darwin', 'ios'].contains(host_system) or host_system.endswith('bsd')
+# NetBSD has shm_* in librt
+if ['darwin', 'ios', 'freebsd', 'openbsd'].contains(host_system)
   rt_dep = []
   shm_enabled = true
 else
@@ -34,9 +36,10 @@ if shm_enabled
     shm_sources,
     c_args : gst_plugins_bad_args + ['-DSHM_PIPE_USE_GLIB'],
     include_directories : [configinc],
-    dependencies : [gstbase_dep, rt_dep],
+    dependencies : [gstbase_dep, rt_dep] + network_deps,
     install : true,
     install_dir : plugins_install_dir,
   )
   pkgconfig.generate(gstshm, install_dir : plugins_pkgconfig_install_dir)
+  plugins += [gstshm]
 endif

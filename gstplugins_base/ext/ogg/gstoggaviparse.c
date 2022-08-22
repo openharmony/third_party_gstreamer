@@ -25,7 +25,7 @@
  * pages. 
  * Before extracting the packets out of the ogg pages, we push the raw vorbis
  * header packets to the decoder.
- * We don't use the incomming timestamps but use the ganulepos on the ogg pages
+ * We don't use the incoming timestamps but use the ganulepos on the ogg pages
  * directly.
  * This parser only does ogg/vorbis for now.
  */
@@ -37,7 +37,7 @@
 #include <ogg/ogg.h>
 #include <string.h>
 
-#include "gstogg.h"
+#include "gstoggelements.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_ogg_avi_parse_debug);
 #define GST_CAT_DEFAULT gst_ogg_avi_parse_debug
@@ -72,35 +72,14 @@ struct _GstOggAviParseClass
   GstElementClass parent_class;
 };
 
-static void gst_ogg_avi_parse_base_init (gpointer g_class);
-static void gst_ogg_avi_parse_class_init (GstOggAviParseClass * klass);
-static void gst_ogg_avi_parse_init (GstOggAviParse * ogg);
+
 static GstElementClass *parent_class = NULL;
 
-static GType
-gst_ogg_avi_parse_get_type (void)
-{
-  static GType ogg_avi_parse_type = 0;
-
-  if (!ogg_avi_parse_type) {
-    static const GTypeInfo ogg_avi_parse_info = {
-      sizeof (GstOggAviParseClass),
-      gst_ogg_avi_parse_base_init,
-      NULL,
-      (GClassInitFunc) gst_ogg_avi_parse_class_init,
-      NULL,
-      NULL,
-      sizeof (GstOggAviParse),
-      0,
-      (GInstanceInitFunc) gst_ogg_avi_parse_init,
-    };
-
-    ogg_avi_parse_type =
-        g_type_register_static (GST_TYPE_ELEMENT, "GstOggAviParse",
-        &ogg_avi_parse_info, 0);
-  }
-  return ogg_avi_parse_type;
-}
+G_DEFINE_TYPE (GstOggAviParse, gst_ogg_avi_parse, GST_TYPE_ELEMENT);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (oggaviparse, "oggaviparse",
+    GST_RANK_PRIMARY, GST_TYPE_OGG_AVI_PARSE,
+    GST_DEBUG_CATEGORY_INIT (gst_ogg_avi_parse_debug, "oggaviparse", 0,
+        "ogg avi parser"));
 
 enum
 {
@@ -126,31 +105,25 @@ static GstStateChangeReturn gst_ogg_avi_parse_change_state (GstElement *
     element, GstStateChange transition);
 static gboolean gst_ogg_avi_parse_event (GstPad * pad, GstObject * parent,
     GstEvent * event);
-static GstFlowReturn gst_ogg_avi_parse_chain (GstPad * pad, GstObject * parent,
-    GstBuffer * buffer);
+static GstFlowReturn gst_ogg_avi_parse_chain (GstPad * pad,
+    GstObject * parent, GstBuffer * buffer);
 static gboolean gst_ogg_avi_parse_setcaps (GstPad * pad, GstCaps * caps);
-
-static void
-gst_ogg_avi_parse_base_init (gpointer g_class)
-{
-  GstElementClass *element_class = GST_ELEMENT_CLASS (g_class);
-
-  gst_element_class_set_static_metadata (element_class,
-      "Ogg AVI parser", "Codec/Parser",
-      "parse an ogg avi stream into pages (info about ogg: http://xiph.org)",
-      "Wim Taymans <wim@fluendo.com>");
-
-  gst_element_class_add_static_pad_template (element_class,
-      &ogg_avi_parse_sink_template_factory);
-  gst_element_class_add_static_pad_template (element_class,
-      &ogg_avi_parse_src_template_factory);
-}
 
 static void
 gst_ogg_avi_parse_class_init (GstOggAviParseClass * klass)
 {
   GstElementClass *gstelement_class = GST_ELEMENT_CLASS (klass);
   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
+
+  gst_element_class_set_static_metadata (gstelement_class,
+      "Ogg AVI parser", "Codec/Parser",
+      "parse an ogg avi stream into pages (info about ogg: http://xiph.org)",
+      "Wim Taymans <wim@fluendo.com>");
+
+  gst_element_class_add_static_pad_template (gstelement_class,
+      &ogg_avi_parse_sink_template_factory);
+  gst_element_class_add_static_pad_template (gstelement_class,
+      &ogg_avi_parse_src_template_factory);
 
   parent_class = g_type_class_peek_parent (klass);
 
@@ -475,14 +448,4 @@ gst_ogg_avi_parse_change_state (GstElement * element, GstStateChange transition)
       break;
   }
   return result;
-}
-
-gboolean
-gst_ogg_avi_parse_plugin_init (GstPlugin * plugin)
-{
-  GST_DEBUG_CATEGORY_INIT (gst_ogg_avi_parse_debug, "oggaviparse", 0,
-      "ogg avi parser");
-
-  return gst_element_register (plugin, "oggaviparse", GST_RANK_PRIMARY,
-      GST_TYPE_OGG_AVI_PARSE);
 }

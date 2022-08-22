@@ -21,18 +21,18 @@
 
 /**
  * SECTION:element-shout2send
+ * @title: shout2send
  *
  * shout2send pushes a media stream to an Icecast server
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * gst-launch-1.0 uridecodebin uri=file:///path/to/audiofile ! audioconvert ! vorbisenc ! oggmux ! shout2send mount=/stream.ogg port=8000 username=source password=somepassword ip=server_IP_address_or_hostname
  * ]| This pipeline demuxes, decodes, re-encodes and re-muxes an audio
  * media file into oggvorbis and sends the resulting stream to an Icecast
  * server. Properties mount, port, username and password are all server-config
  * dependent.
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -94,11 +94,18 @@ enum
 #else
 #define WEBM_CAPS ""
 #endif
+
+#define SHOUT2SEND_BASIC_CAPS "application/ogg; audio/ogg; video/ogg; "\
+    "audio/mpeg, mpegversion = (int) 1, layer = (int) [ 1, 3 ]"
+
+#define SHOUT2SEND_DOC_CAPS SHOUT2SEND_BASIC_CAPS "; video/webm; audio/webm"
+
+#define SHOUT2SEND_CAPS SHOUT2SEND_BASIC_CAPS WEBM_CAPS
+
 static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("application/ogg; audio/ogg; video/ogg; "
-        "audio/mpeg, mpegversion = (int) 1, layer = (int) [ 1, 3 ]" WEBM_CAPS));
+    GST_STATIC_CAPS (SHOUT2SEND_CAPS));
 
 static void gst_shout2send_finalize (GstShout2send * shout2send);
 
@@ -144,6 +151,15 @@ gst_shout2send_protocol_get_type (void)
 #define gst_shout2send_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstShout2send, gst_shout2send, GST_TYPE_BASE_SINK,
     G_IMPLEMENT_INTERFACE (GST_TYPE_TAG_SETTER, NULL));
+#ifdef ENABLE_NLS
+#define _do_init \
+  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);\
+  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
+#else /* ENABLE_NLS */
+#define _do_init
+#endif
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (shout2send, "shout2send", GST_RANK_NONE,
+    GST_TYPE_SHOUT2SEND, _do_init);
 
 static void
 gst_shout2send_class_init (GstShout2sendClass * klass)
@@ -151,6 +167,8 @@ gst_shout2send_class_init (GstShout2sendClass * klass)
   GObjectClass *gobject_class;
   GstElementClass *gstelement_class;
   GstBaseSinkClass *gstbasesink_class;
+  GstPadTemplate *tmpl;
+  GstCaps *doc_caps;
 
   gobject_class = (GObjectClass *) klass;
   gstelement_class = (GstElementClass *) klass;
@@ -220,9 +238,7 @@ gst_shout2send_class_init (GstShout2sendClass * klass)
   /* signals */
   gst_shout2send_signals[SIGNAL_CONNECTION_PROBLEM] =
       g_signal_new ("connection-problem", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_CLEANUP, G_STRUCT_OFFSET (GstShout2sendClass,
-          connection_problem), NULL, NULL, g_cclosure_marshal_VOID__INT,
-      G_TYPE_NONE, 1, G_TYPE_INT);
+      0, 0, NULL, NULL, NULL, G_TYPE_NONE, 1, G_TYPE_INT);
 
   gstbasesink_class->start = GST_DEBUG_FUNCPTR (gst_shout2send_start);
   gstbasesink_class->stop = GST_DEBUG_FUNCPTR (gst_shout2send_stop);
@@ -233,7 +249,13 @@ gst_shout2send_class_init (GstShout2sendClass * klass)
   gstbasesink_class->event = GST_DEBUG_FUNCPTR (gst_shout2send_event);
   gstbasesink_class->set_caps = GST_DEBUG_FUNCPTR (gst_shout2send_setcaps);
 
-  gst_element_class_add_static_pad_template (gstelement_class, &sink_template);
+  tmpl = gst_static_pad_template_get (&sink_template);
+  gst_element_class_add_pad_template (gstelement_class, tmpl);
+
+  /* our caps depend on the libshout2 version */
+  doc_caps = gst_caps_from_string (SHOUT2SEND_DOC_CAPS);
+  gst_pad_template_set_documentation_caps (tmpl, doc_caps);
+  gst_clear_caps (&doc_caps);
 
   gst_element_class_set_static_metadata (gstelement_class,
       "Icecast network sink",
@@ -243,6 +265,8 @@ gst_shout2send_class_init (GstShout2sendClass * klass)
       "Zaheer Abbas Merali <zaheerabbas at merali dot org>");
 
   GST_DEBUG_CATEGORY_INIT (shout2_debug, "shout2", 0, "shout2send element");
+
+  gst_type_mark_as_plugin_api (GST_TYPE_SHOUT_PROTOCOL, 0);
 }
 
 static void
@@ -552,7 +576,13 @@ gst_shout2send_connect (GstShout2send * sink)
   ret = shout_open (sink->conn);
 
   /* wait for connection or timeout */
+#ifdef SHOUTERR_RETRY
+  /* starting with libshout 2.4.2, shout_open() has broken API + ABI and
+   * can also return SHOUTERR_RETRY (a new define) to mean "try again" */
+  while (ret == SHOUTERR_BUSY || ret == SHOUTERR_RETRY) {
+#else
   while (ret == SHOUTERR_BUSY) {
+#endif
     if (gst_util_get_timestamp () - start_ts > sink->timeout * GST_MSECOND) {
       goto connection_timeout;
     }
@@ -804,44 +834,44 @@ gst_shout2send_set_property (GObject * object, guint prop_id,
 
     case ARG_IP:
       g_free (shout2send->ip);
-      shout2send->ip = g_strdup (g_value_get_string (value));
+      shout2send->ip = g_value_dup_string (value);
       break;
     case ARG_PORT:
       shout2send->port = g_value_get_int (value);
       break;
     case ARG_PASSWORD:
       g_free (shout2send->password);
-      shout2send->password = g_strdup (g_value_get_string (value));
+      shout2send->password = g_value_dup_string (value);
       break;
     case ARG_USERNAME:
       g_free (shout2send->username);
-      shout2send->username = g_strdup (g_value_get_string (value));
+      shout2send->username = g_value_dup_string (value);
       break;
     case ARG_PUBLIC:
       shout2send->ispublic = g_value_get_boolean (value);
       break;
     case ARG_STREAMNAME:       /* Name of the stream */
       g_free (shout2send->streamname);
-      shout2send->streamname = g_strdup (g_value_get_string (value));
+      shout2send->streamname = g_value_dup_string (value);
       break;
     case ARG_DESCRIPTION:      /* Description of the stream */
       g_free (shout2send->description);
-      shout2send->description = g_strdup (g_value_get_string (value));
+      shout2send->description = g_value_dup_string (value);
       break;
     case ARG_GENRE:            /* Genre of the stream */
       g_free (shout2send->genre);
-      shout2send->genre = g_strdup (g_value_get_string (value));
+      shout2send->genre = g_value_dup_string (value);
       break;
     case ARG_PROTOCOL:         /* protocol to connect with */
       shout2send->protocol = g_value_get_enum (value);
       break;
     case ARG_MOUNT:            /* mountpoint of stream (icecast only) */
       g_free (shout2send->mount);
-      shout2send->mount = g_strdup (g_value_get_string (value));
+      shout2send->mount = g_value_dup_string (value);
       break;
     case ARG_URL:              /* the stream's homepage URL */
       g_free (shout2send->url);
-      shout2send->url = g_strdup (g_value_get_string (value));
+      shout2send->url = g_value_dup_string (value);
       break;
     case ARG_TIMEOUT:
       shout2send->timeout = g_value_get_uint (value);
@@ -934,13 +964,7 @@ gst_shout2send_setcaps (GstBaseSink * basesink, GstCaps * caps)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-#ifdef ENABLE_NLS
-  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
-  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
-#endif /* ENABLE_NLS */
-
-  return gst_element_register (plugin, "shout2send", GST_RANK_NONE,
-      GST_TYPE_SHOUT2SEND);
+  return GST_ELEMENT_REGISTER (shout2send, plugin);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

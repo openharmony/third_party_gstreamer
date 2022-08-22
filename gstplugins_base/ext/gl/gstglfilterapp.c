@@ -38,6 +38,7 @@
 #include "config.h"
 #endif
 
+#include "gstglelements.h"
 #include "gstglfilterapp.h"
 
 #define GST_CAT_DEFAULT gst_gl_filter_app_debug
@@ -58,6 +59,8 @@ static guint gst_gl_filter_app_signals[LAST_SIGNAL] = { 0 };
 #define gst_gl_filter_app_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstGLFilterApp, gst_gl_filter_app,
     GST_TYPE_GL_FILTER, DEBUG_INIT);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (glfilterapp, "glfilterapp",
+    GST_RANK_NONE, GST_TYPE_GL_FILTER_APP, gl_element_init (plugin));
 
 static void gst_gl_filter_app_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -108,7 +111,7 @@ gst_gl_filter_app_class_init (GstGLFilterAppClass * klass)
    */
   gst_gl_filter_app_signals[CLIENT_DRAW_SIGNAL] =
       g_signal_new ("client-draw", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, g_cclosure_marshal_generic,
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL,
       G_TYPE_BOOLEAN, 3, G_TYPE_UINT, G_TYPE_UINT, G_TYPE_UINT);
 
   gst_element_class_set_metadata (element_class,

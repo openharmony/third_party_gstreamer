@@ -308,7 +308,7 @@ gst_ebml_write_element_new (GstEbmlWrite * ebml, GstMapInfo * map, guint size)
  * gst_ebml_write_element_id:
  * @data_inout: Pointer to data pointer
  * @id: Element ID that should be written.
- * 
+ *
  * Write element ID into a buffer.
  */
 static void
@@ -407,7 +407,7 @@ gst_ebml_write_element_data (guint8 ** data_inout, guint8 * write,
  * @buf_data: Start of data to push from @buf (or NULL for whole buffer).
  * @buf_data_end: Data pointer positioned after the last byte in @buf_data (or
  * NULL for whole buffer).
- * 
+ *
  * Write out buffer by moving it to the next element.
  */
 static void
@@ -485,7 +485,7 @@ gst_ebml_write_element_push (GstEbmlWrite * ebml, GstBuffer * buf,
  * gst_ebml_write_seek:
  * @ebml: #GstEbmlWrite
  * @pos: Seek position.
- * 
+ *
  * Seek.
  */
 void
@@ -528,7 +528,7 @@ gst_ebml_write_seek (GstEbmlWrite * ebml, guint64 pos)
 /**
  * gst_ebml_write_get_uint_size:
  * @num: Number to be encoded.
- * 
+ *
  * Get number of bytes needed to write a uint.
  *
  * Returns: Encoded uint length.
@@ -721,14 +721,14 @@ gst_ebml_write_utf8 (GstEbmlWrite * ebml, guint32 id, const gchar * str)
  * gst_ebml_write_date:
  * @ebml: #GstEbmlWrite
  * @id: Element ID.
- * @date: Date in seconds since the unix epoch.
+ * @date: Date in nanoseconds since the unix epoch.
  *
  * Write date element.
  */
 void
 gst_ebml_write_date (GstEbmlWrite * ebml, guint32 id, gint64 date)
 {
-  gst_ebml_write_sint (ebml, id, (date - GST_EBML_DATE_OFFSET) * GST_SECOND);
+  gst_ebml_write_sint (ebml, id, date - GST_EBML_DATE_OFFSET);
 }
 
 /**
@@ -740,7 +740,7 @@ gst_ebml_write_date (GstEbmlWrite * ebml, guint32 id, gint64 date)
  *
  * Master writing is annoying. We use a size marker of
  * the max. allowed length, so that we can later fill it
- * in validly. 
+ * in validly.
  *
  * Returns: Master starting position.
  */
@@ -833,9 +833,9 @@ gst_ebml_write_binary (GstEbmlWrite * ebml,
  * @ebml: #GstEbmlWrite
  * @id: Element ID.
  * @length: Length of the data
- * 
+ *
  * Write header of the binary element (use with gst_ebml_write_buffer function).
- * 
+ *
  * For things like video frames and audio samples,
  * you want to use this function, as it doesn't have
  * the overhead of memcpy() that other functions
@@ -863,7 +863,7 @@ gst_ebml_write_buffer_header (GstEbmlWrite * ebml, guint32 id, guint64 length)
 /**
  * gst_ebml_write_buffer:
  * @ebml: #GstEbmlWrite
- * @buf: #GstBuffer cointaining the data.
+ * @buf: #GstBuffer containing the data.
  *
  * Write  binary element (see gst_ebml_write_buffer_header).
  */
@@ -881,7 +881,7 @@ gst_ebml_write_buffer (GstEbmlWrite * ebml, GstBuffer * buf)
  * @num: New value.
  *
  * Replace uint with a new value.
- * 
+ *
  * When replacing a uint, we assume that it is *always*
  * 8-byte, since that's the safest guess we can do. This
  * is just for simplicity.
@@ -912,7 +912,7 @@ gst_ebml_replace_uint (GstEbmlWrite * ebml, guint64 pos, guint64 num)
  * @ebml: #GstEbmlWrite
  * @doctype: Document type.
  * @version: Document type version.
- * 
+ *
  * Write EBML header.
  */
 void

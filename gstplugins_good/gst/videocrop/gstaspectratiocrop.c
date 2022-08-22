@@ -19,6 +19,7 @@
 
 /**
  * SECTION:element-aspectratiocrop
+ * @title: aspectratiocrop
  * @see_also: #GstVideoCrop
  *
  * This element crops video frames to a specified #GstAspectRatioCrop:aspect-ratio.
@@ -26,12 +27,11 @@
  * If the aspect-ratio is already correct, the element will operate
  * in pass-through mode.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * gst-launch-1.0 -v videotestsrc ! video/x-raw,height=640,width=480 ! aspectratiocrop aspect-ratio=16/9 ! ximagesink
  * ]| This pipeline generates a videostream in 4/3 and crops it to 16/9.
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -41,7 +41,10 @@
 #include <gst/gst.h>
 #include <gst/video/video.h>
 
+#include "gstvideocrop.h"
 #include "gstaspectratiocrop.h"
+/* include private header which contains the supported formats */
+#include "gstvideocrop-private.h"
 
 #include "gst/glib-compat-private.h"
 
@@ -54,12 +57,8 @@ enum
   PROP_ASPECT_RATIO_CROP,
 };
 
-/* we support the same caps as videocrop (sync changes) */
-#define ASPECT_RATIO_CROP_CAPS                        \
-  GST_VIDEO_CAPS_MAKE ("{ RGBx, xRGB, BGRx, xBGR, "    \
-      "RGBA, ARGB, BGRA, ABGR, RGB, BGR, AYUV, YUY2, " \
-      "YVYU, UYVY, I420, YV12, RGB16, RGB15, GRAY8, "  \
-      "NV12, NV21, GRAY16_LE, GRAY16_BE }")
+/* we support the same caps as videocrop */
+#define ASPECT_RATIO_CROP_CAPS VIDEO_CROP_CAPS
 
 static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
@@ -75,6 +74,8 @@ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
 
 #define gst_aspect_ratio_crop_parent_class parent_class
 G_DEFINE_TYPE (GstAspectRatioCrop, gst_aspect_ratio_crop, GST_TYPE_BIN);
+GST_ELEMENT_REGISTER_DEFINE (aspectratiocrop, "aspectratiocrop", GST_RANK_NONE,
+    GST_TYPE_ASPECT_RATIO_CROP);
 
 static void gst_aspect_ratio_crop_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);

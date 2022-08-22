@@ -22,9 +22,9 @@
 /**
  * SECTION:element-capsfilter
  * @title: capsfilter
+ * @short_description: enforce limitations on the data format
  *
- * The element does not modify data as such, but can enforce limitations on the
- * data format.
+ * The element does not modify data as such, but can enforce limitations on the data format.
  *
  * ## Example launch line
  * |[
@@ -42,6 +42,7 @@
 
 #include "../../gst/gst-i18n-lib.h"
 #include "gstcapsfilter.h"
+#include "gstcoreelementselements.h"
 
 enum
 {
@@ -93,6 +94,8 @@ gst_caps_filter_caps_change_mode_get_type (void)
 G_DEFINE_TYPE_WITH_CODE (GstCapsFilter, gst_capsfilter, GST_TYPE_BASE_TRANSFORM,
     _do_init);
 
+GST_ELEMENT_REGISTER_DEFINE (capsfilter, "capsfilter", GST_RANK_NONE,
+    GST_TYPE_CAPS_FILTER);
 
 static void gst_capsfilter_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -157,6 +160,8 @@ gst_capsfilter_class_init (GstCapsFilterClass * klass)
       GST_DEBUG_FUNCPTR (gst_capsfilter_prepare_buf);
   trans_class->sink_event = GST_DEBUG_FUNCPTR (gst_capsfilter_sink_event);
   trans_class->stop = GST_DEBUG_FUNCPTR (gst_capsfilter_stop);
+
+  gst_type_mark_as_plugin_api (GST_TYPE_CAPS_FILTER_CAPS_CHANGE_MODE, 0);
 }
 
 static void

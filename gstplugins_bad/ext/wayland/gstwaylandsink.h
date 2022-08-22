@@ -67,6 +67,8 @@ struct _GstWaylandSink
   gboolean redraw_pending;
   GMutex render_lock;
   GstBuffer *last_buffer;
+
+  struct wl_callback *callback;
 };
 
 struct _GstWaylandSinkClass
@@ -75,6 +77,8 @@ struct _GstWaylandSinkClass
 };
 
 GType gst_wayland_sink_get_type (void) G_GNUC_CONST;
+
+GST_ELEMENT_REGISTER_DECLARE (waylandsink);
 
 G_END_DECLS
 

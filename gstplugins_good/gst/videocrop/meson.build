@@ -1,5 +1,5 @@
 gstvideocrop = library('gstvideocrop',
-  'gstvideocrop.c', 'gstaspectratiocrop.c',
+  'gstvideocrop.c', 'gstaspectratiocrop.c', 'gstvideocropplugin.c',
   c_args : gst_plugins_good_args,
   include_directories : [configinc, libsinc],
   dependencies : [gst_dep, gstbase_dep, gstvideo_dep],
@@ -7,3 +7,4 @@ gstvideocrop = library('gstvideocrop',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstvideocrop, install_dir : plugins_pkgconfig_install_dir)
+plugins += [gstvideocrop]

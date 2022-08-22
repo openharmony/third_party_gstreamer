@@ -27,6 +27,7 @@
 #define __GST_SCTP_ASSOCIATION_H__
 
 #include <glib-object.h>
+#include <gst/gst.h>
 #define INET
 #define INET6
 #include <usrsctp.h>
@@ -82,13 +83,13 @@ struct _GstSctpAssociation
 
   GstSctpAssociationState state;
 
-  GThread *connection_thread;
-
   GstSctpAssociationPacketReceivedCb packet_received_cb;
   gpointer packet_received_user_data;
+  GDestroyNotify packet_received_destroy_notify;
 
   GstSctpAssociationPacketOutCb packet_out_cb;
   gpointer packet_out_user_data;
+  GDestroyNotify packet_out_destroy_notify;
 };
 
 struct _GstSctpAssociationClass
@@ -105,15 +106,15 @@ GstSctpAssociation *gst_sctp_association_get (guint32 association_id);
 
 gboolean gst_sctp_association_start (GstSctpAssociation * self);
 void gst_sctp_association_set_on_packet_out (GstSctpAssociation * self,
-    GstSctpAssociationPacketOutCb packet_out_cb, gpointer user_data);
+    GstSctpAssociationPacketOutCb packet_out_cb, gpointer user_data, GDestroyNotify destroy_notify);
 void gst_sctp_association_set_on_packet_received (GstSctpAssociation * self,
-    GstSctpAssociationPacketReceivedCb packet_received_cb, gpointer user_data);
+    GstSctpAssociationPacketReceivedCb packet_received_cb, gpointer user_data, GDestroyNotify destroy_notify);
 void gst_sctp_association_incoming_packet (GstSctpAssociation * self,
-    guint8 * buf, guint32 length);
-gboolean gst_sctp_association_send_data (GstSctpAssociation * self,
-    guint8 * buf, guint32 length, guint16 stream_id, guint32 ppid,
+    const guint8 * buf, guint32 length);
+GstFlowReturn gst_sctp_association_send_data (GstSctpAssociation * self,
+    const guint8 * buf, guint32 length, guint16 stream_id, guint32 ppid,
     gboolean ordered, GstSctpAssociationPartialReliability pr,
-    guint32 reliability_param);
+    guint32 reliability_param, guint32 *bytes_sent);
 void gst_sctp_association_reset_stream (GstSctpAssociation * self,
     guint16 stream_id);
 void gst_sctp_association_force_close (GstSctpAssociation * self);

@@ -32,6 +32,7 @@
 
 #include <va/va.h>
 #include <va/va_drmcommon.h>
+#include <unistd.h>
 #include "gstmsdkallocator.h"
 #include "gstmsdkallocator_libva.h"
 #include "msdk_libva.h"
@@ -46,7 +47,8 @@ gst_msdk_frame_alloc (mfxHDL pthis, mfxFrameAllocRequest * req,
   guint format;
   guint va_fourcc = 0;
   VASurfaceID *surfaces = NULL;
-  VASurfaceAttrib attrib;
+  VASurfaceAttrib attribs[2];
+  guint num_attribs = 0;
   mfxMemId *mids = NULL;
   GstMsdkContext *context = (GstMsdkContext *) pthis;
   GstMsdkMemoryID *msdk_mids = NULL;
@@ -54,15 +56,26 @@ gst_msdk_frame_alloc (mfxHDL pthis, mfxFrameAllocRequest * req,
   mfxU32 fourcc = req->Info.FourCC;
   mfxU16 surfaces_num = req->NumFrameSuggested;
 
+  /* MFX_MAKEFOURCC('V','P','8','S') is used for MFX_FOURCC_VP9_SEGMAP surface
+   * in MSDK and this surface is an internal surface. The external allocator
+   * shouldn't be used for this surface allocation
+   *
+   * See https://github.com/Intel-Media-SDK/MediaSDK/issues/762
+   */
+  if (req->Type & MFX_MEMTYPE_INTERNAL_FRAME
+      && fourcc == MFX_MAKEFOURCC ('V', 'P', '8', 'S'))
+    return MFX_ERR_UNSUPPORTED;
+
   if (req->Type & MFX_MEMTYPE_EXTERNAL_FRAME) {
     GstMsdkAllocResponse *cached =
         gst_msdk_context_get_cached_alloc_responses_by_request (context, req);
     if (cached) {
       /* check if enough frames were allocated */
-      if (req->NumFrameSuggested > cached->response->NumFrameActual)
+      if (req->NumFrameSuggested > cached->response.NumFrameActual)
         return MFX_ERR_MEMORY_ALLOC;
 
-      *resp = *cached->response;
+      *resp = cached->response;
+      g_atomic_int_inc (&cached->refcount);
       return MFX_ERR_NONE;
     }
   }
@@ -87,25 +100,67 @@ gst_msdk_frame_alloc (mfxHDL pthis, mfxFrameAllocRequest * req,
       (GstMsdkAllocResponse *) g_slice_alloc0 (sizeof (GstMsdkAllocResponse));
 
   if (va_fourcc != VA_FOURCC_P208) {
-    attrib.type = VASurfaceAttribPixelFormat;
-    attrib.flags = VA_SURFACE_ATTRIB_SETTABLE;
-    attrib.value.type = VAGenericValueTypeInteger;
-    attrib.value.value.i = va_fourcc;
+    attribs[0].type = VASurfaceAttribPixelFormat;
+    attribs[0].flags = VA_SURFACE_ATTRIB_SETTABLE;
+    attribs[0].value.type = VAGenericValueTypeInteger;
+    attribs[0].value.value.i = va_fourcc;
+    num_attribs = 1;
+
+    /* set VA_SURFACE_ATTRIB_USAGE_HINT_ENCODER flag for encoding */
+#if (MFX_VERSION >= 1025)
+    if ((req->Type & MFX_MEMTYPE_VIDEO_MEMORY_ENCODER_TARGET) &&
+        (req->Type & MFX_MEMTYPE_FROM_ENCODE)) {
+      attribs[1].type = VASurfaceAttribUsageHint;
+      attribs[1].flags = VA_SURFACE_ATTRIB_SETTABLE;
+      attribs[1].value.type = VAGenericValueTypeInteger;
+      attribs[1].value.value.i = VA_SURFACE_ATTRIB_USAGE_HINT_ENCODER;
+      num_attribs = 2;
+    }
+#endif
 
     format =
         gst_msdk_get_va_rt_format_from_mfx_rt_format (req->Info.ChromaFormat);
 
     if (format == VA_RT_FORMAT_YUV420 && va_fourcc == VA_FOURCC_P010)
+#if VA_CHECK_VERSION(1, 2, 0)
       format = VA_RT_FORMAT_YUV420_10;
+#else
+      format = VA_RT_FORMAT_YUV420_10BPP;
+#endif
 
 #if VA_CHECK_VERSION(1, 4, 1)
     if (format == VA_RT_FORMAT_YUV444 && va_fourcc == VA_FOURCC_A2R10G10B10)
       format = VA_RT_FORMAT_RGB32_10;
 #endif
 
+#if ((MFX_VERSION >= 1027) && VA_CHECK_VERSION(1, 2, 0))
+    if (format == VA_RT_FORMAT_YUV422 && va_fourcc == VA_FOURCC_Y210)
+      format = VA_RT_FORMAT_YUV422_10;
+    else if (format == VA_RT_FORMAT_YUV444 && va_fourcc == VA_FOURCC_Y410)
+      format = VA_RT_FORMAT_YUV444_10;
+#endif
+
+#if ((MFX_VERSION >= 1031) && VA_CHECK_VERSION(1, 2, 0))
+    if (format == VA_RT_FORMAT_YUV420 && va_fourcc == VA_FOURCC_P016)
+      format = VA_RT_FORMAT_YUV420_12;
+
+    if (format == VA_RT_FORMAT_YUV422 && va_fourcc == VA_FOURCC_Y216)
+      format = VA_RT_FORMAT_YUV422_12;
+
+    if (format == VA_RT_FORMAT_YUV444 && va_fourcc == VA_FOURCC_Y416)
+      format = VA_RT_FORMAT_YUV444_12;
+#endif
+
+#if (MFX_VERSION >= 2004)
+    if (format == VA_RT_FORMAT_YUV444 && (va_fourcc == VA_FOURCC_RGBP
+            || va_fourcc == VA_FOURCC_BGRP))
+      format = VA_RT_FORMAT_RGBP;
+#endif
+
     va_status = vaCreateSurfaces (gst_msdk_context_get_handle (context),
         format,
-        req->Info.Width, req->Info.Height, surfaces, surfaces_num, &attrib, 1);
+        req->Info.Width, req->Info.Height, surfaces, surfaces_num, attribs,
+        num_attribs);
 
     status = gst_msdk_get_mfx_status_from_va_status (va_status);
     if (status != MFX_ERR_NONE) {
@@ -116,36 +171,36 @@ gst_msdk_frame_alloc (mfxHDL pthis, mfxFrameAllocRequest * req,
     for (i = 0; i < surfaces_num; i++) {
       /* Get dmabuf handle if MFX_MEMTYPE_EXPORT_FRAME */
       if (req->Type & MFX_MEMTYPE_EXPORT_FRAME) {
-        msdk_mids[i].info.mem_type = VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME;
+        VADRMPRIMESurfaceDescriptor va_desc = { 0 };
+        uint32_t export_flags = VA_EXPORT_SURFACE_SEPARATE_LAYERS |
+            VA_EXPORT_SURFACE_READ_WRITE;
+
         va_status =
-            vaDeriveImage (gst_msdk_context_get_handle (context), surfaces[i],
-            &msdk_mids[i].image);
+            vaExportSurfaceHandle (gst_msdk_context_get_handle (context),
+            surfaces[i], VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME_2, export_flags,
+            &va_desc);
+
         status = gst_msdk_get_mfx_status_from_va_status (va_status);
 
         if (MFX_ERR_NONE != status) {
-          GST_ERROR ("failed to derive image");
+          GST_ERROR ("Failed to export surface");
           return status;
         }
 
-        va_status =
-            vaAcquireBufferHandle (gst_msdk_context_get_handle (context),
-            msdk_mids[i].image.buf, &msdk_mids[i].info);
-        status = gst_msdk_get_mfx_status_from_va_status (va_status);
+        g_assert (va_desc.num_objects);
 
-        if (MFX_ERR_NONE != status) {
-          GST_ERROR ("failed to get dmabuf handle");
-          va_status = vaDestroyImage (gst_msdk_context_get_handle (context),
-              msdk_mids[i].image.image_id);
-          if (va_status == VA_STATUS_SUCCESS) {
-            msdk_mids[i].image.image_id = VA_INVALID_ID;
-            msdk_mids[i].image.buf = VA_INVALID_ID;
-          }
+        /* This plugin supports single object only */
+        if (va_desc.num_objects > 1) {
+          GST_ERROR ("Can not support multiple objects");
+          return MFX_ERR_UNSUPPORTED;
         }
-      } else {
-        /* useful to check the image mapping state later */
-        msdk_mids[i].image.image_id = VA_INVALID_ID;
-        msdk_mids[i].image.buf = VA_INVALID_ID;
+
+        msdk_mids[i].desc = va_desc;
       }
+
+      /* Don't use image for DMABuf */
+      msdk_mids[i].image.image_id = VA_INVALID_ID;
+      msdk_mids[i].image.buf = VA_INVALID_ID;
 
       msdk_mids[i].surface = &surfaces[i];
       mids[i] = (mfxMemId *) & msdk_mids[i];
@@ -177,6 +232,11 @@ gst_msdk_frame_alloc (mfxHDL pthis, mfxFrameAllocRequest * req,
       surfaces[i] = coded_buf;
       msdk_mids[i].surface = &surfaces[i];
       msdk_mids[i].fourcc = fourcc;
+
+      /* Don't use image for P208 */
+      msdk_mids[i].image.image_id = VA_INVALID_ID;
+      msdk_mids[i].image.buf = VA_INVALID_ID;
+
       mids[i] = (mfxMemId *) & msdk_mids[i];
     }
   }
@@ -184,9 +244,9 @@ gst_msdk_frame_alloc (mfxHDL pthis, mfxFrameAllocRequest * req,
   resp->mids = mids;
   resp->NumFrameActual = surfaces_num;
 
-  msdk_resp->response = resp;
-  msdk_resp->mem_ids = mids;
+  msdk_resp->response = *resp;
   msdk_resp->request = *req;
+  msdk_resp->refcount = 1;
 
   gst_msdk_context_add_alloc_response (context, msdk_resp);
 
@@ -202,6 +262,15 @@ gst_msdk_frame_free (mfxHDL pthis, mfxFrameAllocResponse * resp)
   GstMsdkMemoryID *mem_id;
   VADisplay dpy;
   gint i;
+  GstMsdkAllocResponse *cached = NULL;
+
+  cached = gst_msdk_context_get_cached_alloc_responses (context, resp);
+
+  if (cached) {
+    if (!g_atomic_int_dec_and_test (&cached->refcount))
+      return MFX_ERR_NONE;
+  } else
+    return MFX_ERR_NONE;
 
   if (!gst_msdk_context_remove_alloc_response (context, resp))
     return MFX_ERR_NONE;
@@ -214,9 +283,12 @@ gst_msdk_frame_free (mfxHDL pthis, mfxFrameAllocResponse * resp)
     for (i = 0; i < resp->NumFrameActual; i++) {
       GstMsdkMemoryID *mem = resp->mids[i];
 
-      /* Release dmabuf handle if used */
-      if (mem->info.mem_type == VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME)
-        vaReleaseBufferHandle (dpy, mem->image.buf);
+      /* Release prime fd if used */
+      if (mem->desc.num_objects) {
+        g_assert (mem->desc.num_objects == 1);
+        close (mem->desc.objects[0].fd);
+        mem->desc.num_objects = 0;
+      }
 
       if (mem->image.image_id != VA_INVALID_ID &&
           vaDestroyImage (dpy, mem->image.image_id) == VA_STATUS_SUCCESS) {
@@ -259,7 +331,7 @@ gst_msdk_frame_lock (mfxHDL pthis, mfxMemId mid, mfxFrameData * data)
   va_surface = mem_id->surface;
   dpy = gst_msdk_context_get_handle (context);
 
-  if (mem_id->info.mem_type == VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME) {
+  if (mem_id->desc.num_objects) {
     GST_WARNING ("Couldn't map the buffer since dmabuf is already in use");
     return MFX_ERR_LOCK_MEMORY;
   }
@@ -288,6 +360,7 @@ gst_msdk_frame_lock (mfxHDL pthis, mfxMemId mid, mfxFrameData * data)
     switch (mem_id->image.format.fourcc) {
       case VA_FOURCC_NV12:
       case VA_FOURCC_P010:
+      case VA_FOURCC_P016:
         data->Pitch = mem_id->image.pitches[0];
         data->Y = buf + mem_id->image.offsets[0];
         data->UV = buf + mem_id->image.offsets[1];
@@ -312,10 +385,10 @@ gst_msdk_frame_lock (mfxHDL pthis, mfxMemId mid, mfxFrameData * data)
         break;
       case VA_FOURCC_ARGB:
         data->Pitch = mem_id->image.pitches[0];
-        data->R = buf + mem_id->image.offsets[0];
-        data->G = data->R + 1;
-        data->B = data->R + 2;
-        data->A = data->R + 3;
+        data->B = buf + mem_id->image.offsets[0];
+        data->G = data->B + 1;
+        data->R = data->B + 2;
+        data->A = data->B + 3;
         break;
 #if (MFX_VERSION >= 1028)
       case VA_FOURCC_RGB565:
@@ -342,6 +415,49 @@ gst_msdk_frame_lock (mfxHDL pthis, mfxMemId mid, mfxFrameData * data)
         data->A = data->R;
         break;
 #endif
+#if VA_CHECK_VERSION(1, 2, 0)
+      case VA_FOURCC_Y210:
+      case VA_FOURCC_Y216:
+        data->Pitch = mem_id->image.pitches[0];
+        data->Y = buf + mem_id->image.offsets[0];
+        data->U = data->Y + 2;
+        data->V = data->Y + 6;
+        break;
+      case VA_FOURCC_Y410:
+        data->Pitch = mem_id->image.pitches[0];
+        data->U = buf + mem_id->image.offsets[0];       /* data->Y410 */
+        break;
+      case VA_FOURCC_Y416:
+        data->Pitch = mem_id->image.pitches[0];
+        data->U = buf + mem_id->image.offsets[0];
+        data->Y = data->U + 2;
+        data->V = data->U + 4;
+        data->A = data->U + 6;
+        break;
+#endif
+      case VA_FOURCC_ABGR:
+        data->Pitch = mem_id->image.pitches[0];
+        data->R = buf + mem_id->image.offsets[0];
+        data->G = data->R + 1;
+        data->B = data->R + 2;
+        data->A = data->R + 3;
+        break;
+
+#if (MFX_VERSION >= 2004)
+      case VA_FOURCC_RGBP:
+        data->Pitch = mem_id->image.pitches[0];
+        data->R = buf + mem_id->image.offsets[0];
+        data->G = buf + mem_id->image.offsets[1];
+        data->B = buf + mem_id->image.offsets[2];
+        break;
+      case VA_FOURCC_BGRP:
+        data->Pitch = mem_id->image.pitches[0];
+        data->B = buf + mem_id->image.offsets[0];
+        data->G = buf + mem_id->image.offsets[1];
+        data->R = buf + mem_id->image.offsets[2];
+        break;
+#endif
+
       default:
         g_assert_not_reached ();
         break;
@@ -369,6 +485,8 @@ gst_msdk_frame_unlock (mfxHDL pthis, mfxMemId mid, mfxFrameData * ptr)
 
   mem_id = (GstMsdkMemoryID *) mid;
   dpy = gst_msdk_context_get_handle (context);
+
+  g_assert (mem_id->desc.num_objects == 0);
 
   if (mem_id->fourcc != MFX_FOURCC_P8) {
     vaUnmapBuffer (dpy, mem_id->image.buf);
@@ -424,10 +542,13 @@ gst_msdk_get_dmabuf_info_from_surface (mfxFrameSurface1 * surface,
   g_return_val_if_fail (surface, FALSE);
 
   mem_id = (GstMsdkMemoryID *) surface->Data.MemId;
+
+  g_assert (mem_id->desc.num_objects == 1);
+
   if (handle)
-    *handle = mem_id->info.handle;
+    *handle = mem_id->desc.objects[0].fd;
   if (size)
-    *size = mem_id->info.mem_size;
+    *size = mem_id->desc.objects[0].size;
 
   return TRUE;
 }
@@ -471,7 +592,11 @@ gst_msdk_export_dmabuf_to_vasurface (GstMsdkContext * context,
       va_fourcc = VA_FOURCC_YUY2;
       break;
     case GST_VIDEO_FORMAT_P010_10LE:
+#if VA_CHECK_VERSION(1, 2, 0)
       va_chroma = VA_RT_FORMAT_YUV420_10;
+#else
+      va_chroma = VA_RT_FORMAT_YUV420_10BPP;
+#endif
       va_fourcc = VA_FOURCC_P010;
       break;
     case GST_VIDEO_FORMAT_UYVY:
@@ -492,6 +617,38 @@ gst_msdk_export_dmabuf_to_vasurface (GstMsdkContext * context,
     case GST_VIDEO_FORMAT_BGR10A2_LE:
       va_chroma = VA_RT_FORMAT_RGB32_10;
       va_fourcc = VA_FOURCC_A2R10G10B10;
+      break;
+#endif
+#if VA_CHECK_VERSION(1, 2, 0)
+    case GST_VIDEO_FORMAT_Y210:
+      va_chroma = VA_RT_FORMAT_YUV422_10;
+      va_fourcc = VA_FOURCC_Y210;
+      break;
+    case GST_VIDEO_FORMAT_Y410:
+      va_chroma = VA_RT_FORMAT_YUV444_10;
+      va_fourcc = VA_FOURCC_Y410;
+      break;
+    case GST_VIDEO_FORMAT_P012_LE:
+      va_chroma = VA_RT_FORMAT_YUV420_12;
+      va_fourcc = VA_FOURCC_P016;
+      break;
+    case GST_VIDEO_FORMAT_Y212_LE:
+      va_chroma = VA_RT_FORMAT_YUV422_12;
+      va_fourcc = VA_FOURCC_Y216;
+      break;
+    case GST_VIDEO_FORMAT_Y412_LE:
+      va_chroma = VA_RT_FORMAT_YUV444_12;
+      va_fourcc = VA_FOURCC_Y416;
+      break;
+#endif
+#if (MFX_VERSION >= 2004)
+    case GST_VIDEO_FORMAT_RGBP:
+      va_chroma = VA_RT_FORMAT_RGBP;
+      va_fourcc = VA_FOURCC_RGBP;
+      break;
+    case GST_VIDEO_FORMAT_BGRP:
+      va_chroma = VA_RT_FORMAT_RGBP;
+      va_fourcc = VA_FOURCC_BGRP;
       break;
 #endif
     default:
@@ -573,7 +730,7 @@ gst_msdk_replace_mfx_memid (GstMsdkContext * context,
   msdk_mid = (GstMsdkMemoryID *) mfx_surface->Data.MemId;
   dpy = gst_msdk_context_get_handle (context);
 
-  /* Destory the underlined VAImage if already mapped */
+  /* Destroy the underlined VAImage if already mapped */
   if (msdk_mid->image.image_id != VA_INVALID_ID
       && msdk_mid->image.buf != VA_INVALID_ID) {
     status =

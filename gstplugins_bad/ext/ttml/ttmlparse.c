@@ -1297,7 +1297,7 @@ ttml_handle_element_whitespace (GNode * node, gpointer data)
     gunichar u = g_utf8_get_char (c);
     gint nbytes = g_unichar_to_utf8 (u, buf);
 
-    /* Repace each newline or tab with a space. */
+    /* Replace each newline or tab with a space. */
     if (nbytes == 1 && (buf[0] == TTML_CHAR_LF || buf[0] == TTML_CHAR_TAB)) {
       *c = ' ';
       buf[0] = TTML_CHAR_SPACE;
@@ -1926,9 +1926,12 @@ ttml_find_child (xmlNodePtr parent, const gchar * name)
   return child;
 }
 
+#define XML_START_TAG "<?xml"
+#define TTML_END_TAG "</tt>"
 
-GList *
-ttml_parse (const gchar * input, GstClockTime begin, GstClockTime duration)
+guint
+ttml_parse (const gchar * input, GstClockTime begin, GstClockTime duration,
+    GList ** parsed)
 {
   xmlDocPtr doc;
   xmlNodePtr root_node, head_node, body_node;
@@ -1938,12 +1941,29 @@ ttml_parse (const gchar * input, GstClockTime begin, GstClockTime duration)
   gchar *value;
   guint cellres_x, cellres_y;
   TtmlWhitespaceMode doc_whitespace_mode = TTML_WHITESPACE_MODE_DEFAULT;
+  guint consumed = 0;
+  guint start_offset = 0;
+  gchar *start_xml, *end_tt;
 
+  g_return_val_if_fail (parsed != NULL, 0);
+
+  *parsed = NULL;
   if (!g_utf8_validate (input, -1, NULL)) {
     GST_CAT_ERROR (ttmlparse_debug, "Input isn't valid UTF-8.");
-    return NULL;
+    return 0;
   }
   GST_CAT_LOG (ttmlparse_debug, "Input:\n%s", input);
+
+  start_xml = g_strstr_len (input, strlen (input), XML_START_TAG);
+  end_tt = g_strstr_len (input, strlen (input), TTML_END_TAG);
+
+  if (!start_xml || !end_tt) {
+    GST_CAT_DEBUG (ttmlparse_debug, "Need more data");
+    return 0;
+  }
+
+  consumed = end_tt - input + strlen (TTML_END_TAG);
+  start_offset = start_xml - input;
 
   styles_table = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
       (GDestroyNotify) ttml_delete_element);
@@ -1951,17 +1971,19 @@ ttml_parse (const gchar * input, GstClockTime begin, GstClockTime duration)
       (GDestroyNotify) ttml_delete_element);
 
   /* Parse input. */
-  doc = xmlReadMemory (input, strlen (input), "any_doc_name", NULL, 0);
+  doc = xmlReadMemory (start_xml, consumed - start_offset, "any_doc_name",
+      NULL, 0);
   if (!doc) {
     GST_CAT_ERROR (ttmlparse_debug, "Failed to parse document.");
-    return NULL;
+    return 0;
   }
+
   root_node = xmlDocGetRootElement (doc);
 
   if (xmlStrcmp (root_node->name, (const xmlChar *) "tt") != 0) {
     GST_CAT_ERROR (ttmlparse_debug, "Root element of document is not tt:tt.");
     xmlFreeDoc (doc);
-    return NULL;
+    return 0;
   }
 
   if ((value = ttml_get_xml_property (root_node, "cellResolution"))) {
@@ -1988,8 +2010,9 @@ ttml_parse (const gchar * input, GstClockTime begin, GstClockTime duration)
   if (!(head_node = ttml_find_child (root_node, "head"))) {
     GST_CAT_ERROR (ttmlparse_debug, "No <head> element found.");
     xmlFreeDoc (doc);
-    return NULL;
+    return 0;
   }
+
   ttml_parse_head (head_node, styles_table, regions_table);
 
   if ((body_node = ttml_find_child (root_node, "body"))) {
@@ -2030,5 +2053,7 @@ ttml_parse (const gchar * input, GstClockTime begin, GstClockTime duration)
   g_hash_table_destroy (styles_table);
   g_hash_table_destroy (regions_table);
 
-  return output_buffers;
+  *parsed = output_buffers;
+
+  return consumed;
 }

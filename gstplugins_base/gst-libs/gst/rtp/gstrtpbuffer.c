@@ -184,7 +184,7 @@ gst_rtp_buffer_new_take_data (gpointer data, gsize len)
 GstBuffer *
 gst_rtp_buffer_new_copy_data (gconstpointer data, gsize len)
 {
-  return gst_rtp_buffer_new_take_data (g_memdup (data, len), len);
+  return gst_rtp_buffer_new_take_data (g_memdup2 (data, len), len);
 }
 
 /**
@@ -369,7 +369,7 @@ gst_rtp_buffer_map (GstBuffer * buffer, GstMapFlags flags, GstRTPBuffer * rtp)
   /* calc extension length when present. */
   if (data[0] & 0x10) {
     guint8 *extdata;
-    guint16 extlen;
+    gsize extlen;
 
     /* find memory for the extension bits, we find the block for the first 4
      * bytes, all other extension bytes should also be in this block */
@@ -684,9 +684,9 @@ gst_rtp_buffer_set_extension (GstRTPBuffer * rtp, gboolean extension)
 /**
  * gst_rtp_buffer_get_extension_data: (skip)
  * @rtp: the RTP packet
- * @bits: (out): location for result bits
- * @data: (out) (array) (element-type guint8) (transfer none): location for data
- * @wordlen: (out): location for length of @data in 32 bits words
+ * @bits: (optional) (out): location for result bits
+ * @data: (optional) (out) (array) (element-type guint8) (transfer none): location for data
+ * @wordlen: (optional) (out): location for length of @data in 32 bits words
  *
  * Get the extension data. @bits will contain the extension 16 bits of custom
  * data. @data will point to the data in the extension and @wordlen will contain
@@ -833,6 +833,8 @@ ensure_buffers (GstRTPBuffer * rtp)
  * extension header. If the existing extension data is not large enough, it will
  * be made larger.
  *
+ * Will also shorten the extension data from 1.20.
+ *
  * Returns: True if done.
  */
 gboolean
@@ -856,15 +858,23 @@ gst_rtp_buffer_set_extension_data (GstRTPBuffer * rtp, guint16 bits,
     mem = gst_allocator_alloc (NULL, min_size, NULL);
 
     if (rtp->data[1]) {
-      /* copy old data */
+      /* copy old data & initialize the remainder of the new buffer */
       gst_memory_map (mem, &map, GST_MAP_WRITE);
       memcpy (map.data, rtp->data[1], rtp->size[1]);
+      if (min_size > rtp->size[1]) {
+        memset (map.data + rtp->size[1], 0, min_size - rtp->size[1]);
+      }
       gst_memory_unmap (mem, &map);
 
       /* unmap old */
       gst_buffer_unmap (rtp->buffer, &rtp->map[1]);
       gst_buffer_replace_memory (rtp->buffer, 1, mem);
     } else {
+      /* don't leak data from uninitialized memory via the padding */
+      gst_memory_map (mem, &map, GST_MAP_WRITE);
+      memset (map.data, 0, map.size);
+      gst_memory_unmap (mem, &map);
+
       /* we didn't have extension data, add */
       gst_buffer_insert_memory (rtp->buffer, 1, mem);
     }
@@ -872,6 +882,15 @@ gst_rtp_buffer_set_extension_data (GstRTPBuffer * rtp, guint16 bits,
     /* map new */
     gst_memory_map (mem, &rtp->map[1], GST_MAP_READWRITE);
     gst_memory_ref (mem);
+    rtp->data[1] = rtp->map[1].data;
+    rtp->size[1] = rtp->map[1].size;
+  } else if (min_size < rtp->size[1]) {
+    GstMemory *mem = rtp->map[1].memory;
+
+    gst_memory_ref (mem);
+    gst_buffer_unmap (rtp->buffer, &rtp->map[1]);
+    gst_memory_resize (mem, 0, min_size);
+    gst_memory_map (mem, &rtp->map[1], GST_MAP_READWRITE);
     rtp->data[1] = rtp->map[1].data;
     rtp->size[1] = rtp->map[1].size;
   }
@@ -885,6 +904,37 @@ gst_rtp_buffer_set_extension_data (GstRTPBuffer * rtp, guint16 bits,
   GST_WRITE_UINT16_BE (data + 2, length);
 
   return TRUE;
+}
+
+/**
+ * gst_rtp_buffer_remove_extension_data:
+ * @rtp: the RTP packet
+ *
+ * Unsets the extension bit of the RTP buffer and removes the extension header
+ * and data.
+ *
+ * If the RTP buffer has no header extension data, the action has no effect.
+ * The RTP buffer must be mapped READWRITE only once and the underlying
+ * GstBuffer must be writable.
+ *
+ * Since: 1.20
+ */
+void
+gst_rtp_buffer_remove_extension_data (GstRTPBuffer * rtp)
+{
+  g_return_if_fail (gst_buffer_is_writable (rtp->buffer));
+  g_return_if_fail (rtp->map[0].flags & GST_MAP_WRITE);
+
+  if (rtp->data[1] != NULL) {
+    GstBuffer *buf = rtp->buffer;
+
+    ensure_buffers (rtp);
+
+    GST_RTP_HEADER_EXTENSION (rtp->data[0]) = FALSE;
+    gst_rtp_buffer_unmap (rtp);
+    gst_buffer_remove_memory (buf, 1);
+    gst_rtp_buffer_map (buf, GST_MAP_READWRITE, rtp);
+  }
 }
 
 /**
@@ -1314,44 +1364,23 @@ gst_rtp_buffer_ext_timestamp (guint64 * exttimestamp, guint32 timestamp)
   return result;
 }
 
-/**
- * gst_rtp_buffer_get_extension_onebyte_header:
- * @rtp: the RTP packet
- * @id: The ID of the header extension to be read (between 1 and 14).
- * @nth: Read the nth extension packet with the requested ID
- * @data: (out) (array length=size) (element-type guint8) (transfer none):
- *   location for data
- * @size: (out): the size of the data in bytes
- *
- * Parses RFC 5285 style header extensions with a one byte header. It will
- * return the nth extension with the requested id.
- *
- * Returns: TRUE if @buffer had the requested header extension
- */
 
-gboolean
-gst_rtp_buffer_get_extension_onebyte_header (GstRTPBuffer * rtp, guint8 id,
-    guint nth, gpointer * data, guint * size)
+static gboolean
+_get_extension_onebyte_header (const guint8 * pdata, guint len,
+    guint16 bit_pattern, guint8 id, guint nth, gpointer * data, guint * size)
 {
-  guint16 bits;
-  guint8 *pdata;
-  guint wordlen;
   gulong offset = 0;
   guint count = 0;
 
   g_return_val_if_fail (id > 0 && id < 15, FALSE);
 
-  if (!gst_rtp_buffer_get_extension_data (rtp, &bits, (gpointer) & pdata,
-          &wordlen))
-    return FALSE;
-
-  if (bits != 0xBEDE)
+  if (bit_pattern != 0xBEDE)
     return FALSE;
 
   for (;;) {
     guint8 read_id, read_len;
 
-    if (offset + 1 >= wordlen * 4)
+    if (offset + 1 >= len)
       break;
 
     read_id = GST_READ_UINT8 (pdata + offset) >> 4;
@@ -1367,14 +1396,14 @@ gst_rtp_buffer_get_extension_onebyte_header (GstRTPBuffer * rtp, guint8 id,
       break;
 
     /* Ignore extension headers where the size does not fit */
-    if (offset + read_len > wordlen * 4)
+    if (offset + read_len > len)
       break;
 
     /* If we have the right one */
     if (id == read_id) {
       if (nth == count) {
         if (data)
-          *data = pdata + offset;
+          *data = (gpointer) & pdata[offset];
         if (size)
           *size = read_len;
 
@@ -1385,22 +1414,85 @@ gst_rtp_buffer_get_extension_onebyte_header (GstRTPBuffer * rtp, guint8 id,
     }
     offset += read_len;
 
-    if (offset >= wordlen * 4)
+    if (offset >= len)
       break;
   }
 
   return FALSE;
 }
 
+
 /**
- * gst_rtp_buffer_get_extension_twobytes_header:
- * @rtp: the RTP packet
- * @appbits: (out): Application specific bits
+ * gst_rtp_buffer_get_extension_onebyte_header_from_bytes:
+ * @bytes: #GBytes
+ * @bit_pattern: The bit-pattern. Anything but 0xBEDE is rejected.
  * @id: The ID of the header extension to be read (between 1 and 14).
  * @nth: Read the nth extension packet with the requested ID
  * @data: (out) (array length=size) (element-type guint8) (transfer none):
  *   location for data
  * @size: (out): the size of the data in bytes
+ *
+ * Similar to gst_rtp_buffer_get_extension_onebyte_header, but working
+ * on the #GBytes you get from gst_rtp_buffer_get_extension_bytes.
+ * Parses RFC 5285 style header extensions with a one byte header. It will
+ * return the nth extension with the requested id.
+ *
+ * Returns: TRUE if @bytes had the requested header extension
+ *
+ * Since: 1.18
+ */
+gboolean
+gst_rtp_buffer_get_extension_onebyte_header_from_bytes (GBytes * bytes,
+    guint16 bit_pattern, guint8 id, guint nth, gpointer * data, guint * size)
+{
+  const guint8 *pdata = g_bytes_get_data (bytes, NULL);
+  gsize len = g_bytes_get_size (bytes);
+  return _get_extension_onebyte_header (pdata, len, bit_pattern, id, nth, data,
+      size);
+}
+
+
+/**
+ * gst_rtp_buffer_get_extension_onebyte_header:
+ * @rtp: the RTP packet
+ * @id: The ID of the header extension to be read (between 1 and 14).
+ * @nth: Read the nth extension packet with the requested ID
+ * @data: (optional) (out) (array length=size) (element-type guint8) (transfer none):
+ *   location for data
+ * @size: (optional) (out): the size of the data in bytes
+ *
+ * Parses RFC 5285 style header extensions with a one byte header. It will
+ * return the nth extension with the requested id.
+ *
+ * Returns: TRUE if @buffer had the requested header extension
+ */
+
+gboolean
+gst_rtp_buffer_get_extension_onebyte_header (GstRTPBuffer * rtp, guint8 id,
+    guint nth, gpointer * data, guint * size)
+{
+  guint16 bit_pattern;
+  guint8 *pdata;
+  guint wordlen;
+
+  if (!gst_rtp_buffer_get_extension_data (rtp, &bit_pattern, (gpointer) & pdata,
+          &wordlen))
+    return FALSE;
+
+  return _get_extension_onebyte_header (pdata, wordlen * 4, bit_pattern, id,
+      nth, data, size);
+}
+
+
+/**
+ * gst_rtp_buffer_get_extension_twobytes_header:
+ * @rtp: the RTP packet
+ * @appbits: (optional) (out): Application specific bits
+ * @id: The ID of the header extension to be read (between 1 and 14).
+ * @nth: Read the nth extension packet with the requested ID
+ * @data: (optional) (out) (array length=size) (element-type guint8) (transfer none):
+ *   location for data
+ * @size: (optional) (out): the size of the data in bytes
  *
  * Parses RFC 5285 style header extensions with a two bytes header. It will
  * return the nth extension with the requested id.
@@ -1468,19 +1560,20 @@ gst_rtp_buffer_get_extension_twobytes_header (GstRTPBuffer * rtp,
   return FALSE;
 }
 
-static guint
-get_onebyte_header_end_offset (guint8 * pdata, guint wordlen)
+static gboolean
+get_onebyte_header_end_offset (guint8 * pdata, guint wordlen, guint * offset)
 {
-  guint offset = 0;
   guint bytelen = wordlen * 4;
   guint paddingcount = 0;
 
-  while (offset + 1 < bytelen) {
+  *offset = 0;
+
+  while (*offset + 1 < bytelen) {
     guint8 read_id, read_len;
 
-    read_id = GST_READ_UINT8 (pdata + offset) >> 4;
-    read_len = (GST_READ_UINT8 (pdata + offset) & 0x0F) + 1;
-    offset += 1;
+    read_id = GST_READ_UINT8 (pdata + *offset) >> 4;
+    read_len = (GST_READ_UINT8 (pdata + *offset) & 0x0F) + 1;
+    *offset += 1;
 
     /* ID 0 means its padding, skip */
     if (read_id == 0) {
@@ -1492,17 +1585,21 @@ get_onebyte_header_end_offset (guint8 * pdata, guint wordlen)
 
     /* ID 15 is special and means we should stop parsing */
     /* It also means we can't add an extra packet */
-    if (read_id == 15)
-      return 0;
+    if (read_id == 15) {
+      return FALSE;
+    }
 
     /* Ignore extension headers where the size does not fit */
-    if (offset + read_len > bytelen)
-      return 0;
+    if (*offset + read_len > bytelen) {
+      return FALSE;
+    }
 
-    offset += read_len;
+    *offset += read_len;
   }
 
-  return offset - paddingcount;
+  *offset -= paddingcount;
+
+  return TRUE;
 }
 
 /**
@@ -1516,7 +1613,7 @@ get_onebyte_header_end_offset (guint8 * pdata, guint wordlen)
  * RTP header. If there is already a RFC 5285 header extension with a one byte
  * header, the new extension will be appended.
  * It will not work if there is already a header extension that does not follow
- * the mecanism described in RFC 5285 or if there is a header extension with
+ * the mechanism described in RFC 5285 or if there is a header extension with
  * a two bytes header as described in RFC 5285. In that case, use
  * gst_rtp_buffer_add_extension_twobytes_header()
  *
@@ -1529,7 +1626,8 @@ gst_rtp_buffer_add_extension_onebyte_header (GstRTPBuffer * rtp, guint8 id,
 {
   guint16 bits;
   guint8 *pdata = 0;
-  guint wordlen;
+  guint wordlen = 0;
+  guint wordlen_new;
   gboolean has_bit;
   guint extlen, offset = 0;
 
@@ -1544,17 +1642,17 @@ gst_rtp_buffer_add_extension_onebyte_header (GstRTPBuffer * rtp, guint8 id,
     if (bits != 0xBEDE)
       return FALSE;
 
-    offset = get_onebyte_header_end_offset (pdata, wordlen);
-    if (offset == 0)
+    if (!get_onebyte_header_end_offset (pdata, wordlen, &offset))
       return FALSE;
   }
 
   /* the required size of the new extension data */
   extlen = offset + size + 1;
   /* calculate amount of words */
-  wordlen = extlen / 4 + ((extlen % 4) ? 1 : 0);
+  wordlen_new = extlen / 4 + ((extlen % 4) ? 1 : 0);
+  wordlen_new = MAX (wordlen_new, wordlen);
 
-  gst_rtp_buffer_set_extension_data (rtp, 0xBEDE, wordlen);
+  gst_rtp_buffer_set_extension_data (rtp, 0xBEDE, wordlen_new);
   gst_rtp_buffer_get_extension_data (rtp, &bits, (gpointer) & pdata, &wordlen);
 
   pdata += offset;
@@ -1615,7 +1713,7 @@ get_twobytes_header_end_offset (const guint8 * pdata, guint wordlen)
  * RTP header. If there is already a RFC 5285 header extension with a two bytes
  * header, the new extension will be appended.
  * It will not work if there is already a header extension that does not follow
- * the mecanism described in RFC 5285 or if there is a header extension with
+ * the mechanism described in RFC 5285 or if there is a header extension with
  * a one byte header as described in RFC 5285. In that case, use
  * gst_rtp_buffer_add_extension_onebyte_header()
  *

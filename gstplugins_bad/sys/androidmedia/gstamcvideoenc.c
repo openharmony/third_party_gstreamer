@@ -41,6 +41,10 @@
 #define orc_memcpy memcpy
 #endif
 
+#ifdef HAVE_JNI_H
+#include "gstjniutils.h"
+#endif
+
 #include "gstamcvideoenc.h"
 #include "gstamc-constants.h"
 
@@ -95,7 +99,8 @@ enum
 {
   PROP_0,
   PROP_BIT_RATE,
-  PROP_I_FRAME_INTERVAL
+  PROP_I_FRAME_INTERVAL,
+  PROP_I_FRAME_INTERVAL_FLOAT
 };
 
 /* class initialization */
@@ -109,7 +114,7 @@ static GstVideoEncoderClass *parent_class = NULL;
 GType
 gst_amc_video_enc_get_type (void)
 {
-  static volatile gsize type = 0;
+  static gsize type = 0;
 
   if (g_once_init_enter (&type)) {
     GType _type;
@@ -208,6 +213,21 @@ create_amc_format (GstAmcVideoEnc * encoder, GstVideoCodecState * input_state,
       amc_level.key = "level";  /* named level ? */
       amc_level.id = gst_amc_avc_level_from_string (level_string);
     }
+  } else if (strcmp (name, "video/x-h265") == 0) {
+    const gchar *tier_string = gst_structure_get_string (s, "tier");
+
+    mime = "video/hevc";
+
+    if (profile_string) {
+      amc_profile.key = "profile";      /* named profile ? */
+      amc_profile.id = gst_amc_hevc_profile_from_string (profile_string);
+    }
+
+    if (level_string && tier_string) {
+      amc_level.key = "level";  /* named level ? */
+      amc_level.id =
+          gst_amc_hevc_tier_level_from_string (tier_string, level_string);
+    }
   } else if (strcmp (name, "video/x-vp8") == 0) {
     mime = "video/x-vnd.on2.vp8";
   } else if (strcmp (name, "video/x-vp9") == 0) {
@@ -263,8 +283,22 @@ create_amc_format (GstAmcVideoEnc * encoder, GstVideoCodecState * input_state,
     /* gst_amc_format_set_int (format, amc_level.key, amc_level.id); */
   }
 
-  gst_amc_format_set_int (format, "i-frame-interval", encoder->i_frame_int,
-      &err);
+  /* On Android N_MR1 and higher, i-frame-interval can be a float value */
+#ifdef HAVE_JNI_H
+  if (gst_amc_jni_get_android_level () >= 25) {
+    GST_LOG_OBJECT (encoder, "Setting i-frame-interval to %f",
+        encoder->i_frame_int);
+    gst_amc_format_set_float (format, "i-frame-interval", encoder->i_frame_int,
+        &err);
+  } else
+#endif
+  {
+    int i_frame_int = encoder->i_frame_int;
+    /* Round a fractional interval to 1 per sec on older Android */
+    if (encoder->i_frame_int > 0 && encoder->i_frame_int < 1.0)
+      i_frame_int = 1;
+    gst_amc_format_set_int (format, "i-frame-interval", i_frame_int, &err);
+  }
   if (err)
     GST_ELEMENT_WARNING_FROM_ERROR (encoder, err);
 
@@ -305,12 +339,12 @@ color_format_info_failed_to_set:
   return NULL;
 
 unsupported_profile:
-  GST_ERROR_OBJECT (encoder, "Unsupport profile '%s'", profile_string);
+  GST_ERROR_OBJECT (encoder, "Unsupported profile '%s'", profile_string);
   gst_amc_format_free (format);
   return NULL;
 
 unsupported_level:
-  GST_ERROR_OBJECT (encoder, "Unsupport level '%s'", level_string);
+  GST_ERROR_OBJECT (encoder, "Unsupported level '%s'", level_string);
   gst_amc_format_free (format);
   return NULL;
 }
@@ -395,6 +429,32 @@ caps_from_amc_format (GstAmcFormat * amc_format)
 
       gst_caps_set_simple (caps, "level", G_TYPE_STRING, level_string, NULL);
     }
+  } else if (strcmp (mime, "video/hevc") == 0) {
+    const gchar *profile_string, *level_string, *tier_string;
+
+    caps =
+        gst_caps_new_simple ("video/x-h265",
+        "stream-format", G_TYPE_STRING, "byte-stream", NULL);
+
+    if (gst_amc_format_get_int (amc_format, "profile", &amc_profile, NULL)) {
+      profile_string = gst_amc_avc_profile_to_string (amc_profile, NULL);
+      if (!profile_string)
+        goto unsupported_profile;
+
+      gst_caps_set_simple (caps, "profile", G_TYPE_STRING, profile_string,
+          NULL);
+    }
+
+    if (gst_amc_format_get_int (amc_format, "level", &amc_level, NULL)) {
+      level_string =
+          gst_amc_hevc_tier_level_to_string (amc_profile, &tier_string);
+      if (!level_string || !tier_string)
+        goto unsupported_level;
+
+      gst_caps_set_simple (caps,
+          "level", G_TYPE_STRING, level_string,
+          "tier", G_TYPE_STRING, tier_string, NULL);
+    }
   } else if (strcmp (mime, "video/x-vnd.on2.vp8") == 0) {
     caps = gst_caps_new_empty_simple ("video/x-vp8");
   } else if (strcmp (mime, "video/x-vnd.on2.vp9") == 0) {
@@ -409,14 +469,14 @@ caps_from_amc_format (GstAmcFormat * amc_format)
   return caps;
 
 unsupported_profile:
-  GST_ERROR ("Unsupport amc profile id %d", amc_profile);
+  GST_ERROR ("Unsupported amc profile id %d", amc_profile);
   g_free (mime);
   gst_caps_unref (caps);
 
   return NULL;
 
 unsupported_level:
-  GST_ERROR ("Unsupport amc level id %d", amc_level);
+  GST_ERROR ("Unsupported amc level id %d", amc_level);
   g_free (mime);
   gst_caps_unref (caps);
 
@@ -466,21 +526,45 @@ gst_amc_video_enc_set_property (GObject * object, guint prop_id,
 {
   GstAmcVideoEnc *encoder;
   GstState state;
+  gboolean codec_active;
+  GError *err = NULL;
 
   encoder = GST_AMC_VIDEO_ENC (object);
 
   GST_OBJECT_LOCK (encoder);
 
   state = GST_STATE (encoder);
-  if (state != GST_STATE_READY && state != GST_STATE_NULL)
-    goto wrong_state;
+  codec_active = (encoder->codec && state != GST_STATE_READY
+      && state != GST_STATE_NULL);
 
   switch (prop_id) {
     case PROP_BIT_RATE:
       encoder->bitrate = g_value_get_uint (value);
+
+      g_mutex_lock (&encoder->codec_lock);
+      if (encoder->codec) {
+        if (!gst_amc_codec_set_dynamic_bitrate (encoder->codec, &err,
+                encoder->bitrate)) {
+          g_mutex_unlock (&encoder->codec_lock);
+          goto wrong_state;
+        }
+      }
+      g_mutex_unlock (&encoder->codec_lock);
+      if (err) {
+        GST_ELEMENT_WARNING_FROM_ERROR (encoder, err);
+        g_clear_error (&err);
+      }
+
       break;
     case PROP_I_FRAME_INTERVAL:
       encoder->i_frame_int = g_value_get_uint (value);
+      if (codec_active)
+        goto wrong_state;
+      break;
+    case PROP_I_FRAME_INTERVAL_FLOAT:
+      encoder->i_frame_int = g_value_get_float (value);
+      if (codec_active)
+        goto wrong_state;
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -513,6 +597,9 @@ gst_amc_video_enc_get_property (GObject * object, guint prop_id,
     case PROP_I_FRAME_INTERVAL:
       g_value_set_uint (value, encoder->i_frame_int);
       break;
+    case PROP_I_FRAME_INTERVAL_FLOAT:
+      g_value_set_float (value, encoder->i_frame_int);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -527,6 +614,7 @@ gst_amc_video_enc_class_init (GstAmcVideoEncClass * klass)
   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
   GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
   GstVideoEncoderClass *videoenc_class = GST_VIDEO_ENCODER_CLASS (klass);
+  GParamFlags dynamic_flag = 0;
 
   parent_class = g_type_class_peek_parent (klass);
 
@@ -547,21 +635,34 @@ gst_amc_video_enc_class_init (GstAmcVideoEncClass * klass)
       GST_DEBUG_FUNCPTR (gst_amc_video_enc_handle_frame);
   videoenc_class->finish = GST_DEBUG_FUNCPTR (gst_amc_video_enc_finish);
 
+  // On Android >= 19, we can set bitrate dynamically
+  // so add the flag so apps can detect it.
+  if (gst_amc_codec_have_dynamic_bitrate ())
+    dynamic_flag = GST_PARAM_MUTABLE_PLAYING;
+
   g_object_class_install_property (gobject_class, PROP_BIT_RATE,
       g_param_spec_uint ("bitrate", "Bitrate", "Bitrate in bit/sec", 1,
           G_MAXINT, BIT_RATE_DEFAULT,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          dynamic_flag | G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_I_FRAME_INTERVAL,
       g_param_spec_uint ("i-frame-interval", "I-frame interval",
           "The frequency of I frames expressed in seconds between I frames (0 for automatic)",
           0, G_MAXINT, I_FRAME_INTERVAL_DEFAULT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_I_FRAME_INTERVAL_FLOAT,
+      g_param_spec_float ("i-frame-interval-float", "I-frame interval",
+          "The frequency of I frames expressed in seconds between I frames (0 for automatic). "
+          "Fractional intervals work on Android >= 25",
+          0, G_MAXFLOAT, I_FRAME_INTERVAL_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 
 static void
 gst_amc_video_enc_init (GstAmcVideoEnc * self)
 {
+  g_mutex_init (&self->codec_lock);
   g_mutex_init (&self->drain_lock);
   g_cond_init (&self->drain_cond);
 
@@ -578,11 +679,14 @@ gst_amc_video_enc_open (GstVideoEncoder * encoder)
 
   GST_DEBUG_OBJECT (self, "Opening encoder");
 
-  self->codec = gst_amc_codec_new (klass->codec_info->name, &err);
+  g_mutex_lock (&self->codec_lock);
+  self->codec = gst_amc_codec_new (klass->codec_info->name, TRUE, &err);
   if (!self->codec) {
+    g_mutex_unlock (&self->codec_lock);
     GST_ELEMENT_ERROR_FROM_ERROR (self, err);
     return FALSE;
   }
+  g_mutex_unlock (&self->codec_lock);
   self->started = FALSE;
   self->flushing = TRUE;
 
@@ -598,6 +702,7 @@ gst_amc_video_enc_close (GstVideoEncoder * encoder)
 
   GST_DEBUG_OBJECT (self, "Closing encoder");
 
+  g_mutex_lock (&self->codec_lock);
   if (self->codec) {
     GError *err = NULL;
 
@@ -608,6 +713,7 @@ gst_amc_video_enc_close (GstVideoEncoder * encoder)
     gst_amc_codec_free (self->codec);
   }
   self->codec = NULL;
+  g_mutex_unlock (&self->codec_lock);
 
   self->started = FALSE;
   self->flushing = TRUE;
@@ -622,6 +728,7 @@ gst_amc_video_enc_finalize (GObject * object)
 {
   GstAmcVideoEnc *self = GST_AMC_VIDEO_ENC (object);
 
+  g_mutex_clear (&self->codec_lock);
   g_mutex_clear (&self->drain_lock);
   g_cond_clear (&self->drain_cond);
 
@@ -781,6 +888,7 @@ gst_amc_video_enc_set_src_caps (GstAmcVideoEnc * self, GstAmcFormat * format)
 {
   GstCaps *caps;
   GstVideoCodecState *output_state;
+  GstStructure *s;
 
   caps = caps_from_amc_format (format);
   if (!caps) {
@@ -804,6 +912,17 @@ gst_amc_video_enc_set_src_caps (GstAmcVideoEnc * self, GstAmcFormat * format)
 
   if (!gst_video_encoder_negotiate (GST_VIDEO_ENCODER (self)))
     return FALSE;
+
+  output_state = gst_video_encoder_get_output_state (GST_VIDEO_ENCODER (self));
+  s = gst_caps_get_structure (output_state->caps, 0);
+
+  if (!strcmp (gst_structure_get_name (s), "video/x-h264") ||
+      !strcmp (gst_structure_get_name (s), "video/x-h265")) {
+    self->codec_data_in_bytestream = TRUE;
+  } else {
+    self->codec_data_in_bytestream = FALSE;
+  }
+  gst_video_codec_state_unref (output_state);
 
   return TRUE;
 }
@@ -840,14 +959,8 @@ gst_amc_video_enc_handle_output_frame (GstAmcVideoEnc * self,
    * gstomxvideoenc.c and gstomxh264enc.c */
   if ((buffer_info->flags & BUFFER_FLAG_CODEC_CONFIG)
       && buffer_info->size > 0) {
-    GstStructure *s;
-    GstVideoCodecState *state;
 
-    state = gst_video_encoder_get_output_state (encoder);
-    s = gst_caps_get_structure (state->caps, 0);
-    if (!strcmp (gst_structure_get_name (s), "video/x-h264")) {
-      gst_video_codec_state_unref (state);
-
+    if (self->codec_data_in_bytestream) {
       if (buffer_info->size > 4 &&
           GST_READ_UINT32_BE (buf->data + buffer_info->offset) == 0x00000001) {
         GList *l = NULL;
@@ -867,14 +980,16 @@ gst_amc_video_enc_handle_output_frame (GstAmcVideoEnc * self,
       }
     } else {
       GstBuffer *codec_data;
+      GstVideoCodecState *output_state =
+          gst_video_encoder_get_output_state (GST_VIDEO_ENCODER (self));
 
       GST_DEBUG_OBJECT (self, "Handling codec data");
 
       codec_data = gst_buffer_new_and_alloc (buffer_info->size);
       gst_buffer_fill (codec_data, 0, buf->data + buffer_info->offset,
           buffer_info->size);
-      state->codec_data = codec_data;
-      gst_video_codec_state_unref (state);
+      output_state->codec_data = codec_data;
+      gst_video_codec_state_unref (output_state);
 
       if (!gst_video_encoder_negotiate (encoder)) {
         gst_video_codec_frame_unref (frame);
@@ -1317,7 +1432,7 @@ gst_amc_video_enc_set_format (GstVideoEncoder * encoder,
       GST_STR_NULL (format_string));
   g_free (format_string);
 
-  if (!gst_amc_codec_configure (self->codec, format, NULL, 1, &err)) {
+  if (!gst_amc_codec_configure (self->codec, format, NULL, &err)) {
     GST_ERROR_OBJECT (self, "Failed to configure codec");
     GST_ELEMENT_ERROR_FROM_ERROR (self, err);
     goto quit;
@@ -1425,6 +1540,16 @@ gst_amc_video_enc_handle_frame (GstVideoEncoder * encoder,
 
   timestamp = frame->pts;
   duration = frame->duration;
+
+  if (GST_VIDEO_CODEC_FRAME_IS_FORCE_KEYFRAME (frame)) {
+    if (gst_amc_codec_request_key_frame (self->codec, &err)) {
+      GST_DEBUG_OBJECT (self, "Passed keyframe request to MediaCodec");
+    }
+    if (err) {
+      GST_ELEMENT_WARNING_FROM_ERROR (self, err);
+      g_clear_error (&err);
+    }
+  }
 
 again:
   /* Make sure to release the base class stream lock, otherwise

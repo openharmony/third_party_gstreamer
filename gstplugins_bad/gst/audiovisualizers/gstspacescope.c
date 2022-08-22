@@ -120,7 +120,11 @@ static gboolean gst_space_scope_render (GstAudioVisualizer * scope,
     GstBuffer * audio, GstVideoFrame * video);
 
 
-G_DEFINE_TYPE (GstSpaceScope, gst_space_scope, GST_TYPE_AUDIO_VISUALIZER);
+G_DEFINE_TYPE_WITH_CODE (GstSpaceScope, gst_space_scope,
+    GST_TYPE_AUDIO_VISUALIZER, GST_DEBUG_CATEGORY_INIT (space_scope_debug,
+        "spacescope", 0, "spacescope"););
+GST_ELEMENT_REGISTER_DEFINE (spacescope, "spacescope", GST_RANK_NONE,
+    GST_TYPE_SPACE_SCOPE);
 
 static void
 gst_space_scope_class_init (GstSpaceScopeClass * g_class)
@@ -148,6 +152,8 @@ gst_space_scope_class_init (GstSpaceScopeClass * g_class)
           "Drawing styles for the space scope display.",
           GST_TYPE_SPACE_SCOPE_STYLE, STYLE_DOTS,
           G_PARAM_CONSTRUCT | G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  gst_type_mark_as_plugin_api (GST_TYPE_SPACE_SCOPE_STYLE, 0);
 }
 
 static void
@@ -442,13 +448,4 @@ gst_space_scope_render (GstAudioVisualizer * base, GstBuffer * audio,
       (gint16 *) amap.data, num_samples);
   gst_buffer_unmap (audio, &amap);
   return TRUE;
-}
-
-gboolean
-gst_space_scope_plugin_init (GstPlugin * plugin)
-{
-  GST_DEBUG_CATEGORY_INIT (space_scope_debug, "spacescope", 0, "spacescope");
-
-  return gst_element_register (plugin, "spacescope", GST_RANK_NONE,
-      GST_TYPE_SPACE_SCOPE);
 }

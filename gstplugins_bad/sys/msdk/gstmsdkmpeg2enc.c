@@ -29,6 +29,22 @@
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+/**
+ * SECTION:element-msdkmpeg2enc
+ * @title: msdkmpeg2enc
+ * @short_description: Intel MSDK MPEG2 encoder
+ *
+ * MPEG2 video encoder based on Intel MFX
+ *
+ * ## Example launch line
+ * ```
+ * gst-launch-1.0 videotestsrc num-buffers=90 ! msdkmpeg2enc ! mpegvideoparse ! filesink location=output.mpg
+ * ```
+ *
+ * Since: 1.12
+ *
+ */
+
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
@@ -194,7 +210,7 @@ gst_msdkmpeg2enc_class_init (GstMsdkMPEG2EncClass * klass)
   gst_element_class_set_static_metadata (element_class,
       "Intel MSDK MPEG2 encoder",
       "Codec/Encoder/Video/Hardware",
-      "MPEG2 video encoder based on Intel Media SDK",
+      "MPEG2 video encoder based on " MFX_API_SDK,
       "Josep Torra <jtorra@oblong.com>");
 
   gst_element_class_add_static_pad_template (element_class, &src_factory);

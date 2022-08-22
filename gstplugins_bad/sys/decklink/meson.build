@@ -1,9 +1,11 @@
 decklink_sources = [
+  'gstdecklinkplugin.cpp',
   'gstdecklink.cpp',
   'gstdecklinkaudiosink.cpp',
   'gstdecklinkvideosink.cpp',
   'gstdecklinkaudiosrc.cpp',
   'gstdecklinkvideosrc.cpp',
+  'gstdecklinkdeviceprovider.cpp',
 ]
 
 if get_option('decklink').disabled()
@@ -54,6 +56,7 @@ if build_decklink
     install_dir : plugins_install_dir,
   )
   pkgconfig.generate(decklink, install_dir : plugins_pkgconfig_install_dir)
+  plugins += [decklink]
 else
   message('Not building decklink plugin for "@0@'.format(host_machine.system()))
 endif

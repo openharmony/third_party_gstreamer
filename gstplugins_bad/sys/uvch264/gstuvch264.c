@@ -28,19 +28,19 @@
 #include <gst/gst.h>
 #include "gstuvch264_mjpgdemux.h"
 #include "gstuvch264_src.h"
+#include "gstuvch264deviceprovider.h"
+
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  if (!gst_element_register (plugin, "uvch264mjpgdemux", GST_RANK_NONE,
-          GST_TYPE_UVC_H264_MJPG_DEMUX))
-    return FALSE;
+  gboolean ret = FALSE;
 
-  if (!gst_element_register (plugin, "uvch264src", GST_RANK_NONE,
-          GST_TYPE_UVC_H264_SRC))
-    return FALSE;
+  ret |= GST_ELEMENT_REGISTER (uvch264mjpgdemux, plugin);
+  ret |= GST_ELEMENT_REGISTER (uvch264src, plugin);
+  ret |= GST_DEVICE_PROVIDER_REGISTER (uvch264deviceprovider, plugin);
 
-  return TRUE;
+  return ret;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

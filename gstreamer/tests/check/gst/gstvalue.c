@@ -801,21 +801,21 @@ GST_START_TEST (test_deserialize_string)
     "\"Hello\\ World", "\"Hello\\ World"}, {
     "\"\\", "\"\\"}, {
     "\"\\0", "\"\\0"}, {
+    "\"t\\303\\274t\"", "tüt"}, {
+      /* utf8 octal sequence */
     "", ""},                    /* empty strings */
     {
-    "\"\"", ""},                /* quoted empty string -> empty string */
+    "\"\"", ""}, {              /* quoted empty string -> empty string */
+    "\" \"", " "}, {            /* allow spaces to be not escaped */
+    "tüüt", "tüüt"},        /* allow special chars to be not escaped */
         /* Expected FAILURES: */
     {
-    "\"\\0\"", NULL},           /* unfinished escaped character */
-    {
-    "\"", NULL},                /* solitary quote */
-    {
-    "\" \"", NULL},             /* spaces must be escaped */
-#if 0
-        /* FIXME 0.9: this test should fail, but it doesn't */
-    {
-    "tüüt", NULL}             /* string with special chars must be escaped */
-#endif
+    "\"\\0\"", NULL}, {         /* unfinished escaped character */
+    "\"", NULL}, {              /* solitary quote */
+    "\"\\380\"", NULL}, {       /* invalid octal sequence */
+    "\"\\344\\204\\062\"", NULL}, {
+      /* invalid utf8: wrong end byte */
+    "\"\\344\\204\"", NULL}     /* invalid utf8: wrong number of bytes */
   };
   guint i;
   GValue v = { 0, };
@@ -1019,6 +1019,15 @@ GST_START_TEST (test_value_compare)
   g_value_unset (&value1);
   g_value_unset (&value2);
   g_value_unset (&tmp);
+
+  g_value_init (&value1, G_TYPE_VALUE_ARRAY);
+  g_value_init (&value2, G_TYPE_VALUE_ARRAY);
+
+  fail_unless (gst_value_compare (&value1, &value2) == GST_VALUE_EQUAL,
+      "Empty Value arrays aren't equals when they should");
+
+  g_value_unset (&value1);
+  g_value_unset (&value2);
 
   g_value_init (&value1, GST_TYPE_BITMASK);
   gst_value_set_bitmask (&value1, 0x123);
@@ -2668,9 +2677,9 @@ GST_START_TEST (test_serialize_deserialize_format_enum)
   str = gst_structure_to_string (s);
   GST_LOG ("Got structure string '%s'", GST_STR_NULL (str));
   fail_unless (str != NULL);
-  fail_unless (strstr (str, "TIME") != NULL);
-  fail_unless (strstr (str, "BYTE") != NULL);
-  fail_unless (strstr (str, "DEFAULT") != NULL);
+  fail_unless (strstr (str, "time") != NULL);
+  fail_unless (strstr (str, "byte") != NULL);
+  fail_unless (strstr (str, "default") != NULL);
   fail_unless (strstr (str, "FOOBAR") != NULL);
 
   s2 = gst_structure_from_string (str, &end);
@@ -2720,51 +2729,143 @@ GST_START_TEST (test_serialize_deserialize_value_array)
 
 GST_END_TEST;
 
-GST_START_TEST (test_serialize_deserialize_caps)
+GST_START_TEST (test_compare_caps)
 {
   GValue value = { 0 }
   , value2 = {
   0};
-  GstCaps *caps, *caps2;
-  GstCaps *incaps;
-  gchar *serialized;
 
-  incaps = gst_caps_new_simple ("caps/internal",
-      "in-field", G_TYPE_INT, 20, "in-field2",
-      G_TYPE_STRING, "some in ternal field", NULL);
-  caps = gst_caps_new_simple ("test/caps",
-      "foo", G_TYPE_INT, 10, "bar", G_TYPE_STRING, "test",
-      "int-caps", GST_TYPE_CAPS, incaps, NULL);
-  fail_if (GST_CAPS_REFCOUNT_VALUE (caps) != 1);
-  gst_caps_unref (incaps);
-
-  /* and assign caps to gvalue */
   g_value_init (&value, GST_TYPE_CAPS);
-  g_value_take_boxed (&value, caps);
-  fail_if (GST_CAPS_REFCOUNT_VALUE (caps) != 1);
-
-  /* now serialize it */
-  serialized = gst_value_serialize (&value);
-  GST_DEBUG ("serialized caps to %s", serialized);
-  fail_unless (serialized != NULL);
-
-  /* refcount should not change */
-  fail_if (GST_CAPS_REFCOUNT_VALUE (caps) != 1);
-
-  /* now deserialize again */
   g_value_init (&value2, GST_TYPE_CAPS);
-  gst_value_deserialize (&value2, serialized);
+  g_value_take_boxed (&value, NULL);
+  g_value_take_boxed (&value2, NULL);
 
-  caps2 = g_value_get_boxed (&value2);
-  fail_if (GST_CAPS_REFCOUNT_VALUE (caps2) != 1);
+  fail_unless_equals_int (gst_value_compare (&value, &value2), GST_VALUE_EQUAL);
 
-  /* they should be equal */
-  fail_unless (gst_caps_is_equal (caps, caps2));
+  g_value_take_boxed (&value, gst_caps_new_empty_simple ("something"));
 
-  /* cleanup */
+  fail_unless_equals_int (gst_value_compare (&value, &value2),
+      GST_VALUE_UNORDERED);
+
   g_value_unset (&value);
   g_value_unset (&value2);
-  g_free (serialized);
+
+}
+
+GST_END_TEST;
+
+static void
+_test_serialize_deserialize_boxed_in_structure (const gpointer boxed_value,
+    GType type)
+{
+  GValue value = G_VALUE_INIT, str_val = G_VALUE_INIT;
+  const GValue *value_after;
+  GstStructure *s, *s2;
+  const gchar *first_str_val = "first \" string", *second_str_val =
+      "second \" string";
+  gchar *str, *str2, *end;
+
+  g_value_init (&value, type);
+  g_value_init (&str_val, G_TYPE_STRING);
+  g_value_set_boxed (&value, boxed_value);
+
+  s = gst_structure_new_empty ("test-struct");
+  g_value_set_string (&str_val, first_str_val);
+  gst_structure_set_value (s, "first", &str_val);
+  gst_structure_set_value (s, "test-value", &value);
+  g_value_set_string (&str_val, second_str_val);
+  gst_structure_set_value (s, "second", &str_val);
+
+  /* serialize the values in the structure */
+  str = gst_structure_to_string (s);
+  fail_unless (str != NULL);
+  GST_DEBUG ("Got structure string '%s'", str);
+
+  /* recreate the structure */
+  s2 = gst_structure_from_string (str, &end);
+  fail_unless (s2 != NULL);
+  fail_unless (end[0] == '\0');
+
+  /* make sure the new structure serializes to the same string */
+  str2 = gst_structure_to_string (s2);
+  fail_unless_equals_string (str, str2);
+
+  /* test for equality if values can be compared */
+  value_after = gst_structure_get_value (s2, "test-value");
+  fail_unless (value_after != NULL);
+  fail_unless (G_VALUE_TYPE (value_after) == G_VALUE_TYPE (&value));
+  if (gst_value_can_compare (&value, value_after))
+    fail_unless (gst_value_compare (&value, value_after) == GST_VALUE_EQUAL);
+
+  /* test to make sure that the string values are still present, and
+   * haven't been gobbled by the value serialization */
+  fail_unless_equals_string (gst_structure_get_string (s2, "first"),
+      first_str_val);
+  fail_unless_equals_string (gst_structure_get_string (s2, "second"),
+      second_str_val);
+
+  /* cleanup */
+  gst_structure_free (s);
+  gst_structure_free (s2);
+  g_free (str);
+  g_free (str2);
+  g_value_unset (&value);
+  g_value_unset (&str_val);
+}
+
+GST_START_TEST (test_serialize_deserialize_caps)
+{
+  GValue value = G_VALUE_INIT, value2 = G_VALUE_INIT;
+  GstCaps *incaps = gst_caps_new_simple ("caps/internal",
+      "in-field", G_TYPE_INT, 20, "in-field2",
+      G_TYPE_STRING, "some in ternal field", NULL);
+  GstCaps *test_caps[] = {
+    gst_caps_new_simple ("test/caps",
+        "foo", G_TYPE_INT, 10, "bar", G_TYPE_STRING, "test",
+        "int-caps", GST_TYPE_CAPS, incaps, NULL),
+    gst_caps_new_any (),
+    gst_caps_new_empty ()
+  };
+  GstCaps *caps, *caps2;
+  gchar *serialized;
+  gint i;
+
+  gst_caps_unref (incaps);
+  g_value_init (&value, GST_TYPE_CAPS);
+  g_value_init (&value2, GST_TYPE_CAPS);
+
+  for (i = 0; i < G_N_ELEMENTS (test_caps); i++) {
+    caps = test_caps[i];
+    fail_if (GST_CAPS_REFCOUNT_VALUE (caps) != 1);
+
+    /* and assign caps to gvalue */
+    g_value_take_boxed (&value, caps);
+    fail_if (GST_CAPS_REFCOUNT_VALUE (caps) != 1);
+
+    /* now serialize it */
+    serialized = gst_value_serialize (&value);
+    GST_DEBUG ("serialized caps to %s", serialized);
+    fail_unless (serialized != NULL);
+
+    /* refcount should not change */
+    fail_if (GST_CAPS_REFCOUNT_VALUE (caps) != 1);
+
+    /* now deserialize again */
+    fail_unless (gst_value_deserialize (&value2, serialized));
+
+    caps2 = g_value_get_boxed (&value2);
+    fail_if (GST_CAPS_REFCOUNT_VALUE (caps2) != 1);
+
+    /* they should be equal */
+    fail_unless (gst_caps_is_equal (caps, caps2));
+    fail_unless (gst_caps_is_any (caps) == gst_caps_is_any (caps2));
+
+    _test_serialize_deserialize_boxed_in_structure (caps, GST_TYPE_CAPS);
+    /* cleanup */
+    g_free (serialized);
+  }
+  g_value_unset (&value);
+  g_value_unset (&value2);
 }
 
 GST_END_TEST;
@@ -3063,6 +3164,9 @@ GST_START_TEST (test_stepped_int_range_parsing)
     "[1, 2, 2]",
     "[2, 3, 2]",
     "[0, 0, 0]",
+    "[0, 0, 1]",
+    "[1, 2, 0]",
+    "[1, 1, 1]",
   };
 
   /* check we can parse good ranges */
@@ -3257,31 +3361,30 @@ GST_START_TEST (test_structure_ops)
     const gchar *op;
     gint ret;
     GType str_type;
-    const gchar *str_result;
   } comparisons[] = {
     /* *INDENT-OFF* */
-    {"foo,bar=(int)1", "foo,bar=(int)1", "compare", GST_VALUE_EQUAL, 0, NULL},
-    {"foo,bar=(int)1", "foo,bar=(int)1", "is_subset", TRUE, 0, NULL},
-    {"foo,bar=(int)1", "foo,bar=(int)1", "intersect", TRUE, GST_TYPE_STRUCTURE, "foo,bar=(int)1"},
-    {"foo,bar=(int)1", "foo,bar=(int)1", "union", TRUE, GST_TYPE_STRUCTURE, "foo,bar=(int)1"},
-    {"foo,bar=(int)[1,2]", "foo,bar=(int)1", "compare", GST_VALUE_UNORDERED, 0, NULL},
-    {"foo,bar=(int)[1,2]", "foo,bar=(int)1", "is_subset", FALSE, 0, NULL},
-    {"foo,bar=(int)[1,2]", "foo,bar=(int)1", "intersect", TRUE, GST_TYPE_STRUCTURE, "foo,bar=(int)1"},
-    {"foo,bar=(int)[1,2]", "foo,bar=(int)1", "union", TRUE, GST_TYPE_STRUCTURE, "foo,bar=(int)[1,2]"},
-    {"foo,bar=(int)1", "foo,bar=(int)[1,2]", "compare", GST_VALUE_UNORDERED, 0, NULL},
-    {"foo,bar=(int)1", "foo,bar=(int)[1,2]", "is_subset", TRUE, 0, NULL},
-    {"foo,bar=(int)1", "foo,bar=(int)[1,2]", "intersect", TRUE, GST_TYPE_STRUCTURE, "foo,bar=(int)1"},
-    {"foo,bar=(int)1", "foo,bar=(int)[1,2]", "union", TRUE, GST_TYPE_STRUCTURE, "foo,bar=(int)[1,2]"},
-    {"foo,bar=(int)1", "foo,bar=(int)2", "compare", GST_VALUE_UNORDERED, 0, NULL},
-    {"foo,bar=(int)1", "foo,bar=(int)2", "is_subset", FALSE, 0, NULL},
-    {"foo,bar=(int)1", "foo,bar=(int)2", "intersect", FALSE, 0, NULL},
-    {"foo,bar=(int)1", "foo,bar=(int)2", "union", TRUE, GST_TYPE_STRUCTURE, "foo,bar=(int)[1,2]"},
-    {"foo,bar=(int)1", "baz,bar=(int)1", "compare", GST_VALUE_UNORDERED, 0, NULL},
-    {"foo,bar=(int)1", "baz,bar=(int)1", "is_subset", FALSE, 0, NULL},
-    {"foo,bar=(int)1", "baz,bar=(int)1", "intersect", FALSE, 0, NULL},
+    {"foo,bar=(int)1", "foo,bar=(int)1", "compare", GST_VALUE_EQUAL, 0},
+    {"foo,bar=(int)1", "foo,bar=(int)1", "is_subset", TRUE, 0},
+    {"foo,bar=(int)1", "foo,bar=(int)1", "intersect", TRUE, GST_TYPE_STRUCTURE},
+    {"foo,bar=(int)1", "foo,bar=(int)1", "union", TRUE, GST_TYPE_STRUCTURE},
+    {"foo,bar=(int)[1,2]", "foo,bar=(int)1", "compare", GST_VALUE_UNORDERED, 0},
+    {"foo,bar=(int)[1,2]", "foo,bar=(int)1", "is_subset", FALSE, 0},
+    {"foo,bar=(int)[1,2]", "foo,bar=(int)1", "intersect", TRUE, GST_TYPE_STRUCTURE},
+    {"foo,bar=(int)[1,2]", "foo,bar=(int)1", "union", TRUE, GST_TYPE_STRUCTURE},
+    {"foo,bar=(int)1", "foo,bar=(int)[1,2]", "compare", GST_VALUE_UNORDERED, 0},
+    {"foo,bar=(int)1", "foo,bar=(int)[1,2]", "is_subset", TRUE, 0},
+    {"foo,bar=(int)1", "foo,bar=(int)[1,2]", "intersect", TRUE, GST_TYPE_STRUCTURE},
+    {"foo,bar=(int)1", "foo,bar=(int)[1,2]", "union", TRUE, GST_TYPE_STRUCTURE},
+    {"foo,bar=(int)1", "foo,bar=(int)2", "compare", GST_VALUE_UNORDERED, 0},
+    {"foo,bar=(int)1", "foo,bar=(int)2", "is_subset", FALSE, 0},
+    {"foo,bar=(int)1", "foo,bar=(int)2", "intersect", FALSE, 0},
+    {"foo,bar=(int)1", "foo,bar=(int)2", "union", TRUE, GST_TYPE_STRUCTURE},
+    {"foo,bar=(int)1", "baz,bar=(int)1", "compare", GST_VALUE_UNORDERED, 0},
+    {"foo,bar=(int)1", "baz,bar=(int)1", "is_subset", FALSE, 0},
+    {"foo,bar=(int)1", "baz,bar=(int)1", "intersect", FALSE, 0},
 #if 0
     /* deserializing lists is not implemented (but this should still work!) */
-    {"foo,bar=(int)1", "baz,bar=(int)1", "union", TRUE, G_TYPE_LIST, "{foo,bar=(int)1;, baz,bar=(int)1;}"},
+    {"foo,bar=(int)1", "baz,bar=(int)1", "union", TRUE, G_TYPE_LIST},
 #endif
     /* *INDENT-ON* */
   };
@@ -3296,8 +3399,7 @@ GST_START_TEST (test_structure_ops)
     fail_unless (s2 != NULL);
 
     GST_DEBUG ("checking %s with structure1 %" GST_PTR_FORMAT " structure2 %"
-        GST_PTR_FORMAT " is %d, %s", comparisons[i].op, s1, s2,
-        comparisons[i].ret, comparisons[i].str_result);
+        GST_PTR_FORMAT " is %d", comparisons[i].op, s1, s2, comparisons[i].ret);
 
     g_value_init (&v1, GST_TYPE_STRUCTURE);
     gst_value_set_structure (&v1, s1);
@@ -3320,11 +3422,10 @@ GST_START_TEST (test_structure_ops)
 
         str = gst_value_serialize (&v3);
         GST_LOG ("result %s", str);
-        g_free (str);
 
         g_value_init (&result, comparisons[i].str_type);
-        fail_unless (gst_value_deserialize (&result,
-                comparisons[i].str_result));
+        fail_unless (gst_value_deserialize (&result, str));
+        g_free (str);
         fail_unless (gst_value_compare (&result, &v3) == GST_VALUE_EQUAL);
         g_value_unset (&v3);
         g_value_unset (&result);
@@ -3335,6 +3436,62 @@ GST_START_TEST (test_structure_ops)
     gst_structure_free (s2);
     g_value_unset (&v1);
     g_value_unset (&v2);
+  }
+}
+
+GST_END_TEST;
+
+static gpointer
+get_serialize_deserialize_boxed (const gpointer boxed, GType type)
+{
+  gchar *serialized, *cmp;
+  GValue value = G_VALUE_INIT, value2 = G_VALUE_INIT;
+  gpointer ret;
+
+  g_value_init (&value, type);
+  g_value_init (&value2, type);
+
+  g_value_set_boxed (&value, boxed);
+  serialized = gst_value_serialize (&value);
+  fail_unless (serialized != NULL);
+  GST_DEBUG ("serialized to %s", serialized);
+  fail_unless (gst_value_deserialize (&value2, serialized));
+  cmp = gst_value_serialize (&value2);
+  fail_unless_equals_string (cmp, serialized);
+
+  ret = g_value_dup_boxed (&value2);
+
+  g_free (serialized);
+  g_free (cmp);
+  g_value_unset (&value);
+  g_value_unset (&value2);
+  return ret;
+}
+
+GST_START_TEST (test_serialize_deserialize_structure)
+{
+  GstStructure *instr = gst_structure_new ("structure/internal",
+      "in-field", G_TYPE_INT, 20, "in-field2",
+      G_TYPE_STRING, "some in ternal field", NULL);
+  GstStructure *test_str[] = {
+    gst_structure_new ("test/structure",
+        "foo", G_TYPE_INT, 10, "bar", G_TYPE_STRING, "test",
+        "int-str", GST_TYPE_STRUCTURE, instr, NULL),
+    gst_structure_new_empty ("empty")
+  };
+  gint i;
+  GstStructure *str, *str2;
+
+  gst_structure_free (instr);
+  for (i = 0; i < G_N_ELEMENTS (test_str); i++) {
+    str = test_str[i];
+    str2 = get_serialize_deserialize_boxed (str, GST_TYPE_STRUCTURE);
+    fail_unless (gst_structure_is_equal (str, str2));
+
+    _test_serialize_deserialize_boxed_in_structure (str, GST_TYPE_STRUCTURE);
+
+    gst_structure_free (str);
+    gst_structure_free (str2);
   }
 }
 
@@ -3435,6 +3592,329 @@ GST_START_TEST (test_serialize_null_aray)
 
 GST_END_TEST;
 
+GST_START_TEST (test_deserialize_array)
+{
+  GValue value = { 0 };
+  const gchar *strings[] = {
+    "{ test, }",
+    "{ , }",
+    "{ test,, }",
+    "{ , , }",
+  };
+  gint results_size[] = { 1, 0, -1, -1 };       /* -1 means deserialization should fail */
+  int i;
+
+  for (i = 0; i < G_N_ELEMENTS (strings); ++i) {
+    /* Workaround a bug in our parser that would lead to segfaults
+     * when deserializing container types using static strings */
+    gchar *str = g_strdup (strings[i]);
+    g_value_init (&value, GST_TYPE_LIST);
+
+    if (results_size[i] == -1) {
+      fail_if (gst_value_deserialize (&value, str),
+          "Should not be able to deserialize %s (%d) as list", str, i);
+    } else {
+      fail_unless (gst_value_deserialize (&value, str),
+          "could not deserialize %s (%d)", str, i);
+      fail_unless (gst_value_list_get_size (&value) == results_size[i],
+          "Wrong array size: %d. expected %d",
+          gst_value_array_get_size (&value), results_size[i]);
+    }
+
+    g_value_unset (&value);
+    g_free (str);
+  }
+}
+
+GST_END_TEST;
+
+#define TEST_FLAGS_TYPE (test_flags_get_type())
+static GType
+test_flags_get_type (void)
+{
+  static const GFlagsValue values[] = {
+    {1, "One", "one"},
+    {1 << 1, "Two", "two"},
+    {1 << 3, "Eight", "eight"},
+    {0, NULL, NULL}
+  };
+  static GType id = 0;
+
+  if (g_once_init_enter ((gsize *) & id)) {
+    GType _id;
+
+    _id = g_flags_register_static ("TestFlags", values);
+
+    g_once_init_leave ((gsize *) & id, _id);
+  }
+
+  return id;
+}
+
+#define _RESULT(i) result_##i
+#define RESULT(i) _RESULT(i)
+
+GST_START_TEST (test_deserialize_with_pspec)
+{
+  GValue value = { 0 };
+  GParamSpec *pspec;
+  const gchar *strings[] = {
+    "< one, 0>",
+    "< one+eight, two >",
+    "< 9, 0>",
+  };
+  int i;
+
+  gint results[3][2] = {
+    {1, 0},
+    {9, 2},
+    {9, 0}
+  };
+
+  pspec = gst_param_spec_array ("flags-array",
+      "Flags Array", "An array of flags",
+      g_param_spec_flags ("flags", "Flags", "Flags", TEST_FLAGS_TYPE, 0,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS),
+      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+  for (i = 0; i < G_N_ELEMENTS (strings); ++i) {
+    int j;
+    gchar *str = g_strdup (strings[i]);
+    g_value_init (&value, GST_TYPE_ARRAY);
+
+    fail_unless (gst_value_deserialize_with_pspec (&value, str, pspec),
+        "could not deserialize %s (%d)", str, i);
+
+    fail_unless (gst_value_array_get_size (&value) ==
+        G_N_ELEMENTS (results[i]));
+
+    for (j = 0; j < G_N_ELEMENTS (results[i]); j++) {
+      const GValue *elem_value = gst_value_array_get_value (&value, j);
+      fail_unless (G_VALUE_TYPE (elem_value) == TEST_FLAGS_TYPE);
+      fail_unless_equals_int (g_value_get_flags (elem_value), results[i][j]);
+    }
+
+    g_value_unset (&value);
+    g_free (str);
+  }
+
+  g_param_spec_unref (pspec);
+}
+
+GST_END_TEST;
+
+GST_START_TEST (test_serialize_deserialize_segment)
+{
+  GstSegment *seg, *seg2;
+
+  seg = gst_segment_new ();
+  gst_segment_init (seg, GST_FORMAT_DEFAULT);
+  fail_unless (gst_segment_do_seek (seg, 1.2, GST_FORMAT_DEFAULT,
+          GST_SEEK_FLAG_FLUSH, GST_SEEK_TYPE_SET, 20, GST_SEEK_TYPE_SET, 30,
+          NULL));
+  seg2 = get_serialize_deserialize_boxed (seg, GST_TYPE_SEGMENT);
+  fail_unless (gst_segment_is_equal (seg, seg2));
+
+  _test_serialize_deserialize_boxed_in_structure (seg, GST_TYPE_SEGMENT);
+
+  gst_segment_free (seg);
+  gst_segment_free (seg2);
+}
+
+GST_END_TEST;
+
+GST_START_TEST (test_serialize_deserialize_caps_features)
+{
+  GstCapsFeatures *test_feats[] = {
+    gst_caps_features_new ("abc:val1", "xyz:val2", NULL),
+    gst_caps_features_new ("feat:val", NULL),
+    gst_caps_features_new_any (),
+    gst_caps_features_new_empty ()
+  };
+  gint i;
+  GstCapsFeatures *feats, *feats2;
+
+  for (i = 0; i < G_N_ELEMENTS (test_feats); i++) {
+    feats = test_feats[i];
+    fail_unless (feats != NULL);
+    feats2 = get_serialize_deserialize_boxed (feats, GST_TYPE_CAPS_FEATURES);
+    fail_unless (gst_caps_features_is_equal (feats, feats2));
+    fail_unless (gst_caps_features_is_any (feats) ==
+        gst_caps_features_is_any (feats2));
+
+    _test_serialize_deserialize_boxed_in_structure (feats,
+        GST_TYPE_CAPS_FEATURES);
+
+    gst_caps_features_free (feats);
+    gst_caps_features_free (feats2);
+  }
+}
+
+GST_END_TEST;
+
+GST_START_TEST (test_serialize_deserialize_tag_list)
+{
+  GstTagList *test_tags[] = {
+    gst_tag_list_new (GST_TAG_TITLE, "A Title", GST_TAG_ARTIST, "Art櫱",
+        GST_TAG_TRACK_NUMBER, 1, NULL),
+    gst_tag_list_new_empty ()
+  };
+  gint i;
+  GstTagList *tags, *tags2;
+
+  for (i = 0; i < G_N_ELEMENTS (test_tags); i++) {
+    tags = test_tags[i];
+    fail_unless (tags != NULL);
+    tags2 = get_serialize_deserialize_boxed (tags, GST_TYPE_TAG_LIST);
+    fail_unless (gst_tag_list_is_equal (tags, tags2));
+
+    _test_serialize_deserialize_boxed_in_structure (tags, GST_TYPE_TAG_LIST);
+
+    gst_tag_list_unref (tags);
+    gst_tag_list_unref (tags2);
+  }
+}
+
+GST_END_TEST;
+
+GST_START_TEST (test_deserialize_serialize_nested_structures)
+{
+  gint i;
+  gchar *structure_str;
+  GstStructure *structure, *structure2;
+
+  /* *INDENT-OFF* */
+  struct
+  {
+    const gchar *serialized_struct;
+    gboolean should_fail;
+    const gchar *path_to_bool;
+    const gchar *subcaps_str;
+  } tests_data[] = {
+      {"s, substruct=[sub, is-deepest=true]", FALSE, "substruct"},
+      {"s, substruct=(structure) [sub, is-deepest=true]", FALSE, "substruct"},
+      {"s, substruct=[sub, is-substruct=true, subsubstruct=[subsub, is-deepest=true]]", FALSE, "substruct/subsubstruct"},
+      {"s, substruct=[sub, is-substruct=true, subsubstruct=[subsub, subsubsubstruct=[subsubsub, is-deepest=true]]]", FALSE, "substruct/subsubstruct/subsubsubstruct"},
+      {"s, substruct=[sub, an-array={a, b}, subsubstruct=[subsub, a-range=[1,2], a-string=\"this is a \\\"string\\\"\"]]", FALSE, NULL},
+      {"s, sub-caps=[nested-caps(some:Feature), is-caps=true; second, caps-structure=true]", FALSE, NULL, "nested-caps(some:Feature), is-caps=true; second, caps-structure=true"},
+      {"s, sub-caps=[nested-caps(some:Feature)]", FALSE, NULL, "nested-caps(some:Feature)"},
+      {"s, array=(structure){[struct, n=1], [struct, n=2]}"},
+      /* Broken structure with substructures */
+      {"s, substruct=[sub, is-substruct=true", TRUE},
+      {"s, substruct=[sub, is-substruct=true, sub=\"yes]", TRUE},
+      {"s, substruct=[sub, a-broken-string=$broken]", TRUE},
+      {"s, sub-caps=(int)[nested-caps(some:Feature)]", TRUE},
+  };
+  /* *INDENT-ON* */
+
+  for (i = 0; i < G_N_ELEMENTS (tests_data); i++) {
+    structure = gst_structure_new_from_string (tests_data[i].serialized_struct);
+    if (tests_data[i].should_fail) {
+      fail_if (structure, "%s not be deserialized",
+          tests_data[i].serialized_struct);
+      continue;
+    }
+    fail_unless (structure, "%s could not be deserialized",
+        tests_data[i].serialized_struct);
+    structure_str = gst_structure_to_string (structure);
+    structure2 = gst_structure_new_from_string (structure_str);
+    fail_unless (gst_structure_is_equal (structure, structure2));
+    g_free (structure_str);
+
+    if (tests_data[i].path_to_bool) {
+      const GstStructure *tmpstruct = structure;
+      gchar **tmpstrv = g_strsplit (tests_data[i].path_to_bool, "/", -1);
+      gint j;
+
+      for (j = 0; tmpstrv[j]; j++) {
+        const GValue *v = gst_structure_get_value (tmpstruct, tmpstrv[j]);
+
+        fail_unless (v, "Could not find '%s' in %s", tmpstrv[j],
+            gst_structure_to_string (tmpstruct));
+        tmpstruct = gst_value_get_structure (v);
+
+        fail_unless (GST_IS_STRUCTURE (tmpstruct));
+        if (!tmpstrv[j + 1]) {
+          gboolean tmp;
+
+          fail_unless (gst_structure_get_boolean (tmpstruct, "is-deepest", &tmp)
+              && tmp);
+        }
+      }
+      g_strfreev (tmpstrv);
+    }
+    if (tests_data[i].subcaps_str) {
+      const GValue *v = gst_structure_get_value (structure, "sub-caps");
+      const GstCaps *caps = gst_value_get_caps (v);
+      GstCaps *caps2 = gst_caps_from_string (tests_data[i].subcaps_str);
+
+      fail_unless (gst_caps_is_equal (caps, caps2));
+      gst_caps_unref (caps2);
+    }
+
+    /* Ensure that doing a round trip works as expected */
+    structure_str = gst_structure_to_string (structure2);
+    gst_structure_free (structure2);
+    structure2 = gst_structure_new_from_string (structure_str);
+    fail_unless (gst_structure_is_equal (structure, structure2));
+    gst_structure_free (structure);
+    gst_structure_free (structure2);
+    g_free (structure_str);
+  }
+}
+
+GST_END_TEST;
+
+GST_START_TEST (test_serialize_deserialize_sample)
+{
+  GstSample *samp, *samp2;
+  gsize buff_len = 8;
+  const gchar buff_str[8] = "buf\ndat";
+  gchar *buff_val;
+  GstBuffer *buff = gst_buffer_new_wrapped (g_strdup (buff_str), buff_len);
+  GstCaps *caps = gst_caps_new_simple ("caps", "Int", G_TYPE_INT, 20,
+      "String", G_TYPE_STRING, "a string", NULL);
+  GstSegment *seg = gst_segment_new ();
+
+  gst_segment_init (seg, GST_FORMAT_DEFAULT);
+  fail_unless (gst_segment_do_seek (seg, 1.2, GST_FORMAT_DEFAULT,
+          GST_SEEK_FLAG_FLUSH, GST_SEEK_TYPE_SET, 20, GST_SEEK_TYPE_SET, 30,
+          NULL));
+  fail_unless (buff != NULL);
+  fail_unless (caps != NULL);
+  samp = gst_sample_new (buff, caps, seg,
+      gst_structure_new ("structure", "Float", G_TYPE_FLOAT, -2.5, NULL));
+  gst_buffer_unref (buff);
+  gst_caps_unref (caps);
+
+  samp2 = get_serialize_deserialize_boxed (samp, GST_TYPE_SAMPLE);
+  fail_unless (gst_caps_is_equal (gst_sample_get_caps (samp),
+          gst_sample_get_caps (samp2)));
+  fail_unless (gst_structure_is_equal (gst_sample_get_info (samp),
+          gst_sample_get_info (samp2)));
+  fail_unless (gst_segment_is_equal (gst_sample_get_segment (samp),
+          gst_sample_get_segment (samp2)));
+
+  buff = gst_sample_get_buffer (samp);
+  gst_buffer_extract_dup (buff, 0, -1, (gpointer *) & buff_val, &buff_len);
+  fail_unless_equals_int (buff_len, 8);
+  fail_unless_equals_string (buff_val, buff_str);
+  g_free (buff_val);
+  buff = gst_sample_get_buffer (samp2);
+  gst_buffer_extract_dup (buff, 0, -1, (gpointer *) & buff_val, &buff_len);
+  fail_unless_equals_int (buff_len, 8);
+  fail_unless_equals_string (buff_val, buff_str);
+  g_free (buff_val);
+
+  _test_serialize_deserialize_boxed_in_structure (samp, GST_TYPE_SAMPLE);
+
+  gst_sample_unref (samp);
+  gst_sample_unref (samp2);
+  gst_segment_free (seg);
+}
+
+GST_END_TEST;
+
 static Suite *
 gst_value_suite (void)
 {
@@ -3455,6 +3935,7 @@ gst_value_suite (void)
   tcase_add_test (tc_chain, test_deserialize_gtype);
   tcase_add_test (tc_chain, test_deserialize_gtype_failures);
   tcase_add_test (tc_chain, test_deserialize_bitmask);
+  tcase_add_test (tc_chain, test_deserialize_array);
   tcase_add_test (tc_chain, test_serialize_flags);
   tcase_add_test (tc_chain, test_deserialize_flags);
   tcase_add_test (tc_chain, test_serialize_deserialize_format_enum);
@@ -3473,6 +3954,7 @@ gst_value_suite (void)
   tcase_add_test (tc_chain, test_date_time);
   tcase_add_test (tc_chain, test_fraction_range);
   tcase_add_test (tc_chain, test_serialize_deserialize_caps);
+  tcase_add_test (tc_chain, test_compare_caps);
   tcase_add_test (tc_chain, test_int_range);
   tcase_add_test (tc_chain, test_int64_range);
   tcase_add_test (tc_chain, test_serialize_int64_range);
@@ -3484,9 +3966,16 @@ gst_value_suite (void)
   tcase_add_test (tc_chain, test_structure_basic);
   tcase_add_test (tc_chain, test_structure_single_ops);
   tcase_add_test (tc_chain, test_structure_ops);
+  tcase_add_test (tc_chain, test_serialize_deserialize_structure);
   tcase_add_test (tc_chain, test_transform_array);
   tcase_add_test (tc_chain, test_transform_list);
   tcase_add_test (tc_chain, test_serialize_null_aray);
+  tcase_add_test (tc_chain, test_deserialize_with_pspec);
+  tcase_add_test (tc_chain, test_deserialize_serialize_nested_structures);
+  tcase_add_test (tc_chain, test_serialize_deserialize_segment);
+  tcase_add_test (tc_chain, test_serialize_deserialize_caps_features);
+  tcase_add_test (tc_chain, test_serialize_deserialize_tag_list);
+  tcase_add_test (tc_chain, test_serialize_deserialize_sample);
 
   return s;
 }
