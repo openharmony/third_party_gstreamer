@@ -80,16 +80,24 @@
 #include <gst/base/gstbitreader.h>
 #include <string.h>
 
-GST_DEBUG_CATEGORY_STATIC (h264_parser_debug);
-#define GST_CAT_DEFAULT h264_parser_debug
+#ifndef GST_DISABLE_GST_DEBUG
+#define GST_CAT_DEFAULT gst_h264_debug_category_get()
+static GstDebugCategory *
+gst_h264_debug_category_get (void)
+{
+  static gsize cat_gonce = 0;
 
-static gboolean initialized = FALSE;
-#define INITIALIZE_DEBUG_CATEGORY \
-  if (!initialized) { \
-    GST_DEBUG_CATEGORY_INIT (h264_parser_debug, "codecparsers_h264", 0, \
-        "h264 parser library"); \
-    initialized = TRUE; \
+  if (g_once_init_enter (&cat_gonce)) {
+    GstDebugCategory *cat = NULL;
+
+    GST_DEBUG_CATEGORY_INIT (cat, "codecparsers_h264", 0, "h264 parse library");
+
+    g_once_init_leave (&cat_gonce, (gsize) cat);
   }
+
+  return (GstDebugCategory *) cat_gonce;
+}
+#endif /* GST_DISABLE_GST_DEBUG */
 
 /**** Default scaling_lists according to Table 7-2 *****/
 static const guint8 default_4x4_intra[16] = {
@@ -263,7 +271,7 @@ gst_h264_pps_copy (GstH264PPS * dst_pps, const GstH264PPS * src_pps)
   *dst_pps = *src_pps;
 
   if (src_pps->slice_group_id)
-    dst_pps->slice_group_id = g_memdup (src_pps->slice_group_id,
+    dst_pps->slice_group_id = g_memdup2 (src_pps->slice_group_id,
         src_pps->pic_size_in_map_units_minus1 + 1);
 
   return TRUE;
@@ -696,8 +704,12 @@ gst_h264_slice_parse_dec_ref_pic_marking (GstH264SliceHdr * slice,
     GstH264NalUnit * nalu, NalReader * nr)
 {
   GstH264DecRefPicMarking *dec_ref_pic_m;
+  guint start_pos, start_epb;
 
   GST_DEBUG ("parsing \"Decoded reference picture marking\"");
+
+  start_pos = nal_reader_get_pos (nr);
+  start_epb = nal_reader_get_epb_count (nr);
 
   dec_ref_pic_m = &slice->dec_ref_pic_marking;
 
@@ -712,22 +724,16 @@ gst_h264_slice_parse_dec_ref_pic_marking (GstH264SliceHdr * slice,
 
       dec_ref_pic_m->n_ref_pic_marking = 0;
       while (1) {
-#ifndef OHOS_OPT_CVE
-        refpicmarking =
-            &dec_ref_pic_m->ref_pic_marking[dec_ref_pic_m->n_ref_pic_marking];
-#endif
-        READ_UE (nr, mem_mgmt_ctrl_op);
+        READ_UE_MAX (nr, mem_mgmt_ctrl_op, 6);
         if (mem_mgmt_ctrl_op == 0)
           break;
 
-#ifdef OHOS_OPT_CVE
         if (dec_ref_pic_m->n_ref_pic_marking >=
             G_N_ELEMENTS (dec_ref_pic_m->ref_pic_marking))
           goto error;
 
         refpicmarking =
             &dec_ref_pic_m->ref_pic_marking[dec_ref_pic_m->n_ref_pic_marking];
-#endif
 
         refpicmarking->memory_management_control_operation = mem_mgmt_ctrl_op;
 
@@ -747,6 +753,9 @@ gst_h264_slice_parse_dec_ref_pic_marking (GstH264SliceHdr * slice,
       }
     }
   }
+
+  dec_ref_pic_m->bit_size = (nal_reader_get_pos (nr) - start_pos) -
+      (8 * (nal_reader_get_epb_count (nr) - start_epb));
 
   return TRUE;
 
@@ -770,10 +779,10 @@ gst_h264_slice_parse_pred_weight_table (GstH264SliceHdr * slice,
   READ_UE_MAX (nr, p->luma_log2_weight_denom, 7);
   /* set default values */
   default_luma_weight = 1 << p->luma_log2_weight_denom;
-  for (i = 0; i < G_N_ELEMENTS (p->luma_weight_l0); i++)
+  for (i = 0; i <= slice->num_ref_idx_l0_active_minus1; i++)
     p->luma_weight_l0[i] = default_luma_weight;
   if (GST_H264_IS_B_SLICE (slice)) {
-    for (i = 0; i < G_N_ELEMENTS (p->luma_weight_l1); i++)
+    for (i = 0; i <= slice->num_ref_idx_l1_active_minus1; i++)
       p->luma_weight_l1[i] = default_luma_weight;
   }
 
@@ -781,12 +790,12 @@ gst_h264_slice_parse_pred_weight_table (GstH264SliceHdr * slice,
     READ_UE_MAX (nr, p->chroma_log2_weight_denom, 7);
     /* set default values */
     default_chroma_weight = 1 << p->chroma_log2_weight_denom;
-    for (i = 0; i < G_N_ELEMENTS (p->chroma_weight_l0); i++) {
+    for (i = 0; i <= slice->num_ref_idx_l0_active_minus1; i++) {
       p->chroma_weight_l0[i][0] = default_chroma_weight;
       p->chroma_weight_l0[i][1] = default_chroma_weight;
     }
     if (GST_H264_IS_B_SLICE (slice)) {
-      for (i = 0; i < G_N_ELEMENTS (p->chroma_weight_l1); i++) {
+      for (i = 0; i <= slice->num_ref_idx_l0_active_minus1; i++) {
         p->chroma_weight_l1[i][0] = default_chroma_weight;
         p->chroma_weight_l1[i][1] = default_chroma_weight;
       }
@@ -905,25 +914,22 @@ error:
 
 static gboolean
 gst_h264_parse_clock_timestamp (GstH264ClockTimestamp * tim,
-    GstH264VUIParams * vui, NalReader * nr)
+    guint8 time_offset_length, NalReader * nr)
 {
-  guint8 full_timestamp_flag;
-  guint8 time_offset_length;
-
   GST_DEBUG ("parsing \"Clock timestamp\"");
 
-  /* defalt values */
+  /* default values */
   tim->time_offset = 0;
 
   READ_UINT8 (nr, tim->ct_type, 2);
   READ_UINT8 (nr, tim->nuit_field_based_flag, 1);
   READ_UINT8 (nr, tim->counting_type, 5);
-  READ_UINT8 (nr, full_timestamp_flag, 1);
+  READ_UINT8 (nr, tim->full_timestamp_flag, 1);
   READ_UINT8 (nr, tim->discontinuity_flag, 1);
   READ_UINT8 (nr, tim->cnt_dropped_flag, 1);
   READ_UINT8 (nr, tim->n_frames, 8);
 
-  if (full_timestamp_flag) {
+  if (tim->full_timestamp_flag) {
     tim->seconds_flag = TRUE;
     READ_UINT8 (nr, tim->seconds_value, 6);
 
@@ -946,12 +952,6 @@ gst_h264_parse_clock_timestamp (GstH264ClockTimestamp * tim,
     }
   }
 
-  time_offset_length = 24;
-  if (vui->nal_hrd_parameters_present_flag)
-    time_offset_length = vui->nal_hrd_parameters.time_offset_length;
-  else if (vui->vcl_hrd_parameters_present_flag)
-    time_offset_length = vui->vcl_hrd_parameters.time_offset_length;
-
   if (time_offset_length > 0)
     READ_UINT32 (nr, tim->time_offset, time_offset_length);
 
@@ -966,56 +966,77 @@ static GstH264ParserResult
 gst_h264_parser_parse_pic_timing (GstH264NalParser * nalparser,
     GstH264PicTiming * tim, NalReader * nr)
 {
+  GstH264ParserResult error = GST_H264_PARSER_ERROR;
+
   GST_DEBUG ("parsing \"Picture timing\"");
   if (!nalparser->last_sps || !nalparser->last_sps->valid) {
-    GST_WARNING ("didn't get the associated sequence paramater set for the "
+    GST_WARNING ("didn't get the associated sequence parameter set for the "
         "current access unit");
+    error = GST_H264_PARSER_BROKEN_LINK;
     goto error;
   }
 
   if (nalparser->last_sps->vui_parameters_present_flag) {
     GstH264VUIParams *vui = &nalparser->last_sps->vui_parameters;
+    GstH264HRDParams *hrd = NULL;
 
     if (vui->nal_hrd_parameters_present_flag) {
-      READ_UINT32 (nr, tim->cpb_removal_delay,
-          vui->nal_hrd_parameters.cpb_removal_delay_length_minus1 + 1);
-      READ_UINT32 (nr, tim->dpb_output_delay,
-          vui->nal_hrd_parameters.dpb_output_delay_length_minus1 + 1);
+      hrd = &vui->nal_hrd_parameters;
     } else if (vui->vcl_hrd_parameters_present_flag) {
-      READ_UINT32 (nr, tim->cpb_removal_delay,
-          vui->vcl_hrd_parameters.cpb_removal_delay_length_minus1 + 1);
-      READ_UINT32 (nr, tim->dpb_output_delay,
-          vui->vcl_hrd_parameters.dpb_output_delay_length_minus1 + 1);
+      hrd = &vui->vcl_hrd_parameters;
     }
 
-    if (vui->pic_struct_present_flag) {
+    tim->CpbDpbDelaysPresentFlag = ! !hrd;
+    tim->pic_struct_present_flag = vui->pic_struct_present_flag;
+
+    if (tim->CpbDpbDelaysPresentFlag) {
+      tim->cpb_removal_delay_length_minus1 =
+          hrd->cpb_removal_delay_length_minus1;
+      tim->dpb_output_delay_length_minus1 = hrd->dpb_output_delay_length_minus1;
+
+      READ_UINT32 (nr, tim->cpb_removal_delay,
+          tim->cpb_removal_delay_length_minus1 + 1);
+      READ_UINT32 (nr, tim->dpb_output_delay,
+          tim->dpb_output_delay_length_minus1 + 1);
+    }
+
+    if (tim->pic_struct_present_flag) {
       const guint8 num_clock_ts_table[9] = {
         1, 1, 1, 2, 2, 3, 3, 2, 3
       };
       guint8 num_clock_num_ts;
       guint i;
 
-      tim->pic_struct_present_flag = TRUE;
       READ_UINT8 (nr, tim->pic_struct, 4);
       CHECK_ALLOWED ((gint8) tim->pic_struct, 0, 8);
+
+      tim->time_offset_length = 24;
+      if (hrd)
+        tim->time_offset_length = hrd->time_offset_length;
 
       num_clock_num_ts = num_clock_ts_table[tim->pic_struct];
       for (i = 0; i < num_clock_num_ts; i++) {
         READ_UINT8 (nr, tim->clock_timestamp_flag[i], 1);
         if (tim->clock_timestamp_flag[i]) {
-          if (!gst_h264_parse_clock_timestamp (&tim->clock_timestamp[i], vui,
-                  nr))
+          if (!gst_h264_parse_clock_timestamp (&tim->clock_timestamp[i],
+                  tim->time_offset_length, nr))
             goto error;
         }
       }
     }
   }
 
+  if (!tim->CpbDpbDelaysPresentFlag && !tim->pic_struct_present_flag) {
+    GST_WARNING
+        ("Invalid pic_timing SEI NAL with neither CpbDpbDelays nor pic_struct");
+    return GST_H264_PARSER_BROKEN_DATA;
+  }
+
   return GST_H264_PARSER_OK;
 
 error:
   GST_WARNING ("error parsing \"Picture timing\"");
-  return GST_H264_PARSER_ERROR;
+  return error;
 }
 
 static GstH264ParserResult
@@ -1028,8 +1049,10 @@ gst_h264_parser_parse_registered_user_data (GstH264NalParser * nalparser,
   rud->data = NULL;
   rud->size = 0;
 
-  if (payload_size < 2)
-    return GST_H264_PARSER_ERROR;
+  if (payload_size < 2) {
+    GST_WARNING ("Too small payload size %d", payload_size);
+    return GST_H264_PARSER_BROKEN_DATA;
+  }
 
   READ_UINT8 (nr, rud->country_code, 8);
   --payload_size;
@@ -1041,15 +1064,17 @@ gst_h264_parser_parse_registered_user_data (GstH264NalParser * nalparser,
     rud->country_code_extension = 0;
   }
 
-  if (payload_size < 8)
-    return GST_H264_PARSER_ERROR;
+  if (payload_size < 1) {
+    GST_WARNING ("No more remaining payload data to store");
+    return GST_H264_PARSER_BROKEN_DATA;
+  }
 
   data = g_malloc (payload_size);
-  for (i = 0; i < payload_size / 8; ++i) {
+  for (i = 0; i < payload_size; ++i) {
     READ_UINT8 (nr, data[i], 8);
   }
 
-  GST_MEMDUMP ("SEI user data", data, payload_size / 8);
+  GST_MEMDUMP ("SEI user data", data, payload_size);
 
   rud->data = data;
   rud->size = payload_size;
@@ -1071,7 +1096,7 @@ gst_h264_parser_parse_recovery_point (GstH264NalParser * nalparser,
 
   GST_DEBUG ("parsing \"Recovery point\"");
   if (!sps || !sps->valid) {
-    GST_WARNING ("didn't get the associated sequence paramater set for the "
+    GST_WARNING ("didn't get the associated sequence parameter set for the "
         "current access unit");
     goto error;
   }
@@ -1171,15 +1196,83 @@ error:
 }
 
 static GstH264ParserResult
+gst_h264_parser_parse_mastering_display_colour_volume (GstH264NalParser *
+    parser, GstH264MasteringDisplayColourVolume * mdcv, NalReader * nr)
+{
+  guint i;
+
+  GST_DEBUG ("parsing \"Mastering display colour volume\"");
+
+  for (i = 0; i < 3; i++) {
+    READ_UINT16 (nr, mdcv->display_primaries_x[i], 16);
+    READ_UINT16 (nr, mdcv->display_primaries_y[i], 16);
+  }
+
+  READ_UINT16 (nr, mdcv->white_point_x, 16);
+  READ_UINT16 (nr, mdcv->white_point_y, 16);
+  READ_UINT32 (nr, mdcv->max_display_mastering_luminance, 32);
+  READ_UINT32 (nr, mdcv->min_display_mastering_luminance, 32);
+
+  return GST_H264_PARSER_OK;
+
+error:
+  GST_WARNING ("error parsing \"Mastering display colour volume\"");
+  return GST_H264_PARSER_ERROR;
+}
+
+static GstH264ParserResult
+gst_h264_parser_parse_content_light_level_info (GstH264NalParser * parser,
+    GstH264ContentLightLevel * cll, NalReader * nr)
+{
+  GST_DEBUG ("parsing \"Content light level\"");
+
+  READ_UINT16 (nr, cll->max_content_light_level, 16);
+  READ_UINT16 (nr, cll->max_pic_average_light_level, 16);
+
+  return GST_H264_PARSER_OK;
+
+error:
+  GST_WARNING ("error parsing \"Content light level\"");
+  return GST_H264_PARSER_ERROR;
+}
+
+static GstH264ParserResult
+gst_h264_parser_parse_sei_unhandled_payload (GstH264NalParser * parser,
+    GstH264SEIUnhandledPayload * payload, NalReader * nr, guint payload_type,
+    guint payload_size)
+{
+  guint8 *data = NULL;
+  gint i;
+
+  payload->payloadType = payload_type;
+
+  data = g_malloc0 (payload_size);
+  for (i = 0; i < payload_size; ++i) {
+    READ_UINT8 (nr, data[i], 8);
+  }
+
+  payload->size = payload_size;
+  payload->data = data;
+
+  return GST_H264_PARSER_OK;
+
+error:
+  GST_WARNING ("error parsing \"Unhandled payload\"");
+  g_free (data);
+
+  return GST_H264_PARSER_ERROR;
+}
+
+static GstH264ParserResult
 gst_h264_parser_parse_sei_message (GstH264NalParser * nalparser,
     NalReader * nr, GstH264SEIMessage * sei)
 {
   guint32 payloadSize;
   guint8 payload_type_byte, payload_size_byte;
-  guint remaining, payload_size;
+  guint remaining, payload_size, next;
   GstH264ParserResult res;
 
-  GST_DEBUG ("parsing \"Sei message\"");
+  GST_DEBUG ("parsing \"SEI message\"");
 
   memset (sei, 0, sizeof (*sei));
 
@@ -1197,6 +1290,7 @@ gst_h264_parser_parse_sei_message (GstH264NalParser * nalparser,
 
   remaining = nal_reader_get_remaining (nr);
   payload_size = payloadSize * 8 < remaining ? payloadSize * 8 : remaining;
+  next = nal_reader_get_pos (nr) + payload_size;
 
   GST_DEBUG ("SEI message received: payloadType  %u, payloadSize = %u bits",
       sei->payloadType, payload_size);
@@ -1214,7 +1308,7 @@ gst_h264_parser_parse_sei_message (GstH264NalParser * nalparser,
       break;
     case GST_H264_SEI_REGISTERED_USER_DATA:
       res = gst_h264_parser_parse_registered_user_data (nalparser,
-          &sei->payload.registered_user_data, nr, payload_size);
+          &sei->payload.registered_user_data, nr, payload_size >> 3);
       break;
     case GST_H264_SEI_RECOVERY_POINT:
       res = gst_h264_parser_parse_recovery_point (nalparser,
@@ -1228,12 +1322,19 @@ gst_h264_parser_parse_sei_message (GstH264NalParser * nalparser,
       res = gst_h264_parser_parse_frame_packing (nalparser,
           &sei->payload.frame_packing, nr, payload_size);
       break;
+    case GST_H264_SEI_MASTERING_DISPLAY_COLOUR_VOLUME:
+      res = gst_h264_parser_parse_mastering_display_colour_volume (nalparser,
+          &sei->payload.mastering_display_colour_volume, nr);
+      break;
+    case GST_H264_SEI_CONTENT_LIGHT_LEVEL:
+      res = gst_h264_parser_parse_content_light_level_info (nalparser,
+          &sei->payload.content_light_level, nr);
+      break;
     default:
-      /* Just consume payloadSize bytes, which does not account for
-         emulation prevention bytes */
-      if (!nal_reader_skip_long (nr, payload_size))
-        goto error;
-      res = GST_H264_PARSER_OK;
+      res = gst_h264_parser_parse_sei_unhandled_payload (nalparser,
+          &sei->payload.unhandled_payload, nr, sei->payloadType,
+          payload_size >> 3);
+      sei->payloadType = GST_H264_SEI_UNHANDLED_PAYLOAD;
       break;
   }
 
@@ -1252,6 +1353,15 @@ gst_h264_parser_parse_sei_message (GstH264NalParser * nalparser,
       if (bit_equal_to_zero)
         GST_WARNING ("Bit non equal to zero.");
     }
+  }
+
+  /* Always make sure all the advertised SEI bits
+   * were consumed during parsing */
+  if (next > nal_reader_get_pos (nr)) {
+    GST_LOG ("Skipping %u unused SEI bits", next - nal_reader_get_pos (nr));
+
+    if (!nal_reader_skip_long (nr, next - nal_reader_get_pos (nr)))
+      goto error;
   }
 
   return res;
@@ -1277,7 +1387,6 @@ gst_h264_nal_parser_new (void)
   GstH264NalParser *nalparser;
 
   nalparser = g_slice_new0 (GstH264NalParser);
-  INITIALIZE_DEBUG_CATEGORY;
 
   return nalparser;
 }
@@ -1341,14 +1450,11 @@ gst_h264_parser_identify_nalu_unchecked (GstH264NalParser * nalparser,
     return GST_H264_PARSER_NO_NAL;
   }
 
-  if (offset + off1 == size - 1) {
-    GST_DEBUG ("Missing data to identify nal unit");
-
-    return GST_H264_PARSER_ERROR;
-  }
-
   nalu->sc_offset = offset + off1;
 
+  /* sc might have 2 or 3 0-bytes */
+  if (nalu->sc_offset > 0 && data[nalu->sc_offset - 1] == 00)
+    nalu->sc_offset--;
 
   nalu->offset = offset + off1 + 3;
   nalu->data = (guint8 *) data;
@@ -1361,12 +1467,6 @@ gst_h264_parser_identify_nalu_unchecked (GstH264NalParser * nalparser,
   }
 
   nalu->valid = TRUE;
-
-  /* sc might have 2 or 3 0-bytes */
-  if (nalu->sc_offset > 0 && data[nalu->sc_offset - 1] == 00
-      && (nalu->type == GST_H264_NAL_SPS || nalu->type == GST_H264_NAL_PPS
-          || nalu->type == GST_H264_NAL_AU_DELIMITER))
-    nalu->sc_offset--;
 
   if (nalu->type == GST_H264_NAL_SEQ_END ||
       nalu->type == GST_H264_NAL_STREAM_END) {
@@ -1458,6 +1558,14 @@ gst_h264_parser_identify_nalu_avc (GstH264NalParser * nalparser,
 
   memset (nalu, 0, sizeof (*nalu));
 
+  /* Would overflow guint below otherwise: the callers needs to ensure that
+   * this never happens */
+  if (offset > G_MAXUINT32 - nal_length_size) {
+    GST_WARNING ("offset + nal_length_size overflow");
+    nalu->size = 0;
+    return GST_H264_PARSER_BROKEN_DATA;
+  }
+
   if (size < offset + nal_length_size) {
     GST_DEBUG ("Can't parse, buffer has too small size %" G_GSIZE_FORMAT
         ", offset %u", size, offset);
@@ -1472,7 +1580,13 @@ gst_h264_parser_identify_nalu_avc (GstH264NalParser * nalparser,
   nalu->sc_offset = offset;
   nalu->offset = offset + nal_length_size;
 
-  if (size < nalu->size + nal_length_size) {
+  if (nalu->size > G_MAXUINT32 - nal_length_size) {
+    GST_WARNING ("NALU size + nal_length_size overflow");
+    nalu->size = 0;
+    return GST_H264_PARSER_BROKEN_DATA;
+  }
+
+  if (size < (gsize) nalu->size + nal_length_size) {
     nalu->size = 0;
 
     return GST_H264_PARSER_NO_NAL_END;
@@ -1510,7 +1624,7 @@ gst_h264_parser_parse_nal (GstH264NalParser * nalparser, GstH264NalUnit * nalu)
 
   switch (nalu->type) {
     case GST_H264_NAL_SPS:
-      return gst_h264_parser_parse_sps (nalparser, nalu, &sps, FALSE);
+      return gst_h264_parser_parse_sps (nalparser, nalu, &sps);
       break;
     case GST_H264_NAL_PPS:
       return gst_h264_parser_parse_pps (nalparser, nalu, &pps);
@@ -1524,7 +1638,6 @@ gst_h264_parser_parse_nal (GstH264NalParser * nalparser, GstH264NalUnit * nalu)
  * @nalparser: a #GstH264NalParser
  * @nalu: The #GST_H264_NAL_SPS #GstH264NalUnit to parse
  * @sps: The #GstH264SPS to fill.
- * @parse_vui_params: Whether to parse the vui_params or not
  *
  * Parses @nalu containing a Sequence Parameter Set, and fills @sps.
  *
@@ -1532,9 +1645,9 @@ gst_h264_parser_parse_nal (GstH264NalParser * nalparser, GstH264NalUnit * nalu)
  */
 GstH264ParserResult
 gst_h264_parser_parse_sps (GstH264NalParser * nalparser, GstH264NalUnit * nalu,
-    GstH264SPS * sps, gboolean parse_vui_params)
+    GstH264SPS * sps)
 {
-  GstH264ParserResult res = gst_h264_parse_sps (nalu, sps, parse_vui_params);
+  GstH264ParserResult res = gst_h264_parse_sps (nalu, sps);
 
   if (res == GST_H264_PARSER_OK) {
     GST_DEBUG ("adding sequence parameter set with id: %d to array", sps->id);
@@ -1548,8 +1661,7 @@ gst_h264_parser_parse_sps (GstH264NalParser * nalparser, GstH264NalUnit * nalu,
 
 /* Parse seq_parameter_set_data() */
 static gboolean
-gst_h264_parse_sps_data (NalReader * nr, GstH264SPS * sps,
-    gboolean parse_vui_params)
+gst_h264_parse_sps_data (NalReader * nr, GstH264SPS * sps)
 {
   gint width, height;
   guint subwc[] = { 1, 2, 2, 1 };
@@ -1584,7 +1696,9 @@ gst_h264_parse_sps_data (NalReader * nr, GstH264SPS * sps,
       sps->profile_idc == 122 || sps->profile_idc == 244 ||
       sps->profile_idc == 44 || sps->profile_idc == 83 ||
       sps->profile_idc == 86 || sps->profile_idc == 118 ||
-      sps->profile_idc == 128) {
+      sps->profile_idc == 128 || sps->profile_idc == 138 ||
+      sps->profile_idc == 139 || sps->profile_idc == 134 ||
+      sps->profile_idc == 135) {
     READ_UE_MAX (nr, sps->chroma_format_idc, 3);
     if (sps->chroma_format_idc == 3)
       READ_UINT8 (nr, sps->separate_colour_plane_flag, 1);
@@ -1644,10 +1758,9 @@ gst_h264_parse_sps_data (NalReader * nr, GstH264SPS * sps,
   }
 
   READ_UINT8 (nr, sps->vui_parameters_present_flag, 1);
-  if (sps->vui_parameters_present_flag && parse_vui_params) {
+  if (sps->vui_parameters_present_flag)
     if (!gst_h264_parse_vui_parameters (sps, nr))
       goto error;
-  }
 
   /* calculate ChromaArrayType */
   if (!sps->separate_colour_plane_flag)
@@ -1697,8 +1810,7 @@ error:
 
 /* Parse subset_seq_parameter_set() data for MVC */
 static gboolean
-gst_h264_parse_sps_mvc_data (NalReader * nr, GstH264SPS * sps,
-    gboolean parse_vui_params)
+gst_h264_parse_sps_mvc_data (NalReader * nr, GstH264SPS * sps)
 {
   GstH264SPSExtMVC *const mvc = &sps->extension.mvc;
   guint8 bit_equal_to_one;
@@ -1798,25 +1910,22 @@ error:
  * gst_h264_parse_sps:
  * @nalu: The #GST_H264_NAL_SPS #GstH264NalUnit to parse
  * @sps: The #GstH264SPS to fill.
- * @parse_vui_params: Whether to parse the vui_params or not
  *
  * Parses @data, and fills the @sps structure.
  *
  * Returns: a #GstH264ParserResult
  */
 GstH264ParserResult
-gst_h264_parse_sps (GstH264NalUnit * nalu, GstH264SPS * sps,
-    gboolean parse_vui_params)
+gst_h264_parse_sps (GstH264NalUnit * nalu, GstH264SPS * sps)
 {
   NalReader nr;
 
-  INITIALIZE_DEBUG_CATEGORY;
   GST_DEBUG ("parsing SPS");
 
   nal_reader_init (&nr, nalu->data + nalu->offset + nalu->header_bytes,
       nalu->size - nalu->header_bytes);
 
-  if (!gst_h264_parse_sps_data (&nr, sps, parse_vui_params))
+  if (!gst_h264_parse_sps_data (&nr, sps))
     goto error;
 
   sps->valid = TRUE;
@@ -1834,7 +1943,6 @@ error:
  * @nalparser: a #GstH264NalParser
  * @nalu: The #GST_H264_NAL_SUBSET_SPS #GstH264NalUnit to parse
  * @sps: The #GstH264SPS to fill.
- * @parse_vui_params: Whether to parse the vui_params or not
  *
  * Parses @data, and fills in the @sps structure.
  *
@@ -1853,11 +1961,11 @@ error:
  */
 GstH264ParserResult
 gst_h264_parser_parse_subset_sps (GstH264NalParser * nalparser,
-    GstH264NalUnit * nalu, GstH264SPS * sps, gboolean parse_vui_params)
+    GstH264NalUnit * nalu, GstH264SPS * sps)
 {
   GstH264ParserResult res;
 
-  res = gst_h264_parse_subset_sps (nalu, sps, parse_vui_params);
+  res = gst_h264_parse_subset_sps (nalu, sps);
   if (res == GST_H264_PARSER_OK) {
     GST_DEBUG ("adding sequence parameter set with id: %d to array", sps->id);
 
@@ -1874,7 +1982,6 @@ gst_h264_parser_parse_subset_sps (GstH264NalParser * nalparser,
  * gst_h264_parse_subset_sps:
  * @nalu: The #GST_H264_NAL_SUBSET_SPS #GstH264NalUnit to parse
  * @sps: The #GstH264SPS to fill.
- * @parse_vui_params: Whether to parse the vui_params or not
  *
  * Parses @data, and fills in the @sps structure.
  *
@@ -1892,23 +1999,21 @@ gst_h264_parser_parse_subset_sps (GstH264NalParser * nalparser,
  * Since: 1.6
  */
 GstH264ParserResult
-gst_h264_parse_subset_sps (GstH264NalUnit * nalu, GstH264SPS * sps,
-    gboolean parse_vui_params)
+gst_h264_parse_subset_sps (GstH264NalUnit * nalu, GstH264SPS * sps)
 {
   NalReader nr;
 
-  INITIALIZE_DEBUG_CATEGORY;
   GST_DEBUG ("parsing Subset SPS");
 
   nal_reader_init (&nr, nalu->data + nalu->offset + nalu->header_bytes,
       nalu->size - nalu->header_bytes);
 
-  if (!gst_h264_parse_sps_data (&nr, sps, TRUE))
+  if (!gst_h264_parse_sps_data (&nr, sps))
     goto error;
 
   if (sps->profile_idc == GST_H264_PROFILE_MULTIVIEW_HIGH ||
       sps->profile_idc == GST_H264_PROFILE_STEREO_HIGH) {
-    if (!gst_h264_parse_sps_mvc_data (&nr, sps, parse_vui_params))
+    if (!gst_h264_parse_sps_mvc_data (&nr, sps))
       goto error;
   }
 
@@ -1943,10 +2048,8 @@ gst_h264_parse_pps (GstH264NalParser * nalparser, GstH264NalUnit * nalu,
   NalReader nr;
   GstH264SPS *sps;
   gint sps_id;
-  guint8 pic_scaling_matrix_present_flag;
   gint qp_bd_offset;
 
-  INITIALIZE_DEBUG_CATEGORY;
   GST_DEBUG ("parsing PPS");
 
   nal_reader_init (&nr, nalu->data + nalu->offset + nalu->header_bytes,
@@ -2024,8 +2127,8 @@ gst_h264_parse_pps (GstH264NalParser * nalparser, GstH264NalUnit * nalu,
 
   READ_UINT8 (&nr, pps->transform_8x8_mode_flag, 1);
 
-  READ_UINT8 (&nr, pic_scaling_matrix_present_flag, 1);
-  if (pic_scaling_matrix_present_flag) {
+  READ_UINT8 (&nr, pps->pic_scaling_matrix_present_flag, 1);
+  if (pps->pic_scaling_matrix_present_flag) {
     guint8 n_lists;
 
     n_lists = 6 + ((sps->chroma_format_idc != 3) ? 2 : 6) *
@@ -2127,6 +2230,7 @@ gst_h264_parser_parse_slice_hdr (GstH264NalParser * nalparser,
   gint pps_id;
   GstH264PPS *pps;
   GstH264SPS *sps;
+  guint start_pos, start_epb;
 
   memset (slice, 0, sizeof (*slice));
 
@@ -2169,8 +2273,17 @@ gst_h264_parser_parse_slice_hdr (GstH264NalParser * nalparser,
 
   /* set default values for fields that might not be present in the bitstream
      and have valid defaults */
-  slice->num_ref_idx_l0_active_minus1 = pps->num_ref_idx_l0_active_minus1;
-  slice->num_ref_idx_l1_active_minus1 = pps->num_ref_idx_l1_active_minus1;
+  if (GST_H264_IS_I_SLICE (slice)) {
+    slice->num_ref_idx_l0_active_minus1 = 0;
+    slice->num_ref_idx_l1_active_minus1 = 0;
+  } else {
+    slice->num_ref_idx_l0_active_minus1 = pps->num_ref_idx_l0_active_minus1;
+
+    if (GST_H264_IS_B_SLICE (slice))
+      slice->num_ref_idx_l1_active_minus1 = pps->num_ref_idx_l1_active_minus1;
+    else
+      slice->num_ref_idx_l1_active_minus1 = 0;
+  }
 
   if (sps->separate_colour_plane_flag)
     READ_UINT8 (&nr, slice->colour_plane_id, 2);
@@ -2192,6 +2305,9 @@ gst_h264_parser_parse_slice_hdr (GstH264NalParser * nalparser,
   if (nalu->idr_pic_flag)
     READ_UE_MAX (&nr, slice->idr_pic_id, G_MAXUINT16);
 
+  start_pos = nal_reader_get_pos (&nr);
+  start_epb = nal_reader_get_epb_count (&nr);
+
   if (sps->pic_order_cnt_type == 0) {
     READ_UINT16 (&nr, slice->pic_order_cnt_lsb,
         sps->log2_max_pic_order_cnt_lsb_minus4 + 4);
@@ -2206,6 +2322,9 @@ gst_h264_parser_parse_slice_hdr (GstH264NalParser * nalparser,
       READ_SE (&nr, slice->delta_pic_order_cnt[1]);
   }
 
+  slice->pic_order_cnt_bit_size = (nal_reader_get_pos (&nr) - start_pos) -
+      (8 * (nal_reader_get_epb_count (&nr) - start_epb));
+
   if (pps->redundant_pic_cnt_present_flag)
     READ_UE_MAX (&nr, slice->redundant_pic_cnt, G_MAXINT8);
 
@@ -2214,10 +2333,8 @@ gst_h264_parser_parse_slice_hdr (GstH264NalParser * nalparser,
 
   if (GST_H264_IS_P_SLICE (slice) || GST_H264_IS_SP_SLICE (slice) ||
       GST_H264_IS_B_SLICE (slice)) {
-    guint8 num_ref_idx_active_override_flag;
-
-    READ_UINT8 (&nr, num_ref_idx_active_override_flag, 1);
-    if (num_ref_idx_active_override_flag) {
+    READ_UINT8 (&nr, slice->num_ref_idx_active_override_flag, 1);
+    if (slice->num_ref_idx_active_override_flag) {
       READ_UE_MAX (&nr, slice->num_ref_idx_l0_active_minus1, 31);
 
       if (GST_H264_IS_B_SLICE (slice))
@@ -2249,10 +2366,8 @@ gst_h264_parser_parse_slice_hdr (GstH264NalParser * nalparser,
   READ_SE_ALLOWED (&nr, slice->slice_qp_delta, -87, 77);
 
   if (GST_H264_IS_SP_SLICE (slice) || GST_H264_IS_SI_SLICE (slice)) {
-    guint8 sp_for_switch_flag;
-
     if (GST_H264_IS_SP_SLICE (slice))
-      READ_UINT8 (&nr, sp_for_switch_flag, 1);
+      READ_UINT8 (&nr, slice->sp_for_switch_flag, 1);
     READ_SE_ALLOWED (&nr, slice->slice_qs_delta, -51, 51);
   }
 
@@ -2335,15 +2450,31 @@ gst_h264_sps_clear (GstH264SPS * sps)
   }
 }
 
-static void
-h264_sei_message_clear (GstH264SEIMessage * sei_msg)
+/**
+ * gst_h264_sei_clear:
+ * sei: The #GstH264SEIMessage to clear
+ *
+ * Frees allocated data in @sei if any.
+ *
+ * Since: 1.18
+ */
+void
+gst_h264_sei_clear (GstH264SEIMessage * sei)
 {
-  switch (sei_msg->payloadType) {
+  switch (sei->payloadType) {
     case GST_H264_SEI_REGISTERED_USER_DATA:{
-      GstH264RegisteredUserData *rud = &sei_msg->payload.registered_user_data;
+      GstH264RegisteredUserData *rud = &sei->payload.registered_user_data;
 
       g_free ((guint8 *) rud->data);
       rud->data = NULL;
+      break;
+    }
+    case GST_H264_SEI_UNHANDLED_PAYLOAD:{
+      GstH264SEIUnhandledPayload *payload = &sei->payload.unhandled_payload;
+
+      g_free (payload->data);
+      payload->data = NULL;
+      payload->size = 0;
       break;
     }
     default:
@@ -2374,7 +2505,7 @@ gst_h264_parser_parse_sei (GstH264NalParser * nalparser, GstH264NalUnit * nalu,
   nal_reader_init (&nr, nalu->data + nalu->offset + nalu->header_bytes,
       nalu->size - nalu->header_bytes);
   *messages = g_array_new (FALSE, FALSE, sizeof (GstH264SEIMessage));
-  g_array_set_clear_func (*messages, (GDestroyNotify) h264_sei_message_clear);
+  g_array_set_clear_func (*messages, (GDestroyNotify) gst_h264_sei_clear);
 
   do {
     res = gst_h264_parser_parse_sei_message (nalparser, &nr, &sei);
@@ -2385,6 +2516,89 @@ gst_h264_parser_parse_sei (GstH264NalParser * nalparser, GstH264NalUnit * nalu,
   } while (nal_reader_has_more_data (&nr));
 
   return res;
+}
+
+/**
+ * gst_h264_parser_update_sps:
+ * @nalparser: a #GstH264NalParser
+ * @sps: (transfer none): a #GstH264SPS.
+ *
+ * Replace internal Sequence Parameter Set struct corresponding to id of @sps
+ * with @sps. @nalparser will mark @sps as last parsed sps.
+ *
+ * Returns: a #GstH264ParserResult
+ *
+ * Since: 1.18
+ */
+GstH264ParserResult
+gst_h264_parser_update_sps (GstH264NalParser * nalparser, GstH264SPS * sps)
+{
+  g_return_val_if_fail (nalparser != NULL, GST_H264_PARSER_ERROR);
+  g_return_val_if_fail (sps != NULL, GST_H264_PARSER_ERROR);
+  g_return_val_if_fail (sps->id >= 0 && sps->id < GST_H264_MAX_SPS_COUNT,
+      GST_H264_PARSER_ERROR);
+
+  if (!sps->valid) {
+    GST_WARNING ("Cannot update with invalid SPS");
+    return GST_H264_PARSER_ERROR;
+  }
+
+  GST_DEBUG ("Updating sequence parameter set with id: %d", sps->id);
+
+  if (!gst_h264_sps_copy (&nalparser->sps[sps->id], sps))
+    return GST_H264_PARSER_ERROR;
+
+  nalparser->last_sps = &nalparser->sps[sps->id];
+
+  return GST_H264_PARSER_OK;
+}
+
+/**
+ * gst_h264_parser_update_pps:
+ * @nalparser: a #GstH264NalParser
+ * @pps: (transfer none): a #GstH264PPS.
+ *
+ * Replace internal Picture Parameter Set struct corresponding to id of @pps
+ * with @pps. @nalparser will mark @pps as last parsed pps.
+ *
+ * Returns: a #GstH264ParserResult
+ *
+ * Since: 1.18
+ */
+GstH264ParserResult
+gst_h264_parser_update_pps (GstH264NalParser * nalparser, GstH264PPS * pps)
+{
+  GstH264SPS *sps;
+
+  g_return_val_if_fail (nalparser != NULL, GST_H264_PARSER_ERROR);
+  g_return_val_if_fail (pps != NULL, GST_H264_PARSER_ERROR);
+  g_return_val_if_fail (pps->id >= 0 && pps->id < GST_H264_MAX_PPS_COUNT,
+      GST_H264_PARSER_ERROR);
+
+  if (!pps->valid) {
+    GST_WARNING ("Cannot update with invalid PPS");
+    return GST_H264_PARSER_ERROR;
+  }
+
+  if (!pps->sequence) {
+    GST_WARNING ("No linked SPS struct");
+    return GST_H264_PARSER_BROKEN_LINK;
+  }
+
+  sps = gst_h264_parser_get_sps (nalparser, pps->sequence->id);
+  if (!sps || sps != pps->sequence) {
+    GST_WARNING ("Linked SPS is not identical to internal SPS");
+    return GST_H264_PARSER_BROKEN_LINK;
+  }
+
+  GST_DEBUG ("Updating picture parameter set with id: %d", pps->id);
+
+  if (!gst_h264_pps_copy (&nalparser->pps[pps->id], pps))
+    return GST_H264_PARSER_ERROR;
+
+  nalparser->last_pps = &nalparser->pps[pps->id];
+
+  return GST_H264_PARSER_OK;
 }
 
 /**
@@ -2560,4 +2774,639 @@ gst_h264_video_calculate_framerate (const GstH264SPS * sps,
 
   *fps_num = num;
   *fps_den = den;
+}
+
+static gboolean
+gst_h264_write_sei_registered_user_data (NalWriter * nw,
+    GstH264RegisteredUserData * rud)
+{
+  WRITE_UINT8 (nw, rud->country_code, 8);
+  if (rud->country_code == 0xff)
+    WRITE_UINT8 (nw, rud->country_code_extension, 8);
+
+  WRITE_BYTES (nw, rud->data, rud->size);
+
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_h264_write_sei_frame_packing (NalWriter * nw,
+    GstH264FramePacking * frame_packing)
+{
+  WRITE_UE (nw, frame_packing->frame_packing_id);
+  WRITE_UINT8 (nw, frame_packing->frame_packing_cancel_flag, 1);
+
+  if (!frame_packing->frame_packing_cancel_flag) {
+    WRITE_UINT8 (nw, frame_packing->frame_packing_type, 7);
+    WRITE_UINT8 (nw, frame_packing->quincunx_sampling_flag, 1);
+    WRITE_UINT8 (nw, frame_packing->content_interpretation_type, 6);
+    WRITE_UINT8 (nw, frame_packing->spatial_flipping_flag, 1);
+    WRITE_UINT8 (nw, frame_packing->frame0_flipped_flag, 1);
+    WRITE_UINT8 (nw, frame_packing->field_views_flag, 1);
+    WRITE_UINT8 (nw, frame_packing->current_frame_is_frame0_flag, 1);
+    WRITE_UINT8 (nw, frame_packing->frame0_self_contained_flag, 1);
+    WRITE_UINT8 (nw, frame_packing->frame1_self_contained_flag, 1);
+
+    if (!frame_packing->quincunx_sampling_flag &&
+        frame_packing->frame_packing_type !=
+        GST_H264_FRAME_PACKING_TEMPORAL_INTERLEAVING) {
+      WRITE_UINT8 (nw, frame_packing->frame0_grid_position_x, 4);
+      WRITE_UINT8 (nw, frame_packing->frame0_grid_position_y, 4);
+      WRITE_UINT8 (nw, frame_packing->frame1_grid_position_x, 4);
+      WRITE_UINT8 (nw, frame_packing->frame1_grid_position_y, 4);
+    }
+
+    /* frame_packing_arrangement_reserved_byte */
+    WRITE_UINT8 (nw, 0, 8);
+    WRITE_UE (nw, frame_packing->frame_packing_repetition_period);
+  }
+
+  /* frame_packing_arrangement_extension_flag */
+  WRITE_UINT8 (nw, 0, 1);
+
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_h264_write_sei_mastering_display_colour_volume (NalWriter * nw,
+    GstH264MasteringDisplayColourVolume * mdcv)
+{
+  gint i;
+
+  for (i = 0; i < 3; i++) {
+    WRITE_UINT16 (nw, mdcv->display_primaries_x[i], 16);
+    WRITE_UINT16 (nw, mdcv->display_primaries_y[i], 16);
+  }
+
+  WRITE_UINT16 (nw, mdcv->white_point_x, 16);
+  WRITE_UINT16 (nw, mdcv->white_point_y, 16);
+  WRITE_UINT32 (nw, mdcv->max_display_mastering_luminance, 32);
+  WRITE_UINT32 (nw, mdcv->min_display_mastering_luminance, 32);
+
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_h264_write_sei_content_light_level_info (NalWriter * nw,
+    GstH264ContentLightLevel * cll)
+{
+  WRITE_UINT16 (nw, cll->max_content_light_level, 16);
+  WRITE_UINT16 (nw, cll->max_pic_average_light_level, 16);
+
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_h264_write_sei_pic_timing (NalWriter * nw, GstH264PicTiming * tim)
+{
+  if (tim->CpbDpbDelaysPresentFlag) {
+    WRITE_UINT32 (nw, tim->cpb_removal_delay,
+        tim->cpb_removal_delay_length_minus1 + 1);
+    WRITE_UINT32 (nw, tim->dpb_output_delay,
+        tim->dpb_output_delay_length_minus1 + 1);
+  }
+
+  if (tim->pic_struct_present_flag) {
+    const guint8 num_clock_ts_table[9] = {
+      1, 1, 1, 2, 2, 3, 3, 2, 3
+    };
+    guint8 num_clock_num_ts;
+    guint i;
+
+    WRITE_UINT8 (nw, tim->pic_struct, 4);
+
+    num_clock_num_ts = num_clock_ts_table[tim->pic_struct];
+    for (i = 0; i < num_clock_num_ts; i++) {
+      WRITE_UINT8 (nw, tim->clock_timestamp_flag[i], 1);
+      if (tim->clock_timestamp_flag[i]) {
+        GstH264ClockTimestamp *timestamp = &tim->clock_timestamp[i];
+
+        WRITE_UINT8 (nw, timestamp->ct_type, 2);
+        WRITE_UINT8 (nw, timestamp->nuit_field_based_flag, 1);
+        WRITE_UINT8 (nw, timestamp->counting_type, 5);
+        WRITE_UINT8 (nw, timestamp->full_timestamp_flag, 1);
+        WRITE_UINT8 (nw, timestamp->discontinuity_flag, 1);
+        WRITE_UINT8 (nw, timestamp->cnt_dropped_flag, 1);
+        WRITE_UINT8 (nw, timestamp->n_frames, 8);
+
+        if (timestamp->full_timestamp_flag) {
+          WRITE_UINT8 (nw, timestamp->seconds_value, 6);
+          WRITE_UINT8 (nw, timestamp->minutes_value, 6);
+          WRITE_UINT8 (nw, timestamp->hours_value, 5);
+        } else {
+          WRITE_UINT8 (nw, timestamp->seconds_flag, 1);
+          if (timestamp->seconds_flag) {
+            WRITE_UINT8 (nw, timestamp->seconds_value, 6);
+            WRITE_UINT8 (nw, timestamp->minutes_flag, 1);
+            if (timestamp->minutes_flag) {
+              WRITE_UINT8 (nw, timestamp->minutes_value, 6);
+              WRITE_UINT8 (nw, timestamp->hours_flag, 1);
+              if (timestamp->hours_flag)
+                WRITE_UINT8 (nw, timestamp->hours_value, 5);
+            }
+          }
+        }
+
+        if (tim->time_offset_length > 0) {
+          WRITE_UINT32 (nw, timestamp->time_offset, tim->time_offset_length);
+        }
+      }
+    }
+  }
+
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static GstMemory *
+gst_h264_create_sei_memory_internal (guint8 nal_prefix_size,
+    gboolean packetized, GArray * messages)
+{
+  NalWriter nw;
+  gint i;
+  gboolean have_written_data = FALSE;
+
+  nal_writer_init (&nw, nal_prefix_size, packetized);
+
+  if (messages->len == 0)
+    goto error;
+
+  GST_DEBUG ("Create SEI nal from array, len: %d", messages->len);
+
+  /* nal header */
+  /* forbidden_zero_bit */
+  WRITE_UINT8 (&nw, 0, 1);
+  /* nal_ref_idc, zero for sei nalu */
+  WRITE_UINT8 (&nw, 0, 2);
+  /* nal_unit_type */
+  WRITE_UINT8 (&nw, GST_H264_NAL_SEI, 5);
+
+  for (i = 0; i < messages->len; i++) {
+    GstH264SEIMessage *msg = &g_array_index (messages, GstH264SEIMessage, i);
+    guint32 payload_size_data = 0;
+    guint32 payload_size_in_bits = 0;
+    guint32 payload_type_data = msg->payloadType;
+    gboolean need_align = FALSE;
+
+    switch (payload_type_data) {
+      case GST_H264_SEI_REGISTERED_USER_DATA:{
+        GstH264RegisteredUserData *rud = &msg->payload.registered_user_data;
+
+        /* itu_t_t35_country_code: 8 bits */
+        payload_size_data = 1;
+        if (rud->country_code == 0xff) {
+          /* itu_t_t35_country_code_extension_byte */
+          payload_size_data++;
+        }
+
+        payload_size_data += rud->size;
+        break;
+      }
+      case GST_H264_SEI_FRAME_PACKING:{
+        GstH264FramePacking *frame_packing = &msg->payload.frame_packing;
+        guint leading_zeros, rest;
+
+        /* frame_packing_arrangement_id: exp-golomb bits */
+        count_exp_golomb_bits (frame_packing->frame_packing_id,
+            &leading_zeros, &rest);
+        payload_size_in_bits = leading_zeros + rest;
+
+        /* frame_packing_arrangement_cancel_flag: 1 bit */
+        payload_size_in_bits++;
+        if (!frame_packing->frame_packing_cancel_flag) {
+          /* frame_packing_arrangement_type: 7 bits
+           * quincunx_sampling_flag: 1 bit
+           * content_interpretation_type: 6 bit
+           * spatial_flipping_flag: 1 bit
+           * frame0_flipped_flag: 1 bit
+           * field_views_flag: 1 bit
+           * current_frame_is_frame0_flag: 1 bit
+           * frame0_self_contained_flag: 1 bit
+           * frame1_self_contained_flag: 1 bit
+           */
+          payload_size_in_bits += 20;
+
+          if (!frame_packing->quincunx_sampling_flag &&
+              frame_packing->frame_packing_type !=
+              GST_H264_FRAME_PACKING_TEMPORAL_INTERLEAVING) {
+            /* frame0_grid_position_x: 4bits
+             * frame0_grid_position_y: 4bits
+             * frame1_grid_position_x: 4bits
+             * frame1_grid_position_y: 4bits
+             */
+            payload_size_in_bits += 16;
+          }
+
+          /* frame_packing_arrangement_reserved_byte: 8 bits */
+          payload_size_in_bits += 8;
+
+          /* frame_packing_arrangement_repetition_period: exp-golomb bits */
+          count_exp_golomb_bits (frame_packing->frame_packing_repetition_period,
+              &leading_zeros, &rest);
+          payload_size_in_bits += (leading_zeros + rest);
+        }
+        /* frame_packing_arrangement_extension_flag: 1 bit */
+        payload_size_in_bits++;
+
+        payload_size_data = payload_size_in_bits >> 3;
+
+        if ((payload_size_in_bits & 0x7) != 0) {
+          GST_INFO ("Bits for Frame Packing SEI is not byte aligned");
+          payload_size_data++;
+          need_align = TRUE;
+        }
+        break;
+      }
+      case GST_H264_SEI_MASTERING_DISPLAY_COLOUR_VOLUME:
+        /* x, y 16 bits per RGB channel
+         * x, y 16 bits white point
+         * max, min luminance 32 bits
+         *
+         * (2 * 2 * 3) + (2 * 2) + (4 * 2) = 24 bytes
+         */
+        payload_size_data = 24;
+        break;
+      case GST_H264_SEI_CONTENT_LIGHT_LEVEL:
+        /* maxCLL and maxFALL per 16 bits
+         *
+         * 2 * 2 = 4 bytes
+         */
+        payload_size_data = 4;
+        break;
+      case GST_H264_SEI_PIC_TIMING:{
+        GstH264PicTiming *tim = &msg->payload.pic_timing;
+        const guint8 num_clock_ts_table[9] = {
+          1, 1, 1, 2, 2, 3, 3, 2, 3
+        };
+        guint8 num_clock_num_ts;
+        guint i;
+
+        if (!tim->CpbDpbDelaysPresentFlag && !tim->pic_struct_present_flag) {
+          GST_WARNING
+              ("Both CpbDpbDelaysPresentFlag and pic_struct_present_flag are zero");
+          break;
+        }
+
+        if (tim->CpbDpbDelaysPresentFlag) {
+          payload_size_in_bits = tim->cpb_removal_delay_length_minus1 + 1;
+          payload_size_in_bits += tim->dpb_output_delay_length_minus1 + 1;
+        }
+
+        if (tim->pic_struct_present_flag) {
+          /* pic_struct: 4bits */
+          payload_size_in_bits += 4;
+
+          num_clock_num_ts = num_clock_ts_table[tim->pic_struct];
+          for (i = 0; i < num_clock_num_ts; i++) {
+            /* clock_timestamp_flag: 1bit */
+            payload_size_in_bits++;
+
+            if (tim->clock_timestamp_flag[i]) {
+              GstH264ClockTimestamp *timestamp = &tim->clock_timestamp[i];
+
+              /* ct_type: 2bits
+               * nuit_field_based_flag: 1bit
+               * counting_type: 5bits
+               * full_timestamp_flag: 1bit
+               * discontinuity_flag: 1bit
+               * cnt_dropped_flag: 1bit
+               * n_frames: 8bits
+               */
+              payload_size_in_bits += 19;
+              if (timestamp->full_timestamp_flag) {
+                /* seconds_value: 6bits
+                 * minutes_value: 6bits
+                 * hours_value: 5bits
+                 */
+                payload_size_in_bits += 17;
+              } else {
+                /* seconds_flag: 1bit */
+                payload_size_in_bits++;
+
+                if (timestamp->seconds_flag) {
+                  /* seconds_value: 6bits
+                   * minutes_flag: 1bit
+                   */
+                  payload_size_in_bits += 7;
+                  if (timestamp->minutes_flag) {
+                    /* minutes_value: 6bits
+                     * hours_flag: 1bits
+                     */
+                    payload_size_in_bits += 7;
+                    if (timestamp->hours_flag) {
+                      /* hours_value: 5bits */
+                      payload_size_in_bits += 5;
+                    }
+                  }
+                }
+              }
+
+              /* time_offset_length bits */
+              payload_size_in_bits += tim->time_offset_length;
+            }
+          }
+        }
+
+        payload_size_data = payload_size_in_bits >> 3;
+
+        if ((payload_size_in_bits & 0x7) != 0) {
+          GST_INFO ("Bits for Picture Timing SEI is not byte aligned");
+          payload_size_data++;
+          need_align = TRUE;
+        }
+        break;
+      }
+      default:
+        break;
+    }
+
+    if (payload_size_data == 0) {
+      GST_FIXME ("Unsupported SEI type %d", msg->payloadType);
+      continue;
+    }
+
+    /* write payload type bytes */
+    while (payload_type_data >= 0xff) {
+      WRITE_UINT8 (&nw, 0xff, 8);
+      payload_type_data -= 0xff;
+    }
+    WRITE_UINT8 (&nw, payload_type_data, 8);
+
+    /* write payload size bytes */
+    while (payload_size_data >= 0xff) {
+      WRITE_UINT8 (&nw, 0xff, 8);
+      payload_size_data -= 0xff;
+    }
+    WRITE_UINT8 (&nw, payload_size_data, 8);
+
+    switch (msg->payloadType) {
+      case GST_H264_SEI_REGISTERED_USER_DATA:
+        GST_DEBUG ("Writing \"Registered user data\"");
+        if (!gst_h264_write_sei_registered_user_data (&nw,
+                &msg->payload.registered_user_data)) {
+          GST_WARNING ("Failed to write \"Registered user data\"");
+          goto error;
+        }
+        have_written_data = TRUE;
+        break;
+      case GST_H264_SEI_FRAME_PACKING:
+        GST_DEBUG ("Writing \"Frame packing\"");
+        if (!gst_h264_write_sei_frame_packing (&nw,
+                &msg->payload.frame_packing)) {
+          GST_WARNING ("Failed to write \"Frame packing\"");
+          goto error;
+        }
+        have_written_data = TRUE;
+        break;
+      case GST_H264_SEI_MASTERING_DISPLAY_COLOUR_VOLUME:
+        GST_DEBUG ("Writing \"Mastering display colour volume\"");
+        if (!gst_h264_write_sei_mastering_display_colour_volume (&nw,
+                &msg->payload.mastering_display_colour_volume)) {
+          GST_WARNING ("Failed to write \"Mastering display colour volume\"");
+          goto error;
+        }
+        have_written_data = TRUE;
+        break;
+      case GST_H264_SEI_CONTENT_LIGHT_LEVEL:
+        GST_DEBUG ("Writing \"Content light level\"");
+        if (!gst_h264_write_sei_content_light_level_info (&nw,
+                &msg->payload.content_light_level)) {
+          GST_WARNING ("Failed to write \"Content light level\"");
+          goto error;
+        }
+        have_written_data = TRUE;
+        break;
+      case GST_H264_SEI_PIC_TIMING:
+        GST_DEBUG ("Writing \"Picture timing\"");
+        if (!gst_h264_write_sei_pic_timing (&nw, &msg->payload.pic_timing)) {
+          GST_WARNING ("Failed to write \"Picture timing\"");
+          goto error;
+        }
+        have_written_data = TRUE;
+        break;
+      default:
+        break;
+    }
+
+    if (need_align && !nal_writer_do_rbsp_trailing_bits (&nw)) {
+      GST_WARNING ("Cannot insert traling bits");
+      goto error;
+    }
+  }
+
+  if (!have_written_data) {
+    GST_WARNING ("No written sei data");
+    goto error;
+  }
+
+  if (!nal_writer_do_rbsp_trailing_bits (&nw)) {
+    GST_WARNING ("Failed to insert rbsp trailing bits");
+    goto error;
+  }
+
+  return nal_writer_reset_and_get_memory (&nw);
+
+error:
+  nal_writer_reset (&nw);
+
+  return NULL;
+}
+
+/**
+ * gst_h264_create_sei_memory:
+ * @start_code_prefix_length: a length of start code prefix, must be 3 or 4
+ * @messages: (transfer none): a GArray of #GstH264SEIMessage
+ *
+ * Creates raw byte-stream format (a.k.a Annex B type) SEI nal unit data
+ * from @messages
+ *
+ * Returns: a #GstMemory containing a SEI nal unit
+ *
+ * Since: 1.18
+ */
+GstMemory *
+gst_h264_create_sei_memory (guint8 start_code_prefix_length, GArray * messages)
+{
+  g_return_val_if_fail (start_code_prefix_length == 3
+      || start_code_prefix_length == 4, NULL);
+  g_return_val_if_fail (messages != NULL, NULL);
+  g_return_val_if_fail (messages->len > 0, NULL);
+
+  return gst_h264_create_sei_memory_internal (start_code_prefix_length,
+      FALSE, messages);
+}
+
+/**
+ * gst_h264_create_sei_memory_avc:
+ * @nal_length_size: a size of nal length field, allowed range is [1, 4]
+ * @messages: (transfer none): a GArray of #GstH264SEIMessage
+ *
+ * Creates raw packetized format SEI nal unit data from @messages
+ *
+ * Returns: a #GstMemory containing a SEI nal unit
+ *
+ * Since: 1.18
+ */
+GstMemory *
+gst_h264_create_sei_memory_avc (guint8 nal_length_size, GArray * messages)
+{
+  g_return_val_if_fail (nal_length_size > 0 && nal_length_size < 5, NULL);
+  g_return_val_if_fail (messages != NULL, NULL);
+  g_return_val_if_fail (messages->len > 0, NULL);
+
+  return gst_h264_create_sei_memory_internal (nal_length_size, TRUE, messages);
+}
+
+static GstBuffer *
+gst_h264_parser_insert_sei_internal (GstH264NalParser * nalparser,
+    guint8 nal_prefix_size, gboolean packetized, GstBuffer * au,
+    GstMemory * sei)
+{
+  GstH264NalUnit nalu;
+  GstMapInfo info;
+  GstH264ParserResult pres;
+  guint offset = 0;
+  GstBuffer *new_buffer = NULL;
+
+  if (!gst_buffer_map (au, &info, GST_MAP_READ)) {
+    GST_ERROR ("Cannot map au buffer");
+    return NULL;
+  }
+
+  /* Find the offset of the first slice */
+  do {
+    if (packetized) {
+      pres = gst_h264_parser_identify_nalu_avc (nalparser,
+          info.data, offset, info.size, nal_prefix_size, &nalu);
+    } else {
+      pres = gst_h264_parser_identify_nalu (nalparser,
+          info.data, offset, info.size, &nalu);
+    }
+
+    if (pres != GST_H264_PARSER_OK && pres != GST_H264_PARSER_NO_NAL_END) {
+      GST_DEBUG ("Failed to identify nal unit, ret: %d", pres);
+      gst_buffer_unmap (au, &info);
+
+      return NULL;
+    }
+
+    if ((nalu.type >= GST_H264_NAL_SLICE && nalu.type <= GST_H264_NAL_SLICE_IDR)
+        || (nalu.type >= GST_H264_NAL_SLICE_AUX
+            && nalu.type <= GST_H264_NAL_SLICE_DEPTH)) {
+      GST_DEBUG ("Found slice nal type %d at offset %d",
+          nalu.type, nalu.sc_offset);
+      break;
+    }
+
+    offset = nalu.offset + nalu.size;
+  } while (pres == GST_H264_PARSER_OK);
+  gst_buffer_unmap (au, &info);
+
+  /* found the best position now, create new buffer */
+  new_buffer = gst_buffer_new ();
+
+  /* copy all metadata */
+  if (!gst_buffer_copy_into (new_buffer, au, GST_BUFFER_COPY_METADATA, 0, -1)) {
+    GST_ERROR ("Failed to copy metadata into new buffer");
+    gst_clear_buffer (&new_buffer);
+    goto out;
+  }
+
+  /* copy non-slice nal */
+  if (nalu.sc_offset > 0) {
+    if (!gst_buffer_copy_into (new_buffer, au,
+            GST_BUFFER_COPY_MEMORY, 0, nalu.sc_offset)) {
+      GST_ERROR ("Failed to copy buffer");
+      gst_clear_buffer (&new_buffer);
+      goto out;
+    }
+  }
+
+  /* insert sei */
+  gst_buffer_append_memory (new_buffer, gst_memory_ref (sei));
+
+  /* copy the rest */
+  if (!gst_buffer_copy_into (new_buffer, au,
+          GST_BUFFER_COPY_MEMORY, nalu.sc_offset, -1)) {
+    GST_ERROR ("Failed to copy buffer");
+    gst_clear_buffer (&new_buffer);
+    goto out;
+  }
+
+out:
+  return new_buffer;
+}
+
+/**
+ * gst_h264_parser_insert_sei:
+ * @nalparser: a #GstH264NalParser
+ * @au: (transfer none): a #GstBuffer containing AU data
+ * @sei: (transfer none): a #GstMemory containing a SEI nal
+ *
+ * Copy @au into new #GstBuffer and insert @sei into the #GstBuffer.
+ * The validation for completeness of @au and @sei is caller's responsibility.
+ * Both @au and @sei must be byte-stream formatted
+ *
+ * Returns: (nullable): a SEI inserted #GstBuffer or %NULL
+ *   if cannot figure out proper position to insert a @sei
+ *
+ * Since: 1.18
+ */
+GstBuffer *
+gst_h264_parser_insert_sei (GstH264NalParser * nalparser, GstBuffer * au,
+    GstMemory * sei)
+{
+  g_return_val_if_fail (nalparser != NULL, NULL);
+  g_return_val_if_fail (GST_IS_BUFFER (au), NULL);
+  g_return_val_if_fail (sei != NULL, NULL);
+
+  /* the size of start code prefix (3 or 4) is not matter since it will be
+   * scanned */
+  return gst_h264_parser_insert_sei_internal (nalparser, 4, FALSE, au, sei);
+}
+
+/**
+ * gst_h264_parser_insert_sei_avc:
+ * @nalparser: a #GstH264NalParser
+ * @nal_length_size: a size of nal length field, allowed range is [1, 4]
+ * @au: (transfer none): a #GstBuffer containing AU data
+ * @sei: (transfer none): a #GstMemory containing a SEI nal
+ *
+ * Copy @au into new #GstBuffer and insert @sei into the #GstBuffer.
+ * The validation for completeness of @au and @sei is caller's responsibility.
+ * Nal prefix type of both @au and @sei must be packetized, and
+ * also the size of nal length field must be identical to @nal_length_size
+ *
+ * Returns: (nullable): a SEI inserted #GstBuffer or %NULL
+ *   if cannot figure out proper position to insert a @sei
+ *
+ * Since: 1.18
+ */
+GstBuffer *
+gst_h264_parser_insert_sei_avc (GstH264NalParser * nalparser,
+    guint8 nal_length_size, GstBuffer * au, GstMemory * sei)
+{
+  g_return_val_if_fail (nalparser != NULL, NULL);
+  g_return_val_if_fail (nal_length_size > 0 && nal_length_size < 5, NULL);
+  g_return_val_if_fail (GST_IS_BUFFER (au), NULL);
+  g_return_val_if_fail (sei != NULL, NULL);
+
+  /* the size of start code prefix (3 or 4) is not matter since it will be
+   * scanned */
+  return gst_h264_parser_insert_sei_internal (nalparser, nal_length_size, TRUE,
+      au, sei);
 }

@@ -2,7 +2,7 @@
  * Copyright (C) 2018, Collabora Ltd.
  * Copyright (C) 2018, SK Telecom, Co., Ltd.
  *   Author: Jeongseok Kim <jeongseok.kim@sk.com>
- * 
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
  * License as published by the Free Software Foundation; either
@@ -23,11 +23,10 @@
  * SECTION:element-srtsrc
  * @title: srtsrc
  *
- * srtsrc is a network source that reads <ulink url="http://www.srtalliance.org/">SRT</ulink>
+ * srtsrc is a network source that reads [SRT](http://www.srtalliance.org/)
  * packets from the network.
  *
- * <refsect2>
- * <title>Examples</title>
+ * ## Examples
  * |[
  * gst-launch-1.0 -v srtsrc uri="srt://127.0.0.1:7001" ! fakesink
  * ]| This pipeline shows how to connect SRT server by setting #GstSRTSrc:uri property.
@@ -39,7 +38,6 @@
  * |[
  * gst-launch-1.0 -v srtclientsrc uri="srt://192.168.1.10:7001?mode=rendez-vous" ! fakesink
  * ]| This pipeline shows how to connect SRT server by setting #GstSRTSrc:uri property and using the rendez-vous mode.
- * </refsect2>
  *
  */
 
@@ -47,6 +45,7 @@
 #include <config.h>
 #endif
 
+#include "gstsrtelements.h"
 #include "gstsrtsrc.h"
 
 static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
@@ -61,7 +60,8 @@ enum
 {
   SIG_CALLER_ADDED,
   SIG_CALLER_REMOVED,
-
+  SIG_CALLER_REJECTED,
+  SIG_CALLER_CONNECTING,
   LAST_SIGNAL
 };
 
@@ -72,26 +72,36 @@ static void gst_srt_src_uri_handler_init (gpointer g_iface,
 static gchar *gst_srt_src_uri_get_uri (GstURIHandler * handler);
 static gboolean gst_srt_src_uri_set_uri (GstURIHandler * handler,
     const gchar * uri, GError ** error);
+static gboolean src_default_caller_connecting (GstSRTSrc * self,
+    GSocketAddress * addr, const gchar * username, gpointer data);
+static gboolean src_authentication_accumulator (GSignalInvocationHint * ihint,
+    GValue * return_accu, const GValue * handler_return, gpointer data);
 
 #define gst_srt_src_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstSRTSrc, gst_srt_src,
     GST_TYPE_PUSH_SRC,
     G_IMPLEMENT_INTERFACE (GST_TYPE_URI_HANDLER, gst_srt_src_uri_handler_init)
     GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "srtsrc", 0, "SRT Source"));
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (srtsrc, "srtsrc", GST_RANK_PRIMARY,
+    GST_TYPE_SRT_SRC, srt_element_init (plugin));
 
-static void
-gst_srt_src_caller_added_cb (int sock, GSocketAddress * addr,
-    GstSRTObject * srtobject)
+static gboolean
+src_default_caller_connecting (GstSRTSrc * self,
+    GSocketAddress * addr, const gchar * stream_id, gpointer data)
 {
-  g_signal_emit (srtobject->element, signals[SIG_CALLER_ADDED], 0, sock, addr);
+  /* Accept all connections. */
+  return TRUE;
 }
 
-static void
-gst_srt_src_caller_removed_cb (int sock, GSocketAddress * addr,
-    GstSRTObject * srtobject)
+static gboolean
+src_authentication_accumulator (GSignalInvocationHint * ihint,
+    GValue * return_accu, const GValue * handler_return, gpointer data)
 {
-  g_signal_emit (srtobject->element, signals[SIG_CALLER_REMOVED], 0, sock,
-      addr);
+  gboolean ret = g_value_get_boolean (handler_return);
+  /* Handlers return TRUE on authentication success and we want to stop on
+   * the first failure. */
+  g_value_set_boolean (return_accu, ret);
+  return ret;
 }
 
 static gboolean
@@ -105,13 +115,7 @@ gst_srt_src_start (GstBaseSrc * bsrc)
   gst_structure_get_enum (self->srtobject->parameters, "mode",
       GST_TYPE_SRT_CONNECTION_MODE, (gint *) & connection_mode);
 
-  if (connection_mode == GST_SRT_CONNECTION_MODE_LISTENER) {
-    ret =
-        gst_srt_object_open_full (self->srtobject, gst_srt_src_caller_added_cb,
-        gst_srt_src_caller_removed_cb, self->cancellable, &error);
-  } else {
-    ret = gst_srt_object_open (self->srtobject, self->cancellable, &error);
-  }
+  ret = gst_srt_object_open (self->srtobject, self->cancellable, &error);
 
   if (!ret) {
     /* ensure error is posted since state change will fail */
@@ -119,6 +123,9 @@ gst_srt_src_start (GstBaseSrc * bsrc)
         ("Failed to open SRT: %s", error->message));
     g_clear_error (&error);
   }
+
+  /* Reset expected pktseq */
+  self->next_pktseq = 0;
 
   return ret;
 }
@@ -141,6 +148,12 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
   GstMapInfo info;
   GError *err = NULL;
   gssize recv_len;
+  GstClock *clock;
+  GstClockTime base_time;
+  GstClockTime capture_time;
+  GstClockTimeDiff delay;
+  int64_t srt_time;
+  SRT_MSGCTRL mctrl;
 
   if (g_cancellable_is_cancelled (self->cancellable)) {
     ret = GST_FLOW_FLUSHING;
@@ -153,10 +166,34 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
     goto out;
   }
 
+  /* Get clock and values */
+  clock = gst_element_get_clock (GST_ELEMENT (src));
+  if (!clock) {
+    GST_DEBUG_OBJECT (src, "Clock missing, flushing");
+    return GST_FLOW_FLUSHING;
+  }
+
+  base_time = gst_element_get_base_time (GST_ELEMENT (src));
+
   recv_len = gst_srt_object_read (self->srtobject, info.data,
-      gst_buffer_get_size (outbuf), self->cancellable, &err);
+      gst_buffer_get_size (outbuf), self->cancellable, &err, &mctrl);
+
+  /* Capture clock values ASAP */
+  capture_time = gst_clock_get_time (clock);
+#if SRT_VERSION_VALUE >= 0x10402
+  /* Use SRT clock value if available (SRT > 1.4.2) */
+  srt_time = srt_time_now ();
+#else
+  /* Else use the unix epoch monotonic clock */
+  srt_time = g_get_real_time ();
+#endif
+  gst_object_unref (clock);
 
   gst_buffer_unmap (outbuf, &info);
+
+  GST_LOG_OBJECT (src,
+      "recv_len:%" G_GSIZE_FORMAT " pktseq:%d msgno:%d srctime:%"
+      G_GINT64_FORMAT, recv_len, mctrl.pktseq, mctrl.msgno, mctrl.srctime);
 
   if (g_cancellable_is_cancelled (self->cancellable)) {
     ret = GST_FLOW_FLUSHING;
@@ -172,6 +209,42 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
     ret = GST_FLOW_EOS;
     goto out;
   }
+
+  /* Detect discontinuities */
+  if (mctrl.pktseq != self->next_pktseq) {
+    GST_WARNING_OBJECT (src, "discont detected %d (expected: %d)",
+        mctrl.pktseq, self->next_pktseq);
+    GST_BUFFER_FLAG_SET (outbuf, GST_BUFFER_FLAG_DISCONT);
+  }
+  /* pktseq is a 31bit field */
+  self->next_pktseq = (mctrl.pktseq + 1) % G_MAXINT32;
+
+  /* 0 means we do not have a srctime */
+  if (mctrl.srctime != 0)
+    delay = (srt_time - mctrl.srctime) * GST_USECOND;
+  else
+    delay = 0;
+
+  GST_LOG_OBJECT (src, "delay: %" GST_STIME_FORMAT, GST_STIME_ARGS (delay));
+
+  if (delay < 0) {
+    GST_WARNING_OBJECT (src,
+        "Calculated SRT delay %" GST_STIME_FORMAT " is negative, clamping to 0",
+        GST_STIME_ARGS (delay));
+    delay = 0;
+  }
+
+  /* Subtract the base_time (since the pipeline started) ... */
+  if (capture_time > base_time)
+    capture_time -= base_time;
+  else
+    capture_time = 0;
+  /* And adjust by the delay */
+  if (capture_time > delay)
+    capture_time -= delay;
+  else
+    capture_time = 0;
+  GST_BUFFER_TIMESTAMP (outbuf) = capture_time;
 
   gst_buffer_resize (outbuf, 0, recv_len);
 
@@ -196,7 +269,8 @@ gst_srt_src_init (GstSRTSrc * self)
 
   gst_base_src_set_format (GST_BASE_SRC (self), GST_FORMAT_TIME);
   gst_base_src_set_live (GST_BASE_SRC (self), TRUE);
-  gst_base_src_set_do_timestamp (GST_BASE_SRC (self), TRUE);
+  /* We do the timing ourselves */
+  gst_base_src_set_do_timestamp (GST_BASE_SRC (self), FALSE);
 
   gst_srt_object_set_uri (self->srtobject, GST_SRT_DEFAULT_URI, NULL);
 
@@ -257,6 +331,24 @@ gst_srt_src_get_property (GObject * object,
   }
 }
 
+static gboolean
+gst_srt_src_query (GstBaseSrc * basesrc, GstQuery * query)
+{
+  GstSRTSrc *self = GST_SRT_SRC (basesrc);
+
+  if (GST_QUERY_TYPE (query) == GST_QUERY_LATENCY) {
+    gint latency;
+    if (!gst_structure_get_int (self->srtobject->parameters, "latency",
+            &latency))
+      latency = GST_SRT_DEFAULT_LATENCY;
+    gst_query_set_latency (query, TRUE, latency * GST_MSECOND,
+        latency * GST_MSECOND);
+    return TRUE;
+  } else {
+    return GST_BASE_SRC_CLASS (parent_class)->query (basesrc, query);
+  }
+}
+
 static void
 gst_srt_src_class_init (GstSRTSrcClass * klass)
 {
@@ -268,34 +360,69 @@ gst_srt_src_class_init (GstSRTSrcClass * klass)
   gobject_class->set_property = gst_srt_src_set_property;
   gobject_class->get_property = gst_srt_src_get_property;
   gobject_class->finalize = gst_srt_src_finalize;
+  klass->caller_connecting = src_default_caller_connecting;
 
   /**
    * GstSRTSrc::caller-added:
-   * @gstsrtsink: the srtsink element that emitted this signal
-   * @sock: the client socket descriptor that was added to srtsink
-   * @addr: the #GSocketAddress that describes the @sock
+   * @gstsrtsrc: the srtsrc element that emitted this signal
+   * @unused: always zero (for ABI compatibility with previous versions)
+   * @addr: the #GSocketAddress of the new caller
    * 
-   * The given socket descriptor was added to srtsink.
+   * A new caller has connected to srtsrc.
    */
   signals[SIG_CALLER_ADDED] =
       g_signal_new ("caller-added", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstSRTSrcClass, caller_added),
-      NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE,
-      2, G_TYPE_INT, G_TYPE_SOCKET_ADDRESS);
+      NULL, NULL, NULL, G_TYPE_NONE, 2, G_TYPE_INT, G_TYPE_SOCKET_ADDRESS);
 
   /**
    * GstSRTSrc::caller-removed:
-   * @gstsrtsink: the srtsink element that emitted this signal
-   * @sock: the client socket descriptor that was added to srtsink
-   * @addr: the #GSocketAddress that describes the @sock
+   * @gstsrtsrc: the srtsrc element that emitted this signal
+   * @unused: always zero (for ABI compatibility with previous versions)
+   * @addr: the #GSocketAddress of the caller
    *
-   * The given socket descriptor was removed from srtsink.
+   * The given caller has disconnected.
    */
   signals[SIG_CALLER_REMOVED] =
       g_signal_new ("caller-removed", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstSRTSrcClass,
-          caller_added), NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE,
+          caller_added), NULL, NULL, NULL, G_TYPE_NONE,
       2, G_TYPE_INT, G_TYPE_SOCKET_ADDRESS);
+
+  /**
+   * GstSRTSrc::caller-rejected:
+   * @gstsrtsrc: the srtsrc element that emitted this signal
+   * @addr: the #GSocketAddress that describes the client socket
+   * @stream_id: the stream Id to which the caller wants to connect
+   *
+   * A caller's connection to srtsrc in listener mode has been rejected.
+   *
+   * Since: 1.20
+   *
+   */
+  signals[SIG_CALLER_REJECTED] =
+      g_signal_new ("caller-rejected", G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstSRTSrcClass, caller_rejected),
+      NULL, NULL, NULL, G_TYPE_NONE, 2, G_TYPE_SOCKET_ADDRESS, G_TYPE_STRING);
+
+  /**
+   * GstSRTSrc::caller-connecting:
+   * @gstsrtsrc: the srtsrc element that emitted this signal
+   * @addr: the #GSocketAddress that describes the client socket
+   * @stream_id: the stream Id to which the caller wants to connect
+   *
+   * Whether to accept or reject a caller's connection to srtsrc in listener mode.
+   * The Caller's connection is rejected if the callback returns FALSE, else
+   * the connection is accepeted.
+   *
+   * Since: 1.20
+   *
+   */
+  signals[SIG_CALLER_CONNECTING] =
+      g_signal_new ("caller-connecting", G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstSRTSrcClass, caller_connecting),
+      src_authentication_accumulator, NULL, NULL, G_TYPE_BOOLEAN,
+      2, G_TYPE_SOCKET_ADDRESS, G_TYPE_STRING);
 
   gst_srt_object_install_properties_helper (gobject_class);
 
@@ -309,6 +436,7 @@ gst_srt_src_class_init (GstSRTSrcClass * klass)
   gstbasesrc_class->stop = GST_DEBUG_FUNCPTR (gst_srt_src_stop);
   gstbasesrc_class->unlock = GST_DEBUG_FUNCPTR (gst_srt_src_unlock);
   gstbasesrc_class->unlock_stop = GST_DEBUG_FUNCPTR (gst_srt_src_unlock_stop);
+  gstbasesrc_class->query = GST_DEBUG_FUNCPTR (gst_srt_src_query);
 
   gstpushsrc_class->fill = GST_DEBUG_FUNCPTR (gst_srt_src_fill);
 }
@@ -345,8 +473,13 @@ gst_srt_src_uri_set_uri (GstURIHandler * handler,
     const gchar * uri, GError ** error)
 {
   GstSRTSrc *self = GST_SRT_SRC (handler);
+  gboolean ret;
 
-  return gst_srt_object_set_uri (self->srtobject, uri, error);
+  GST_OBJECT_LOCK (self);
+  ret = gst_srt_object_set_uri (self->srtobject, uri, error);
+  GST_OBJECT_UNLOCK (self);
+
+  return ret;
 }
 
 static void

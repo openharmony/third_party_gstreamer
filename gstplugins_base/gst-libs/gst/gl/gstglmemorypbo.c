@@ -73,7 +73,7 @@ GST_DEBUG_CATEGORY_STATIC (GST_CAT_GL_MEMORY);
 
 static GstAllocator *_gl_allocator;
 
-/* compatability definitions... */
+/* compatibility definitions... */
 #ifndef GL_PIXEL_PACK_BUFFER
 #define GL_PIXEL_PACK_BUFFER 0x88EB
 #endif
@@ -104,6 +104,8 @@ static GstAllocator *_gl_allocator;
 G_DEFINE_TYPE (GstGLMemoryPBOAllocator, gst_gl_memory_pbo_allocator,
     GST_TYPE_GL_MEMORY_ALLOCATOR);
 
+GST_DEFINE_MINI_OBJECT_TYPE (GstGLMemoryPBO, gst_gl_memory_pbo);
+
 typedef struct
 {
   /* in */
@@ -120,7 +122,7 @@ typedef struct
 } GstGLMemoryPBOCopyParams;
 
 static inline guint
-_get_plane_height (GstVideoInfo * info, guint plane)
+_get_plane_height (const GstVideoInfo * info, guint plane)
 {
   if (GST_VIDEO_INFO_IS_YUV (info))
     /* For now component width and plane width are the same and the
@@ -195,6 +197,7 @@ _gl_mem_create (GstGLMemoryPBO * gl_mem, GError ** error)
         { 0, GST_MEMORY_CAST (gl_mem)->align, 0, 0 };
     GstGLBaseMemoryAllocator *buf_allocator;
     GstGLBufferAllocationParams *params;
+    GstMapInfo pbo_map;
 
     buf_allocator =
         GST_GL_BASE_MEMORY_ALLOCATOR (gst_allocator_find
@@ -209,8 +212,33 @@ _gl_mem_create (GstGLMemoryPBO * gl_mem, GError ** error)
     gl_mem->pbo = (GstGLBuffer *) gst_gl_base_memory_alloc (buf_allocator,
         (GstGLAllocationParams *) params);
 
-    gst_gl_allocation_params_free ((GstGLAllocationParams *) params);
     gst_object_unref (buf_allocator);
+
+    /* if we are wrapping an existing data pointer, and glbuffer is using
+     * GL_EXT/ARB_buffer_storage or OpenGL 4.4 then we need to copy into the GL
+     * provided data pointer.
+     */
+    if (GST_MEMORY_FLAG_IS_SET (gl_mem,
+            GST_GL_BASE_MEMORY_TRANSFER_NEED_UPLOAD)) {
+      GST_MINI_OBJECT_FLAG_SET (gl_mem->pbo,
+          GST_GL_BASE_MEMORY_TRANSFER_NEED_UPLOAD);
+      gl_mem->pbo->mem.data = params->parent.wrapped_data;
+
+      if (!gst_memory_map ((GstMemory *) gl_mem->pbo, &pbo_map,
+              GST_MAP_READWRITE)) {
+        gst_gl_allocation_params_free ((GstGLAllocationParams *) params);
+        GST_CAT_WARNING (GST_CAT_GL_MEMORY, "Failed to map pbo memory");
+        return FALSE;
+      }
+
+      if (pbo_map.data != params->parent.wrapped_data) {
+        memcpy (pbo_map.data, gl_mem->mem.mem.data,
+            GST_MEMORY_CAST (gl_mem)->size);
+      }
+
+      gst_memory_unmap ((GstMemory *) gl_mem->pbo, &pbo_map);
+    }
+    gst_gl_allocation_params_free ((GstGLAllocationParams *) params);
 
     GST_CAT_LOG (GST_CAT_GL_MEMORY, "generated pbo %u", gl_mem->pbo->id);
   }
@@ -624,9 +652,12 @@ _gl_mem_pbo_alloc (GstGLBaseMemoryAllocator * allocator,
     GstGLVideoAllocationParams * params)
 {
   GstGLMemoryPBO *mem;
+  GstAllocationParams alloc_params = { 0, };
   guint alloc_flags;
 
   alloc_flags = params->parent.alloc_flags;
+  if (params->parent.alloc_params)
+    alloc_params = *params->parent.alloc_params;
 
   g_return_val_if_fail (alloc_flags & GST_GL_ALLOCATION_PARAMS_ALLOC_FLAG_VIDEO,
       NULL);
@@ -636,23 +667,19 @@ _gl_mem_pbo_alloc (GstGLBaseMemoryAllocator * allocator,
   if (alloc_flags & GST_GL_ALLOCATION_PARAMS_ALLOC_FLAG_WRAP_GPU_HANDLE) {
     mem->mem.tex_id = GPOINTER_TO_UINT (params->parent.gl_handle);
     mem->mem.texture_wrapped = TRUE;
+    alloc_params.flags |= GST_GL_BASE_MEMORY_TRANSFER_NEED_DOWNLOAD;
+  }
+  if (alloc_flags & GST_GL_ALLOCATION_PARAMS_ALLOC_FLAG_WRAP_SYSMEM) {
+    alloc_params.flags |= GST_GL_BASE_MEMORY_TRANSFER_NEED_UPLOAD;
+    mem->mem.mem.data = params->parent.wrapped_data;
   }
 
   gst_gl_memory_init (GST_GL_MEMORY_CAST (mem), GST_ALLOCATOR_CAST (allocator),
       NULL, params->parent.context, params->target, params->tex_format,
-      params->parent.alloc_params, params->v_info, params->plane,
-      params->valign, params->parent.user_data, params->parent.notify);
+      &alloc_params, params->v_info, params->plane, params->valign,
+      params->parent.user_data, params->parent.notify);
 
-  if (alloc_flags & GST_GL_ALLOCATION_PARAMS_ALLOC_FLAG_WRAP_GPU_HANDLE) {
-    GST_MINI_OBJECT_FLAG_SET (mem, GST_GL_BASE_MEMORY_TRANSFER_NEED_DOWNLOAD);
-  }
   if (alloc_flags & GST_GL_ALLOCATION_PARAMS_ALLOC_FLAG_WRAP_SYSMEM) {
-    GST_MINI_OBJECT_FLAG_SET (mem, GST_GL_BASE_MEMORY_TRANSFER_NEED_UPLOAD);
-    if (mem->pbo) {
-      GST_MINI_OBJECT_FLAG_SET (mem->pbo,
-          GST_GL_BASE_MEMORY_TRANSFER_NEED_UPLOAD);
-      mem->pbo->mem.data = params->parent.wrapped_data;
-    }
     mem->mem.mem.data = params->parent.wrapped_data;
   }
 
@@ -701,7 +728,7 @@ gst_gl_memory_pbo_allocator_init (GstGLMemoryPBOAllocator * allocator)
  * @stride: stride of the backing texture data
  * @respecify: whether to copy the data or copy per texel
  *
- * Copies @gl_mem into the texture specfified by @tex_id.  The format of @tex_id
+ * Copies @gl_mem into the texture specified by @tex_id.  The format of @tex_id
  * is specified by @tex_format, @width and @height.
  *
  * If @respecify is %TRUE, then the copy is performed in terms of the texture
@@ -715,7 +742,7 @@ gst_gl_memory_pbo_allocator_init (GstGLMemoryPBOAllocator * allocator)
  * using glCopyTexImage.  See the OpenGL specification for details on the
  * mappings between texture formats.
  *
- * Returns: Whether the copy suceeded
+ * Returns: Whether the copy succeeded
  *
  * Since: 1.8
  */
@@ -816,7 +843,7 @@ gst_gl_memory_pbo_upload_transfer (GstGLMemoryPBO * gl_mem)
 void
 gst_gl_memory_pbo_init_once (void)
 {
-  static volatile gsize _init = 0;
+  static gsize _init = 0;
 
   if (g_once_init_enter (&_init)) {
     gst_gl_memory_init_once ();

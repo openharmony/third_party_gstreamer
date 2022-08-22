@@ -40,9 +40,20 @@ G_BEGIN_DECLS
 typedef struct _GstCCConverter GstCCConverter;
 typedef struct _GstCCConverterClass GstCCConverterClass;
 
+#define MAX_CDP_PACKET_LEN 256
+#define MAX_CEA608_LEN 32
+
+typedef enum {
+  GST_CC_CONVERTER_CDP_MODE_TIME_CODE   = (1<<0),
+  GST_CC_CONVERTER_CDP_MODE_CC_DATA     = (1<<1),
+  GST_CC_CONVERTER_CDP_MODE_CC_SVC_INFO = (1<<2)
+} GstCCConverterCDPMode;
+
 struct _GstCCConverter
 {
   GstBaseTransform parent;
+
+  GstCCConverterCDPMode cdp_mode;
 
   GstVideoCaptionType input_caption_type;
   GstVideoCaptionType output_caption_type;
@@ -50,7 +61,24 @@ struct _GstCCConverter
   /* CDP sequence numbers when outputting CDP */
   guint16 cdp_hdr_sequence_cntr;
 
-  gint fps_n, fps_d;
+  gint in_fps_n, in_fps_d;
+  gint out_fps_n, out_fps_d;
+
+  /* for framerate differences, we need to keep previous/next frames in order
+   * to split/merge data across multiple input or output buffers.  The data is
+   * stored as cc_data */
+  guint8    scratch_cea608_1[MAX_CEA608_LEN];
+  guint     scratch_cea608_1_len;
+  guint8    scratch_cea608_2[MAX_CEA608_LEN];
+  guint     scratch_cea608_2_len;
+  guint8    scratch_ccp[MAX_CDP_PACKET_LEN];
+  guint     scratch_ccp_len;
+
+  guint     input_frames;
+  guint     output_frames;
+  GstVideoTimeCode current_output_timecode;
+  /* previous buffer for copying metas onto */
+  GstBuffer *previous_buffer;
 };
 
 struct _GstCCConverterClass
@@ -59,6 +87,8 @@ struct _GstCCConverterClass
 };
 
 GType gst_cc_converter_get_type (void);
+
+GST_ELEMENT_REGISTER_DECLARE (ccconverter);
 
 G_END_DECLS
 #endif /* __GST_CCCONVERTER_H__ */

@@ -90,7 +90,7 @@ static GstAudioDecoderClass *parent_class = NULL;
 GType
 gst_amc_audio_dec_get_type (void)
 {
-  static volatile gsize type = 0;
+  static gsize type = 0;
 
   if (g_once_init_enter (&type)) {
     GType _type;
@@ -244,7 +244,7 @@ gst_amc_audio_dec_open (GstAudioDecoder * decoder)
 
   GST_DEBUG_OBJECT (self, "Opening decoder");
 
-  self->codec = gst_amc_codec_new (klass->codec_info->name, &err);
+  self->codec = gst_amc_codec_new (klass->codec_info->name, FALSE, &err);
   if (!self->codec) {
     GST_ELEMENT_ERROR_FROM_ERROR (self, err);
     return FALSE;
@@ -379,9 +379,8 @@ gst_amc_audio_dec_set_src_caps (GstAmcAudioDec * self, GstAmcFormat * format)
   }
 
   /* Not always present */
-  if (gst_amc_format_contains_key (format, "channel-mask", NULL))
-    gst_amc_format_get_int (format, "channel-mask", (gint *) & channel_mask,
-        NULL);
+  gst_amc_format_get_int (format, "channel-mask", (gint *) & channel_mask,
+      NULL);
 
   gst_amc_audio_channel_mask_to_positions (channel_mask, channels,
       self->positions);
@@ -915,7 +914,7 @@ gst_amc_audio_dec_set_format (GstAudioDecoder * decoder, GstCaps * caps)
     guint8 *data;
 
     gst_buffer_map (codec_data, &minfo, GST_MAP_READ);
-    data = g_memdup (minfo.data, minfo.size);
+    data = g_memdup2 (minfo.data, minfo.size);
     self->codec_datas = g_list_prepend (self->codec_datas, data);
     gst_amc_format_set_buffer (format, "csd-0", data, minfo.size, &err);
     if (err)
@@ -947,7 +946,7 @@ gst_amc_audio_dec_set_format (GstAudioDecoder * decoder, GstCaps * caps)
 
       fname = g_strdup_printf ("csd-%d", j);
       gst_buffer_map (buf, &minfo, GST_MAP_READ);
-      data = g_memdup (minfo.data, minfo.size);
+      data = g_memdup2 (minfo.data, minfo.size);
       self->codec_datas = g_list_prepend (self->codec_datas, data);
       gst_amc_format_set_buffer (format, fname, data, minfo.size, &err);
       if (err)
@@ -965,7 +964,7 @@ gst_amc_audio_dec_set_format (GstAudioDecoder * decoder, GstCaps * caps)
       GST_STR_NULL (format_string));
   g_free (format_string);
 
-  if (!gst_amc_codec_configure (self->codec, format, NULL, 0, &err)) {
+  if (!gst_amc_codec_configure (self->codec, format, NULL, &err)) {
     GST_ERROR_OBJECT (self, "Failed to configure codec");
     GST_ELEMENT_ERROR_FROM_ERROR (self, err);
     return FALSE;

@@ -21,6 +21,7 @@
 
 /**
  * SECTION:element-aacparse
+ * @title: aacparse
  * @short_description: AAC parser
  * @see_also: #GstAmrParse
  *
@@ -30,12 +31,11 @@
  * be determined either. However, ADTS format AAC clips can be seeked, and parser
  * can also estimate playback position and clip duration.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * gst-launch-1.0 filesrc location=abc.aac ! aacparse ! faad ! audioresample ! audioconvert ! alsasink
  * ]|
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -46,6 +46,7 @@
 
 #include <gst/base/gstbitreader.h>
 #include <gst/pbutils/pbutils.h>
+#include "gstaudioparserselements.h"
 #include "gstaacparse.h"
 
 
@@ -108,6 +109,17 @@ static gboolean gst_aac_parse_read_audio_specific_config (GstAacParse *
 
 #define gst_aac_parse_parent_class parent_class
 G_DEFINE_TYPE (GstAacParse, gst_aac_parse, GST_TYPE_BASE_PARSE);
+#ifdef OHOS_EXT_FUNC
+/* ohos.ext.func.0026:
+ * The avmuxer need aacparse, so aacparse needs to be registered, and to avoid conflicts with existing code,
+ * aacparse's priority has been reduced to GST_RANK_NONE
+ */
+GST_ELEMENT_REGISTER_DEFINE (aacparse, "aacparse",
+    GST_RANK_NONE, GST_TYPE_AAC_PARSE);
+#else
+GST_ELEMENT_REGISTER_DEFINE (aacparse, "aacparse",
+    GST_RANK_PRIMARY + 1, GST_TYPE_AAC_PARSE);
+#endif
 
 /**
  * gst_aac_parse_class_init:
@@ -173,7 +185,7 @@ static gboolean
 gst_aac_parse_set_src_caps (GstAacParse * aacparse, GstCaps * sink_caps)
 {
   GstStructure *s;
-  GstCaps *src_caps = NULL, *allowed;
+  GstCaps *src_caps = NULL, *peercaps;
   gboolean res = FALSE;
   const gchar *stream_format;
   guint8 codec_data[2];
@@ -207,7 +219,9 @@ gst_aac_parse_set_src_caps (GstAacParse * aacparse, GstCaps * sink_caps)
       stream_format = NULL;
   }
 
-  /* Generate codec data to be able to set profile/level on the caps */
+  /* Generate codec data to be able to set profile/level on the caps.
+   * The codec_data data is according to AudioSpecificConfig,
+   * ISO/IEC 14496-3, 1.6.2.1 */
   sample_rate_idx =
       gst_codec_utils_aac_get_index_from_sample_rate (aacparse->sample_rate);
   if (sample_rate_idx < 0)
@@ -226,44 +240,43 @@ gst_aac_parse_set_src_caps (GstAacParse * aacparse, GstCaps * sink_caps)
   if (stream_format)
     gst_structure_set (s, "stream-format", G_TYPE_STRING, stream_format, NULL);
 
-  allowed = gst_pad_get_allowed_caps (GST_BASE_PARSE (aacparse)->srcpad);
-  if (allowed && !gst_caps_can_intersect (src_caps, allowed)) {
-    GST_DEBUG_OBJECT (GST_BASE_PARSE (aacparse)->srcpad,
-        "Caps can not intersect");
+  peercaps = gst_pad_peer_query_caps (GST_BASE_PARSE_SRC_PAD (aacparse), NULL);
+  if (peercaps && !gst_caps_can_intersect (src_caps, peercaps)) {
+    GstCaps *convcaps = gst_caps_copy (src_caps);
+    GstStructure *cs = gst_caps_get_structure (convcaps, 0);
+
+    GST_DEBUG_OBJECT (aacparse, "Caps do not intersect: parsed %" GST_PTR_FORMAT
+        " and peer %" GST_PTR_FORMAT, src_caps, peercaps);
+
     if (aacparse->header_type == DSPAAC_HEADER_ADTS) {
-      GST_DEBUG_OBJECT (GST_BASE_PARSE (aacparse)->srcpad,
-          "Input is ADTS, trying raw");
-      gst_caps_set_simple (src_caps, "stream-format", G_TYPE_STRING, "raw",
-          NULL);
-      if (gst_caps_can_intersect (src_caps, allowed)) {
-        GstBuffer *codec_data_buffer;
+      GstBuffer *codec_data_buffer = gst_buffer_new_and_alloc (2);
 
-        GST_DEBUG_OBJECT (GST_BASE_PARSE (aacparse)->srcpad,
-            "Caps can intersect, we will drop the ADTS layer");
+      gst_buffer_fill (codec_data_buffer, 0, codec_data, 2);
+      gst_structure_set (cs, "stream-format", G_TYPE_STRING, "raw",
+          "codec_data", GST_TYPE_BUFFER, codec_data_buffer, NULL);
+
+      if (gst_caps_can_intersect (convcaps, peercaps)) {
+        GST_DEBUG_OBJECT (aacparse, "Converting from ADTS to raw");
         aacparse->output_header_type = DSPAAC_HEADER_NONE;
-
-        /* The codec_data data is according to AudioSpecificConfig,
-           ISO/IEC 14496-3, 1.6.2.1 */
-        codec_data_buffer = gst_buffer_new_and_alloc (2);
-        gst_buffer_fill (codec_data_buffer, 0, codec_data, 2);
-        gst_caps_set_simple (src_caps, "codec_data", GST_TYPE_BUFFER,
-            codec_data_buffer, NULL);
-        gst_buffer_unref (codec_data_buffer);
+        gst_caps_replace (&src_caps, convcaps);
       }
+
+      gst_buffer_unref (codec_data_buffer);
     } else if (aacparse->header_type == DSPAAC_HEADER_NONE) {
-      GST_DEBUG_OBJECT (GST_BASE_PARSE (aacparse)->srcpad,
-          "Input is raw, trying ADTS");
-      gst_caps_set_simple (src_caps, "stream-format", G_TYPE_STRING, "adts",
-          NULL);
-      if (gst_caps_can_intersect (src_caps, allowed)) {
-        GST_DEBUG_OBJECT (GST_BASE_PARSE (aacparse)->srcpad,
-            "Caps can intersect, we will prepend ADTS headers");
+      gst_structure_set (cs, "stream-format", G_TYPE_STRING, "adts", NULL);
+      gst_structure_remove_field (cs, "codec_data");
+
+      if (gst_caps_can_intersect (convcaps, peercaps)) {
+        GST_DEBUG_OBJECT (aacparse, "Converting from raw to ADTS");
         aacparse->output_header_type = DSPAAC_HEADER_ADTS;
+        gst_caps_replace (&src_caps, convcaps);
       }
     }
+
+    gst_caps_unref (convcaps);
   }
-  if (allowed)
-    gst_caps_unref (allowed);
+  if (peercaps)
+    gst_caps_unref (peercaps);
 
   aacparse->last_parsed_channels = 0;
   aacparse->last_parsed_sample_rate = 0;
@@ -1479,6 +1492,8 @@ gst_aac_parse_pre_push_frame (GstBaseParse * parse, GstBaseParseFrame * frame)
     gst_buffer_resize (frame->out_buffer, header_size,
         gst_buffer_get_size (frame->out_buffer) - header_size);
   }
+
+  frame->flags |= GST_BASE_PARSE_FRAME_FLAG_CLIP;
 
   return GST_FLOW_OK;
 }

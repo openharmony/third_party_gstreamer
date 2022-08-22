@@ -27,6 +27,7 @@
 #include "config.h"
 #endif
 
+#include "gstopenh264elements.h"
 #include "gstopenh264dec.h"
 
 #include <wels/codec_ver.h>
@@ -59,9 +60,10 @@ static GstFlowReturn gst_openh264dec_handle_frame (GstVideoDecoder * decoder,
     GstVideoCodecFrame * frame);
 static gboolean gst_openh264dec_decide_allocation (GstVideoDecoder * decoder,
     GstQuery * query);
+static gboolean openh264dec_element_init (GstPlugin * plugin);
 
 #if HAVE_OPENH264_MAIN_PROFILE
-#define SUPPORTED_PROFILE_STR "profile=(string){ constrained-baseline, baseline, main, high }"
+#define SUPPORTED_PROFILE_STR "profile=(string){ constrained-baseline, baseline, main, high, constrained-high, progressive-high }"
 #else
 #define SUPPORTED_PROFILE_STR "profile=(string){ constrained-baseline, baseline }"
 #endif
@@ -88,6 +90,7 @@ G_DEFINE_TYPE_WITH_CODE (GstOpenh264Dec, gst_openh264dec,
     GST_TYPE_VIDEO_DECODER,
     GST_DEBUG_CATEGORY_INIT (gst_openh264dec_debug_category, "openh264dec", 0,
         "debug category for openh264dec element"));
+GST_ELEMENT_REGISTER_DEFINE_CUSTOM (openh264dec, openh264dec_element_init);
 
 static void
 gst_openh264dec_class_init (GstOpenh264DecClass * klass)
@@ -298,9 +301,9 @@ gst_openh264dec_handle_frame (GstVideoDecoder * decoder,
     if (ret != dsErrorFree) {
       /* Request a key unit from upstream */
       GST_DEBUG_OBJECT (openh264dec, "Requesting a key unit");
-      gst_pad_push_event (GST_VIDEO_DECODER_SINK_PAD (decoder),
-          gst_video_event_new_upstream_force_key_unit (GST_CLOCK_TIME_NONE,
-              FALSE, 0));
+
+      gst_video_decoder_request_sync_point (decoder, frame,
+          (GstVideoDecoderRequestSyncPointFlags) 0);
 
       GST_LOG_OBJECT (openh264dec, "error decoding nal, return code: %d", ret);
       gst_video_codec_frame_unref (frame);
@@ -447,4 +450,15 @@ gst_openh264dec_decide_allocation (GstVideoDecoder * decoder, GstQuery * query)
   gst_video_codec_state_unref (state);
 
   return TRUE;
+}
+
+static gboolean
+openh264dec_element_init (GstPlugin * plugin)
+{
+  if (openh264_element_init (plugin))
+    return gst_element_register (plugin, "openh264dec", GST_RANK_MARGINAL,
+        GST_TYPE_OPENH264DEC);
+
+ GST_ERROR ("Incorrect library version loaded, expecting %s", g_strCodecVer);
+ return FALSE;
 }

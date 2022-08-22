@@ -4,8 +4,10 @@ tcp_sources = [
   'gstsocketsrc.c',
   'gsttcpclientsrc.c',
   'gsttcpclientsink.c',
+  'gsttcpelements.c',
   'gsttcpserversrc.c',
   'gsttcpserversink.c',
+  'gsttcpsrcstats.c',
   'gsttcpplugin.c',
 ]
 
@@ -22,3 +24,4 @@ gsttcp = library('gsttcp',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gsttcp, install_dir : plugins_pkgconfig_install_dir)
+plugins += [gsttcp]

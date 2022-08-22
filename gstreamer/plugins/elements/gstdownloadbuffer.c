@@ -41,13 +41,10 @@
  * allocated filename.
  *
  * When the downloadbuffer has completely downloaded the media, it will
- * post an application message named  <classname>&quot;GstCacheDownloadComplete&quot;</classname>
+ * post an application message named `GstCacheDownloadComplete`
  * with the following information:
  *
- * *
- *   G_TYPE_STRING
- *   <classname>&quot;location&quot;</classname>:
- *   the location of the completely downloaded file.
+ * * G_TYPE_STRING `location`: the location of the completely downloaded file.
  *
  */
 
@@ -56,6 +53,7 @@
 #endif
 
 #include "gstdownloadbuffer.h"
+#include "gstcoreelementselements.h"
 
 #include <glib/gstdio.h>
 
@@ -173,6 +171,8 @@ enum
 #define gst_download_buffer_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstDownloadBuffer, gst_download_buffer,
     GST_TYPE_ELEMENT, _do_init);
+GST_ELEMENT_REGISTER_DEFINE (downloadbuffer, "downloadbuffer", GST_RANK_NONE,
+    GST_TYPE_DOWNLOAD_BUFFER);
 
 static GstMessage *update_buffering (GstDownloadBuffer * dlbuf);
 
@@ -235,12 +235,14 @@ gst_download_buffer_class_init (GstDownloadBufferClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_LOW_PERCENT,
       g_param_spec_int ("low-percent", "Low percent",
-          "Low threshold for buffering to start. Only used if use-buffering is True",
+          "Low threshold for buffering to start. "
+          "Emits GST_MESSAGE_BUFFERING with a value of 0%",
           0, 100, DEFAULT_LOW_PERCENT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_HIGH_PERCENT,
       g_param_spec_int ("high-percent", "High percent",
-          "High threshold for buffering to finish. Only used if use-buffering is True",
+          "High threshold for buffering to finish. "
+          "Emits GST_MESSAGE_BUFFERING with a value of 100%",
           0, 100, DEFAULT_HIGH_PERCENT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
@@ -866,7 +868,7 @@ read_error:
     gst_buffer_unmap (buf, &info);
     if (*buffer == NULL)
       gst_buffer_unref (buf);
-    return ret;
+    return GST_FLOW_ERROR;
   }
 }
 
@@ -961,15 +963,17 @@ gst_download_buffer_close_temp_location_file (GstDownloadBuffer * dlbuf)
 
   GST_DEBUG_OBJECT (dlbuf, "closing sparse file");
 
+  gst_sparse_file_free (dlbuf->file);
+  dlbuf->file = NULL;
+  /* fd was closed by gst_sparse_file_free's fclose() */
+  dlbuf->temp_fd = -1;
+
   if (dlbuf->temp_remove) {
     if (remove (dlbuf->temp_location) < 0) {
       GST_WARNING_OBJECT (dlbuf, "Failed to remove temporary file %s: %s",
           dlbuf->temp_location, g_strerror (errno));
     }
   }
-  gst_sparse_file_free (dlbuf->file);
-  close (dlbuf->temp_fd);
-  dlbuf->file = NULL;
 }
 
 static void
@@ -1318,6 +1322,10 @@ gst_download_buffer_loop (GstPad * pad)
   /* have to lock for thread-safety */
   GST_DOWNLOAD_BUFFER_MUTEX_LOCK_CHECK (dlbuf, dlbuf->srcresult, out_flushing);
 
+  ret = gst_download_buffer_read_buffer (dlbuf, -1, -1, &buffer);
+  if (ret != GST_FLOW_OK)
+    goto out_flushing;
+
   if (dlbuf->stream_start_event != NULL) {
     gst_pad_push_event (dlbuf->srcpad, dlbuf->stream_start_event);
     dlbuf->stream_start_event = NULL;
@@ -1327,9 +1335,6 @@ gst_download_buffer_loop (GstPad * pad)
     dlbuf->segment_event = NULL;
   }
 
-  ret = gst_download_buffer_read_buffer (dlbuf, -1, -1, &buffer);
-  if (ret != GST_FLOW_OK)
-    goto out_flushing;
 
   /* update the buffering */
   msg = update_buffering (dlbuf);

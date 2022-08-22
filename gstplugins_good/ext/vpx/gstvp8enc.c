@@ -21,29 +21,28 @@
  */
 /**
  * SECTION:element-vp8enc
+ * @title: vp8enc
  * @see_also: vp8dec, webmmux, oggmux
  *
  * This element encodes raw video into a VP8 stream.
- * <ulink url="http://www.webmproject.org">VP8</ulink> is a royalty-free
- * video codec maintained by <ulink url="http://www.google.com/">Google
- * </ulink>. It's the successor of On2 VP3, which was the base of the
- * Theora video codec.
+ * [VP8](http://www.webmproject.org) is a royalty-free video codec maintained by
+ * [Google](http://www.google.com/). It's the successor of On2 VP3, which was
+ * the base of the Theora video codec.
  *
- * To control the quality of the encoding, the #GstVP8Enc::target-bitrate,
- * #GstVP8Enc::min-quantizer, #GstVP8Enc::max-quantizer or #GstVP8Enc::cq-level
+ * To control the quality of the encoding, the #GstVPXEnc:target-bitrate,
+ * #GstVPXEnc:min-quantizer, #GstVPXEnc:max-quantizer or #GstVPXEnc:cq-level
  * properties can be used. Which one is used depends on the mode selected by
- * the #GstVP8Enc::end-usage property.
- * See <ulink url="http://www.webmproject.org/docs/encoder-parameters/">Encoder Parameters</ulink>
+ * the #GstVPXEnc:end-usage property.
+ * See [Encoder Parameters](http://www.webmproject.org/docs/encoder-parameters/)
  * for explanation, examples for useful encoding parameters and more details
  * on the encoding parameters.
  *
- * <refsect2>
- * <title>Example pipeline</title>
+ * ## Example pipeline
  * |[
  * gst-launch-1.0 -v videotestsrc num-buffers=1000 ! vp8enc ! webmmux ! filesink location=videotestsrc.webm
  * ]| This example pipeline will encode a test video source to VP8 muxed in an
  * WebM container.
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -63,6 +62,7 @@
 #include <gst/video/video.h>
 #include <string.h>
 
+#include "gstvpxelements.h"
 #include "gstvp8utils.h"
 #include "gstvp8enc.h"
 
@@ -73,6 +73,9 @@ typedef struct
 {
   vpx_image_t *image;
   GList *invisible;
+  guint layer_id;
+  guint8 tl0picidx;
+  gboolean layer_sync;
 } GstVP8EncUserData;
 
 static void
@@ -105,6 +108,15 @@ static GstFlowReturn gst_vp8_enc_handle_invisible_frame_buffer (GstVPXEnc * enc,
     void *user_data, GstBuffer * buffer);
 static void gst_vp8_enc_set_frame_user_data (GstVPXEnc * enc,
     GstVideoCodecFrame * frame, vpx_image_t * image);
+static void gst_vp8_enc_apply_frame_temporal_settings (GstVPXEnc * enc,
+    GstVideoCodecFrame * frame, guint layer_id, guint8 tl0picidx,
+    gboolean layer_sync);
+static void gst_vp8_enc_get_frame_temporal_settings (GstVPXEnc * enc,
+    GstVideoCodecFrame * frame, guint * layer_id, guint8 * tl0picidx,
+    gboolean * layer_sync);
+static void gst_vp8_enc_preflight_buffer (GstVPXEnc * enc,
+    GstVideoCodecFrame * frame, GstBuffer * buffer,
+    gboolean layer_sync, guint layer_id, guint8 tl0picidx);
 
 static GstFlowReturn gst_vp8_enc_pre_push (GstVideoEncoder * encoder,
     GstVideoCodecFrame * frame);
@@ -128,6 +140,8 @@ GST_STATIC_PAD_TEMPLATE ("src",
 
 #define parent_class gst_vp8_enc_parent_class
 G_DEFINE_TYPE (GstVP8Enc, gst_vp8_enc, GST_TYPE_VPX_ENC);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (vp8enc, "vp8enc", GST_RANK_PRIMARY,
+    gst_vp8_enc_get_type (), vpx_element_init (plugin));
 
 static void
 gst_vp8_enc_class_init (GstVP8EncClass * klass)
@@ -164,6 +178,11 @@ gst_vp8_enc_class_init (GstVP8EncClass * klass)
   vpx_encoder_class->handle_invisible_frame_buffer =
       gst_vp8_enc_handle_invisible_frame_buffer;
   vpx_encoder_class->set_frame_user_data = gst_vp8_enc_set_frame_user_data;
+  vpx_encoder_class->apply_frame_temporal_settings =
+      gst_vp8_enc_apply_frame_temporal_settings;
+  vpx_encoder_class->get_frame_temporal_settings =
+      gst_vp8_enc_get_frame_temporal_settings;
+  vpx_encoder_class->preflight_buffer = gst_vp8_enc_preflight_buffer;
 
   GST_DEBUG_CATEGORY_INIT (gst_vp8enc_debug, "vp8enc", 0, "VP8 Encoder");
 }
@@ -329,6 +348,67 @@ gst_vp8_enc_set_frame_user_data (GstVPXEnc * enc, GstVideoCodecFrame * frame,
   gst_video_codec_frame_set_user_data (frame, user_data,
       (GDestroyNotify) gst_vp8_enc_user_data_free);
   return;
+}
+
+static void
+gst_vp8_enc_apply_frame_temporal_settings (GstVPXEnc * enc,
+    GstVideoCodecFrame * frame, guint layer_id, guint8 tl0picidx,
+    gboolean layer_sync)
+{
+  GstVP8EncUserData *user_data;
+
+  user_data = gst_video_codec_frame_get_user_data (frame);
+
+  if (!user_data) {
+    GST_ERROR_OBJECT (enc, "Have no frame user data");
+    return;
+  }
+
+  vpx_codec_control (&enc->encoder, VP8E_SET_TEMPORAL_LAYER_ID, layer_id);
+  user_data->layer_id = layer_id;
+  user_data->tl0picidx = tl0picidx;
+  user_data->layer_sync = layer_sync;
+
+  return;
+}
+
+static void
+gst_vp8_enc_get_frame_temporal_settings (GstVPXEnc * enc,
+    GstVideoCodecFrame * frame, guint * layer_id, guint8 * tl0picidx,
+    gboolean * layer_sync)
+{
+  GstVP8EncUserData *user_data;
+
+  user_data = gst_video_codec_frame_get_user_data (frame);
+
+  if (!user_data) {
+    GST_ERROR_OBJECT (enc, "Have no frame user data");
+    *layer_id = 0;
+    *tl0picidx = 0;
+    *layer_sync = FALSE;
+    return;
+  }
+
+  *layer_id = user_data->layer_id;
+  *tl0picidx = user_data->tl0picidx;
+  *layer_sync = user_data->layer_sync;
+
+  return;
+}
+
+static void
+gst_vp8_enc_preflight_buffer (GstVPXEnc * enc,
+    GstVideoCodecFrame * frame, GstBuffer * buffer,
+    gboolean layer_sync, guint layer_id, guint8 tl0picidx)
+{
+  GstCustomMeta *meta = gst_buffer_add_custom_meta (buffer, "GstVP8Meta");
+  GstStructure *s = gst_custom_meta_get_structure (meta);
+
+  gst_structure_set (s,
+      "use-temporal-scaling", G_TYPE_BOOLEAN, (enc->cfg.ts_periodicity != 0),
+      "layer-sync", G_TYPE_BOOLEAN, layer_sync,
+      "layer-id", G_TYPE_UINT, layer_id,
+      "tl0picidx", G_TYPE_UINT, tl0picidx, NULL);
 }
 
 static guint64

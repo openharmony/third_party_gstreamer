@@ -20,12 +20,9 @@
 #ifndef __GST_MPEG_VIDEO_META_H__
 #define __GST_MPEG_VIDEO_META_H__
 
-#ifndef OHOS_EXT_FUNC
-// ohos.ext.func.0013
 #ifndef GST_USE_UNSTABLE_API
 #warning "The Mpeg video parsing library is unstable API and may change in future."
 #warning "You can define GST_USE_UNSTABLE_API to avoid this warning."
-#endif
 #endif
 
 #include <gst/gst.h>
@@ -82,7 +79,7 @@ struct _GstMpegVideoMeta {
 
 GST_CODEC_PARSERS_API
 GstMpegVideoMeta *
-gst_buffer_add_mpeg_video_meta (GstBuffer * buffer, 
+gst_buffer_add_mpeg_video_meta (GstBuffer * buffer,
                                 const GstMpegVideoSequenceHdr *seq_hdr,
                                 const GstMpegVideoSequenceExt *seq_ext,
                                 const GstMpegVideoSequenceDisplayExt *disp_ext,

@@ -79,6 +79,8 @@ static gboolean gst_webp_dec_reset_frame (GstWebPDec * webpdec);
 
 #define gst_webp_dec_parent_class parent_class
 G_DEFINE_TYPE (GstWebPDec, gst_webp_dec, GST_TYPE_VIDEO_DECODER);
+GST_ELEMENT_REGISTER_DEFINE (webpdec, "webpdec",
+    GST_RANK_PRIMARY, GST_TYPE_WEBP_DEC);
 
 static void
 gst_webp_dec_class_init (GstWebPDecClass * klass)
@@ -380,7 +382,7 @@ gst_webp_dec_update_src_caps (GstWebPDec * dec, GstMapInfo * map_info)
 
   if (features.width < MIN_WIDTH || features.width > MAX_WIDTH
       || features.height < MIN_HEIGHT || features.height > MAX_HEIGHT) {
-    GST_ERROR_OBJECT (dec, "Dimensions of the frame is unspported by libwebp");
+    GST_ERROR_OBJECT (dec, "Dimensions of the frame is unsupported by libwebp");
     return GST_FLOW_ERROR;
   }
 
@@ -488,11 +490,4 @@ gst_webp_dec_handle_frame (GstVideoDecoder * decoder,
 
 done:
   return ret;
-}
-
-gboolean
-gst_webp_dec_register (GstPlugin * plugin)
-{
-  return gst_element_register (plugin, "webpdec",
-      GST_RANK_PRIMARY, GST_TYPE_WEBP_DEC);
 }

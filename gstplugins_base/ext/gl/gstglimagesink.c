@@ -87,6 +87,7 @@
 #include <gst/video/navigation.h>
 #include <gst/video/gstvideoaffinetransformationmeta.h>
 
+#include "gstglelements.h"
 #include "gstglimagesink.h"
 #include "gstglsinkbin.h"
 #include "gstglutils.h"
@@ -109,6 +110,9 @@ typedef GstGLSinkBin GstGLImageSinkBin;
 typedef GstGLSinkBinClass GstGLImageSinkBinClass;
 
 G_DEFINE_TYPE (GstGLImageSinkBin, gst_gl_image_sink_bin, GST_TYPE_GL_SINK_BIN);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (glimagesink, "glimagesink",
+    GST_RANK_SECONDARY, gst_gl_image_sink_bin_get_type (),
+    gl_element_init (plugin));
 
 enum
 {
@@ -176,23 +180,23 @@ _on_client_draw (GstGLImageSink * sink, GstGLContext * context,
   return ret;
 }
 
-#define DEFAULT_ROTATE_METHOD GST_GL_ROTATE_METHOD_IDENTITY
+#define DEFAULT_ROTATE_METHOD GST_VIDEO_ORIENTATION_IDENTITY
 
 #define GST_TYPE_GL_ROTATE_METHOD (gst_gl_rotate_method_get_type())
 
 static const GEnumValue rotate_methods[] = {
-  {GST_GL_ROTATE_METHOD_IDENTITY, "Identity (no rotation)", "none"},
-  {GST_GL_ROTATE_METHOD_90R, "Rotate clockwise 90 degrees", "clockwise"},
-  {GST_GL_ROTATE_METHOD_180, "Rotate 180 degrees", "rotate-180"},
-  {GST_GL_ROTATE_METHOD_90L, "Rotate counter-clockwise 90 degrees",
+  {GST_VIDEO_ORIENTATION_IDENTITY, "Identity (no rotation)", "none"},
+  {GST_VIDEO_ORIENTATION_90R, "Rotate clockwise 90 degrees", "clockwise"},
+  {GST_VIDEO_ORIENTATION_180, "Rotate 180 degrees", "rotate-180"},
+  {GST_VIDEO_ORIENTATION_90L, "Rotate counter-clockwise 90 degrees",
       "counterclockwise"},
-  {GST_GL_ROTATE_METHOD_FLIP_HORIZ, "Flip horizontally", "horizontal-flip"},
-  {GST_GL_ROTATE_METHOD_FLIP_VERT, "Flip vertically", "vertical-flip"},
-  {GST_GL_ROTATE_METHOD_FLIP_UL_LR,
+  {GST_VIDEO_ORIENTATION_HORIZ, "Flip horizontally", "horizontal-flip"},
+  {GST_VIDEO_ORIENTATION_VERT, "Flip vertically", "vertical-flip"},
+  {GST_VIDEO_ORIENTATION_UL_LR,
       "Flip across upper left/lower right diagonal", "upper-left-diagonal"},
-  {GST_GL_ROTATE_METHOD_FLIP_UR_LL,
+  {GST_VIDEO_ORIENTATION_UR_LL,
       "Flip across upper right/lower left diagonal", "upper-right-diagonal"},
-  {GST_GL_ROTATE_METHOD_AUTO,
+  {GST_VIDEO_ORIENTATION_AUTO,
       "Select rotate method based on image-orientation tag", "automatic"},
   {0, NULL, NULL},
 };
@@ -290,13 +294,15 @@ gst_gl_image_sink_bin_class_init (GstGLImageSinkBinClass * klass)
 
   gst_gl_image_sink_bin_signals[SIGNAL_BIN_CLIENT_DRAW] =
       g_signal_new ("client-draw", G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
-      0, NULL, NULL, g_cclosure_marshal_generic, G_TYPE_BOOLEAN, 2,
-      GST_TYPE_GL_CONTEXT, GST_TYPE_SAMPLE);
+      0, NULL, NULL, NULL, G_TYPE_BOOLEAN, 2, GST_TYPE_GL_CONTEXT,
+      GST_TYPE_SAMPLE);
 
   gst_gl_image_sink_bin_signals[SIGNAL_BIN_CLIENT_RESHAPE] =
       g_signal_new ("client-reshape", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, g_cclosure_marshal_generic,
-      G_TYPE_BOOLEAN, 3, GST_TYPE_GL_CONTEXT, G_TYPE_UINT, G_TYPE_UINT);
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_BOOLEAN, 3,
+      GST_TYPE_GL_CONTEXT, G_TYPE_UINT, G_TYPE_UINT);
+
+  gst_type_mark_as_plugin_api (GST_TYPE_GL_ROTATE_METHOD, 0);
 }
 
 #define GST_GLIMAGE_SINK_GET_LOCK(glsink) \
@@ -444,6 +450,30 @@ _display_size_to_stream_size (GstGLImageSink * gl_sink, gdouble x,
   GST_TRACE ("transform %fx%f into %fx%f", x, y, *stream_x, *stream_y);
 }
 
+static void
+_display_scroll_value_to_stream_scroll_value (GstGLImageSink * gl_sink,
+    gdouble delta_x, gdouble delta_y, gdouble * stream_delta_x,
+    gdouble * stream_delta_y)
+{
+  gdouble stream_width, stream_height;
+
+  stream_width = (gdouble) GST_VIDEO_INFO_WIDTH (&gl_sink->out_info);
+  stream_height = (gdouble) GST_VIDEO_INFO_HEIGHT (&gl_sink->out_info);
+
+  if (delta_x != 0 && gl_sink->display_rect.w > 0)
+    *stream_delta_x = delta_x * (stream_width / gl_sink->display_rect.w);
+  else
+    *stream_delta_x = delta_x;
+
+  if (delta_y != 0 && gl_sink->display_rect.h > 0)
+    *stream_delta_y = delta_y * (stream_height / gl_sink->display_rect.h);
+  else
+    *stream_delta_y = delta_y;
+
+  GST_TRACE_OBJECT (gl_sink, "transform %fx%f into %fx%f", delta_x, delta_y,
+      *stream_delta_x, *stream_delta_y);
+}
+
 /* rotate 90 */
 static const gfloat clockwise_matrix[] = {
   0.0f, -1.0f, 0.0f, 0.0f,
@@ -486,32 +516,32 @@ static const gfloat vertical_flip_matrix[] = {
 
 /* upper-left-diagonal */
 static const gfloat upper_left_matrix[] = {
-  0.0f, 1.0f, 0.0f, 0.0f,
-  1.0f, 0.0f, 0.0f, 0.0f,
-  0.0f, 0.0f, 1.0f, 0.0f,
-  0.0f, 0.0f, 0.0f, 1.0f,
-};
-
-/* upper-right-diagonal */
-static const gfloat upper_right_matrix[] = {
   0.0f, -1.0f, 0.0f, 0.0f,
   -1.0f, 0.0f, 0.0f, 0.0f,
   0.0f, 0.0f, 1.0f, 0.0f,
   0.0f, 0.0f, 0.0f, 1.0f,
 };
 
+/* upper-right-diagonal */
+static const gfloat upper_right_matrix[] = {
+  0.0f, 1.0f, 0.0f, 0.0f,
+  1.0f, 0.0f, 0.0f, 0.0f,
+  0.0f, 0.0f, 1.0f, 0.0f,
+  0.0f, 0.0f, 0.0f, 1.0f,
+};
+
 static void
 gst_glimage_sink_set_rotate_method (GstGLImageSink * gl_sink,
-    GstGLRotateMethod method, gboolean from_tag)
+    GstVideoOrientationMethod method, gboolean from_tag)
 {
-  GstGLRotateMethod tag_method = DEFAULT_ROTATE_METHOD;
+  GstVideoOrientationMethod tag_method = DEFAULT_ROTATE_METHOD;
   GST_GLIMAGE_SINK_LOCK (gl_sink);
   if (from_tag)
     tag_method = method;
   else
     gl_sink->rotate_method = method;
 
-  if (gl_sink->rotate_method == GST_GL_ROTATE_METHOD_AUTO)
+  if (gl_sink->rotate_method == GST_VIDEO_ORIENTATION_AUTO)
     method = tag_method;
   else
     method = gl_sink->rotate_method;
@@ -522,35 +552,35 @@ gst_glimage_sink_set_rotate_method (GstGLImageSink * gl_sink,
         rotate_methods[method].value_nick);
 
     switch (method) {
-      case GST_GL_ROTATE_METHOD_IDENTITY:
+      case GST_VIDEO_ORIENTATION_IDENTITY:
         gl_sink->transform_matrix = NULL;
         gl_sink->output_mode_changed = TRUE;
         break;
-      case GST_GL_ROTATE_METHOD_90R:
+      case GST_VIDEO_ORIENTATION_90R:
         gl_sink->transform_matrix = clockwise_matrix;
         gl_sink->output_mode_changed = TRUE;
         break;
-      case GST_GL_ROTATE_METHOD_180:
+      case GST_VIDEO_ORIENTATION_180:
         gl_sink->transform_matrix = clockwise_180_matrix;
         gl_sink->output_mode_changed = TRUE;
         break;
-      case GST_GL_ROTATE_METHOD_90L:
+      case GST_VIDEO_ORIENTATION_90L:
         gl_sink->transform_matrix = counterclockwise_matrix;
         gl_sink->output_mode_changed = TRUE;
         break;
-      case GST_GL_ROTATE_METHOD_FLIP_HORIZ:
+      case GST_VIDEO_ORIENTATION_HORIZ:
         gl_sink->transform_matrix = horizontal_flip_matrix;
         gl_sink->output_mode_changed = TRUE;
         break;
-      case GST_GL_ROTATE_METHOD_FLIP_VERT:
+      case GST_VIDEO_ORIENTATION_VERT:
         gl_sink->transform_matrix = vertical_flip_matrix;
         gl_sink->output_mode_changed = TRUE;
         break;
-      case GST_GL_ROTATE_METHOD_FLIP_UL_LR:
+      case GST_VIDEO_ORIENTATION_UL_LR:
         gl_sink->transform_matrix = upper_left_matrix;
         gl_sink->output_mode_changed = TRUE;
         break;
-      case GST_GL_ROTATE_METHOD_FLIP_UR_LL:
+      case GST_VIDEO_ORIENTATION_UR_LL:
         gl_sink->transform_matrix = upper_right_matrix;
         gl_sink->output_mode_changed = TRUE;
         break;
@@ -598,6 +628,19 @@ gst_glimage_sink_navigation_send_event (GstNavigation * navigation, GstStructure
         stream_x, "pointer_y", G_TYPE_DOUBLE, stream_y, NULL);
   }
 
+  /* Converting pointer scroll coordinates to the non scaled geometry */
+  if (width != 0 && gst_structure_get_double (structure, "delta_pointer_x", &x)
+      && height != 0
+      && gst_structure_get_double (structure, "delta_pointer_y", &y)) {
+    gdouble stream_x, stream_y;
+
+    _display_scroll_value_to_stream_scroll_value (sink, x, y, &stream_x,
+        &stream_y);
+
+    gst_structure_set (structure, "delta_pointer_x", G_TYPE_DOUBLE,
+        stream_x, "delta_pointer_y", G_TYPE_DOUBLE, stream_y, NULL);
+  }
+
   event = gst_event_new_navigation (structure);
   if (event) {
     gst_event_ref (event);
@@ -626,6 +669,8 @@ G_DEFINE_TYPE_WITH_CODE (GstGLImageSink, gst_glimage_sink,
         gst_glimage_sink_navigation_interface_init);
     GST_DEBUG_CATEGORY_INIT (gst_debug_glimage_sink, "glimagesink", 0,
         "OpenGL Video Sink"));
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (glimagesinkelement, "glimagesinkelement",
+    GST_RANK_NONE, gst_glimage_sink_get_type (), gl_element_init (plugin));
 
 static void
 gst_glimage_sink_class_init (GstGLImageSinkClass * klass)
@@ -706,25 +751,24 @@ gst_glimage_sink_class_init (GstGLImageSinkClass * klass)
   /**
    * GstGLImageSink::client-draw:
    * @object: the #GstGLImageSink
-   * @texture: the #guint id of the texture.
-   * @width: the #guint width of the texture.
-   * @height: the #guint height of the texture.
+   * @context: the #GstGLContext
+   * @sample: the #GstSample
    *
    * Will be emitted before actually drawing the texture.  The client should
-   * redraw the surface/contents with the @texture, @width and @height and
-   * and return %TRUE.
+   * redraw the surface/contents of @sample and return %TRUE.
    *
    * Returns: whether the texture was redrawn by the signal.  If not, a
    *          default redraw will occur.
    */
   gst_glimage_sink_signals[CLIENT_DRAW_SIGNAL] =
       g_signal_new ("client-draw", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, g_cclosure_marshal_generic,
-      G_TYPE_BOOLEAN, 2, GST_TYPE_GL_CONTEXT, GST_TYPE_SAMPLE);
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_BOOLEAN, 2,
+      GST_TYPE_GL_CONTEXT, GST_TYPE_SAMPLE);
 
   /**
    * GstGLImageSink::client-reshape:
    * @object: the #GstGLImageSink
+   * @context: the #GstGLContext
    * @width: the #guint width of the texture.
    * @height: the #guint height of the texture.
    *
@@ -736,8 +780,8 @@ gst_glimage_sink_class_init (GstGLImageSinkClass * klass)
    */
   gst_glimage_sink_signals[CLIENT_RESHAPE_SIGNAL] =
       g_signal_new ("client-reshape", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, g_cclosure_marshal_generic,
-      G_TYPE_BOOLEAN, 3, GST_TYPE_GL_CONTEXT, G_TYPE_UINT, G_TYPE_UINT);
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_BOOLEAN, 3,
+      GST_TYPE_GL_CONTEXT, G_TYPE_UINT, G_TYPE_UINT);
 
   gst_element_class_add_static_pad_template (element_class,
       &gst_glimage_sink_template);
@@ -916,6 +960,50 @@ gst_glimage_sink_mouse_event_cb (GstGLWindow * window, char *event_name,
       event_name, button, posx, posy);
 }
 
+
+static void
+gst_glimage_sink_mouse_scroll_event_cb (GstGLWindow * window,
+    double posx, double posy, double delta_x, double delta_y,
+    GstGLImageSink * gl_sink)
+{
+  GST_DEBUG_OBJECT (gl_sink, "event scroll at %g, %g", posx, posy);
+  gst_navigation_send_mouse_scroll_event (GST_NAVIGATION (gl_sink),
+      posx, posy, delta_x, delta_y);
+}
+
+static void
+_set_context (GstGLImageSink * gl_sink, GstGLContext * context)
+{
+  GST_GLIMAGE_SINK_LOCK (gl_sink);
+  if (gl_sink->context)
+    gst_object_unref (gl_sink->context);
+
+  gl_sink->context = context;
+  GST_GLIMAGE_SINK_UNLOCK (gl_sink);
+}
+
+static void
+_set_other_context (GstGLImageSink * gl_sink, GstGLContext * other_context)
+{
+  GST_GLIMAGE_SINK_LOCK (gl_sink);
+  if (gl_sink->other_context)
+    gst_object_unref (gl_sink->other_context);
+
+  gl_sink->other_context = other_context;
+  GST_GLIMAGE_SINK_UNLOCK (gl_sink);
+}
+
+static void
+_set_display (GstGLImageSink * gl_sink, GstGLDisplay * display)
+{
+  GST_GLIMAGE_SINK_LOCK (gl_sink);
+  if (gl_sink->display)
+    gst_object_unref (gl_sink->display);
+
+  gl_sink->display = display;
+  GST_GLIMAGE_SINK_UNLOCK (gl_sink);
+}
+
 static gboolean
 _ensure_gl_setup (GstGLImageSink * gl_sink)
 {
@@ -927,12 +1015,10 @@ _ensure_gl_setup (GstGLImageSink * gl_sink)
     GST_OBJECT_LOCK (gl_sink->display);
     do {
       GstGLContext *other_context = NULL;
+      GstGLContext *context = NULL;
       GstGLWindow *window = NULL;
 
-      if (gl_sink->context) {
-        gst_object_unref (gl_sink->context);
-        gl_sink->context = NULL;
-      }
+      _set_context (gl_sink, NULL);
 
       GST_DEBUG_OBJECT (gl_sink,
           "No current context, creating one for %" GST_PTR_FORMAT,
@@ -946,12 +1032,14 @@ _ensure_gl_setup (GstGLImageSink * gl_sink)
       }
 
       if (!gst_gl_display_create_context (gl_sink->display,
-              other_context, &gl_sink->context, &error)) {
+              other_context, &context, &error)) {
         if (other_context)
           gst_object_unref (other_context);
         GST_OBJECT_UNLOCK (gl_sink->display);
         goto context_error;
       }
+      _set_context (gl_sink, context);
+      context = NULL;
 
       GST_DEBUG_OBJECT (gl_sink,
           "created context %" GST_PTR_FORMAT " from other context %"
@@ -991,6 +1079,9 @@ _ensure_gl_setup (GstGLImageSink * gl_sink)
       gl_sink->mouse_sig_id =
           g_signal_connect (window, "mouse-event",
           G_CALLBACK (gst_glimage_sink_mouse_event_cb), gl_sink);
+      gl_sink->mouse_scroll_sig_id =
+          g_signal_connect (window, "scroll-event",
+          G_CALLBACK (gst_glimage_sink_mouse_scroll_event_cb), gl_sink);
 
       gst_gl_window_set_render_rectangle (window, gl_sink->x, gl_sink->y,
           gl_sink->width, gl_sink->height);
@@ -1010,10 +1101,7 @@ context_error:
     GST_ELEMENT_ERROR (gl_sink, RESOURCE, NOT_FOUND, ("%s", error->message),
         (NULL));
 
-    if (gl_sink->context) {
-      gst_object_unref (gl_sink->context);
-      gl_sink->context = NULL;
-    }
+    _set_context (gl_sink, NULL);
 
     g_clear_error (&error);
 
@@ -1026,7 +1114,7 @@ gst_glimage_sink_event (GstBaseSink * sink, GstEvent * event)
 {
   GstGLImageSink *gl_sink = GST_GLIMAGE_SINK (sink);
   GstTagList *taglist;
-  gchar *orientation;
+  GstVideoOrientationMethod method;
   gboolean ret;
 
   GST_DEBUG_OBJECT (gl_sink, "handling %s event", GST_EVENT_TYPE_NAME (event));
@@ -1035,34 +1123,9 @@ gst_glimage_sink_event (GstBaseSink * sink, GstEvent * event)
     case GST_EVENT_TAG:
       gst_event_parse_tag (event, &taglist);
 
-      if (gst_tag_list_get_string (taglist, "image-orientation", &orientation)) {
-        if (!g_strcmp0 ("rotate-0", orientation))
-          gst_glimage_sink_set_rotate_method (gl_sink,
-              GST_GL_ROTATE_METHOD_IDENTITY, TRUE);
-        else if (!g_strcmp0 ("rotate-90", orientation))
-          gst_glimage_sink_set_rotate_method (gl_sink, GST_GL_ROTATE_METHOD_90R,
-              TRUE);
-        else if (!g_strcmp0 ("rotate-180", orientation))
-          gst_glimage_sink_set_rotate_method (gl_sink, GST_GL_ROTATE_METHOD_180,
-              TRUE);
-        else if (!g_strcmp0 ("rotate-270", orientation))
-          gst_glimage_sink_set_rotate_method (gl_sink, GST_GL_ROTATE_METHOD_90L,
-              TRUE);
-        else if (!g_strcmp0 ("flip-rotate-0", orientation))
-          gst_glimage_sink_set_rotate_method (gl_sink,
-              GST_GL_ROTATE_METHOD_FLIP_HORIZ, TRUE);
-        else if (!g_strcmp0 ("flip-rotate-90", orientation))
-          gst_glimage_sink_set_rotate_method (gl_sink,
-              GST_GL_ROTATE_METHOD_FLIP_UR_LL, TRUE);
-        else if (!g_strcmp0 ("flip-rotate-180", orientation))
-          gst_glimage_sink_set_rotate_method (gl_sink,
-              GST_GL_ROTATE_METHOD_FLIP_VERT, TRUE);
-        else if (!g_strcmp0 ("flip-rotate-270", orientation))
-          gst_glimage_sink_set_rotate_method (gl_sink,
-              GST_GL_ROTATE_METHOD_FLIP_UL_LR, TRUE);
+      if (gst_video_orientation_from_tag (taglist, &method))
+        gst_glimage_sink_set_rotate_method (gl_sink, method, TRUE);
 
-        g_free (orientation);
-      }
       break;
     default:
       break;
@@ -1082,10 +1145,30 @@ gst_glimage_sink_query (GstBaseSink * bsink, GstQuery * query)
   switch (GST_QUERY_TYPE (query)) {
     case GST_QUERY_CONTEXT:
     {
-      if (gst_gl_handle_context_query ((GstElement *) glimage_sink, query,
-              glimage_sink->display, glimage_sink->context,
-              glimage_sink->other_context))
-        return TRUE;
+      GstGLContext *context = NULL;
+      GstGLContext *other_context = NULL;
+      GstGLDisplay *display = NULL;
+
+      GST_GLIMAGE_SINK_LOCK (bsink);
+      if (glimage_sink->context)
+        context = gst_object_ref (glimage_sink->context);
+      if (glimage_sink->other_context)
+        other_context = gst_object_ref (glimage_sink->other_context);
+      if (glimage_sink->display)
+        display = gst_object_ref (glimage_sink->display);
+      GST_GLIMAGE_SINK_UNLOCK (bsink);
+
+      res = gst_gl_handle_context_query ((GstElement *) glimage_sink, query,
+          display, context, other_context);
+
+      if (context)
+        gst_object_unref (context);
+      if (other_context)
+        gst_object_unref (other_context);
+      if (display)
+        gst_object_unref (display);
+      if (res)
+        return res;
       break;
     }
     case GST_QUERY_DRAIN:
@@ -1124,9 +1207,12 @@ static void
 gst_glimage_sink_set_context (GstElement * element, GstContext * context)
 {
   GstGLImageSink *gl_sink = GST_GLIMAGE_SINK (element);
+  GstGLContext *other_context = NULL;
+  GstGLDisplay *display = NULL;
 
-  gst_gl_handle_set_context (element, context, &gl_sink->display,
-      &gl_sink->other_context);
+  gst_gl_handle_set_context (element, context, &display, &other_context);
+  _set_other_context (gl_sink, other_context);
+  _set_display (gl_sink, display);
 
   if (gl_sink->display)
     gst_gl_display_filter_gl_api (gl_sink->display, SUPPORTED_GL_APIS);
@@ -1139,6 +1225,7 @@ gst_glimage_sink_change_state (GstElement * element, GstStateChange transition)
 {
   GstGLImageSink *glimage_sink;
   GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
+  GstGLContext *context;
 
   GST_DEBUG ("changing state: %s => %s",
       gst_element_state_get_name (GST_STATE_TRANSITION_CURRENT (transition)),
@@ -1225,8 +1312,14 @@ gst_glimage_sink_change_state (GstElement * element, GstStateChange transition)
         glimage_sink->overlay_compositor = NULL;
       }
 
-      if (glimage_sink->context) {
-        GstGLWindow *window = gst_gl_context_get_window (glimage_sink->context);
+      context = NULL;
+      GST_GLIMAGE_SINK_LOCK (glimage_sink);
+      if (glimage_sink->context)
+        context = gst_object_ref (glimage_sink->context);
+      GST_GLIMAGE_SINK_UNLOCK (glimage_sink);
+
+      if (context) {
+        GstGLWindow *window = gst_gl_context_get_window (context);
 
         gst_gl_window_send_message (window,
             GST_GL_WINDOW_CB (gst_glimage_sink_cleanup_glthread), glimage_sink);
@@ -1241,23 +1334,21 @@ gst_glimage_sink_change_state (GstElement * element, GstStateChange transition)
         if (glimage_sink->mouse_sig_id)
           g_signal_handler_disconnect (window, glimage_sink->mouse_sig_id);
         glimage_sink->mouse_sig_id = 0;
+        if (glimage_sink->mouse_scroll_sig_id)
+          g_signal_handler_disconnect (window,
+              glimage_sink->mouse_scroll_sig_id);
+        glimage_sink->mouse_scroll_sig_id = 0;
 
         gst_object_unref (window);
-        gst_object_unref (glimage_sink->context);
-        glimage_sink->context = NULL;
+        _set_context (glimage_sink, NULL);
+
+        gst_object_unref (context);
       }
 
       glimage_sink->window_id = 0;
 
-      if (glimage_sink->other_context) {
-        gst_object_unref (glimage_sink->other_context);
-        glimage_sink->other_context = NULL;
-      }
-
-      if (glimage_sink->display) {
-        gst_object_unref (glimage_sink->display);
-        glimage_sink->display = NULL;
-      }
+      _set_other_context (glimage_sink, NULL);
+      _set_display (glimage_sink, NULL);
       break;
     default:
       break;
@@ -1316,7 +1407,7 @@ gst_glimage_sink_get_caps (GstBaseSink * bsink, GstCaps * filter)
 
 static gboolean
 configure_display_from_info (GstGLImageSink * glimage_sink,
-    GstVideoInfo * vinfo)
+    const GstVideoInfo * vinfo)
 {
   gint width;
   gint height;
@@ -1883,8 +1974,17 @@ gst_glimage_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
   guint size;
   gboolean need_pool;
   GstStructure *allocation_meta = NULL;
+  GstGLContext *context = NULL;
 
   if (!_ensure_gl_setup (glimage_sink))
+    return FALSE;
+
+  GST_GLIMAGE_SINK_LOCK (glimage_sink);
+  if (glimage_sink->context)
+    context = gst_object_ref (glimage_sink->context);
+  GST_GLIMAGE_SINK_UNLOCK (glimage_sink);
+
+  if (!context)
     return FALSE;
 
   gst_query_parse_allocation (query, &caps, &need_pool);
@@ -1901,7 +2001,7 @@ gst_glimage_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
   if (need_pool) {
     GST_DEBUG_OBJECT (glimage_sink, "create new pool");
 
-    pool = gst_gl_buffer_pool_new (glimage_sink->context);
+    pool = gst_gl_buffer_pool_new (context);
     config = gst_buffer_pool_get_config (pool);
     gst_buffer_pool_config_set_params (config, caps, size, 0, 0);
     gst_buffer_pool_config_add_option (config,
@@ -1918,7 +2018,7 @@ gst_glimage_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
   if (pool)
     g_object_unref (pool);
 
-  if (glimage_sink->context->gl_vtable->FenceSync)
+  if (context->gl_vtable->FenceSync)
     gst_query_add_allocation_meta (query, GST_GL_SYNC_META_API_TYPE, 0);
 
   if (glimage_sink->window_width != 0 && glimage_sink->window_height != 0) {
@@ -1938,21 +2038,25 @@ gst_glimage_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
   if (allocation_meta)
     gst_structure_free (allocation_meta);
 
+  gst_object_unref (context);
   return TRUE;
 
   /* ERRORS */
 no_caps:
   {
+    gst_object_unref (context);
     GST_WARNING_OBJECT (bsink, "no caps specified");
     return FALSE;
   }
 invalid_caps:
   {
+    gst_object_unref (context);
     GST_WARNING_OBJECT (bsink, "invalid caps specified");
     return FALSE;
   }
 config_failed:
   {
+    gst_object_unref (context);
     GST_WARNING_OBJECT (bsink, "failed setting config");
     return FALSE;
   }
@@ -2029,7 +2133,7 @@ gst_glimage_sink_thread_init_redisplay (GstGLImageSink * gl_sink)
     frag_stage = gst_glsl_stage_new_default_fragment (gl_sink->context);
   }
   if (!vert_stage || !frag_stage) {
-    GST_ERROR_OBJECT (gl_sink, "Failed to retreive fragment shader for "
+    GST_ERROR_OBJECT (gl_sink, "Failed to retrieve fragment shader for "
         "texture target");
     if (vert_stage)
       gst_object_unref (vert_stage);
@@ -2151,11 +2255,10 @@ gst_glimage_sink_on_resize (GstGLImageSink * gl_sink, gint width, gint height)
 
       src.x = 0;
       src.y = 0;
-      if (gl_sink->current_rotate_method == GST_GL_ROTATE_METHOD_90R
-          || gl_sink->current_rotate_method == GST_GL_ROTATE_METHOD_90L
-          || gl_sink->current_rotate_method == GST_GL_ROTATE_METHOD_FLIP_UL_LR
-          || gl_sink->current_rotate_method ==
-          GST_GL_ROTATE_METHOD_FLIP_UR_LL) {
+      if (gl_sink->current_rotate_method == GST_VIDEO_ORIENTATION_90R
+          || gl_sink->current_rotate_method == GST_VIDEO_ORIENTATION_90L
+          || gl_sink->current_rotate_method == GST_VIDEO_ORIENTATION_UL_LR
+          || gl_sink->current_rotate_method == GST_VIDEO_ORIENTATION_UR_LL) {
         src.h = GST_VIDEO_SINK_WIDTH (gl_sink);
         src.w = GST_VIDEO_SINK_HEIGHT (gl_sink);
       } else {
@@ -2218,9 +2321,9 @@ gst_glimage_sink_on_draw (GstGLImageSink * gl_sink)
 
   g_return_if_fail (GST_IS_GLIMAGE_SINK (gl_sink));
 
-  gl = gl_sink->context->gl_vtable;
-
   GST_GLIMAGE_SINK_LOCK (gl_sink);
+
+  gl = gl_sink->context->gl_vtable;
 
   /* check if texture is ready for being drawn */
   if (!gl_sink->redisplay_texture) {
@@ -2240,7 +2343,7 @@ gst_glimage_sink_on_draw (GstGLImageSink * gl_sink)
     gst_gl_sync_meta_wait (gl_sink->stored_sync_meta,
         gst_gl_context_get_current ());
 
-  /* make sure that the environnement is clean */
+  /* make sure that the environment is clean */
   gst_gl_context_clear_shader (gl_sink->context);
   gl->BindTexture (gl_target, 0);
 
@@ -2306,10 +2409,10 @@ gst_glimage_sink_on_draw (GstGLImageSink * gl_sink)
       if (gl_sink->transform_matrix) {
         gfloat tmp[16];
 
-        gst_gl_get_affine_transformation_meta_as_ndc_ext (af_meta, tmp);
+        gst_gl_get_affine_transformation_meta_as_ndc (af_meta, tmp);
         gst_gl_multiply_matrix4 (tmp, gl_sink->transform_matrix, matrix);
       } else {
-        gst_gl_get_affine_transformation_meta_as_ndc_ext (af_meta, matrix);
+        gst_gl_get_affine_transformation_meta_as_ndc (af_meta, matrix);
       }
 
       gst_gl_shader_set_uniform_matrix_4fv (gl_sink->redisplay_shader,
@@ -2353,6 +2456,9 @@ gst_glimage_sink_on_close (GstGLImageSink * gl_sink)
   if (gl_sink->mouse_sig_id)
     g_signal_handler_disconnect (window, gl_sink->mouse_sig_id);
   gl_sink->mouse_sig_id = 0;
+  if (gl_sink->mouse_scroll_sig_id)
+    g_signal_handler_disconnect (window, gl_sink->mouse_scroll_sig_id);
+  gl_sink->mouse_scroll_sig_id = 0;
 
   g_atomic_int_set (&gl_sink->to_quit, 1);
 

@@ -127,12 +127,11 @@ pad_added_plug_fakesink_cb (GstElement * decodebin, GstPad * srcpad,
   fail_unless (sink != NULL, "Failed to create fakesink element");
 
   gst_bin_add (GST_BIN (pipeline), sink);
+  gst_element_sync_state_with_parent (sink);
 
   sinkpad = gst_element_get_static_pad (sink, "sink");
   fail_unless_equals_int (gst_pad_link (srcpad, sinkpad), GST_PAD_LINK_OK);
   gst_object_unref (sinkpad);
-
-  gst_element_set_state (sink, GST_STATE_PLAYING);
 }
 
 GST_START_TEST (test_reuse_without_decoders)
@@ -632,7 +631,7 @@ GST_START_TEST (test_buffering_aggregation)
   fail_unless (gst_bin_add (GST_BIN (pipe), decodebin));
 
   /* to simulate the buffering scenarios we stuff 2 multiqueues inside
-   * decodebin. This is hacky, but sould make decodebin handle its buffering
+   * decodebin. This is hacky, but should make decodebin handle its buffering
    * messages all the same */
   mq0 = gst_element_factory_make ("multiqueue", NULL);
   mq1 = gst_element_factory_make ("multiqueue", NULL);
@@ -647,7 +646,7 @@ GST_START_TEST (test_buffering_aggregation)
   fail_unless_equals_int (gst_element_set_state (pipe, GST_STATE_PAUSED),
       GST_STATE_CHANGE_ASYNC);
 
-  /* currently we shoud have no buffering messages */
+  /* currently we should have no buffering messages */
   msg = gst_bus_poll (GST_ELEMENT_BUS (pipe), GST_MESSAGE_BUFFERING, 0);
   fail_unless (msg == NULL);
 

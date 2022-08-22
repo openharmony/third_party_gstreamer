@@ -25,13 +25,12 @@
  * Payload raw audio into RTP packets according to RFC 3551.
  * For detailed information see: http://www.rfc-editor.org/rfc/rfc3551.txt
  *
- * <refsect2>
- * <title>Example pipeline</title>
+ * ## Example pipeline
+ *
  * |[
  * gst-launch -v audiotestsrc ! audioconvert ! rtpL8pay ! udpsink
  * ]| This example pipeline will payload raw audio. Refer to
  * the rtpL8depay example to depayload and play the RTP stream.
- * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -43,6 +42,7 @@
 #include <gst/audio/audio.h>
 #include <gst/rtp/gstrtpbuffer.h>
 
+#include "gstrtpelements.h"
 #include "gstrtpL8pay.h"
 #include "gstrtpchannels.h"
 
@@ -80,6 +80,10 @@ gst_rtp_L8_pay_handle_buffer (GstRTPBasePayload * basepayload,
 
 #define gst_rtp_L8_pay_parent_class parent_class
 G_DEFINE_TYPE (GstRtpL8Pay, gst_rtp_L8_pay, GST_TYPE_RTP_BASE_AUDIO_PAYLOAD);
+
+
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (rtpL8pay, "rtpL8pay", GST_RANK_SECONDARY,
+    GST_TYPE_RTP_L8_PAY, rtp_element_init (plugin));
 
 static void
 gst_rtp_L8_pay_class_init (GstRtpL8PayClass * klass)
@@ -234,11 +238,4 @@ gst_rtp_L8_pay_handle_buffer (GstRTPBasePayload * basepayload,
 
   return GST_RTP_BASE_PAYLOAD_CLASS (parent_class)->handle_buffer (basepayload,
       buffer);
-}
-
-gboolean
-gst_rtp_L8_pay_plugin_init (GstPlugin * plugin)
-{
-  return gst_element_register (plugin, "rtpL8pay",
-      GST_RANK_SECONDARY, GST_TYPE_RTP_L8_PAY);
 }

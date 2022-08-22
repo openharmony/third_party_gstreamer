@@ -17,7 +17,6 @@ group("gstplugins_good_packages") {
   deps = [
     ":gstaudiofx",
     ":gstaudioparsers",
-    ":gstautodetect",
     ":gstisomp4",
     ":gstmatroska",
     ":gstmultifile",
@@ -64,19 +63,15 @@ config("gst_plugins_config") {
     "-DOHOS_OPT_CVE",
     "-DOHOS_EXT_FUNC",
     "-DOHOS_OPT_PERFORMANCE",
+    "-DG_LOG_DOMAIN=\"GStreamer\"",
   ]
 }
 
 ohos_source_set("audioparsers_source") {
   sources = [
     "gst/audioparsers/gstaacparse.c",
-    "gst/audioparsers/gstac3parse.c",
-    "gst/audioparsers/gstamrparse.c",
-    "gst/audioparsers/gstdcaparse.c",
     "gst/audioparsers/gstflacparse.c",
     "gst/audioparsers/gstmpegaudioparse.c",
-    "gst/audioparsers/gstsbcparse.c",
-    "gst/audioparsers/gstwavpackparse.c",
     "gst/audioparsers/plugin.c",
   ]
 
@@ -87,7 +82,6 @@ ohos_shared_library("gstaudioparsers") {
   deps = [
     ":audioparsers_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_base:gstaudio",
     "//third_party/gstreamer/gstplugins_base:gstpbutils",
@@ -103,10 +97,11 @@ ohos_shared_library("gstaudioparsers") {
 
 ohos_source_set("autodetect_source") {
   sources = [
-    "gst/audioparsers/gstaacparse.c",
     "gst/autodetect/gstautoaudiosink.c",
     "gst/autodetect/gstautoaudiosrc.c",
     "gst/autodetect/gstautodetect.c",
+    "gst/autodetect/gstautodetectelement.c",
+    "gst/autodetect/gstautodetectplugin.c",
     "gst/autodetect/gstautovideosink.c",
     "gst/autodetect/gstautovideosrc.c",
   ]
@@ -118,11 +113,8 @@ ohos_shared_library("gstautodetect") {
   deps = [
     ":autodetect_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
-    "//third_party/gstreamer/gstplugins_base:gstaudio",
     "//third_party/gstreamer/gstplugins_base:gstpbutils",
-    "//third_party/gstreamer/gstplugins_base:gsttag",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
@@ -162,16 +154,17 @@ ohos_source_set("isomp4_source") {
     "gst/isomp4/atomsrecovery.c",
     "gst/isomp4/descriptors.c",
     "gst/isomp4/gstisoff.c",
-    "gst/isomp4/gstqtmoovrecover.c",
-    "gst/isomp4/gstqtmux-doc.c",
+    "gst/isomp4/gstisomp4element.c",
     "gst/isomp4/gstqtmux.c",
     "gst/isomp4/gstqtmuxmap.c",
-    "gst/isomp4/gstrtpxqtdepay.c",
     "gst/isomp4/isomp4-plugin.c",
     "gst/isomp4/properties.c",
+    "gst/isomp4/qtdemux-webvtt.c",
     "gst/isomp4/qtdemux.c",
     "gst/isomp4/qtdemux_dump.c",
     "gst/isomp4/qtdemux_lang.c",
+    "gst/isomp4/qtdemux_tags.c",
+    "gst/isomp4/qtdemux_tree.c",
     "gst/isomp4/qtdemux_types.c",
   ]
 
@@ -182,12 +175,10 @@ ohos_shared_library("gstisomp4") {
   deps = [
     ":isomp4_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_base:gstaudio",
     "//third_party/gstreamer/gstplugins_base:gstpbutils",
     "//third_party/gstreamer/gstplugins_base:gstriff",
-    "//third_party/gstreamer/gstplugins_base:gstrtp",
     "//third_party/gstreamer/gstplugins_base:gsttag",
     "//third_party/gstreamer/gstplugins_base:gstvideo",
     "//third_party/gstreamer/gstreamer:gstbase",
@@ -210,9 +201,7 @@ ohos_shared_library("gstwavparse") {
   deps = [
     ":wavparse_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
-    "//third_party/gstreamer/gstplugins_base:gstaudio",
     "//third_party/gstreamer/gstplugins_base:gstpbutils",
     "//third_party/gstreamer/gstplugins_base:gstriff",
     "//third_party/gstreamer/gstreamer:gstbase",
@@ -227,13 +216,7 @@ ohos_shared_library("gstwavparse") {
 ohos_source_set("multifile_source") {
   sources = [
     "gst/multifile/gstmultifile.c",
-    "gst/multifile/gstmultifilesink.c",
-    "gst/multifile/gstmultifilesrc.c",
-    "gst/multifile/gstsplitmuxpartreader.c",
     "gst/multifile/gstsplitmuxsink.c",
-    "gst/multifile/gstsplitmuxsrc.c",
-    "gst/multifile/gstsplitutils.c",
-    "gst/multifile/patternspec.c",
   ]
 
   configs = [ ":gst_plugins_config" ]
@@ -243,11 +226,7 @@ ohos_shared_library("gstmultifile") {
   deps = [
     ":multifile_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
-    "//third_party/gstreamer/gstplugins_base:gstaudio",
-    "//third_party/gstreamer/gstplugins_base:gstpbutils",
-    "//third_party/gstreamer/gstplugins_base:gstriff",
     "//third_party/gstreamer/gstplugins_base:gstvideo",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
@@ -260,24 +239,8 @@ ohos_shared_library("gstmultifile") {
 
 ohos_source_set("audiofx_source") {
   sources = [
-    "gst/audiofx/audioamplify.c",
-    "gst/audiofx/audiochebband.c",
-    "gst/audiofx/audiocheblimit.c",
-    "gst/audiofx/audiodynamic.c",
-    "gst/audiofx/audioecho.c",
-    "gst/audiofx/audiofirfilter.c",
     "gst/audiofx/audiofx.c",
-    "gst/audiofx/audiofxbasefirfilter.c",
-    "gst/audiofx/audiofxbaseiirfilter.c",
-    "gst/audiofx/audioiirfilter.c",
-    "gst/audiofx/audioinvert.c",
-    "gst/audiofx/audiokaraoke.c",
-    "gst/audiofx/audiopanorama.c",
-    "gst/audiofx/audiopanoramaorc.c",
-    "gst/audiofx/audiowsincband.c",
-    "gst/audiofx/audiowsinclimit.c",
     "gst/audiofx/gstscaletempo.c",
-    "gst/audiofx/gststereo.c",
   ]
 
   configs = [ ":gst_plugins_config" ]
@@ -287,12 +250,8 @@ ohos_shared_library("gstaudiofx") {
   deps = [
     ":audiofx_source",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_base:gstaudio",
-    "//third_party/gstreamer/gstplugins_base:gstfft",
-    "//third_party/gstreamer/gstplugins_base:gstpbutils",
-    "//third_party/gstreamer/gstplugins_base:gsttag",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
@@ -305,10 +264,10 @@ ohos_shared_library("gstaudiofx") {
 ohos_source_set("gstsoup_source") {
   sources = [
     "ext/soup/gstsoup.c",
+    "ext/soup/gstsoupelement.c",
     "ext/soup/gstsouphttpsrc.c",
+    "ext/soup/gstsouploader.c",
     "ext/soup/gstsouputils.c",
-
-    #"ext/soup/gstsouphttpclientsink.c",
   ]
 
   configs = [ ":gst_plugins_config" ]
@@ -334,15 +293,13 @@ ohos_shared_library("gstsoup") {
 ohos_source_set("matroska_source") {
   sources = [
     "gst/matroska/ebml-read.c",
-    "gst/matroska/ebml-write.c",
+    "gst/matroska/gstmatroskaelement.c",
     "gst/matroska/lzo.c",
     "gst/matroska/matroska-demux.c",
     "gst/matroska/matroska-ids.c",
-    "gst/matroska/matroska-mux.c",
     "gst/matroska/matroska-parse.c",
     "gst/matroska/matroska-read-common.c",
     "gst/matroska/matroska.c",
-    "gst/matroska/webm-mux.c",
   ]
 
   configs = [ ":gst_plugins_config" ]
@@ -353,10 +310,8 @@ ohos_shared_library("gstmatroska") {
     ":matroska_source",
     "//third_party/bzip2:libbz2",
     "//third_party/glib:glib",
-    "//third_party/glib:gmodule",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_base:gstaudio",
-    "//third_party/gstreamer/gstplugins_base:gstfft",
     "//third_party/gstreamer/gstplugins_base:gstpbutils",
     "//third_party/gstreamer/gstplugins_base:gstriff",
     "//third_party/gstreamer/gstplugins_base:gsttag",

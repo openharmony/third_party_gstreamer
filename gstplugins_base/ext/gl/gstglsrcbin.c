@@ -22,6 +22,7 @@
 #include "config.h"
 #endif
 
+#include "gstglelements.h"
 #include "gstglsrcbin.h"
 
 GST_DEBUG_CATEGORY (gst_debug_gl_src_bin);
@@ -62,6 +63,8 @@ G_DEFINE_TYPE_WITH_CODE (GstGLSrcBin, gst_gl_src_bin,
     GST_TYPE_BIN,
     GST_DEBUG_CATEGORY_INIT (gst_debug_gl_src_bin, "glsrcbin", 0,
         "OpenGL Video Src Bin"));
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (glsrcbin, "glsrcbin",
+    GST_RANK_NONE, GST_TYPE_GL_SRC_BIN, gl_element_init (plugin));
 
 static void
 gst_gl_src_bin_class_init (GstGLSrcBinClass * klass)
@@ -96,8 +99,7 @@ gst_gl_src_bin_class_init (GstGLSrcBinClass * klass)
    */
   gst_gl_src_bin_signals[SIGNAL_CREATE_ELEMENT] =
       g_signal_new ("create-element", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL, g_cclosure_marshal_generic,
-      GST_TYPE_ELEMENT, 0);
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, GST_TYPE_ELEMENT, 0);
 
   gst_element_class_set_metadata (element_class,
       "GL Src Bin", "Src/Video",

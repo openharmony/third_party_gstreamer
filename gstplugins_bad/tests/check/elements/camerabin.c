@@ -256,7 +256,8 @@ enum
   PROP_LENS_FOCUS,
   PROP_MIN_EXPOSURE_TIME,
   PROP_MAX_EXPORURE_TIME,
-  PROP_NOISE_REDUCTION
+  PROP_NOISE_REDUCTION,
+  PROP_EXPOSURE_MODE
 };
 
 static gboolean
@@ -334,6 +335,7 @@ static GstFlowReturn
 gst_test_video_src_alloc (GstPushSrc * src, GstBuffer ** buf)
 {
   GstTestVideoSrc *self = GST_TEST_VIDEO_SRC (src);
+  GstVideoInfo vinfo;
   guint8 *data;
   gsize data_size;
 
@@ -343,7 +345,10 @@ gst_test_video_src_alloc (GstPushSrc * src, GstBuffer ** buf)
     self->caps = NULL;
   }
 
-  data_size = self->width * self->height * 3;   /* RGB size */
+  gst_video_info_set_format (&vinfo, GST_VIDEO_FORMAT_RGB, self->width,
+      self->height);
+
+  data_size = vinfo.size;
   data = g_malloc (data_size);
   *buf = gst_buffer_new_wrapped (data, data_size);
 
@@ -424,6 +429,8 @@ gst_test_video_src_class_init (GstTestVideoSrcClass * klass)
       GST_PHOTOGRAPHY_PROP_MAX_EXPOSURE_TIME);
   g_object_class_override_property (gobject_class, PROP_NOISE_REDUCTION,
       GST_PHOTOGRAPHY_PROP_NOISE_REDUCTION);
+  g_object_class_override_property (gobject_class, PROP_EXPOSURE_MODE,
+      GST_PHOTOGRAPHY_PROP_EXPOSURE_MODE);
 }
 
 static void

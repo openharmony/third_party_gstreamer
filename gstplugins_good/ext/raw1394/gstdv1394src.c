@@ -21,16 +21,16 @@
  */
 /**
  * SECTION:element-dv1394src
+ * @title: dv1394src
  *
  * Read DV (digital video) data from firewire port.
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * gst-launch-1.0 dv1394src ! queue ! dvdemux name=d ! queue ! dvdec ! xvimagesink d. ! queue ! alsasink
  * ]| This pipeline captures from the firewire port and displays it (might need
  * format converters for audio/video).
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -146,6 +146,8 @@ static void gst_dv1394src_update_device_name (GstDV1394Src * src);
 G_DEFINE_TYPE_WITH_CODE (GstDV1394Src, gst_dv1394src, GST_TYPE_PUSH_SRC,
     G_IMPLEMENT_INTERFACE (GST_TYPE_URI_HANDLER,
         gst_dv1394src_uri_handler_init));
+GST_ELEMENT_REGISTER_DEFINE (dv1394src, "dv1394src", GST_RANK_NONE,
+    GST_TYPE_DV1394SRC);
 
 static guint gst_dv1394src_signals[LAST_SIGNAL] = { 0 };
 
@@ -171,8 +173,7 @@ gst_dv1394src_class_init (GstDV1394SrcClass * klass)
 
   gst_dv1394src_signals[SIGNAL_FRAME_DROPPED] =
       g_signal_new ("frame-dropped", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, G_STRUCT_OFFSET (GstDV1394SrcClass, frame_dropped),
-      NULL, NULL, g_cclosure_marshal_VOID__VOID, G_TYPE_NONE, 0);
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 0);
 
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_PORT,
       g_param_spec_int ("port", "Port", "Port number (-1 automatic)",

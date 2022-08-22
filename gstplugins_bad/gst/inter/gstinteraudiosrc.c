@@ -17,7 +17,7 @@
  * Boston, MA 02110-1335, USA.
  */
 /**
- * SECTION:element-gstinteraudiosrc
+ * SECTION:element-interaudiosrc
  * @title: gstinteraudiosrc
  *
  * The interaudiosrc element is an audio source element.  It is used
@@ -95,6 +95,8 @@ GST_STATIC_PAD_TEMPLATE ("src",
 /* class initialization */
 #define parent_class gst_inter_audio_src_parent_class
 G_DEFINE_TYPE (GstInterAudioSrc, gst_inter_audio_src, GST_TYPE_BASE_SRC);
+GST_ELEMENT_REGISTER_DEFINE (interaudiosrc, "interaudiosrc",
+    GST_RANK_NONE, GST_TYPE_INTER_AUDIO_SRC);
 
 static void
 gst_inter_audio_src_class_init (GstInterAudioSrcClass * klass)
@@ -402,7 +404,7 @@ gst_inter_audio_src_create (GstBaseSrc * src, guint64 offset, guint size,
         period_samples - n);
     mem = gst_allocator_alloc (NULL, (period_samples - n) * bpf, NULL);
     if (gst_memory_map (mem, &map, GST_MAP_WRITE)) {
-      gst_audio_format_fill_silence (interaudiosrc->info.finfo, map.data,
+      gst_audio_format_info_fill_silence (interaudiosrc->info.finfo, map.data,
           map.size);
       gst_memory_unmap (mem, &map);
     }

@@ -120,22 +120,37 @@ static void
 check_all_streams_for_eos (GstDecodebin3 * dbin)
 {
   GList *tmp;
+  GList *outputpads = NULL;
 
   if (!all_inputs_are_eos (dbin))
     return;
 
   /* We know all streams are EOS, properly clean up everything */
+
+  /* We grab all peer pads *while* the selection lock is taken and then we will
+     push EOS downstream with the selection lock released */
   for (tmp = dbin->input_streams; tmp; tmp = tmp->next) {
     DecodebinInputStream *input = (DecodebinInputStream *) tmp->data;
     GstPad *peer = gst_pad_get_peer (input->srcpad);
 
-    /* Send EOS and then remove elements */
-    if (peer) {
-      gst_pad_send_event (peer, gst_event_new_eos ());
-      gst_object_unref (peer);
-    }
-    GST_FIXME_OBJECT (input->srcpad, "Remove input stream");
+    /* Keep a reference to the peer pad */
+    if (peer)
+      outputpads = g_list_append (outputpads, peer);
   }
+
+  SELECTION_UNLOCK (dbin);
+  /*  */
+  for (tmp = outputpads; tmp; tmp = tmp->next) {
+    GstPad *peer = (GstPad *) tmp->data;
+
+    /* Send EOS and then remove elements */
+    gst_pad_send_event (peer, gst_event_new_eos ());
+    GST_FIXME_OBJECT (peer, "Remove input stream");
+    gst_object_unref (peer);
+  }
+  SELECTION_LOCK (dbin);
+
+  g_list_free (outputpads);
 }
 
 /* Get the intersection of parser caps and available (sorted) decoders */
@@ -143,7 +158,13 @@ static GstCaps *
 get_parser_caps_filter (GstDecodebin3 * dbin, GstCaps * caps)
 {
   GList *tmp;
-  GstCaps *filter_caps = gst_caps_new_empty ();
+  GstCaps *filter_caps;
+
+  /* If no filter was provided, it can handle anything */
+  if (!caps || gst_caps_is_any (caps))
+    return gst_caps_new_any ();
+
+  filter_caps = gst_caps_new_empty ();
 
   g_mutex_lock (&dbin->factories_lock);
   gst_decode_bin_update_factories_list (dbin);
@@ -402,19 +423,11 @@ remove_input_stream (GstDecodebin3 * dbin, DecodebinInputStream * stream)
   g_free (stream);
 }
 
-
-/* FIXME : HACK, REMOVE, USE INPUT CHAINS */
-static GstPadProbeReturn
-parsebin_buffer_probe (GstPad * pad, GstPadProbeInfo * info,
-    DecodebinInput * input)
+static void
+unblock_pending_input (DecodebinInput * input)
 {
   GstDecodebin3 *dbin = input->dbin;
   GList *tmp, *unused_slot = NULL;
-
-  GST_DEBUG_OBJECT (pad, "Got a buffer ! UNBLOCK !");
-
-  /* Any data out the demuxer means it's not creating pads
-   * any more right now */
 
   /* 1. Re-use existing streams if/when possible */
   GST_FIXME_OBJECT (dbin, "Re-use existing input streams if/when possible");
@@ -504,6 +517,18 @@ parsebin_buffer_probe (GstPad * pad, GstPadProbeInfo * info,
   if (unused_slot)
     g_list_free_full (unused_slot, (GDestroyNotify) gst_object_unref);
 
+}
+
+/* FIXME : HACK, REMOVE, USE INPUT CHAINS */
+static GstPadProbeReturn
+parsebin_buffer_probe (GstPad * pad, GstPadProbeInfo * info,
+    DecodebinInput * input)
+{
+  /* Any data out the demuxer means it's not creating pads
+   * any more right now */
+  GST_DEBUG_OBJECT (pad, "Got a buffer ! UNBLOCK !");
+  unblock_pending_input (input);
+
   return GST_PAD_PROBE_OK;
 }
 
@@ -527,8 +552,15 @@ parsebin_pending_event_probe (GstPad * pad, GstPadProbeInfo * info,
       gst_pad_remove_probe (ppad->pad, ppad->event_probe);
       g_free (ppad);
 
+      SELECTION_LOCK (dbin);
       check_all_streams_for_eos (dbin);
+      SELECTION_UNLOCK (dbin);
     }
+      break;
+    case GST_EVENT_GAP:
+      GST_DEBUG_OBJECT (pad, "Got a gap event! UNBLOCK !");
+      unblock_pending_input (ppad->input);
+      ret = GST_PAD_PROBE_OK;
       break;
     default:
       break;

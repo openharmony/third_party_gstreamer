@@ -23,13 +23,13 @@
 
 /**
  * SECTION:element-pulsesink
+ * @title: pulsesink
  * @see_also: pulsesrc
  *
  * This element outputs audio to a
- * <ulink href="http://www.pulseaudio.org">PulseAudio sound server</ulink>.
+ * [PulseAudio sound server](http://www.pulseaudio.org).
  *
- * <refsect2>
- * <title>Example pipelines</title>
+ * ## Example pipelines
  * |[
  * gst-launch-1.0 -v filesrc location=sine.ogg ! oggdemux ! vorbisdec ! audioconvert ! audioresample ! pulsesink
  * ]| Play an Ogg/Vorbis file.
@@ -40,7 +40,7 @@
  * gst-launch-1.0 -v audiotestsrc ! pulsesink stream-properties="props,media.title=test"
  * ]| Play a sine wave and set a stream property. The property can be checked
  * with "pactl list".
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -59,6 +59,7 @@
 
 #include <gst/glib-compat-private.h>
 
+#include "gstpulseelements.h"
 #include "pulsesink.h"
 #include "pulseutil.h"
 
@@ -154,7 +155,7 @@ static guint mainloop_ref_ct = 0;
 static GMutex pa_shared_resource_mutex;
 
 /* We keep a custom ringbuffer that is backed up by data allocated by
- * pulseaudio. We must also overide the commit function to write into
+ * pulseaudio. We must also override the commit function to write into
  * pulseaudio memory instead. */
 struct _GstPulseRingBuffer
 {
@@ -545,7 +546,7 @@ gst_pulseringbuffer_open_device (GstAudioRingBuffer * buf)
         gst_pulsering_context_subscribe_cb, pctx);
 
     /* try to connect to the server and wait for completion, we don't want to
-     * autospawn a deamon */
+     * autospawn a daemon */
     GST_LOG_OBJECT (psink, "connect to server %s",
         GST_STR_NULL (psink->server));
     if (pa_context_connect (pctx->context, psink->server,
@@ -685,7 +686,7 @@ gst_pulsering_stream_request_cb (pa_stream * s, size_t length, void *userdata)
 
   if (pbuf->in_commit && (length >= rbuf->spec.segsize)) {
     /* only signal when we are waiting in the commit thread
-     * and got request for atleast a segment */
+     * and got request for at least a segment */
     pa_threaded_mainloop_signal (mainloop, 0);
   }
 }
@@ -1820,6 +1821,8 @@ G_DEFINE_TYPE_WITH_CODE (GstPulseSink, gst_pulsesink, GST_TYPE_AUDIO_BASE_SINK,
     gst_pulsesink_init_contexts ();
     G_IMPLEMENT_INTERFACE (GST_TYPE_STREAM_VOLUME, NULL)
     );
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (pulsesink, "pulsesink",
+    GST_RANK_PRIMARY + 10, GST_TYPE_PULSESINK, pulse_element_init (plugin));
 
 static GstAudioRingBuffer *
 gst_pulsesink_create_ringbuffer (GstAudioBaseSink * sink)
@@ -1959,7 +1962,7 @@ gst_pulsesink_class_init (GstPulseSinkClass * klass)
    * GstPulseSink:stream-properties:
    *
    * List of pulseaudio stream properties. A list of defined properties can be
-   * found in the <ulink url="http://0pointer.de/lennart/projects/pulseaudio/doxygen/proplist_8h.html">pulseaudio api docs</ulink>.
+   * found in the [pulseaudio api docs](http://0pointer.de/lennart/projects/pulseaudio/doxygen/proplist_8h.html).
    *
    * Below is an example for registering as a music application to pulseaudio.
    * |[
@@ -2431,7 +2434,7 @@ gst_pulsesink_set_volume (GstPulseSink * psink, gdouble volume)
   if (pbuf->is_pcm)
     gst_pulse_cvolume_from_linear (&v, pbuf->channels, volume);
   else
-    /* FIXME: this will eventually be superceded by checks to see if the volume
+    /* FIXME: this will eventually be superseded by checks to see if the volume
      * is readable/writable */
     goto unlock;
 
@@ -3003,7 +3006,7 @@ gst_pulsesink_change_props (GstPulseSink * psink, GstTagList * l)
   static const gchar *const map[] = {
     GST_TAG_TITLE, PA_PROP_MEDIA_TITLE,
 
-    /* might get overriden in the next iteration by GST_TAG_ARTIST */
+    /* might get overridden in the next iteration by GST_TAG_ARTIST */
     GST_TAG_PERFORMER, PA_PROP_MEDIA_ARTIST,
 
     GST_TAG_ARTIST, PA_PROP_MEDIA_ARTIST,

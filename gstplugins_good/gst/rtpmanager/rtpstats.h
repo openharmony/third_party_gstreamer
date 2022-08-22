@@ -27,6 +27,9 @@
 #include <gst/rtp/rtp.h>
 #include <gio/gio.h>
 
+/* UDP/IP is assumed for bandwidth calculation */
+#define UDP_IP_HEADER_OVERHEAD 28
+
 /**
  * RTPSenderReport:
  *
@@ -48,7 +51,7 @@ typedef struct {
  */
 typedef struct {
   gboolean is_valid;
-  guint32 ssrc; /* who the report is from */
+  guint32 ssrc; /* which source is the report about */
   guint8  fractionlost;
   guint32 packetslost;
   guint32 exthighestseq;
@@ -67,6 +70,7 @@ typedef struct {
  * @address: address of the sender of the packet
  * @current_time: current time according to the system clock
  * @running_time: time of a packet as buffer running_time
+ * @arrival_time: time of arrival of a packet
  * @ntpnstime: time of a packet NTP time in nanoseconds
  * @header_len: number of overhead bytes per packet
  * @bytes: bytes of the packet including lowlevel overhead
@@ -74,6 +78,10 @@ typedef struct {
  * @seqnum: the seqnum of the packet
  * @pt: the payload type of the packet
  * @rtptime: the RTP time of the packet
+ * @marker: the marker bit
+ *
+ * @tw_seqnum_ext_id: the extension-header ID for transport-wide seqnums
+ * @tw_seqnum: the transport-wide seqnum of the packet
  *
  * Structure holding information about the packet.
  */
@@ -85,6 +93,7 @@ typedef struct {
   GSocketAddress *address;
   GstClockTime  current_time;
   GstClockTime  running_time;
+  GstClockTime  arrival_time;
   guint64       ntpnstime;
   guint         header_len;
   guint         bytes;
@@ -94,8 +103,11 @@ typedef struct {
   guint16       seqnum;
   guint8        pt;
   guint32       rtptime;
+  gboolean      marker;
   guint32       csrc_count;
   guint32       csrcs[16];
+  GBytes        *header_ext;
+  guint16       header_ext_bit_pattern;
 } RTPPacketInfo;
 
 /**
@@ -242,6 +254,27 @@ typedef struct {
   guint         nacks_received;
 } RTPSessionStats;
 
+/**
+ * RTPTWCCStats:
+ *
+ * Stats kept for a session and used to produce TWCC stats.
+ */
+typedef struct {
+  GArray       *packets;
+  GstClockTime window_size;
+  GstClockTime  last_local_ts;
+  GstClockTime  last_remote_ts;
+
+  guint bitrate_sent;
+  guint bitrate_recv;
+  guint packets_sent;
+  guint packets_recv;
+  gfloat packet_loss_pct;
+  GstClockTimeDiff avg_delta_of_delta;
+  gfloat avg_delta_of_delta_change;
+} RTPTWCCStats;
+
+
 void           rtp_stats_init_defaults              (RTPSessionStats *stats);
 
 void           rtp_stats_set_bandwidths             (RTPSessionStats *stats,
@@ -260,5 +293,11 @@ void           rtp_stats_set_min_interval           (RTPSessionStats *stats,
 
 gboolean __g_socket_address_equal (GSocketAddress *a, GSocketAddress *b);
 gchar * __g_socket_address_to_string (GSocketAddress * addr);
+
+RTPTWCCStats * rtp_twcc_stats_new (void);
+void rtp_twcc_stats_free (RTPTWCCStats * stats);
+GstStructure * rtp_twcc_stats_process_packets (RTPTWCCStats * stats,
+    GArray * twcc_packets);
+GstStructure * rtp_twcc_stats_get_packets_structure (GArray * twcc_packets);
 
 #endif /* __RTP_STATS_H__ */

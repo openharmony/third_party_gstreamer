@@ -192,6 +192,8 @@ GST_START_TEST (test_musicbrainz_tag_registration)
   gst_vorbis_tag_add (list, "MUSICBRAINZ_ARTISTID", "234567");
   gst_vorbis_tag_add (list, "MUSICBRAINZ_ALBUMID", "345678");
   gst_vorbis_tag_add (list, "MUSICBRAINZ_ALBUMARTISTID", "4567890");
+  gst_vorbis_tag_add (list, "MUSICBRAINZ_RELEASETRACKID", "4567891");
+  gst_vorbis_tag_add (list, "MUSICBRAINZ_RELEASEGROUPID", "4567892");
   gst_vorbis_tag_add (list, "MUSICBRAINZ_TRMID", "5678901");
   /* MUSICBRAINZ_SORTNAME = GST_TAG_ARTIST_SORTNAME now */
   gst_vorbis_tag_add (list, "MUSICBRAINZ_SORTNAME", "Five, 678901");
@@ -201,6 +203,10 @@ GST_START_TEST (test_musicbrainz_tag_registration)
   ASSERT_TAG_LIST_HAS_STRING (list, GST_TAG_MUSICBRAINZ_ALBUMID, "345678");
   ASSERT_TAG_LIST_HAS_STRING (list, GST_TAG_MUSICBRAINZ_ALBUMARTISTID,
       "4567890");
+  ASSERT_TAG_LIST_HAS_STRING (list, GST_TAG_MUSICBRAINZ_RELEASETRACKID,
+      "4567891");
+  ASSERT_TAG_LIST_HAS_STRING (list, GST_TAG_MUSICBRAINZ_RELEASEGROUPID,
+      "4567892");
   ASSERT_TAG_LIST_HAS_STRING (list, GST_TAG_MUSICBRAINZ_TRMID, "5678901");
   ASSERT_TAG_LIST_HAS_STRING (list, GST_TAG_ARTIST_SORTNAME, "Five, 678901");
 
@@ -247,6 +253,8 @@ GST_START_TEST (test_vorbis_tags)
   gst_vorbis_tag_add (list, "CONTACT", "Coo");
   gst_vorbis_tag_add (list, "COMMENT", "Stroodle is good");
   gst_vorbis_tag_add (list, "COMMENT", "Peroxysulfid stroodles the brain");
+  gst_vorbis_tag_add (list, "ACOUSTID_ID", "5678913");
+  gst_vorbis_tag_add (list, "ACOUSTID_FINGERPRINT", "5678912");
 
   gst_vorbis_tag_add (list, "TRACKNUMBER", "5");
   gst_vorbis_tag_add (list, "TRACKTOTAL", "77");
@@ -269,6 +277,8 @@ GST_START_TEST (test_vorbis_tags)
   ASSERT_TAG_LIST_HAS_STRING (list, GST_TAG_CONTACT, "Coo");
   ASSERT_TAG_LIST_HAS_STRING (list, GST_TAG_COMMENT,
       "Peroxysulfid stroodles the brain");
+  ASSERT_TAG_LIST_HAS_STRING (list, GST_TAG_ACOUSTID_ID, "5678913");
+  ASSERT_TAG_LIST_HAS_STRING (list, GST_TAG_ACOUSTID_FINGERPRINT, "5678912");
   ASSERT_TAG_LIST_HAS_STRING (list, GST_TAG_COMMENT, "Stroodle is good");
   ASSERT_TAG_LIST_HAS_UINT (list, GST_TAG_TRACK_NUMBER, 5);
   ASSERT_TAG_LIST_HAS_UINT (list, GST_TAG_TRACK_COUNT, 77);
@@ -1121,7 +1131,7 @@ GST_START_TEST (test_xmp_formatting)
 
   /* test data */
   list = gst_tag_list_new (GST_TAG_TITLE, "test title",
-      GST_TAG_DESCRIPTION, "test decription",
+      GST_TAG_DESCRIPTION, "test description",
       GST_TAG_KEYWORDS, "keyword1", GST_TAG_KEYWORDS, "keyword2", NULL);
 
   buf = gst_tag_list_to_xmp_buffer (list, FALSE, NULL);
@@ -1134,7 +1144,7 @@ GST_START_TEST (test_xmp_formatting)
   /* check the content */
   fail_unless (g_strrstr_len (text, len, "<?xpacket begin") == text);
   fail_unless (g_strrstr_len (text, len, ">test title<") != NULL);
-  fail_unless (g_strrstr_len (text, len, ">test decription<") != NULL);
+  fail_unless (g_strrstr_len (text, len, ">test description<") != NULL);
   fail_unless (g_strrstr_len (text, len, ">keyword1<") != NULL);
   fail_unless (g_strrstr_len (text, len, ">keyword2<") != NULL);
   fail_unless (g_strrstr_len (text, len, "<?xpacket end") != NULL);

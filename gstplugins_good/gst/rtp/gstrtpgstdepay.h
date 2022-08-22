@@ -46,7 +46,7 @@ struct _GstRtpGSTDepay
 
   GstAdapter *adapter;
   guint current_CV;
-  GstCaps *CV_cache[8];
+  GstCaps *current_caps;
 
   GstTagList *tags;
   gchar *stream_id;
@@ -58,8 +58,6 @@ struct _GstRtpGSTDepayClass
 };
 
 GType gst_rtp_gst_depay_get_type (void);
-
-gboolean gst_rtp_gst_depay_plugin_init (GstPlugin * plugin);
 
 G_END_DECLS
 

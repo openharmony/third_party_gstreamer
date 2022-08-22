@@ -1,5 +1,5 @@
 /* GStreamer split muxer bin
- * Copyright (C) 2014 Jan Schmidt <jan@centricular.com>
+ * Copyright (C) 2014-2019 Jan Schmidt <jan@centricular.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -34,7 +34,6 @@ typedef struct _GstSplitMuxSink GstSplitMuxSink;
 typedef struct _GstSplitMuxSinkClass GstSplitMuxSinkClass;
 
 GType gst_splitmux_sink_get_type (void);
-gboolean register_splitmuxsink (GstPlugin * plugin);
 
 typedef enum _SplitMuxInputState
 {
@@ -50,6 +49,7 @@ typedef enum _SplitMuxOutputState
   SPLITMUX_OUTPUT_STATE_AWAITING_COMMAND,       /* Waiting first command packet from input */
   SPLITMUX_OUTPUT_STATE_OUTPUT_GOP,     /* Outputting a collected GOP */
   SPLITMUX_OUTPUT_STATE_ENDING_FILE,    /* Finishing the current fragment */
+  SPLITMUX_OUTPUT_STATE_ENDING_STREAM,  /* Finishing up the entire stream due to input EOS */
   SPLITMUX_OUTPUT_STATE_START_NEXT_FILE /* Restarting after ENDING_FILE */
 } SplitMuxOutputState;
 
@@ -66,6 +66,26 @@ typedef struct _MqStreamBuf
   guint64 buf_size;
   GstClockTime duration;
 } MqStreamBuf;
+
+typedef struct {
+  /* For the very first GOP if it was created from a GAP event */
+  gboolean from_gap;
+
+  /* Minimum start time (PTS or DTS) of the GOP */
+  GstClockTimeDiff start_time;
+  /* Start time (PTS) of the GOP */
+  GstClockTimeDiff start_time_pts;
+  /* Minimum start timecode of the GOP */
+  GstVideoTimeCode *start_tc;
+
+  /* Number of bytes we've collected into the GOP */
+  guint64 total_bytes;
+  /* Number of bytes from the reference context
+   * that we've collected into the GOP */
+  guint64 reference_bytes;
+
+  gboolean sent_fku;
+} InputGop;
 
 typedef struct _MqStreamCtx
 {
@@ -84,14 +104,13 @@ typedef struct _MqStreamCtx
   gboolean out_eos_async_done;
   gboolean need_unblock;
   gboolean caps_change;
+  gboolean is_releasing;
 
   GstSegment in_segment;
   GstSegment out_segment;
 
   GstClockTimeDiff in_running_time;
   GstClockTimeDiff out_running_time;
-
-  GstBuffer *prev_in_keyframe; /* store keyframe for each GOP */
 
   GstElement *q;
   GQueue queued_bufs;
@@ -107,7 +126,11 @@ struct _GstSplitMuxSink
 {
   GstBin parent;
 
+  GMutex state_lock;
+  gboolean shutdown;
+
   GMutex lock;
+
   GCond input_cond;
   GCond output_cond;
 
@@ -118,8 +141,11 @@ struct _GstSplitMuxSink
   guint max_files;
   gboolean send_keyframe_requests;
   gchar *threshold_timecode_str;
-  GstClockTime next_max_tc_time;
+  /* created from threshold_timecode_str */
+  GstVideoTimeCodeInterval *tc_interval;
   GstClockTime alignment_threshold;
+  /* expected running time of next force keyframe unit event */
+  GstClockTime next_fku_time;
 
   gboolean reset_muxer;
 
@@ -135,21 +161,32 @@ struct _GstSplitMuxSink
 
   gchar *location;
   guint fragment_id;
-
+  guint start_index;
   GList *contexts;
 
   SplitMuxInputState input_state;
   GstClockTimeDiff max_in_running_time;
+  GstClockTimeDiff max_in_running_time_dts;
+
   /* Number of bytes sent to the
    * current fragment */
   guint64 fragment_total_bytes;
-  /* Number of bytes we've collected into
-   * the GOP that's being collected */
-  guint64 gop_total_bytes;
-  /* Start time of the current fragment */
+  /* Number of bytes for the reference
+   * stream in this fragment */
+  guint64 fragment_reference_bytes;
+
+  /* Minimum start time (PTS or DTS) of the current fragment */
   GstClockTimeDiff fragment_start_time;
-  /* Start time of the current GOP */
-  GstClockTimeDiff gop_start_time;
+  /* Start time (PTS) of the current fragment */
+  GstClockTimeDiff fragment_start_time_pts;
+  /* Minimum start timecode of the current fragment */
+  GstVideoTimeCode *fragment_start_tc;
+
+  /* Oldest GOP at head, newest GOP at tail */
+  GQueue pending_input_gops;
+
+  /* expected running time of next fragment in timecode mode */
+  GstClockTime next_fragment_start_tc_time;
 
   GQueue out_cmd_q;             /* Queue of commands for output thread */
 
@@ -179,9 +216,13 @@ struct _GstSplitMuxSink
   /* Async finalize options */
   gboolean async_finalize;
   gchar *muxer_factory;
+  gchar *muxer_preset;
   GstStructure *muxer_properties;
   gchar *sink_factory;
+  gchar *sink_preset;
   GstStructure *sink_properties;
+
+  GstStructure *muxerpad_map;
 };
 
 struct _GstSplitMuxSinkClass
@@ -193,6 +234,8 @@ struct _GstSplitMuxSinkClass
   void     (*split_after) (GstSplitMuxSink * splitmux);
   void     (*split_at_running_time)   (GstSplitMuxSink * splitmux, GstClockTime split_time);
 };
+
+GST_ELEMENT_REGISTER_DECLARE (splitmuxsink);
 
 G_END_DECLS
 #endif /* __GST_SPLITMUXSINK_H__ */

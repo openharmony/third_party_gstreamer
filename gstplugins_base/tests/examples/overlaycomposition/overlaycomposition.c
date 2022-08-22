@@ -27,6 +27,7 @@
 #include <math.h>
 
 #include <gio/gio.h>
+#include <stdlib.h>
 
 #define VIDEO_WIDTH 720
 #define VIDEO_HEIGHT 480
@@ -254,15 +255,39 @@ main (int argc, char **argv)
   GstBus *bus;
   GstCaps *filter_caps;
   OverlayState overlay_state = { 0, };
+  GOptionContext *option_ctx;
+  GError *error = NULL;
+  gchar *video_sink = NULL;
+  gboolean ret;
+  GOptionEntry options[] = {
+    {"videosink", 0, 0, G_OPTION_ARG_STRING, &video_sink,
+        "Video sink element to use (default is autovideosink)", NULL},
+    {NULL}
+  };
 
-  gst_init (&argc, &argv);
+  option_ctx = g_option_context_new ("- test overlaycomposition");
+  g_option_context_add_main_entries (option_ctx, options, NULL);
+  g_option_context_add_group (option_ctx, gst_init_get_option_group ());
+  ret = g_option_context_parse (option_ctx, &argc, &argv, &error);
+  g_option_context_free (option_ctx);
+
+  if (!ret) {
+    g_printerr ("option parsing failed: %s\n", error->message);
+    g_clear_error (&error);
+    exit (1);
+  }
 
   pipeline = gst_pipeline_new (NULL);
   src = gst_element_factory_make ("videotestsrc", NULL);
   capsfilter = gst_element_factory_make ("capsfilter", NULL);
   overlay = gst_element_factory_make ("overlaycomposition", NULL);
   conv = gst_element_factory_make ("videoconvert", NULL);
-  sink = gst_element_factory_make ("autovideosink", NULL);
+
+  if (!video_sink)
+    video_sink = g_strdup ("autovideosink");
+
+  sink = gst_element_factory_make (video_sink, NULL);
+  g_free (video_sink);
 
   if (!pipeline || !src || !capsfilter || !overlay || !conv || !sink) {
     g_error ("Failed to create elements");

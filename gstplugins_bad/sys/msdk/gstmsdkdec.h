@@ -54,6 +54,8 @@ G_BEGIN_DECLS
 #define GST_IS_MSDKDEC_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_MSDKDEC))
 
+#define MAX_BS_EXTRA_PARAMS             8
+
 typedef struct _GstMsdkDec GstMsdkDec;
 typedef struct _GstMsdkDecClass GstMsdkDecClass;
 typedef struct _MsdkDecTask MsdkDecTask;
@@ -65,9 +67,7 @@ struct _GstMsdkDec
   /* input description */
   GstVideoCodecState *input_state;
   /* aligned msdk pool info */
-  GstVideoInfo output_info;
   GstBufferPool *pool;
-  GstCaps *allocation_caps;
   /* downstream pool info based on allocation query */
   GstVideoInfo non_msdk_pool_info;
   mfxFrameAllocResponse alloc_resp;
@@ -77,7 +77,6 @@ struct _GstMsdkDec
 
   /* for packetization */
   GstAdapter *adapter;
-  gboolean is_packetized;
   /* cap negotiation needed, allocation may or may not be required*/
   gboolean do_renego;
   /* re-allocation is mandatory if enabled */
@@ -91,15 +90,24 @@ struct _GstMsdkDec
 
   /* MFX context */
   GstMsdkContext *context;
+  GstMsdkContext *old_context;
   mfxVideoParam param;
   GArray *tasks;
   guint next_task;
 
-  GList *decoded_msdk_surfaces;
+  GList *locked_msdk_surfaces;
 
   /* element properties */
   gboolean hardware;
+  gboolean report_error;
   guint async_depth;
+
+  mfxExtBuffer *bs_extra_params[MAX_BS_EXTRA_PARAMS];
+  guint num_bs_extra_params;
+
+#if (MFX_VERSION >= 1025)
+  mfxExtDecodeErrorReport error_report;
+#endif
 };
 
 struct _GstMsdkDecClass
@@ -108,21 +116,19 @@ struct _GstMsdkDecClass
 
   gboolean (*configure) (GstMsdkDec * decoder);
 
+  /* adjust mfx parameters per codec after decode header */
+  gboolean (*post_configure) (GstMsdkDec * decoder);
+
   /* reset mfx parameters per codec */
   gboolean (*preinit_decoder) (GstMsdkDec * decoder);
   /* adjust mfx parameters per codec */
   gboolean (*postinit_decoder) (GstMsdkDec * decoder);
 };
 
-struct _MsdkDecTask
-{
-  mfxFrameSurface1 *surface;
-  mfxSyncPoint sync_point;
-
-  gboolean decode_only;
-};
-
 GType gst_msdkdec_get_type (void);
+
+void
+gst_msdkdec_add_bs_extra_param (GstMsdkDec * thiz, mfxExtBuffer * param);
 
 G_END_DECLS
 

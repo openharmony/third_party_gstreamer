@@ -47,7 +47,7 @@
 
 #include "io-sim.h"
 
-/**
+/*
  * @addtogroup Rawenc Raw VBI encoder
  * @ingroup Raw
  * @brief Converting sliced VBI data to raw VBI images.
@@ -375,7 +375,7 @@ clear_image (uint8_t * p,
   }
 }
 
-/**
+/*
  * @param raw Noise will be added to this raw VBI image.
  * @param sp Describes the raw VBI data in the buffer. @a sp->sampling_format
  *   must be @c VBI_PIXFMT_Y8 (@c VBI_PIXFMT_YUV420 in libzvbi 0.2.x).
@@ -541,7 +541,7 @@ signal_u8 (uint8_t * raw,
       }
     } else {
     bounds:
-      warning (caller, "Sliced line %u out of bounds.", sliced->line);
+      warn (caller, "Sliced line %u out of bounds.", sliced->line);
       return FALSE;
     }
 
@@ -620,7 +620,7 @@ signal_u8 (uint8_t * raw,
         break;
 
       default:
-        warning (caller,
+        warn (caller,
             "Service 0x%08x (%s) not supported.",
             sliced->id, vbi_sliced_name (sliced->id));
         return FALSE;
@@ -646,7 +646,7 @@ _vbi_raw_vbi_image (uint8_t * raw,
 
   n_scan_lines = sp->count[0] + sp->count[1];
   if (unlikely (n_scan_lines * sp->bytes_per_line > raw_size)) {
-    warning (__FUNCTION__,
+    warn (__FUNCTION__,
         "(%u + %u lines) * %lu bytes_per_line "
         "> %lu raw_size.",
         sp->count[0], sp->count[1],
@@ -655,7 +655,7 @@ _vbi_raw_vbi_image (uint8_t * raw,
   }
 
   if (unlikely (0 != white_level && blank_level > white_level)) {
-    warning (__FUNCTION__,
+    warn (__FUNCTION__,
         "Invalid blanking %d or peak white level %d.",
         blank_level, white_level);
   }
@@ -796,7 +796,7 @@ _vbi_raw_video_image (uint8_t * raw,
 
   n_scan_lines = sp->count[0] + sp->count[1];
   if (unlikely (n_scan_lines * sp->bytes_per_line > raw_size)) {
-    warning (__FUNCTION__,
+    warn (__FUNCTION__,
         "%u + %u lines * %lu bytes_per_line > %lu raw_size.",
         sp->count[0], sp->count[1],
         (unsigned long) sp->bytes_per_line, raw_size);
@@ -805,7 +805,7 @@ _vbi_raw_video_image (uint8_t * raw,
 
   if (unlikely (0 != white_level
           && (blank_level > black_level || black_level > white_level))) {
-    warning (__FUNCTION__,
+    warn (__FUNCTION__,
         "Invalid blanking %d, black %d or peak "
         "white level %d.", blank_level, black_level, white_level);
   }
@@ -1008,12 +1008,12 @@ _vbi_raw_video_image (uint8_t * raw,
   return TRUE;
 }
 
-/**
+/*
  * @example examples/rawout.c
  * Raw VBI output example.
  */
 
-/**
+/*
  * @param raw A raw VBI image will be stored here.
  * @param raw_size Size of the @a raw buffer in bytes. The buffer
  *   must be large enough for @a sp->count[0] + count[1] lines
@@ -1079,7 +1079,7 @@ vbi_raw_vbi_image (uint8_t * raw,
       swap_fields ? _VBI_RAW_SWAP_FIELDS : 0, sliced, n_sliced_lines);
 }
 
-/**
+/*
  * @param raw A raw VBI image will be stored here.
  * @param raw_size Size of the @a raw buffer in bytes. The buffer
  *   must be large enough for @a sp->count[0] + count[1] lines

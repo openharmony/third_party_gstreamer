@@ -30,11 +30,6 @@
  * the second one etc. until the remaining unparsed bytes aren't enough to form
  * a complete frame, and it will then continue as described in the earlier case.
  *
- * The element implements the properties and sink caps configuration as specified
- * in the #GstRawBaseParse documentation. The properties configuration can be
- * modified by using the width, height, pixel-aspect-ratio, framerate, interlaced,
- * top-field-first, plane-strides, plane-offsets, and frame-size properties.
- *
  * If the properties configuration is used, plane strides and offsets will be
  * computed by using gst_video_info_set_format(). This can be overridden by passing
  * GstValueArrays to the plane-offsets and plane-strides properties. When this is
@@ -72,7 +67,6 @@
  * ]|
  *  Read raw data from a local file and parse it as video data with 320x240 pixels
  * and I420 video format. The queue element here is to force push based scheduling.
- * See the documentation in #GstRawBaseParse for the reason why.
  *
  */
 
@@ -81,6 +75,7 @@
 #endif
 
 #include <string.h>
+#include "gstrawparseelements.h"
 #include "gstrawvideoparse.h"
 #include "unalignedvideo.h"
 
@@ -99,7 +94,8 @@ enum
   PROP_TOP_FIELD_FIRST,
   PROP_PLANE_STRIDES,
   PROP_PLANE_OFFSETS,
-  PROP_FRAME_SIZE
+  PROP_FRAME_SIZE,
+  PROP_COLORIMETRY,
 };
 
 #define DEFAULT_WIDTH                 320
@@ -132,6 +128,8 @@ GST_STATIC_PAD_TEMPLATE ("src",
 
 #define gst_raw_video_parse_parent_class parent_class
 G_DEFINE_TYPE (GstRawVideoParse, gst_raw_video_parse, GST_TYPE_RAW_BASE_PARSE);
+GST_ELEMENT_REGISTER_DEFINE (rawvideoparse, "rawvideoparse",
+    GST_RANK_NONE, GST_TYPE_RAW_VIDEO_PARSE);
 
 static void gst_raw_video_parse_set_property (GObject * object, guint prop_id,
     GValue const *value, GParamSpec * pspec);
@@ -314,6 +312,13 @@ gst_raw_video_parse_class_init (GstRawVideoParseClass * klass)
           "Size of a frame (0 = frames are tightly packed together)",
           0, G_MAXUINT,
           DEFAULT_FRAME_STRIDE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)
+      );
+  g_object_class_install_property (object_class,
+      PROP_COLORIMETRY,
+      g_param_spec_string ("colorimetry",
+          "Colorimetry",
+          "The video source colorimetry",
+          NULL, G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS)
       );
 
   gst_element_class_set_static_metadata (element_class,
@@ -616,6 +621,28 @@ gst_raw_video_parse_set_property (GObject * object, guint prop_id,
 
       break;
     }
+    case PROP_COLORIMETRY:
+    {
+      GstVideoColorimetry new_cinfo;
+
+      if (!gst_video_colorimetry_from_string (&new_cinfo,
+              g_value_get_string (value)))
+        break;
+
+      GST_RAW_BASE_PARSE_CONFIG_MUTEX_LOCK (object);
+      if (!gst_video_colorimetry_is_equal (&new_cinfo,
+              &(props_cfg->info.colorimetry))) {
+
+        props_cfg->colorimetry = new_cinfo;
+        gst_raw_video_parse_update_info (props_cfg);
+
+        if (!gst_raw_video_parse_is_using_sink_caps (raw_video_parse))
+          gst_raw_base_parse_invalidate_src_caps (raw_base_parse);
+      }
+      GST_RAW_BASE_PARSE_CONFIG_MUTEX_UNLOCK (object);
+
+      break;
+    }
 
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -819,6 +846,7 @@ gst_raw_video_parse_set_config_from_caps (GstRawBaseParse * raw_base_parse,
   if (config_ptr->ready) {
     config_ptr->width = GST_VIDEO_INFO_WIDTH (&(config_ptr->info));
     config_ptr->height = GST_VIDEO_INFO_HEIGHT (&(config_ptr->info));
+    config_ptr->format = GST_VIDEO_INFO_FORMAT (&(config_ptr->info));
     config_ptr->pixel_aspect_ratio_n =
         GST_VIDEO_INFO_PAR_N (&(config_ptr->info));
     config_ptr->pixel_aspect_ratio_d =
@@ -826,7 +854,6 @@ gst_raw_video_parse_set_config_from_caps (GstRawBaseParse * raw_base_parse,
     config_ptr->framerate_n = GST_VIDEO_INFO_FPS_N (&(config_ptr->info));
     config_ptr->framerate_d = GST_VIDEO_INFO_FPS_D (&(config_ptr->info));
     config_ptr->interlaced = GST_VIDEO_INFO_IS_INTERLACED (&(config_ptr->info));
-    config_ptr->height = GST_VIDEO_INFO_HEIGHT (&(config_ptr->info));
     config_ptr->top_field_first = 0;
     config_ptr->frame_size = 0;
 
@@ -1084,6 +1111,8 @@ gst_raw_video_parse_update_info (GstRawVideoParseConfig * config)
   gst_video_info_set_format (info, config->format, config->width,
       config->height);
 
+  info->colorimetry = config->colorimetry;
+
   GST_VIDEO_INFO_PAR_N (info) = config->pixel_aspect_ratio_n;
   GST_VIDEO_INFO_PAR_D (info) = config->pixel_aspect_ratio_d;
   GST_VIDEO_INFO_FPS_N (info) = config->framerate_n;
@@ -1128,10 +1157,21 @@ gst_raw_video_parse_update_info (GstRawVideoParseConfig * config)
     }
   }
 
-  last_plane_size =
-      GST_VIDEO_INFO_PLANE_STRIDE (info,
-      last_plane) * GST_VIDEO_FORMAT_INFO_SCALE_HEIGHT (info->finfo,
-      last_plane, config->height);
+  if (GST_VIDEO_FORMAT_INFO_IS_TILED (info->finfo)) {
+    gint stride = GST_VIDEO_INFO_PLANE_STRIDE (info, last_plane);
+    gint x_tiles = GST_VIDEO_TILE_X_TILES (stride);
+    gint y_tiles = GST_VIDEO_TILE_Y_TILES (stride);
+    gint tile_width = 1 << GST_VIDEO_FORMAT_INFO_TILE_WS (info->finfo);
+    gint tile_height = 1 << GST_VIDEO_FORMAT_INFO_TILE_HS (info->finfo);
+    last_plane_size = x_tiles * y_tiles * tile_width * tile_height;
+  } else {
+    gint comp[GST_VIDEO_MAX_COMPONENTS];
+    gst_video_format_info_component (info->finfo, last_plane, comp);
+    last_plane_size =
+        GST_VIDEO_INFO_PLANE_STRIDE (info,
+        last_plane) * GST_VIDEO_FORMAT_INFO_SCALE_HEIGHT (info->finfo,
+        comp[0], config->height);
+  }
 
   GST_VIDEO_INFO_SIZE (info) = last_plane_offset + last_plane_size;
 

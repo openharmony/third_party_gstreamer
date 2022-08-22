@@ -29,7 +29,7 @@
 #include <jni.h>
 
 #include "gst-android-graphics-imageformat.h"
-#include "gstamcsurfacetexture.h"
+#include "jni/gstamcsurfacetexture-jni.h"
 
 G_BEGIN_DECLS
 
@@ -84,6 +84,11 @@ extern const gchar *Parameters_EFFECT_POSTERIZE;
 extern const gchar *Parameters_EFFECT_WHITEBOARD;
 extern const gchar *Parameters_EFFECT_BLACKBOARD;
 extern const gchar *Parameters_EFFECT_AQUA;
+/* EMBOSS, SKETCH and NEON are not standard Android API
+ * but are available only on some Qualcomm devices */
+extern const gchar *Parameters_EFFECT_EMBOSS;
+extern const gchar *Parameters_EFFECT_SKETCH;
+extern const gchar *Parameters_EFFECT_NEON;
 extern const gchar *Parameters_ANTIBANDING_AUTO;
 extern const gchar *Parameters_ANTIBANDING_50HZ;
 extern const gchar *Parameters_ANTIBANDING_60HZ;
@@ -109,6 +114,13 @@ extern const gchar *Parameters_SCENE_MODE_SPORTS;
 extern const gchar *Parameters_SCENE_MODE_PARTY;
 extern const gchar *Parameters_SCENE_MODE_CANDLELIGHT;
 extern const gchar *Parameters_SCENE_MODE_BARCODE;
+/* BACKLIGHT, FLOWERS and AR are not standard Android API
+ * but are available only on some Qualcomm devices. */
+extern const gchar *Parameters_SCENE_MODE_BACKLIGHT;
+extern const gchar *Parameters_SCENE_MODE_FLOWERS;
+extern const gchar *Parameters_SCENE_MODE_AR;
+/* HDR is available in API 17+ (Android 4.2) */
+extern const gchar *Parameters_SCENE_MODE_HDR;
 extern const gchar *Parameters_FOCUS_MODE_AUTO;
 extern const gchar *Parameters_FOCUS_MODE_INFINITY;
 extern const gchar *Parameters_FOCUS_MODE_MACRO;
@@ -150,7 +162,7 @@ gboolean gst_ah_camera_set_error_callback (GstAHCamera * self,
 gboolean gst_ah_camera_set_preview_callback_with_buffer (GstAHCamera * self,
     GstAHCPreviewCallback cb, gpointer user_data);
 void gst_ah_camera_set_preview_texture (GstAHCamera * self,
-    GstAmcSurfaceTexture * surfaceTexture);
+    GstAmcSurfaceTextureJNI * surfaceTexture);
 gboolean gst_ah_camera_start_preview (GstAHCamera * self);
 gboolean gst_ah_camera_start_smooth_zoom (GstAHCamera * self, gint value);
 gboolean gst_ah_camera_stop_preview (GstAHCamera * self);

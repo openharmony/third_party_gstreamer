@@ -19,6 +19,7 @@
  */
 /**
  * SECTION:element-pngdec
+ * @title: pngdec
  *
  * Decodes png images. If there is no framerate set on sink caps, it sends EOS
  * after the first picture.
@@ -61,6 +62,8 @@ static gboolean gst_pngdec_sink_event (GstVideoDecoder * bdec,
 
 #define parent_class gst_pngdec_parent_class
 G_DEFINE_TYPE (GstPngDec, gst_pngdec, GST_TYPE_VIDEO_DECODER);
+GST_ELEMENT_REGISTER_DEFINE (pngdec, "pngdec", GST_RANK_PRIMARY,
+    GST_TYPE_PNGDEC);
 
 static GstStaticPadTemplate gst_pngdec_src_pad_template =
 GST_STATIC_PAD_TEMPLATE ("src",
@@ -353,7 +356,7 @@ gst_pngdec_caps_create_and_set (GstPngDec * pngdec)
         &icc_compression_type, &icc_profile, &icc_proflen);
 
     if ((ret & PNG_INFO_iCCP)) {
-      gpointer gst_icc_prof = g_memdup (icc_profile, icc_proflen);
+      gpointer gst_icc_prof = g_memdup2 (icc_profile, icc_proflen);
       GstBuffer *tagbuffer = NULL;
       GstSample *tagsample = NULL;
       GstTagList *taglist = NULL;

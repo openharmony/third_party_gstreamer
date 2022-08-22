@@ -89,6 +89,8 @@ static GstFlowReturn gst_jpeg_parse_pre_push_frame (GstBaseParse * bparse,
 
 #define gst_jpeg_parse_parent_class parent_class
 G_DEFINE_TYPE (GstJpegParse, gst_jpeg_parse, GST_TYPE_BASE_PARSE);
+GST_ELEMENT_REGISTER_DEFINE (jpegparse, "jpegparse", GST_RANK_NONE,
+    GST_TYPE_JPEG_PARSE);
 
 static void
 gst_jpeg_parse_class_init (GstJpegParseClass * klass)
@@ -428,15 +430,15 @@ gst_jpeg_parse_skip_marker (GstJpegParse * parse,
     const gchar *id_str = NULL;
 
     if (gst_byte_reader_peek_string_utf8 (reader, &id_str)) {
-      GST_DEBUG_OBJECT (parse, "unhandled marker %x: '%s' skiping %u bytes",
+      GST_DEBUG_OBJECT (parse, "unhandled marker %x: '%s' skipping %u bytes",
           marker, id_str ? id_str : "(NULL)", size);
     } else {
-      GST_DEBUG_OBJECT (parse, "unhandled marker %x skiping %u bytes", marker,
+      GST_DEBUG_OBJECT (parse, "unhandled marker %x skipping %u bytes", marker,
           size);
     }
   }
 #else
-  GST_DEBUG_OBJECT (parse, "unhandled marker %x skiping %u bytes", marker,
+  GST_DEBUG_OBJECT (parse, "unhandled marker %x skipping %u bytes", marker,
       size);
 #endif // GST_DISABLE_GST_DEBUG
 
@@ -719,7 +721,8 @@ gst_jpeg_parse_pre_push_frame (GstBaseParse * bparse, GstBaseParseFrame * frame)
   GstJpegParse *parse = GST_JPEG_PARSE_CAST (bparse);
   GstBuffer *outbuf = frame->buffer;
 
-  if (parse->has_fps && !GST_CLOCK_TIME_IS_VALID (parse->next_ts))
+  if (parse->has_fps && parse->framerate_numerator != 0
+      && !GST_CLOCK_TIME_IS_VALID (parse->next_ts))
     parse->next_ts = bparse->segment.start;
 
   GST_BUFFER_TIMESTAMP (outbuf) = parse->next_ts;

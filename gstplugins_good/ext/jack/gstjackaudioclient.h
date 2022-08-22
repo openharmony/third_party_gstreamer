@@ -28,7 +28,7 @@
 
 G_BEGIN_DECLS
 
-typedef enum 
+typedef enum
 {
   GST_JACK_CLIENT_SOURCE,
   GST_JACK_CLIENT_SINK
@@ -55,6 +55,10 @@ jack_client_t *       gst_jack_audio_client_get_client     (GstJackAudioClient *
 gboolean              gst_jack_audio_client_set_active     (GstJackAudioClient *client, gboolean active);
 
 GstState              gst_jack_audio_client_get_transport_state (GstJackAudioClient *client);
+
+gchar **              gst_jack_audio_client_get_port_names_from_string (jack_client_t *jclient,
+                                                                        const gchar   *port_names,
+                                                                        gint port_flags);
 
 G_END_DECLS
 
