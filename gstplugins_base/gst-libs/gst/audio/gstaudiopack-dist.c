@@ -6339,7 +6339,15 @@ audio_orc_double_to_s32 (gint32 * ORC_RESTRICT d1,
 #if defined(__APPLE__) && __GNUC__ == 4 && __GNUC_MINOR__ == 2 && defined (__i386__)
   volatile orc_union64 var34;
 #else
+#ifdef OHOS_OPT_COMPAT
+/** ohos.opt.compat.0036
+ * Fix audio playback noise issue. The variable may be changed unexpectedly, and this
+ * modification ensures that every read is not omitted due to compiler optimizations.
+ */
+  volatile orc_union64 var34;
+#else
   orc_union64 var34;
+#endif
 #endif
   orc_union32 var35;
   orc_union64 var36;
@@ -6389,7 +6397,15 @@ _backup_audio_orc_double_to_s32 (OrcExecutor * ORC_RESTRICT ex)
 #if defined(__APPLE__) && __GNUC__ == 4 && __GNUC_MINOR__ == 2 && defined (__i386__)
   volatile orc_union64 var34;
 #else
+#ifdef OHOS_OPT_COMPAT
+/** ohos.opt.compat.0036
+ * Fix audio playback noise issue. The variable may be changed unexpectedly, and this
+ * modification ensures that every read is not omitted due to compiler optimizations.
+ */
+  volatile orc_union64 var34;
+#else
   orc_union64 var34;
+#endif
 #endif
   orc_union32 var35;
   orc_union64 var36;
