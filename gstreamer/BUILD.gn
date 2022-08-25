@@ -261,6 +261,7 @@ config("gstcoreelements_config") {
     "-Wno-incompatible-pointer-types",
     "-Wno-error=incompatible-pointer-types",
     "-DOHOS_OPT_COMPAT",
+    "-DOHOS_OPT_STABLE",
     "-DOHOS_EXT_FUNC",
     "-DG_LOG_DOMAIN=\"GStreamer\"",
   ]

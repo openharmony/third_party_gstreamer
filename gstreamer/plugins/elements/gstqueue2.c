@@ -1593,9 +1593,29 @@ gst_queue2_create_read (GstQueue2 * queue, guint64 offset, guint length,
             GST_DEBUG_OBJECT (queue,
                 "EOS hit but read %" G_GUINT64_FORMAT " bytes that we have",
                 level);
+#ifdef OHOS_OPT_STABLE
+            // ohos.opt.stable.0002
+            // Fix the heap overflow issue. After that gst_queue2_have_data
+            // is executed, the queue may be filled with enough data to fill the output buffer,
+            // or even much larger than the output buffer, causing heap overflow problems in
+            // the subsequent copy process.
+            //
+            // The root cause is that the lock is released before the seek operation and then the
+            // lock is reacquired after the seek operation, which causes the judgment before the lock
+            // release operation to no longer be valid: there is not enough data in the queue to
+            // fill the output buffer.
+            //
+            // Therefore, the length of the data to be copied is protected to avoid heap overflow
+            // problems.
+
+            read_length = MIN (level, remaining);
+            remaining = read_length;
+            length = read_length;
+#else
             read_length = level;
             remaining = level;
             length = level;
+#endif
           } else
             goto hit_eos;
         }
