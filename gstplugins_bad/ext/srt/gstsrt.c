@@ -22,47 +22,89 @@
 #include "config.h"
 #endif
 
+#include "gstsrtelements.h"
 #include "gstsrtsrc.h"
 #include "gstsrtsink.h"
 
-GST_DEBUG_CATEGORY (gst_debug_srtobject);
-#define GST_CAT_DEFAULT gst_debug_srtobject
+#ifndef GST_REMOVE_DEPRECATED
 
-static gboolean
-plugin_init (GstPlugin * plugin)
+#define GST_TYPE_SRT_CLIENT_SRC gst_srt_client_src_get_type()
+#define GST_TYPE_SRT_SERVER_SRC gst_srt_server_src_get_type()
+
+#define GST_TYPE_SRT_CLIENT_SINK gst_srt_client_sink_get_type()
+#define GST_TYPE_SRT_SERVER_SINK gst_srt_server_sink_get_type()
+
+typedef GstSRTSrc GstSRTClientSrc;
+typedef GstSRTSrcClass GstSRTClientSrcClass;
+
+typedef GstSRTSrc GstSRTServerSrc;
+typedef GstSRTSrcClass GstSRTServerSrcClass;
+
+typedef GstSRTSink GstSRTClientSink;
+typedef GstSRTSinkClass GstSRTClientSinkClass;
+
+typedef GstSRTSink GstSRTServerSink;
+typedef GstSRTSinkClass GstSRTServerSinkClass;
+
+static GType gst_srt_client_src_get_type (void);
+static GType gst_srt_server_src_get_type (void);
+static GType gst_srt_client_sink_get_type (void);
+static GType gst_srt_server_sink_get_type (void);
+
+G_DEFINE_TYPE (GstSRTClientSrc, gst_srt_client_src, GST_TYPE_SRT_SRC);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (srtclientsrc, "srtclientsrc",
+    GST_RANK_NONE, GST_TYPE_SRT_CLIENT_SRC, srt_element_init (plugin));
+
+G_DEFINE_TYPE (GstSRTServerSrc, gst_srt_server_src, GST_TYPE_SRT_SRC);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (srtserversrc, "srtserversrc",
+    GST_RANK_NONE, GST_TYPE_SRT_SERVER_SRC, srt_element_init (plugin));
+
+G_DEFINE_TYPE (GstSRTClientSink, gst_srt_client_sink, GST_TYPE_SRT_SINK);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (srtclientsink, "srtclientsink",
+    GST_RANK_NONE, GST_TYPE_SRT_CLIENT_SINK, srt_element_init (plugin));
+
+G_DEFINE_TYPE (GstSRTServerSink, gst_srt_server_sink, GST_TYPE_SRT_SINK);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (srtserversink, "srtserversink",
+    GST_RANK_NONE, GST_TYPE_SRT_SERVER_SINK, srt_element_init (plugin));
+
+static void
+gst_srt_client_src_init (GstSRTClientSrc * src)
 {
-  GST_DEBUG_CATEGORY_INIT (gst_debug_srtobject, "srtobject", 0, "SRT Object");
-
-  if (!gst_element_register (plugin, "srtsrc", GST_RANK_PRIMARY,
-          GST_TYPE_SRT_SRC))
-    return FALSE;
-
-  if (!gst_element_register (plugin, "srtsink", GST_RANK_PRIMARY,
-          GST_TYPE_SRT_SINK))
-    return FALSE;
-
-  /* deprecated */
-  if (!gst_element_register (plugin, "srtclientsrc", GST_RANK_NONE,
-          GST_TYPE_SRT_SRC))
-    return FALSE;
-
-  if (!gst_element_register (plugin, "srtserversrc", GST_RANK_NONE,
-          GST_TYPE_SRT_SRC))
-    return FALSE;
-
-  if (!gst_element_register (plugin, "srtclientsink", GST_RANK_NONE,
-          GST_TYPE_SRT_SINK))
-    return FALSE;
-
-  if (!gst_element_register (plugin, "srtserversink", GST_RANK_NONE,
-          GST_TYPE_SRT_SINK))
-    return FALSE;
-
-  return TRUE;
 }
 
-GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-    GST_VERSION_MINOR,
-    srt,
-    "transfer data via SRT",
-    plugin_init, VERSION, GST_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN);
+static void
+gst_srt_client_src_class_init (GstSRTClientSrcClass * klass)
+{
+}
+
+static void
+gst_srt_server_src_init (GstSRTServerSrc * src)
+{
+}
+
+static void
+gst_srt_server_src_class_init (GstSRTServerSrcClass * klass)
+{
+}
+
+static void
+gst_srt_client_sink_init (GstSRTClientSink * sink)
+{
+}
+
+static void
+gst_srt_client_sink_class_init (GstSRTClientSinkClass * klass)
+{
+}
+
+static void
+gst_srt_server_sink_init (GstSRTServerSink * sink)
+{
+}
+
+static void
+gst_srt_server_sink_class_init (GstSRTServerSinkClass * klass)
+{
+}
+
+#endif

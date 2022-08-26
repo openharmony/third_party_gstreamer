@@ -24,7 +24,7 @@ GStreamer is the core module, containing libraries, headers, the basic object
 hierarchy, and a set of media-agnostic core elements.
  </description>
  <category></category>
- <bug-database rdf:resource="http://bugzilla.gnome.org/enter_bug.cgi?product=GStreamer&amp;component=gstreamer+%28core%29" />
+ <bug-database rdf:resource="https://gitlab.freedesktop.org/gstreamer/gstreamer/issues/" />
  <screenshots></screenshots>
  <mailing-list rdf:resource="http://lists.freedesktop.org/mailman/listinfo/gstreamer-devel" />
  <programming-language>C</programming-language>
@@ -40,21 +40,121 @@ hierarchy, and a set of media-agnostic core elements.
 
  <release>
   <Version>
-   <revision>1.16.2</revision>
-   <branch>1.16</branch>
+   <revision>1.20.3</revision>
+   <branch>1.20</branch>
    <name></name>
-   <created>2019-12-03</created>
-   <file-release rdf:resource="https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-1.16.2.tar.xz" />
+   <created>2022-06-15</created>
+   <file-release rdf:resource="https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-1.20.3.tar.xz" />
   </Version>
  </release>
 
  <release>
   <Version>
-   <revision>1.16.1</revision>
-   <branch>1.16</branch>
+   <revision>1.20.2</revision>
+   <branch>1.20</branch>
    <name></name>
-   <created>2019-09-23</created>
-   <file-release rdf:resource="https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-1.16.1.tar.xz" />
+   <created>2022-05-02</created>
+   <file-release rdf:resource="https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-1.20.2.tar.xz" />
+  </Version>
+ </release>
+
+ <release>
+  <Version>
+   <revision>1.20.1</revision>
+   <branch>1.20</branch>
+   <name></name>
+   <created>2022-03-14</created>
+   <file-release rdf:resource="https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-1.20.1.tar.xz" />
+  </Version>
+ </release>
+
+ <release>
+  <Version>
+   <revision>1.20.0</revision>
+   <branch>main</branch>
+   <name></name>
+   <created>2022-02-03</created>
+   <file-release rdf:resource="https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-1.20.0.tar.xz" />
+  </Version>
+ </release>
+
+ <release>
+  <Version>
+   <revision>1.19.90</revision>
+   <branch>main</branch>
+   <name></name>
+   <created>2022-01-28</created>
+   <file-release rdf:resource="https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-1.19.90.tar.xz" />
+  </Version>
+ </release>
+
+ <release>
+  <Version>
+   <revision>1.19.3</revision>
+   <branch>main</branch>
+   <name></name>
+   <created>2021-11-03</created>
+   <file-release rdf:resource="https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-1.19.3.tar.xz" />
+  </Version>
+ </release>
+
+ <release>
+  <Version>
+   <revision>1.19.2</revision>
+   <branch>master</branch>
+   <name></name>
+   <created>2021-09-23</created>
+   <file-release rdf:resource="https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-1.19.2.tar.xz" />
+  </Version>
+ </release>
+
+ <release>
+  <Version>
+   <revision>1.19.1</revision>
+   <branch>master</branch>
+   <name></name>
+   <created>2021-06-01</created>
+   <file-release rdf:resource="https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-1.19.1.tar.xz" />
+  </Version>
+ </release>
+
+ <release>
+  <Version>
+   <revision>1.18.0</revision>
+   <branch>master</branch>
+   <name></name>
+   <created>2020-09-08</created>
+   <file-release rdf:resource="https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-1.18.0.tar.xz" />
+  </Version>
+ </release>
+
+ <release>
+  <Version>
+   <revision>1.17.90</revision>
+   <branch>master</branch>
+   <name></name>
+   <created>2020-08-20</created>
+   <file-release rdf:resource="https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-1.17.90.tar.xz" />
+  </Version>
+ </release>
+
+ <release>
+  <Version>
+   <revision>1.17.2</revision>
+   <branch>master</branch>
+   <name></name>
+   <created>2020-07-03</created>
+   <file-release rdf:resource="https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-1.17.2.tar.xz" />
+  </Version>
+ </release>
+
+ <release>
+  <Version>
+   <revision>1.17.1</revision>
+   <branch>master</branch>
+   <name></name>
+   <created>2020-06-19</created>
+   <file-release rdf:resource="https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-1.17.1.tar.xz" />
   </Version>
  </release>
 

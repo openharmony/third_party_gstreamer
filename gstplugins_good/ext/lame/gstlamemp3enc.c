@@ -25,21 +25,21 @@
  * @see_also: lame, mad, vorbisenc
  *
  * This element encodes raw integer audio into an MPEG-1 layer 3 (MP3) stream.
- * Note that <ulink url="http://en.wikipedia.org/wiki/MP3">MP3</ulink> is not
+ * Note that [MP3](http://en.wikipedia.org/wiki/MP3) is not
  * a free format, there are licensing and patent issues to take into
- * consideration. See <ulink url="http://www.vorbis.com/">Ogg/Vorbis</ulink>
- * for a royalty free (and often higher quality) alternative.
+ * consideration. See [Ogg/Vorbis](http://www.vorbis.com/) for a royalty free
+ * (and often higher quality) alternative.
  *
- * <refsect2>
- * <title>Output sample rate</title>
+ * ## Output sample rate
+ *
  * If no fixed output sample rate is negotiated on the element's src pad,
  * the element will choose an optimal sample rate to resample to internally.
  * For example, a 16-bit 44.1 KHz mono audio stream encoded at 48 kbit will
  * get resampled to 32 KHz.  Use filter caps on the src pad to force a
  * particular sample rate.
- * </refsect2>
- * <refsect2>
- * <title>Example pipelines</title>
+ *
+ * ## Example pipelines
+ *
  * |[
  * gst-launch-1.0 -v audiotestsrc wave=sine num-buffers=100 ! audioconvert ! lamemp3enc ! filesink location=sine.mp3
  * ]| Encode a test sine signal to MP3.
@@ -55,7 +55,6 @@
  * |[
  * gst-launch-1.0 -v audiotestsrc num-buffers=10 ! audio/x-raw,rate=44100,channels=1 ! lamemp3enc target=bitrate cbr=true bitrate=48 ! filesink location=test.mp3
  * ]| Encode to a fixed sample rate
- * </refsect2>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -192,7 +191,19 @@ static void gst_lamemp3enc_get_property (GObject * object, guint prop_id,
 static gboolean gst_lamemp3enc_setup (GstLameMP3Enc * lame, GstTagList ** tags);
 
 #define gst_lamemp3enc_parent_class parent_class
-G_DEFINE_TYPE (GstLameMP3Enc, gst_lamemp3enc, GST_TYPE_AUDIO_ENCODER);
+#ifdef ENABLE_NLS
+#define _do_init \
+  GST_DEBUG_CATEGORY_INIT (debug, "lamemp3enc", 0, "lame mp3 encoder");\
+  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);\
+  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
+#else /* ENABLE_NLS */
+#define _do_init \
+  GST_DEBUG_CATEGORY_INIT (debug, "lamemp3enc", 0, "lame mp3 encoder");
+#endif
+G_DEFINE_TYPE_WITH_CODE (GstLameMP3Enc, gst_lamemp3enc, GST_TYPE_AUDIO_ENCODER,
+    _do_init);
+GST_ELEMENT_REGISTER_DEFINE (lamemp3enc, "lamemp3enc", GST_RANK_PRIMARY,
+    GST_TYPE_LAMEMP3ENC);
 
 static void
 gst_lamemp3enc_release_memory (GstLameMP3Enc * lame)
@@ -274,6 +285,9 @@ gst_lamemp3enc_class_init (GstLameMP3EncClass * klass)
       g_param_spec_boolean ("mono", "Mono", "Enforce mono encoding",
           DEFAULT_MONO,
           G_PARAM_CONSTRUCT | G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  gst_type_mark_as_plugin_api (GST_TYPE_LAMEMP3ENC_TARGET, 0);
+  gst_type_mark_as_plugin_api (GST_TYPE_LAMEMP3ENC_ENCODING_ENGINE_QUALITY, 0);
 }
 
 static void
@@ -917,16 +931,4 @@ gst_lamemp3enc_setup (GstLameMP3Enc * lame, GstTagList ** tags)
   GST_DEBUG_OBJECT (lame, "done with setup");
   return res;
 #undef CHECK_ERROR
-}
-
-gboolean
-gst_lamemp3enc_register (GstPlugin * plugin)
-{
-  GST_DEBUG_CATEGORY_INIT (debug, "lamemp3enc", 0, "lame mp3 encoder");
-
-  if (!gst_element_register (plugin, "lamemp3enc", GST_RANK_PRIMARY,
-          GST_TYPE_LAMEMP3ENC))
-    return FALSE;
-
-  return TRUE;
 }

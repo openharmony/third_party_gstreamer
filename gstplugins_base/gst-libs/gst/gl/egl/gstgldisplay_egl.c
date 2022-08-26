@@ -18,6 +18,17 @@
  * Boston, MA 02110-1301, USA.
  */
 
+/**
+ * SECTION:gstgldisplay_egl
+ * @short_description: EGL Display connection
+ * @title: GstGLDisplayEGL
+ * @see_also: #GstGLDisplay
+ *
+ * #GstGLDisplayEGL represents a connection to an EGL `EGLDisplay` handle created
+ * internally (gst_gl_display_egl_new()) or wrapped by the application
+ * (gst_gl_display_egl_new_with_egl_display())
+ */
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -30,8 +41,8 @@
 #include "gsteglimage.h"
 #include "gstglmemoryegl.h"
 
-GST_DEBUG_CATEGORY_STATIC (gst_gl_display_debug);
-#define GST_CAT_DEFAULT gst_gl_display_debug
+GST_DEBUG_CATEGORY_STATIC (gst_gl_display_egl_debug);
+#define GST_CAT_DEFAULT gst_gl_display_egl_debug
 
 #ifndef EGL_PLATFORM_X11
 #define EGL_PLATFORM_X11 0x31D5
@@ -45,6 +56,12 @@ GST_DEBUG_CATEGORY_STATIC (gst_gl_display_debug);
 #ifndef EGL_PLATFORM_ANDROID
 #define EGL_PLATFORM_ANDROID 0x3141
 #endif
+#ifndef EGL_PLATFORM_DEVICE_EXT
+#define EGL_PLATFORM_DEVICE_EXT 0x313F
+#endif
+#ifndef EGL_PLATFORM_ANGLE_ANGLE
+#define EGL_PLATFORM_ANGLE_ANGLE 0x3202
+#endif
 
 typedef EGLDisplay (*_gst_eglGetPlatformDisplay_type) (EGLenum platform,
     void *native_display, const EGLint * attrib_list);
@@ -53,6 +70,18 @@ G_DEFINE_TYPE (GstGLDisplayEGL, gst_gl_display_egl, GST_TYPE_GL_DISPLAY);
 
 static void gst_gl_display_egl_finalize (GObject * object);
 static guintptr gst_gl_display_egl_get_handle (GstGLDisplay * display);
+
+static void
+init_debug (void)
+{
+  static gsize _init = 0;
+
+  if (g_once_init_enter (&_init)) {
+    GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "gldisplayegl", 0,
+        "OpenGL EGL Display");
+    g_once_init_leave (&_init, 1);
+  }
+}
 
 static void
 gst_gl_display_egl_class_init (GstGLDisplayEGLClass * klass)
@@ -92,11 +121,11 @@ gst_gl_display_egl_finalize (GObject * object)
  * @type: a #GstGLDisplayType
  * @display: pointer to a display (or 0)
  *
- * Attempts to create a new #EGLDisplay from @display.  If @type is
+ * Attempts to create a new `EGLDisplay` from @display.  If @type is
  * %GST_GL_DISPLAY_TYPE_ANY, then @display must be 0. @type must not be
  * %GST_GL_DISPLAY_TYPE_NONE.
  *
- * Returns: A #EGLDisplay or %EGL_NO_DISPLAY
+ * Returns: A `EGLDisplay` or `EGL_NO_DISPLAY`
  *
  * Since: 1.12
  */
@@ -105,11 +134,13 @@ gst_gl_display_egl_get_from_native (GstGLDisplayType type, guintptr display)
 {
   const gchar *egl_exts;
   EGLDisplay ret = EGL_NO_DISPLAY;
-  _gst_eglGetPlatformDisplay_type _gst_eglGetPlatformDisplay;
+  _gst_eglGetPlatformDisplay_type _gst_eglGetPlatformDisplay = NULL;
 
   g_return_val_if_fail (type != GST_GL_DISPLAY_TYPE_NONE, EGL_NO_DISPLAY);
   g_return_val_if_fail ((type != GST_GL_DISPLAY_TYPE_ANY && display != 0)
       || (type == GST_GL_DISPLAY_TYPE_ANY && display == 0), EGL_NO_DISPLAY);
+
+  init_debug ();
 
   /* given an EGLDisplay already */
   if (type == GST_GL_DISPLAY_TYPE_EGL)
@@ -128,8 +159,11 @@ gst_gl_display_egl_get_from_native (GstGLDisplayType type, guintptr display)
   if (!gst_gl_check_extension ("EGL_EXT_platform_base", egl_exts))
     goto default_display;
 
+  /* we need EXT for WinRT to pass attributes */
+#if !GST_GL_HAVE_WINDOW_WINRT
   _gst_eglGetPlatformDisplay = (_gst_eglGetPlatformDisplay_type)
       eglGetProcAddress ("eglGetPlatformDisplay");
+#endif
   if (!_gst_eglGetPlatformDisplay)
     _gst_eglGetPlatformDisplay = (_gst_eglGetPlatformDisplay_type)
         eglGetProcAddress ("eglGetPlatformDisplayEXT");
@@ -161,6 +195,43 @@ gst_gl_display_egl_get_from_native (GstGLDisplayType type, guintptr display)
         NULL);
   }
 #endif
+#if GST_GL_HAVE_WINDOW_WINRT
+  if (ret == EGL_NO_DISPLAY && (type & GST_GL_DISPLAY_TYPE_EGL) &&
+      (gst_gl_check_extension ("EGL_ANGLE_platform_angle", egl_exts) ||
+          gst_gl_check_extension ("EGL_ANGLE_platform_angle", egl_exts))) {
+    const EGLint attrs[] = {
+      /* These are the default display attributes, used to request ANGLE's
+       * D3D11 renderer. eglInitialize will only succeed with these
+       * attributes if the hardware supports D3D11 Feature Level 10_0+. */
+      EGL_PLATFORM_ANGLE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_TYPE_D3D11_ANGLE,
+
+#ifdef EGL_ANGLE_DISPLAY_ALLOW_RENDER_TO_BACK_BUFFER
+      /* EGL_ANGLE_DISPLAY_ALLOW_RENDER_TO_BACK_BUFFER is an optimization
+       * that can have large performance benefits on mobile devices. Its
+       * syntax is subject to change, though. Please update your Visual
+       * Studio templates if you experience compilation issues with it. */
+      EGL_ANGLE_DISPLAY_ALLOW_RENDER_TO_BACK_BUFFER, EGL_TRUE,
+#endif
+
+      /* EGL_PLATFORM_ANGLE_ENABLE_AUTOMATIC_TRIM_ANGLE is an option that
+       * enables ANGLE to automatically call the IDXGIDevice3::Trim method
+       * on behalf of the application when it gets suspended. Calling
+       * IDXGIDevice3::Trim when an application is suspended is a Windows
+       * Store application certification requirement. */
+      EGL_PLATFORM_ANGLE_ENABLE_AUTOMATIC_TRIM_ANGLE, EGL_TRUE,
+      EGL_NONE,
+    };
+    ret = _gst_eglGetPlatformDisplay (EGL_PLATFORM_ANGLE_ANGLE,
+        (gpointer) display, attrs);
+  }
+#endif
+  if (ret == EGL_NO_DISPLAY && (type & GST_GL_DISPLAY_TYPE_EGL_DEVICE) &&
+      (gst_gl_check_extension ("EGL_EXT_device_base", egl_exts) &&
+          gst_gl_check_extension ("EGL_EXT_platform_device", egl_exts))) {
+    ret =
+        _gst_eglGetPlatformDisplay (EGL_PLATFORM_DEVICE_EXT, (gpointer) display,
+        NULL);
+  }
   /* android only has one winsys/display connection */
 
   if (ret != EGL_NO_DISPLAY)
@@ -184,7 +255,7 @@ gst_gl_display_egl_new (void)
 {
   GstGLDisplayEGL *ret;
 
-  GST_DEBUG_CATEGORY_GET (gst_gl_display_debug, "gldisplay");
+  init_debug ();
 
   ret = g_object_new (GST_TYPE_GL_DISPLAY_EGL, NULL);
   gst_object_ref_sink (ret);
@@ -215,7 +286,7 @@ gst_gl_display_egl_new_with_egl_display (gpointer display)
 
   g_return_val_if_fail (display != NULL, NULL);
 
-  GST_DEBUG_CATEGORY_GET (gst_gl_display_debug, "gldisplay");
+  init_debug ();
 
   ret = g_object_new (GST_TYPE_GL_DISPLAY_EGL, NULL);
   gst_object_ref_sink (ret);
@@ -236,7 +307,7 @@ _ref_if_set (gpointer data, gpointer user_data)
 
 /**
  * gst_gl_display_egl_from_gl_display:
- * @display: an existing #GstGLDisplay
+ * @display: (transfer none): an existing #GstGLDisplay
  *
  * Creates a EGL display connection from a native Display.
  *
@@ -256,7 +327,7 @@ gst_gl_display_egl_from_gl_display (GstGLDisplay * display)
 
   g_return_val_if_fail (GST_IS_GL_DISPLAY (display), NULL);
 
-  GST_DEBUG_CATEGORY_GET (gst_gl_display_debug, "gldisplay");
+  init_debug ();
 
   if (GST_IS_GL_DISPLAY_EGL (display)) {
     GST_LOG_OBJECT (display, "display %" GST_PTR_FORMAT "is already a "

@@ -38,9 +38,17 @@
 #elif defined (G_OS_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <io.h>
+#ifndef STDOUT_FILENO
+#define STDOUT_FILENO 1
+#endif
+#define isatty _isatty
 #endif
 #include <locale.h>             /* for LC_ALL */
 #include "tools.h"
+#ifdef HAVE_WINMM
+#include <mmsystem.h>
+#endif
 
 extern volatile gboolean glib_on_error_halt;
 
@@ -49,23 +57,36 @@ static void fault_restore (void);
 static void fault_spin (void);
 #endif
 
-/* event_loop return codes */
-typedef enum _EventLoopResult
+/* exit codes */
+typedef enum _LaunchExitCode
 {
-  ELR_NO_ERROR = 0,
-  ELR_ERROR,
-  ELR_INTERRUPT
-} EventLoopResult;
+  LEC_STATE_CHANGE_FAILURE = -1,
+  LEC_NO_ERROR = 0,
+  LEC_ERROR,
+  LEC_INTERRUPT
+} LaunchExitCode;
 
-static GstElement *pipeline;
-static EventLoopResult caught_error = ELR_NO_ERROR;
+static GMainLoop *loop = NULL;
+static GstElement *pipeline = NULL;
+
+/* options */
 static gboolean quiet = FALSE;
 static gboolean tags = FALSE;
 static gboolean toc = FALSE;
 static gboolean messages = FALSE;
-static gboolean is_live = FALSE;
-static gboolean waiting_eos = FALSE;
+static gboolean eos_on_shutdown = FALSE;
 static gchar **exclude_args = NULL;
+
+/* pipeline status */
+static gboolean is_live = FALSE;
+static gboolean buffering = FALSE;
+static LaunchExitCode last_launch_code = LEC_NO_ERROR;
+static GstState target_state = GST_STATE_PAUSED;
+static gboolean prerolled = FALSE;
+static gboolean in_progress = FALSE;
+static GstClockTime tfthen = GST_CLOCK_TIME_NONE;
+static gboolean interrupting = FALSE;
+static gboolean waiting_eos = FALSE;
 
 /* convenience macro so we don't have to litter the code with if(!quiet) */
 #define PRINT if(!quiet)gst_print
@@ -76,7 +97,7 @@ fault_handler_sighandler (int signum)
 {
   fault_restore ();
 
-  /* printf is used instead of g_print(), since it's less likely to
+  /* printf is used instead of gst_print(), since it's less likely to
    * deadlock */
   switch (signum) {
     case SIGSEGV:
@@ -249,13 +270,13 @@ print_index_stats (GPtrArray * index_stats)
   gint i;
 
   if (index_stats->len) {
-    g_print ("%s:\n", _("Index statistics"));
+    gst_print ("%s:\n", _("Index statistics"));
   }
 
   for (i = 0; i < index_stats->len; i++) {
     GstIndexStats *s = g_ptr_array_index (index_stats, i);
     if (s) {
-      g_print ("id %d, %s\n", s->id, s->desc);
+      gst_print ("id %d, %s\n", s->id, s->desc);
       if (s->num_frames) {
         GstClockTime last_frame = s->last_keyframe;
 
@@ -266,24 +287,24 @@ print_index_stats (GPtrArray * index_stats)
         }
 
         if (GST_CLOCK_TIME_IS_VALID (last_frame)) {
-          g_print ("  total time               = %" GST_TIME_FORMAT "\n",
+          gst_print ("  total time               = %" GST_TIME_FORMAT "\n",
               GST_TIME_ARGS (last_frame));
         }
-        g_print ("  frame/keyframe rate      = %u / %u = ", s->num_frames,
+        gst_print ("  frame/keyframe rate      = %u / %u = ", s->num_frames,
             s->num_keyframes);
         if (s->num_keyframes)
-          g_print ("%lf\n", s->num_frames / (gdouble) s->num_keyframes);
+          gst_print ("%lf\n", s->num_frames / (gdouble) s->num_keyframes);
         else
-          g_print ("-\n");
+          gst_print ("-\n");
         if (s->num_keyframes) {
-          g_print ("  min/avg/max keyframe gap = %" GST_TIME_FORMAT ", %"
+          gst_print ("  min/avg/max keyframe gap = %" GST_TIME_FORMAT ", %"
               GST_TIME_FORMAT ", %" GST_TIME_FORMAT "\n",
               GST_TIME_ARGS (s->min_keyframe_gap),
               GST_TIME_ARGS (s->avg_keyframe_gap),
               GST_TIME_ARGS (s->max_keyframe_gap));
         }
       } else {
-        g_print ("  no stats\n");
+        gst_print ("  no stats\n");
       }
 
       g_free (s->desc);
@@ -425,7 +446,7 @@ print_tag_foreach (const GstTagList * tags, const gchar * tag,
   else
     str = gst_value_serialize (&val);
 
-  g_print ("%*s%s: %s\n", 2 * depth, " ", gst_tag_get_nick (tag), str);
+  gst_print ("%*s%s: %s\n", 2 * depth, " ", gst_tag_get_nick (tag), str);
   g_free (str);
 
   g_value_unset (&val);
@@ -471,9 +492,6 @@ static guint signal_watch_hup_id;
 #endif
 #if defined(G_OS_UNIX) || defined(G_OS_WIN32)
 static guint signal_watch_intr_id;
-#if defined(G_OS_WIN32)
-static GstElement *intr_pipeline;
-#endif
 #endif
 
 #if defined(G_OS_UNIX) || defined(G_OS_WIN32)
@@ -522,47 +540,39 @@ hup_handler (gpointer user_data)
 static BOOL WINAPI
 w32_intr_handler (DWORD dwCtrlType)
 {
-  intr_handler ((gpointer) intr_pipeline);
-  intr_pipeline = NULL;
+  if (pipeline)
+    intr_handler ((gpointer) pipeline);
+
+  SetConsoleCtrlHandler (w32_intr_handler, FALSE);
+
   return TRUE;
 }
 #endif /* G_OS_WIN32 */
 #endif /* G_OS_UNIX */
 
-/* returns ELR_ERROR if there was an error
- * or ELR_INTERRUPT if we caught a keyboard interrupt
- * or ELR_NO_ERROR otherwise. */
-static EventLoopResult
-event_loop (GstElement * pipeline, gboolean blocking, gboolean do_progress,
-    GstState target_state)
+static void
+do_initial_play (GstElement * pipeline)
 {
-  GstBus *bus;
-  GstMessage *message = NULL;
-  EventLoopResult res = ELR_NO_ERROR;
-  gboolean buffering = FALSE, in_progress = FALSE;
-  gboolean prerolled = target_state != GST_STATE_PAUSED;
+  PRINT (_("Setting pipeline to PLAYING ...\n"));
 
-  bus = gst_element_get_bus (GST_ELEMENT (pipeline));
+  tfthen = gst_util_get_timestamp ();
 
-#ifdef G_OS_UNIX
-  signal_watch_intr_id =
-      g_unix_signal_add (SIGINT, (GSourceFunc) intr_handler, pipeline);
-  signal_watch_hup_id =
-      g_unix_signal_add (SIGHUP, (GSourceFunc) hup_handler, pipeline);
-#elif defined(G_OS_WIN32)
-  intr_pipeline = NULL;
-  if (SetConsoleCtrlHandler (w32_intr_handler, TRUE))
-    intr_pipeline = pipeline;
-#endif
+  if (gst_element_set_state (pipeline,
+          GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
+    gst_printerr (_("ERROR: pipeline doesn't want to play.\n"));
+    last_launch_code = LEC_STATE_CHANGE_FAILURE;
 
-  while (TRUE) {
-    message = gst_bus_poll (bus, GST_MESSAGE_ANY, blocking ? -1 : 0);
+    /* error message will be posted later */
+    return;
+  }
 
-    /* if the poll timed out, only when !blocking */
-    if (message == NULL)
-      goto exit;
+  target_state = GST_STATE_PLAYING;
+}
 
-    /* check if we need to dump messages to the console */
+static gboolean
+bus_handler (GstBus * bus, GstMessage * message, gpointer data)
+{
+  {
     if (messages) {
       GstObject *src_obj;
       const GstStructure *s;
@@ -618,10 +628,13 @@ event_loop (GstElement * pipeline, gboolean blocking, gboolean do_progress,
         gst_element_set_state (pipeline, GST_STATE_PLAYING);
         break;
       case GST_MESSAGE_EOS:{
-        waiting_eos = FALSE;
         PRINT (_("Got EOS from element \"%s\".\n"),
             GST_MESSAGE_SRC_NAME (message));
-        goto exit;
+
+        if (eos_on_shutdown)
+          PRINT (_("EOS received - stopping pipeline...\n"));
+        g_main_loop_quit (loop);
+        break;
       }
       case GST_MESSAGE_TAG:
         if (tags) {
@@ -701,17 +714,6 @@ event_loop (GstElement * pipeline, gboolean blocking, gboolean do_progress,
         g_free (name);
         break;
       }
-      case GST_MESSAGE_ERROR:{
-        /* dump graph on error */
-        GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS (GST_BIN (pipeline),
-            GST_DEBUG_GRAPH_SHOW_ALL, "gst-launch.error");
-
-        print_error_message (message);
-
-        /* we have an error */
-        res = ELR_ERROR;
-        goto exit;
-      }
       case GST_MESSAGE_STATE_CHANGED:{
         GstState old, new, pending;
 
@@ -721,9 +723,10 @@ event_loop (GstElement * pipeline, gboolean blocking, gboolean do_progress,
 
         gst_message_parse_state_changed (message, &old, &new, &pending);
 
-        /* if we reached the final target state, exit */
         if (target_state == GST_STATE_PAUSED && new == target_state) {
           prerolled = TRUE;
+
+          PRINT (_("Pipeline is PREROLLED ...\n"));
           /* ignore when we are buffering since then we mess with the states
            * ourselves. */
           if (buffering) {
@@ -734,7 +737,8 @@ event_loop (GstElement * pipeline, gboolean blocking, gboolean do_progress,
             PRINT (_("Prerolled, waiting for progress to finish...\n"));
             break;
           }
-          goto exit;
+
+          do_initial_play (pipeline);
         }
         /* else not an interesting message */
         break;
@@ -752,12 +756,17 @@ event_loop (GstElement * pipeline, gboolean blocking, gboolean do_progress,
         if (percent == 100) {
           /* a 100% message means buffering is done */
           buffering = FALSE;
+
+          if (target_state == GST_STATE_PAUSED) {
+            do_initial_play (pipeline);
+            break;
+          }
+
           /* if the desired state is playing, go back */
           if (target_state == GST_STATE_PLAYING) {
             PRINT (_("Done buffering, setting pipeline to PLAYING ...\n"));
             gst_element_set_state (pipeline, GST_STATE_PLAYING);
-          } else if (prerolled && !in_progress)
-            goto exit;
+          }
         } else {
           /* buffering busy */
           if (!buffering && target_state == GST_STATE_PLAYING) {
@@ -799,8 +808,26 @@ event_loop (GstElement * pipeline, gboolean blocking, gboolean do_progress,
           /* this application message is posted when we caught an interrupt and
            * we need to stop the pipeline. */
           PRINT (_("Interrupt: Stopping pipeline ...\n"));
-          res = ELR_INTERRUPT;
-          goto exit;
+          interrupting = TRUE;
+
+          if (eos_on_shutdown) {
+            if (waiting_eos) {
+              PRINT (_
+                  ("Interrupt while waiting for EOS - stopping pipeline...\n"));
+
+              g_main_loop_quit (loop);
+            } else {
+              PRINT (_
+                  ("EOS on shutdown enabled -- Forcing EOS on the pipeline\n"));
+              gst_element_send_event (pipeline, gst_event_new_eos ());
+
+              PRINT (_("Waiting for EOS...\n"));
+
+              waiting_eos = TRUE;
+            }
+          } else {
+            g_main_loop_quit (loop);
+          }
         }
         break;
       }
@@ -814,10 +841,7 @@ event_loop (GstElement * pipeline, gboolean blocking, gboolean do_progress,
         switch (type) {
           case GST_PROGRESS_TYPE_START:
           case GST_PROGRESS_TYPE_CONTINUE:
-            if (do_progress) {
-              in_progress = TRUE;
-              blocking = TRUE;
-            }
+            in_progress = TRUE;
             break;
           case GST_PROGRESS_TYPE_COMPLETE:
           case GST_PROGRESS_TYPE_CANCELED:
@@ -831,8 +855,9 @@ event_loop (GstElement * pipeline, gboolean blocking, gboolean do_progress,
         g_free (code);
         g_free (text);
 
-        if (do_progress && !in_progress && !buffering && prerolled)
-          goto exit;
+        if (!in_progress && prerolled && target_state == GST_STATE_PAUSED) {
+          do_initial_play (pipeline);
+        }
         break;
       }
       case GST_MESSAGE_ELEMENT:{
@@ -899,7 +924,7 @@ event_loop (GstElement * pipeline, gboolean blocking, gboolean do_progress,
           val_str = g_strdup ("(no value)");
         }
 
-        g_print ("%s: %s = %s\n", obj_name, name, val_str);
+        gst_print ("%s: %s = %s\n", obj_name, name, val_str);
         g_free (obj_name);
         g_free (val_str);
         break;
@@ -908,27 +933,9 @@ event_loop (GstElement * pipeline, gboolean blocking, gboolean do_progress,
         /* just be quiet by default */
         break;
     }
-    if (message)
-      gst_message_unref (message);
   }
-  g_assert_not_reached ();
 
-exit:
-  {
-    if (message)
-      gst_message_unref (message);
-    gst_object_unref (bus);
-#ifdef G_OS_UNIX
-    if (signal_watch_intr_id > 0)
-      g_source_remove (signal_watch_intr_id);
-    if (signal_watch_hup_id > 0)
-      g_source_remove (signal_watch_hup_id);
-#elif defined(G_OS_WIN32)
-    intr_pipeline = NULL;
-    SetConsoleCtrlHandler (w32_intr_handler, FALSE);
-#endif
-    return res;
-  }
+  return TRUE;
 }
 
 static GstBusSyncReply
@@ -968,11 +975,100 @@ bus_sync_handler (GstBus * bus, GstMessage * message, gpointer data)
         g_free (state_transition_name);
       }
       break;
+    case GST_MESSAGE_ERROR:{
+      /* dump graph on error */
+      GST_DEBUG_BIN_TO_DOT_FILE_WITH_TS (GST_BIN (pipeline),
+          GST_DEBUG_GRAPH_SHOW_ALL, "gst-launch.error");
+
+      print_error_message (message);
+
+      if (target_state == GST_STATE_PAUSED) {
+        gst_printerr (_("ERROR: pipeline doesn't want to preroll.\n"));
+      } else if (interrupting) {
+        PRINT (_("An error happened while waiting for EOS\n"));
+      }
+
+      /* we have an error */
+      last_launch_code = LEC_ERROR;
+      g_main_loop_quit (loop);
+      break;
+    }
     default:
       break;
   }
   return GST_BUS_PASS;
 }
+
+static gboolean
+query_pipeline_position (gpointer user_data)
+{
+  gint64 pos = -1, dur = -1;
+  gboolean output_is_tty = GPOINTER_TO_INT (user_data);
+
+  if (buffering)
+    return G_SOURCE_CONTINUE;
+
+  gst_element_query_position (pipeline, GST_FORMAT_TIME, &pos);
+  gst_element_query_duration (pipeline, GST_FORMAT_TIME, &dur);
+
+  if (pos >= 0) {
+    gchar dstr[32], pstr[32];
+
+    /* FIXME: pretty print in nicer format */
+    g_snprintf (pstr, 32, "%" GST_TIME_FORMAT, GST_TIME_ARGS (pos));
+    pstr[9] = '\0';
+    g_snprintf (dstr, 32, "%" GST_TIME_FORMAT, GST_TIME_ARGS (dur));
+    dstr[9] = '\0';
+
+    if (dur > 0 && dur >= pos) {
+      gdouble percent;
+      percent = 100 * (gdouble) (pos) / dur;
+
+      gst_print ("%s / %s (%.1f %%)%c", pstr, dstr, percent,
+          output_is_tty ? '\r' : '\n');
+    } else
+      gst_print ("%s / %s%c", pstr, dstr, output_is_tty ? '\r' : '\n');
+  }
+
+  return G_SOURCE_CONTINUE;
+}
+
+#ifdef HAVE_WINMM
+static guint
+enable_winmm_timer_resolution (void)
+{
+  TIMECAPS time_caps;
+  guint resolution = 0;
+  MMRESULT res;
+
+  res = timeGetDevCaps (&time_caps, sizeof (TIMECAPS));
+  if (res != TIMERR_NOERROR) {
+    g_warning ("timeGetDevCaps() returned non-zero code %d", res);
+    return 0;
+  }
+
+  resolution = MIN (MAX (time_caps.wPeriodMin, 1), time_caps.wPeriodMax);
+  res = timeBeginPeriod (resolution);
+  if (res != TIMERR_NOERROR) {
+    g_warning ("timeBeginPeriod() returned non-zero code %d", res);
+    return 0;
+  }
+
+  PRINT (_("Use Windows high-resolution clock, precision: %u ms\n"),
+      resolution);
+
+  return resolution;
+}
+
+static void
+clear_winmm_timer_resolution (guint resolution)
+{
+  if (resolution == 0)
+    return;
+
+  timeEndPeriod (resolution);
+}
+#endif
 
 int
 main (int argc, char *argv[])
@@ -980,11 +1076,12 @@ main (int argc, char *argv[])
   /* options */
   gboolean verbose = FALSE;
   gboolean no_fault = FALSE;
-  gboolean eos_on_shutdown = FALSE;
 #if 0
   gboolean check_index = FALSE;
 #endif
   gchar *savefile = NULL;
+  gboolean no_position = FALSE;
+  gboolean force_position = FALSE;
 #ifndef GST_DISABLE_OPTION_PARSING
   GOptionEntry options[] = {
     {"tags", 't', 0, G_OPTION_ARG_NONE, &tags,
@@ -1010,6 +1107,17 @@ main (int argc, char *argv[])
         N_("Gather and print index statistics"), NULL},
 #endif
     GST_TOOLS_GOPTION_VERSION,
+    {"no-position", '\0', 0, G_OPTION_ARG_NONE, &no_position,
+        N_("Do not print current position of pipeline. "
+              "If this option is unspecified, the position will be printed "
+              "when stdout is a TTY. "
+              "To enable printing position when stdout is not a TTY, "
+              "use \"force-position\" option"), NULL},
+    {"force-position", '\0', 0, G_OPTION_ARG_NONE, &force_position,
+          N_("Allow printing current position of pipeline even if "
+              "stdout is not a TTY. This option has no effect if "
+              "the \"no-position\" option is specified"),
+        NULL},
     {NULL}
   };
   GOptionContext *ctx;
@@ -1022,7 +1130,11 @@ main (int argc, char *argv[])
   gchar **argvn;
   GError *error = NULL;
   gulong deep_notify_id = 0;
-  gint res = 0;
+  guint bus_watch_id = 0;
+  GSource *position_source = NULL;
+#ifdef HAVE_WINMM
+  guint winmm_timer_resolution = 0;
+#endif
 
   free (malloc (8));            /* -lefence */
 
@@ -1088,8 +1200,9 @@ main (int argc, char *argv[])
     return 1;
   }
 
+  loop = g_main_loop_new (NULL, FALSE);
+
   if (!savefile) {
-    GstState state, pending;
     GstStateChangeReturn ret;
     GstBus *bus;
 
@@ -1104,6 +1217,23 @@ main (int argc, char *argv[])
       gst_bin_add (GST_BIN (real_pipeline), pipeline);
       pipeline = real_pipeline;
     }
+#ifdef HAVE_WINMM
+    /* Enable high-precision clock which will improve accuracy of various
+     * Windows timer APIs (e.g., Sleep()), and it will increase the precision
+     * of GstSystemClock as well
+     */
+
+    /* NOTE: Once timer resolution is updated via timeBeginPeriod(),
+     * application should undo it by calling timeEndPeriod()
+     *
+     * Prior to Windows 10, version 2004, timeBeginPeriod() affects global
+     * Windows setting (meaning that it will affect other processes),
+     * but starting with Windows 10, version 2004, this function no longer
+     * affects global timer resolution
+     */
+    winmm_timer_resolution = enable_winmm_timer_resolution ();
+#endif
+
     if (verbose) {
       deep_notify_id =
           gst_element_add_property_deep_notify_watch (pipeline, NULL, TRUE);
@@ -1127,6 +1257,7 @@ main (int argc, char *argv[])
 
     bus = gst_element_get_bus (pipeline);
     gst_bus_set_sync_handler (bus, bus_sync_handler, (gpointer) pipeline, NULL);
+    bus_watch_id = gst_bus_add_watch (bus, bus_handler, NULL);
     gst_object_unref (bus);
 
     PRINT (_("Setting pipeline to PAUSED ...\n"));
@@ -1134,9 +1265,8 @@ main (int argc, char *argv[])
 
     switch (ret) {
       case GST_STATE_CHANGE_FAILURE:
-        gst_printerr (_("ERROR: Pipeline doesn't want to pause.\n"));
-        res = -1;
-        event_loop (pipeline, FALSE, FALSE, GST_STATE_VOID_PENDING);
+        gst_printerr (_("Failed to set pipeline to PAUSED.\n"));
+        last_launch_code = LEC_STATE_CHANGE_FAILURE;
         goto end;
       case GST_STATE_CHANGE_NO_PREROLL:
         PRINT (_("Pipeline is live and does not need PREROLL ...\n"));
@@ -1144,107 +1274,57 @@ main (int argc, char *argv[])
         break;
       case GST_STATE_CHANGE_ASYNC:
         PRINT (_("Pipeline is PREROLLING ...\n"));
-        caught_error = event_loop (pipeline, TRUE, TRUE, GST_STATE_PAUSED);
-        if (caught_error) {
-          gst_printerr (_("ERROR: pipeline doesn't want to preroll.\n"));
-          res = caught_error;
-          goto end;
-        }
-        state = GST_STATE_PAUSED;
-        /* fallthrough */
-      case GST_STATE_CHANGE_SUCCESS:
-        PRINT (_("Pipeline is PREROLLED ...\n"));
+        break;
+      default:
         break;
     }
 
-    caught_error = event_loop (pipeline, FALSE, TRUE, GST_STATE_PLAYING);
+#ifdef G_OS_UNIX
+    signal_watch_intr_id =
+        g_unix_signal_add (SIGINT, (GSourceFunc) intr_handler, pipeline);
+    signal_watch_hup_id =
+        g_unix_signal_add (SIGHUP, (GSourceFunc) hup_handler, pipeline);
+#elif defined(G_OS_WIN32)
+    SetConsoleCtrlHandler (w32_intr_handler, TRUE);
+#endif
+    if (!no_position) {
+      gboolean output_is_tty = TRUE;
 
-    if (caught_error) {
-      gst_printerr (_("ERROR: pipeline doesn't want to preroll.\n"));
-      res = caught_error;
-    } else {
-      GstClockTime tfthen, tfnow;
-      GstClockTimeDiff diff;
+      if (!isatty (STDOUT_FILENO))
+        output_is_tty = FALSE;
 
-      PRINT (_("Setting pipeline to PLAYING ...\n"));
-
-      if (gst_element_set_state (pipeline,
-              GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
-        GstMessage *err_msg;
-        GstBus *bus;
-
-        gst_printerr (_("ERROR: pipeline doesn't want to play.\n"));
-        bus = gst_element_get_bus (pipeline);
-        if ((err_msg = gst_bus_poll (bus, GST_MESSAGE_ERROR, 0))) {
-          print_error_message (err_msg);
-          gst_message_unref (err_msg);
-        }
-        gst_object_unref (bus);
-        res = -1;
-        goto end;
+      if (output_is_tty || (!output_is_tty && force_position)) {
+        position_source = g_timeout_source_new (100);
+        g_source_set_callback (position_source, query_pipeline_position,
+            GINT_TO_POINTER (output_is_tty), NULL);
+        g_source_attach (position_source, NULL);
       }
-
-      tfthen = gst_util_get_timestamp ();
-      caught_error = event_loop (pipeline, TRUE, FALSE, GST_STATE_PLAYING);
-      res = caught_error;
-      if (eos_on_shutdown && caught_error != ELR_NO_ERROR) {
-        gboolean ignore_errors;
-
-        waiting_eos = TRUE;
-        if (caught_error == ELR_INTERRUPT) {
-          PRINT (_("EOS on shutdown enabled -- Forcing EOS on the pipeline\n"));
-          gst_element_send_event (pipeline, gst_event_new_eos ());
-          ignore_errors = FALSE;
-        } else {
-          PRINT (_("EOS on shutdown enabled -- waiting for EOS after Error\n"));
-          ignore_errors = TRUE;
-        }
-        PRINT (_("Waiting for EOS...\n"));
-
-        while (TRUE) {
-          caught_error = event_loop (pipeline, TRUE, FALSE, GST_STATE_PLAYING);
-
-          if (caught_error == ELR_NO_ERROR) {
-            /* we got EOS */
-            PRINT (_("EOS received - stopping pipeline...\n"));
-            break;
-          } else if (caught_error == ELR_INTERRUPT) {
-            PRINT (_
-                ("Interrupt while waiting for EOS - stopping pipeline...\n"));
-            res = caught_error;
-            break;
-          } else if (caught_error == ELR_ERROR) {
-            if (!ignore_errors) {
-              PRINT (_("An error happened while waiting for EOS\n"));
-              res = caught_error;
-              break;
-            }
-          }
-        }
-      }
-      tfnow = gst_util_get_timestamp ();
-
-      diff = GST_CLOCK_DIFF (tfthen, tfnow);
-
-      PRINT (_("Execution ended after %" GST_TIME_FORMAT "\n"),
-          GST_TIME_ARGS (diff));
     }
 
-    PRINT (_("Setting pipeline to PAUSED ...\n"));
-    gst_element_set_state (pipeline, GST_STATE_PAUSED);
-    if (caught_error == ELR_NO_ERROR)
-      gst_element_get_state (pipeline, &state, &pending, GST_CLOCK_TIME_NONE);
+    /* playing state will be set on state-changed message handler */
+    g_main_loop_run (loop);
 
-    /* iterate mainloop to process pending stuff */
-    while (g_main_context_iteration (NULL, FALSE));
+    if (position_source) {
+      g_source_destroy (position_source);
+      g_source_unref (position_source);
+    }
+
+    {
+      GstClockTime tfnow;
+      GstClockTimeDiff diff;
+
+      if (GST_CLOCK_TIME_IS_VALID (tfthen)) {
+        tfnow = gst_util_get_timestamp ();
+        diff = GST_CLOCK_DIFF (tfthen, tfnow);
+
+        PRINT (_("Execution ended after %" GST_TIME_FORMAT "\n"),
+            GST_TIME_ARGS (diff));
+      }
+    }
 
     /* No need to see all those pad caps going to NULL etc., it's just noise */
     if (deep_notify_id != 0)
       g_signal_handler_disconnect (pipeline, deep_notify_id);
-
-    PRINT (_("Setting pipeline to READY ...\n"));
-    gst_element_set_state (pipeline, GST_STATE_READY);
-    gst_element_get_state (pipeline, &state, &pending, GST_CLOCK_TIME_NONE);
 
 #if 0
     if (check_index) {
@@ -1256,6 +1336,20 @@ main (int argc, char *argv[])
   end:
     PRINT (_("Setting pipeline to NULL ...\n"));
     gst_element_set_state (pipeline, GST_STATE_NULL);
+
+#ifdef G_OS_UNIX
+    if (signal_watch_intr_id > 0)
+      g_source_remove (signal_watch_intr_id);
+    if (signal_watch_hup_id > 0)
+      g_source_remove (signal_watch_hup_id);
+#endif
+    g_source_remove (bus_watch_id);
+    g_main_loop_unref (loop);
+
+#ifdef HAVE_WINMM
+    /* Undo timeBeginPeriod() if required */
+    clear_winmm_timer_resolution (winmm_timer_resolution);
+#endif
   }
 
   PRINT (_("Freeing pipeline ...\n"));
@@ -1263,5 +1357,5 @@ main (int argc, char *argv[])
 
   gst_deinit ();
 
-  return res;
+  return last_launch_code;
 }

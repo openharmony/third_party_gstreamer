@@ -1,8 +1,16 @@
+if not tracer_hooks
+  if get_option('coretracers').enabled()
+    error('coretracers plugin enabled but not tracer_hooks')
+  endif
+  subdir_done()
+endif
+
 gst_tracers_sources = [
   'gstlatency.c',
   'gstleaks.c',
   'gststats.c',
   'gsttracers.c',
+  'gstfactories.c'
 ]
 
 if gst_debug
@@ -13,14 +21,15 @@ if cdata.has('HAVE_GETRUSAGE')
   gst_tracers_sources += ['gstrusage.c']
 endif
 
-tracers_args = gst_c_args + ['-DGST_USE_UNSTABLE_API']
+thread_dep = dependency('threads', required : false)
 
 gst_tracers = library('gstcoretracers',
   gst_tracers_sources,
-  c_args : tracers_args,
+  c_args : gst_c_args,
   include_directories : [configinc],
-  dependencies : [gst_dep],
+  dependencies : [gst_dep, thread_dep],
   install : true,
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gst_tracers, install_dir : plugins_pkgconfig_install_dir)
+plugins += [gst_tracers]

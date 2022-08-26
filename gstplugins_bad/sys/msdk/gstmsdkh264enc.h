@@ -33,6 +33,7 @@
 #define __GST_MSDKH264ENC_H__
 
 #include "gstmsdkenc.h"
+#include <gst/codecparsers/gsth264parser.h>
 
 G_BEGIN_DECLS
 
@@ -55,6 +56,8 @@ struct _GstMsdkH264Enc
   GstMsdkEnc base;
 
   mfxExtCodingOption option;
+  /* roi[0] for current ROI and roi[1] for previous ROI */
+  mfxExtEncoderROI roi[2];
 
   gint profile;
   gint level;
@@ -66,6 +69,17 @@ struct _GstMsdkH264Enc
   guint trellis;
   guint max_slice_size;
   guint b_pyramid;
+  gint tune_mode;
+  guint prop_flag;
+  guint p_pyramid;
+  guint min_qp;
+  guint max_qp;
+  guint intra_refresh_type;
+  guint dblk_idc;
+
+  GstH264NalParser *parser;
+  GArray *cc_sei_array;
+  GstMemory *frame_packing_sei;
 };
 
 struct _GstMsdkH264EncClass

@@ -24,15 +24,15 @@
 
 /**
  * SECTION:element-shagadelictv
+ * @title: shagadelictv
  *
  * Oh behave, ShagedelicTV makes images shagadelic!
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * gst-launch-1.0 -v videotestsrc ! shagadelictv ! videoconvert ! autovideosink
  * ]| This pipeline shows the effect of shagadelictv on a test stream.
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -51,6 +51,8 @@
 
 #define gst_shagadelictv_parent_class parent_class
 G_DEFINE_TYPE (GstShagadelicTV, gst_shagadelictv, GST_TYPE_VIDEO_FILTER);
+GST_ELEMENT_REGISTER_DEFINE (shagadelictv, "shagadelictv",
+    GST_RANK_NONE, GST_TYPE_SHAGADELICTV);
 
 static void gst_shagadelic_initialize (GstShagadelicTV * filter,
     GstVideoInfo * in_info);

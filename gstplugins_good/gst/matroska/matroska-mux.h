@@ -77,7 +77,7 @@ GstMatroskaPad;
 
 struct _GstMatroskaMux {
   GstElement     element;
-  
+
   /* < private > */
 
   /* pads */
@@ -90,6 +90,9 @@ struct _GstMatroskaMux {
 
   /* Application name (for the writing application header element) */
   gchar          *writing_app;
+
+  /* Date (for the DateUTC header element) */
+  GDateTime      *creation_time;
 
   /* EBML DocType. */
   const gchar    *doctype;
@@ -104,13 +107,17 @@ struct _GstMatroskaMux {
   GstMatroskaIndex *index;
   guint          num_indexes;
   GstClockTimeDiff min_index_interval;
- 
+
   /* timescale in the file */
   guint64        time_scale;
   /* minimum and maximum limit of nanoseconds you can have in a cluster */
   guint64        max_cluster_duration;
   guint64        min_cluster_duration;
 
+  /* earliest timestamp (time, ns) if offsetting to zero */
+  gboolean       offset_to_zero;
+  guint64        cluster_timestamp_offset;
+  guint64        earliest_time;
   /* length, position (time, ns) */
   guint64        duration;
 

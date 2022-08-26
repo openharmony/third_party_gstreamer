@@ -28,6 +28,7 @@ if have_orcc
     input : orcsrc + '.orc',
     output : orcsrc + '.c',
     command : orcc_args + ['--implementation', '-o', '@OUTPUT@', '@INPUT@'])
+  orc_targets += {'name': orcsrc, 'orc-source': files(orcsrc + '.orc'), 'header': orc_h, 'source': orc_c}
 else
   orc_h = configure_file(input : orcsrc + '-dist.h',
     output : orcsrc + '.h',
@@ -46,3 +47,4 @@ gstaudiofx = library('gstaudiofx',
   install_dir : plugins_install_dir,
 )
 pkgconfig.generate(gstaudiofx, install_dir : plugins_pkgconfig_install_dir)
+plugins += [gstaudiofx]

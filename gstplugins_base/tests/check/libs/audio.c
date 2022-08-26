@@ -647,8 +647,7 @@ GST_START_TEST (test_buffer_clip_samples_start_and_stop_no_meta)
   fail_unless_equals_int64 (GST_BUFFER_TIMESTAMP (ret), 4 * GST_SECOND);
   fail_unless_equals_int64 (GST_BUFFER_DURATION (ret), GST_CLOCK_TIME_NONE);
   fail_unless_equals_int64 (GST_BUFFER_OFFSET (ret), 400);
-  fail_unless_equals_int64 (GST_BUFFER_OFFSET_END (ret),
-      GST_BUFFER_OFFSET_NONE);
+  fail_unless_equals_int64 (GST_BUFFER_OFFSET_END (ret), 800);
   gst_buffer_map (ret, &map, GST_MAP_READ);
   fail_unless (map.data == data + 200);
   fail_unless (map.size == 400);
@@ -664,7 +663,7 @@ GST_START_TEST (test_buffer_clip_samples_no_timestamp)
   GstSegment s;
   GstBuffer *buf;
 
-  /* If the buffer has no offset it should assert()
+  /* If the buffer has no offset it should assert() in DEFAULT format
    * FIXME: check if return value is the same as the input buffer.
    *        probably can't be done because the assert() does a SIGABRT.
    */
@@ -679,6 +678,57 @@ GST_START_TEST (test_buffer_clip_samples_no_timestamp)
   ASSERT_CRITICAL (gst_audio_buffer_clip (buf, &s, 100, 1));
 
   gst_buffer_unref (buf);
+}
+
+GST_END_TEST;
+
+GST_START_TEST (test_buffer_truncate_samples_offset_end)
+{
+  GstBuffer *buf;
+  GstBuffer *ret;
+  guint8 *data;
+
+  buf = make_buffer (&data);
+  GST_BUFFER_TIMESTAMP (buf) = 2 * GST_SECOND;
+  GST_BUFFER_DURATION (buf) = 10 * GST_SECOND;
+  GST_BUFFER_OFFSET (buf) = 200;
+  GST_BUFFER_OFFSET_END (buf) = 1200;
+
+  ret = gst_audio_buffer_truncate (buf, 4, 100, 100);
+  fail_unless (ret != NULL);
+
+  fail_unless_equals_int64 (GST_BUFFER_TIMESTAMP (ret), GST_CLOCK_TIME_NONE);
+  fail_unless_equals_int64 (GST_BUFFER_DURATION (ret), GST_CLOCK_TIME_NONE);
+  fail_unless_equals_int64 (GST_BUFFER_OFFSET (ret), 300);
+  fail_unless_equals_int64 (GST_BUFFER_OFFSET_END (ret), 400);
+
+  gst_buffer_unref (ret);
+}
+
+GST_END_TEST;
+
+GST_START_TEST (test_buffer_truncate_samples_no_timestamp)
+{
+  GstBuffer *buf;
+  GstBuffer *ret;
+  guint8 *data;
+
+  buf = make_buffer (&data);
+  GST_BUFFER_TIMESTAMP (buf) = GST_CLOCK_TIME_NONE;
+  GST_BUFFER_DURATION (buf) = GST_CLOCK_TIME_NONE;
+  GST_BUFFER_OFFSET (buf) = GST_BUFFER_OFFSET_NONE;
+  GST_BUFFER_OFFSET_END (buf) = GST_BUFFER_OFFSET_NONE;
+
+  ret = gst_audio_buffer_truncate (buf, 4, 100, 1);
+  fail_unless (ret != NULL);
+
+  fail_unless_equals_int64 (GST_BUFFER_TIMESTAMP (ret), GST_CLOCK_TIME_NONE);
+  fail_unless_equals_int64 (GST_BUFFER_DURATION (ret), GST_CLOCK_TIME_NONE);
+  fail_unless_equals_int64 (GST_BUFFER_OFFSET (ret), GST_BUFFER_OFFSET_NONE);
+  fail_unless_equals_int64 (GST_BUFFER_OFFSET_END (ret),
+      GST_BUFFER_OFFSET_NONE);
+
+  gst_buffer_unref (ret);
 }
 
 GST_END_TEST;
@@ -926,7 +976,7 @@ GST_START_TEST (test_fill_silence)
   for (f = GST_AUDIO_FORMAT_S8; f < GST_AUDIO_FORMAT_F64; f++) {
     gst_audio_info_set_format (&info, f, 48000, 1, NULL);
 
-    gst_audio_format_fill_silence (info.finfo, test_silence,
+    gst_audio_format_info_fill_silence (info.finfo, test_silence,
         GST_AUDIO_INFO_BPF (&info) * 4);
 
     for (i = 0; i < 4; i++)
@@ -1402,6 +1452,132 @@ GST_START_TEST (test_audio_buffer_and_audio_meta)
 
 GST_END_TEST;
 
+typedef struct
+{
+  const gchar *str;
+  GstAudioFormat format;
+  GstAudioLayout layout;
+  gint rate;
+  gint channels;
+  gboolean ret;
+} AudioInfoFromCapsData;
+
+GST_START_TEST (test_audio_info_from_caps)
+{
+  static const AudioInfoFromCapsData format_list[] = {
+    /* raw format, positive */
+    {"audio/x-raw, format = (string) S8, layout = (string) non-interleaved, "
+          "rate = (int) 44100, channels = (int) 2", GST_AUDIO_FORMAT_S8,
+        GST_AUDIO_LAYOUT_NON_INTERLEAVED, 44100, 2, TRUE},
+    {"audio/x-raw, format = (string) U8, layout = (string) interleaved, "
+          "rate = (int) 44100, channels = (int) 1", GST_AUDIO_FORMAT_U8,
+        GST_AUDIO_LAYOUT_INTERLEAVED, 44100, 1, TRUE},
+
+    /* raw format, negative */
+    /* unknown format */
+    {"audio/x-raw, format = (string) foo, layout = (string) interleaved, "
+          "rate = (int) 44100, channels = (int) 2", GST_AUDIO_FORMAT_UNKNOWN,
+        GST_AUDIO_LAYOUT_INTERLEAVED, 0, 0, FALSE},
+    {"audio/x-raw, layout = (string) non-interleaved, "
+          "rate = (int) 44100, channels = (int) 2", GST_AUDIO_FORMAT_UNKNOWN,
+        GST_AUDIO_LAYOUT_INTERLEAVED, 0, 0, FALSE},
+    /* unknown layout */
+    {"audio/x-raw, format = (string) U8, "
+          "rate = (int) 44100, channels = (int) 2", GST_AUDIO_FORMAT_UNKNOWN,
+        GST_AUDIO_LAYOUT_INTERLEAVED, 0, 0, FALSE},
+    /* unknown rate */
+    {"audio/x-raw, format = (string) U8, layout = (string) interleaved, "
+          "channels = (int) 2", GST_AUDIO_FORMAT_UNKNOWN,
+        GST_AUDIO_LAYOUT_INTERLEAVED, 0, 0, FALSE},
+    /* unknown channels */
+    {"audio/x-raw, format = (string) U8, layout = (string) interleaved, "
+          "rate = (int) 44100", GST_AUDIO_FORMAT_UNKNOWN,
+        GST_AUDIO_LAYOUT_INTERLEAVED, 0, 0, FALSE},
+    /* video caps */
+    {"video/x-raw, format = (string) NV12",
+        GST_AUDIO_FORMAT_UNKNOWN, GST_AUDIO_LAYOUT_INTERLEAVED, 0, 0, FALSE},
+
+    /* encoded format, it allow empty fields */
+    {"audio/x-opus", GST_AUDIO_FORMAT_ENCODED,
+        GST_AUDIO_LAYOUT_INTERLEAVED, 0, 0, TRUE},
+    /* rate only  */
+    {"audio/x-opus, rate = (int) 44100", GST_AUDIO_FORMAT_ENCODED,
+        GST_AUDIO_LAYOUT_INTERLEAVED, 44100, 0, TRUE},
+    /* channels only  */
+    {"audio/x-opus, channels = (int) 2", GST_AUDIO_FORMAT_ENCODED,
+        GST_AUDIO_LAYOUT_INTERLEAVED, 0, 2, TRUE},
+    /* rate and channels  */
+    {"audio/x-opus, rate = (int) 44100, channels = (int) 2",
+        GST_AUDIO_FORMAT_ENCODED, GST_AUDIO_LAYOUT_INTERLEAVED, 44100, 2, TRUE},
+  };
+  gint i;
+
+  for (i = 0; i < G_N_ELEMENTS (format_list); i++) {
+    GstAudioInfo info;
+    GstCaps *caps;
+
+    GST_LOG ("checking %dth format", i);
+
+    caps = gst_caps_from_string (format_list[i].str);
+    fail_unless (caps != NULL);
+
+    gst_audio_info_init (&info);
+    fail_unless_equals_int (gst_audio_info_from_caps (&info, caps),
+        format_list[i].ret);
+
+    if (format_list[i].ret) {
+      fail_unless_equals_int (GST_AUDIO_INFO_FORMAT (&info),
+          format_list[i].format);
+      fail_unless_equals_int (GST_AUDIO_INFO_LAYOUT (&info),
+          format_list[i].layout);
+      fail_unless_equals_int (GST_AUDIO_INFO_RATE (&info), format_list[i].rate);
+      fail_unless_equals_int (GST_AUDIO_INFO_CHANNELS (&info),
+          format_list[i].channels);
+    }
+
+    gst_caps_unref (caps);
+  }
+}
+
+GST_END_TEST;
+
+GST_START_TEST (test_audio_make_raw_caps)
+{
+  GstCaps *caps, *expected;
+  GstAudioFormat f1[] = { GST_AUDIO_FORMAT_U8 };
+  GstAudioFormat f2[] = { GST_AUDIO_FORMAT_U8, GST_AUDIO_FORMAT_S8 };
+
+  caps =
+      gst_audio_make_raw_caps (f1, G_N_ELEMENTS (f1),
+      GST_AUDIO_LAYOUT_INTERLEAVED);
+  expected =
+      gst_caps_from_string
+      ("audio/x-raw, format = (string) U8, rate = (int) [ 1, max ], channels = (int) [ 1, max ], layout = (string) interleaved");
+  fail_unless (gst_caps_is_equal (caps, expected));
+  gst_caps_unref (caps);
+  gst_caps_unref (expected);
+
+  caps =
+      gst_audio_make_raw_caps (f2, G_N_ELEMENTS (f2),
+      GST_AUDIO_LAYOUT_NON_INTERLEAVED);
+  expected =
+      gst_caps_from_string
+      ("audio/x-raw, format = (string) { U8, S8 }, rate = (int) [ 1, max ], channels = (int) [ 1, max ], layout = (string) non-interleaved");
+  fail_unless (gst_caps_is_equal (caps, expected));
+  gst_caps_unref (caps);
+  gst_caps_unref (expected);
+
+  caps = gst_audio_make_raw_caps (NULL, 0, GST_AUDIO_LAYOUT_INTERLEAVED);
+  expected =
+      gst_caps_from_string
+      ("audio/x-raw, format = (string) { S8, U8, S16LE, S16BE, U16LE, U16BE, S24_32LE, S24_32BE, U24_32LE, U24_32BE, S32LE, S32BE, U32LE, U32BE, S24LE, S24BE, U24LE, U24BE, S20LE, S20BE, U20LE, U20BE, S18LE, S18BE, U18LE, U18BE, F32LE, F32BE, F64LE, F64BE }, rate = (int) [ 1, max ], channels = (int) [ 1, max ], layout = (string) interleaved");
+  fail_unless (gst_caps_is_equal (caps, expected));
+  gst_caps_unref (caps);
+  gst_caps_unref (expected);
+}
+
+GST_END_TEST;
+
 static Suite *
 audio_suite (void)
 {
@@ -1428,6 +1604,8 @@ audio_suite (void)
   tcase_add_test (tc_chain, test_buffer_clip_samples_outside);
   tcase_add_test (tc_chain, test_buffer_clip_samples_start_and_stop_no_meta);
   tcase_add_test (tc_chain, test_buffer_clip_samples_no_timestamp);
+  tcase_add_test (tc_chain, test_buffer_truncate_samples_offset_end);
+  tcase_add_test (tc_chain, test_buffer_truncate_samples_no_timestamp);
   tcase_add_test (tc_chain, test_multichannel_checks);
   tcase_add_test (tc_chain, test_multichannel_reorder);
   tcase_add_test (tc_chain, test_audio_format_s8);
@@ -1436,6 +1614,8 @@ audio_suite (void)
   tcase_add_test (tc_chain, test_stream_align);
   tcase_add_test (tc_chain, test_stream_align_reverse);
   tcase_add_test (tc_chain, test_audio_buffer_and_audio_meta);
+  tcase_add_test (tc_chain, test_audio_info_from_caps);
+  tcase_add_test (tc_chain, test_audio_make_raw_caps);
 
   return s;
 }

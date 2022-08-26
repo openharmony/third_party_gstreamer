@@ -96,3 +96,66 @@ gst_vtutil_dict_set_object (CFMutableDictionaryRef dict, CFStringRef key,
   CFDictionarySetValue (dict, key, value);
   CFRelease (value);
 }
+
+CMVideoCodecType
+gst_vtutil_codec_type_from_prores_variant (const char *variant)
+{
+  if (g_strcmp0 (variant, "standard") == 0)
+    return kCMVideoCodecType_AppleProRes422;
+  else if (g_strcmp0 (variant, "4444xq") == 0)
+    return kCMVideoCodecType_AppleProRes4444XQ;
+  else if (g_strcmp0 (variant, "4444") == 0)
+    return kCMVideoCodecType_AppleProRes4444;
+  else if (g_strcmp0 (variant, "hq") == 0)
+    return kCMVideoCodecType_AppleProRes422HQ;
+  else if (g_strcmp0 (variant, "lt") == 0)
+    return kCMVideoCodecType_AppleProRes422LT;
+  else if (g_strcmp0 (variant, "proxy") == 0)
+    return kCMVideoCodecType_AppleProRes422Proxy;
+  return GST_kCMVideoCodecType_Some_AppleProRes;
+}
+
+const char *
+gst_vtutil_codec_type_to_prores_variant (CMVideoCodecType codec_type)
+{
+  switch (codec_type) {
+    case kCMVideoCodecType_AppleProRes422:
+      return "standard";
+    case kCMVideoCodecType_AppleProRes4444XQ:
+      return "4444xq";
+    case kCMVideoCodecType_AppleProRes4444:
+      return "4444";
+    case kCMVideoCodecType_AppleProRes422HQ:
+      return "hq";
+    case kCMVideoCodecType_AppleProRes422LT:
+      return "lt";
+    case kCMVideoCodecType_AppleProRes422Proxy:
+      return "proxy";
+    default:
+      g_assert_not_reached ();
+  }
+}
+
+GstCaps *
+gst_vtutil_caps_append_video_format (GstCaps * caps, const char *vfmt)
+{
+  GstStructure *s;
+  GValueArray *arr;
+  GValue val = G_VALUE_INIT;
+
+  caps = gst_caps_make_writable (caps);
+  s = gst_caps_get_structure (caps, 0);
+  gst_structure_get_list (s, "format", &arr);
+
+  g_value_init (&val, G_TYPE_STRING);
+
+  g_value_set_string (&val, vfmt);
+  G_GNUC_BEGIN_IGNORE_DEPRECATIONS;
+  arr = g_value_array_append (arr, &val);
+  G_GNUC_END_IGNORE_DEPRECATIONS;
+
+  g_value_unset (&val);
+
+  gst_structure_set_list (s, "format", arr);
+  return caps;
+}

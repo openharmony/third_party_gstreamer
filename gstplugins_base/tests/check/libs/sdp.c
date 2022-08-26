@@ -47,6 +47,16 @@ static const gchar *sdp = "v=0\r\n"
     "a=sendrecv\r\n"
     "m=audio 1010 TCP 14\r\n";
 
+static const gchar *h264_sdp = "v=0\r\n"
+    "o=- 992782775729845470 2 IN IP4 127.0.0.1\r\n"
+    "s=TestH264\r\n"
+    "t=0 0\r\n"
+    "m=video 9 UDP/TLS/RTP/SAVPF 96\r\n"
+    "c=IN IP4 0.0.0.0\r\n"
+    "a=recvonly\r\n"
+    "a=rtpmap:96 H264/90000\r\n"
+    "a=fmtp:96 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f\r\n";
+
 static const gchar caps_video_string1[] =
     "application/x-unknown, media=(string)video, payload=(int)96, "
     "clock-rate=(int)90000, encoding-name=(string)MP4V-ES";
@@ -124,6 +134,54 @@ static const gchar caps_video_rtcp_fb_all_pt_102[] =
     "application/x-unknown, media=(string)video, payload=(int)102, "
     "clock-rate=(int)90000, encoding-name=(string)H264, "
     "rtcp-fb-nack=(boolean)true, rtcp-fb-nack-pli=(boolean)true";
+
+static const gchar * sdp_extmap = "v=0\r\n"
+    "o=- 123456 2 IN IP4 127.0.0.1 \r\n"
+    "s=-\r\n"
+    "t=0 0\r\n"
+    "a=maxptime:60\r\n"
+    "a=sendrecv\r\n"
+    "m=video 1 UDP/TLS/RTP/SAVPF 100 101 102\r\n"
+    "c=IN IP4 1.1.1.1\r\n"
+    "a=rtpmap:100 VP8/90000\r\n"
+    "a=extmap:2 urn:ietf:params:rtp-hdrext:toffset\r\n"
+    "a=extmap:3/recvonly http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time\r\n"
+    "a=extmap:4 urn:3gpp:video-orientation attributes\r\n";
+
+static const gchar caps_video_extmap_pt_100[] =
+    "application/x-unknown, media=(string)video, payload=(int)100, "
+    "clock-rate=(int)90000, encoding-name=(string)VP8, "
+    "extmap-2=urn:ietf:params:rtp-hdrext:toffset, "
+    "extmap-3=(string)<\"recvonly\",\"http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time\",\"\">, "
+    "extmap-4=(string)<\"\",\"urn:3gpp:video-orientation\",\"attributes\">";
+
+static const gchar * sdp_fmtp = "v=0\r\n"
+    "o=ali 1122334455 1122334466 IN IP4 fec.example.com\r\n"
+    "s=Raptor RTP FEC Example\r\n"
+    "t=0 0\r\n"
+    "a=group:FEC-FR S1 R1\r\n"
+    "m=video 30000 RTP/AVP 100\r\n"
+    "c=IN IP4 233.252.0.1/127\r\n"
+    "a=rtpmap:100 MP2T/90000\r\n"
+    "a=fec-source-flow: id=0\r\n"
+    "a=mid:S1\r\n"
+    "m=application 30000 RTP/AVP 110\r\n"
+    "c=IN IP4 233.252.0.2/127\r\n"
+    "a=rtpmap:110 raptorfec/90000\r\n"
+    "a=fmtp:110 raptor-scheme-id=1; Kmax=8192; T=128; P=A; repair-window=200000\r\n"
+    "a=mid:R1\r\n";
+
+static const gchar caps_video_raptor_fec_pt_100[] =
+    "application/x-unknown, media=(string)video, payload=(int)100, "
+    "clock-rate=(int)90000, encoding-name=(string)MP2T, "
+    "a-fec-source-flow=(string)\"\\ id\\=0\", a-mid=(string)S1";
+
+static const gchar caps_application_raptor_fec_pt_110[] =
+    "application/x-unknown, media=(string)application, payload=(int)110, "
+    "clock-rate=(int)90000, encoding-name=(string)RAPTORFEC, "
+    "raptor-scheme-id=(string)1, kmax=(string)8192, t=(string)128, p=(string)A, repair-window=(string)200000, "
+    "a-mid=(string)R1";
+
 
 /* *INDENT-ON* */
 
@@ -536,6 +594,111 @@ GST_START_TEST (media_from_caps_rtcp_fb_pt_101)
 }
 
 GST_END_TEST
+GST_START_TEST (caps_from_media_extmap)
+{
+  GstSDPMessage *message;
+  glong length = -1;
+  const GstSDPMedia *media1;
+  GstCaps *caps1;
+  GstCaps *result1;
+
+  gst_sdp_message_new (&message);
+  gst_sdp_message_parse_buffer ((guint8 *) sdp_extmap, length, message);
+
+  media1 = gst_sdp_message_get_media (message, 0);
+  fail_unless (media1 != NULL);
+
+  caps1 = gst_sdp_media_get_caps_from_media (media1, 100);
+  gst_sdp_media_attributes_to_caps (media1, caps1);
+  result1 = gst_caps_from_string (caps_video_extmap_pt_100);
+  fail_unless (gst_caps_is_strictly_equal (caps1, result1));
+
+  gst_caps_unref (result1);
+  gst_caps_unref (caps1);
+
+  gst_sdp_message_free (message);
+}
+
+GST_END_TEST
+GST_START_TEST (caps_from_media_fmtp)
+{
+  GstSDPMessage *message;
+  glong length = -1;
+  const GstSDPMedia *media1, *media2;
+  GstCaps *caps1, *caps2;
+  GstCaps *result1, *result2;
+
+  gst_sdp_message_new (&message);
+  gst_sdp_message_parse_buffer ((guint8 *) sdp_fmtp, length, message);
+
+  media1 = gst_sdp_message_get_media (message, 0);
+  fail_unless (media1 != NULL);
+
+  caps1 = gst_sdp_media_get_caps_from_media (media1, 100);
+  gst_sdp_media_attributes_to_caps (media1, caps1);
+  result1 = gst_caps_from_string (caps_video_raptor_fec_pt_100);
+  fail_unless (gst_caps_is_strictly_equal (caps1, result1));
+
+  gst_caps_unref (result1);
+  gst_caps_unref (caps1);
+
+  media2 = gst_sdp_message_get_media (message, 1);
+  fail_unless (media1 != NULL);
+
+  caps2 = gst_sdp_media_get_caps_from_media (media2, 110);
+  gst_sdp_media_attributes_to_caps (media2, caps2);
+  result2 = gst_caps_from_string (caps_application_raptor_fec_pt_110);
+  fail_unless (gst_caps_is_strictly_equal (caps2, result2));
+
+  gst_caps_unref (result2);
+  gst_caps_unref (caps2);
+  gst_sdp_message_free (message);
+}
+
+GST_END_TEST
+GST_START_TEST (media_from_caps_extmap_pt_100)
+{
+  GstSDPResult ret = GST_SDP_OK;
+  GstSDPMessage *message;
+  glong length = -1;
+  GstSDPMedia *media_caps;
+  const GstSDPMedia *media_sdp;
+  GstCaps *caps;
+  const gchar *attr_val_caps1, *attr_val_caps2, *attr_val_caps3;
+  const gchar *attr_val_sdp1, *attr_val_sdp2, *attr_val_sdp3;
+
+  caps = gst_caps_from_string (caps_video_extmap_pt_100);
+
+  gst_sdp_media_new (&media_caps);
+  fail_unless (media_caps != NULL);
+
+  ret = gst_sdp_media_set_media_from_caps (caps, media_caps);
+  fail_unless (ret == GST_SDP_OK);
+  gst_caps_unref (caps);
+
+  gst_sdp_message_new (&message);
+  gst_sdp_message_parse_buffer ((guint8 *) sdp_extmap, length, message);
+
+  media_sdp = gst_sdp_message_get_media (message, 0);
+  fail_unless (media_sdp != NULL);
+
+  attr_val_caps1 = gst_sdp_media_get_attribute_val_n (media_caps, "extmap", 0);
+  attr_val_caps2 = gst_sdp_media_get_attribute_val_n (media_caps, "extmap", 1);
+  attr_val_caps3 = gst_sdp_media_get_attribute_val_n (media_caps, "extmap", 2);
+
+  attr_val_sdp1 = gst_sdp_media_get_attribute_val_n (media_sdp, "extmap", 0);
+  attr_val_sdp2 = gst_sdp_media_get_attribute_val_n (media_sdp, "extmap", 1);
+  attr_val_sdp3 = gst_sdp_media_get_attribute_val_n (media_sdp, "extmap", 2);
+
+  fail_if (g_strcmp0 (attr_val_caps1, attr_val_sdp1) != 0);
+  fail_if (g_strcmp0 (attr_val_caps2, attr_val_sdp2) != 0);
+  fail_if (g_strcmp0 (attr_val_caps3, attr_val_sdp3) != 0);
+
+  gst_sdp_media_free (media_caps);
+  gst_sdp_message_free (message);
+}
+
+GST_END_TEST
 GST_START_TEST (caps_from_media_really_const)
 {
   GstSDPMessage *message;
@@ -569,6 +732,33 @@ GST_START_TEST (caps_from_media_really_const)
 }
 
 GST_END_TEST
+GST_START_TEST (media_from_caps_h264_with_profile_asymmetry_allowed)
+{
+  GstSDPMessage *message;
+  glong length = -1;
+  const GstSDPMedia *result_video;
+  GstStructure *s_video;
+  GstCaps *caps_video;
+
+  gst_sdp_message_new (&message);
+  gst_sdp_message_parse_buffer ((guint8 *) h264_sdp, length, message);
+
+
+  result_video = gst_sdp_message_get_media (message, 0);
+  fail_unless (result_video != NULL);
+  caps_video = gst_sdp_media_get_caps_from_media (result_video, 96);
+
+  s_video = gst_caps_get_structure (caps_video, 0);
+  fail_if (gst_structure_has_field (s_video, "level-asymmetry-allowed"));
+  fail_if (gst_structure_has_field (s_video, "profile-level-id"));
+  fail_unless_equals_string (gst_structure_get_string (s_video, "profile"),
+      "constrained-baseline");
+
+  gst_caps_unref (caps_video);
+  gst_sdp_message_free (message);
+}
+
+GST_END_TEST
 /*
  * End of test cases
  */
@@ -588,8 +778,13 @@ sdp_suite (void)
   tcase_add_test (tc_chain, media_from_caps);
   tcase_add_test (tc_chain, caps_from_media_rtcp_fb);
   tcase_add_test (tc_chain, caps_from_media_rtcp_fb_all);
+  tcase_add_test (tc_chain, caps_from_media_extmap);
+  tcase_add_test (tc_chain, caps_from_media_fmtp);
   tcase_add_test (tc_chain, media_from_caps_rtcp_fb_pt_100);
   tcase_add_test (tc_chain, media_from_caps_rtcp_fb_pt_101);
+  tcase_add_test (tc_chain, media_from_caps_extmap_pt_100);
+  tcase_add_test (tc_chain,
+      media_from_caps_h264_with_profile_asymmetry_allowed);
 
   return s;
 }

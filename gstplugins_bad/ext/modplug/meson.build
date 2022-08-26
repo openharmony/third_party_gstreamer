@@ -1,4 +1,4 @@
-if not add_languages('cpp', required: get_option('modplug'))
+if not add_languages('cpp', native: false, required: get_option('modplug'))
   subdir_done()
 endif
 
@@ -14,4 +14,5 @@ if modplug_dep.found()
     install_dir: plugins_install_dir,
   )
   pkgconfig.generate(gstmodplug, install_dir: plugins_pkgconfig_install_dir)
+  plugins += [gstmodplug]
 endif

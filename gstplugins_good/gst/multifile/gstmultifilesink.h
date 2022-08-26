@@ -100,6 +100,7 @@ struct _GstMultiFileSink
 
   GstClockTime file_pts;
   GstClockTime max_file_duration;
+  GstClockTime min_keyframe_distance;
 
   gboolean aggregate_gops;
   GstAdapter *gop_adapter;  /* to aggregate GOPs */
@@ -112,6 +113,8 @@ struct _GstMultiFileSinkClass
 };
 
 GType gst_multi_file_sink_get_type (void);
+
+GST_ELEMENT_REGISTER_DECLARE (multifilesink);
 
 G_END_DECLS
 

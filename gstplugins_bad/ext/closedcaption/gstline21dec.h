@@ -41,6 +41,12 @@ G_BEGIN_DECLS
 typedef struct _GstLine21Decoder GstLine21Decoder;
 typedef struct _GstLine21DecoderClass GstLine21DecoderClass;
 
+typedef enum {
+  GST_LINE_21_DECODER_MODE_ADD,
+  GST_LINE_21_DECODER_MODE_DROP,
+  GST_LINE_21_DECODER_MODE_REPLACE,
+} GstLine21DecoderMode;
+
 struct _GstLine21Decoder
 {
   GstVideoFilter parent;
@@ -60,6 +66,9 @@ struct _GstLine21Decoder
   guint8 *converted_lines;
   
   GstVideoInfo *info;
+
+  gboolean ntsc_only;
+  GstLine21DecoderMode mode;
 };
 
 struct _GstLine21DecoderClass
@@ -68,6 +77,8 @@ struct _GstLine21DecoderClass
 };
 
 GType gst_line_21_decoder_get_type (void);
+
+GST_ELEMENT_REGISTER_DECLARE (line21decoder);
 
 G_END_DECLS
 #endif /* __GST_LINE21DECODER_H__ */

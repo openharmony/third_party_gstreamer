@@ -31,19 +31,18 @@
 #include <config.h>
 #endif
 
-#include <gst/gst.h>
-#include "gstopenh264dec.h"
-#include "gstopenh264enc.h"
+#include "gstopenh264elements.h"
+
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  gst_element_register (plugin, "openh264dec", GST_RANK_MARGINAL,
-      GST_TYPE_OPENH264DEC);
-  gst_element_register (plugin, "openh264enc", GST_RANK_MARGINAL,
-      GST_TYPE_OPENH264ENC);
+  gboolean ret = FALSE;
 
-  return TRUE;
+  ret |= GST_ELEMENT_REGISTER (openh264dec, plugin);
+  ret |= GST_ELEMENT_REGISTER (openh264enc, plugin);
+
+  return ret;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

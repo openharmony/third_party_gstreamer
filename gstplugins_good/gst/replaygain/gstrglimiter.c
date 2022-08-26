@@ -22,21 +22,21 @@
 
 /**
  * SECTION:element-rglimiter
+ * @title: rglimiter
  * @see_also: #GstRgVolume
  *
  * This element applies signal compression/limiting to raw audio data.  It
  * performs strict hard limiting with soft-knee characteristics, using a
- * threshold of -6 dB.  This type of filter is mentioned in the proposed <ulink
- * url="http://replaygain.org">ReplayGain standard</ulink>.
- * 
- * <refsect2>
- * <title>Example launch line</title>
+ * threshold of -6 dB.  This type of filter is mentioned in the proposed
+ * [ReplayGain standard](https://wiki.hydrogenaud.io/index.php?title=ReplayGain).
+ *
+ * ## Example launch line
  * |[
  * gst-launch-1.0 filesrc location=filename.ext ! decodebin ! audioconvert \
  *            ! rgvolume pre-amp=6.0 headroom=10.0 ! rglimiter \
  *            ! audioconvert ! audioresample ! alsasink
  * ]|Playback of a file
- * </refsect2>
+ *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -76,6 +76,8 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
 
 #define gst_rg_limiter_parent_class parent_class
 G_DEFINE_TYPE (GstRgLimiter, gst_rg_limiter, GST_TYPE_BASE_TRANSFORM);
+GST_ELEMENT_REGISTER_DEFINE (rglimiter, "rglimiter", GST_RANK_NONE,
+    GST_TYPE_RG_LIMITER);
 
 static void gst_rg_limiter_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);

@@ -35,6 +35,7 @@
 #endif
 #include <stdlib.h>
 #include "gstmsdksystemmemory.h"
+#include <string.h>
 
 #ifdef _WIN32
 #define posix_memalign(d, a, s) ((*((void**)d) = _aligned_malloc(s, a)) ? 0 : -1)
@@ -79,6 +80,7 @@ ensure_data (GstMsdkSystemMemory * mem)
   switch (GST_VIDEO_INFO_FORMAT (info)) {
     case GST_VIDEO_FORMAT_NV12:
     case GST_VIDEO_FORMAT_P010_10LE:
+    case GST_VIDEO_FORMAT_P012_LE:
       mem->surface->Data.Y = mem->cached_data[0];
       mem->surface->Data.UV = mem->cached_data[1];
       mem->surface->Data.Pitch = mem->destination_pitches[0];
@@ -108,9 +110,11 @@ ensure_data (GstMsdkSystemMemory * mem)
       mem->surface->Data.Pitch = mem->destination_pitches[0];
       break;
     case GST_VIDEO_FORMAT_BGRA:
-      mem->surface->Data.R = mem->cached_data[0];
-      mem->surface->Data.G = mem->surface->Data.R + 1;
-      mem->surface->Data.B = mem->surface->Data.R + 2;
+    case GST_VIDEO_FORMAT_BGRx:
+      mem->surface->Data.B = mem->cached_data[0];
+      mem->surface->Data.G = mem->surface->Data.B + 1;
+      mem->surface->Data.R = mem->surface->Data.B + 2;
+      mem->surface->Data.A = mem->surface->Data.B + 3;
       mem->surface->Data.Pitch = mem->destination_pitches[0];
       break;
 #if (MFX_VERSION >= 1028)
@@ -138,6 +142,39 @@ ensure_data (GstMsdkSystemMemory * mem)
       mem->surface->Data.A = mem->surface->Data.R;
       mem->surface->Data.Pitch = mem->destination_pitches[0];
       break;
+    case GST_VIDEO_FORMAT_Y210:
+    case GST_VIDEO_FORMAT_Y212_LE:
+      mem->surface->Data.Y = mem->cached_data[0];
+      mem->surface->Data.U = mem->surface->Data.Y + 2;
+      mem->surface->Data.V = mem->surface->Data.Y + 6;
+      mem->surface->Data.Pitch = mem->destination_pitches[0];
+      break;
+    case GST_VIDEO_FORMAT_Y410:
+      mem->surface->Data.U = mem->cached_data[0];       /* Data.Y410 */
+      mem->surface->Data.Pitch = mem->destination_pitches[0];
+      break;
+    case GST_VIDEO_FORMAT_Y412_LE:
+      mem->surface->Data.U = mem->cached_data[0];
+      mem->surface->Data.Y = mem->surface->Data.U + 2;
+      mem->surface->Data.V = mem->surface->Data.U + 4;
+      mem->surface->Data.A = mem->surface->Data.U + 6;
+      mem->surface->Data.Pitch = mem->destination_pitches[0];
+      break;
+#if (MFX_VERSION >= 2004)
+    case GST_VIDEO_FORMAT_RGBP:
+      mem->surface->Data.Pitch = mem->destination_pitches[0];
+      mem->surface->Data.R = mem->cached_data[0];
+      mem->surface->Data.G = mem->cached_data[1];
+      mem->surface->Data.B = mem->cached_data[2];
+      break;
+    case GST_VIDEO_FORMAT_BGRP:
+      mem->surface->Data.Pitch = mem->destination_pitches[0];
+      mem->surface->Data.B = mem->cached_data[0];
+      mem->surface->Data.G = mem->cached_data[1];
+      mem->surface->Data.R = mem->cached_data[2];
+      break;
+#endif
+
     default:
       g_assert_not_reached ();
       break;
@@ -187,13 +224,21 @@ gst_msdk_system_memory_new (GstAllocator * base_allocator)
 
   mem->surface = gst_msdk_system_allocator_create_surface (base_allocator);
 
+  if (!mem->surface) {
+    g_slice_free (GstMsdkSystemMemory, mem);
+    return NULL;
+  }
+
   vip = &allocator->image_info;
-  gst_memory_init (&mem->parent_instance, GST_MEMORY_FLAG_NO_SHARE,
+  gst_memory_init (&mem->parent_instance, 0,
       base_allocator, NULL, GST_VIDEO_INFO_SIZE (vip), 0, 0,
       GST_VIDEO_INFO_SIZE (vip));
 
-  if (!ensure_data (mem))
+  if (!ensure_data (mem)) {
+    g_slice_free (mfxFrameSurface1, mem->surface);
+    g_slice_free (GstMsdkSystemMemory, mem);
     return NULL;
+  }
 
   return GST_MEMORY_CAST (mem);
 }
@@ -213,16 +258,66 @@ gst_msdk_system_memory_map_full (GstMemory * base_mem, GstMapInfo * info,
 
   if ((info->flags & GST_MAP_WRITE) && mem->surface
       && mem->surface->Data.Locked) {
-    GST_WARNING ("The surface in memory %p is not still avaliable", mem);
+    GST_WARNING ("The surface in memory %p is not still available", mem);
     return NULL;
   }
 
-  return mem->surface->Data.Y;
+  switch (mem->surface->Info.FourCC) {
+    case MFX_FOURCC_RGB4:
+      return mem->surface->Data.B;      /* The first channel is B */
+
+      /* The first channel in memory is V for MFX_FOURCC_AYUV (GST_VIDEO_FORMAT_VUYA) format */
+    case MFX_FOURCC_AYUV:
+      return mem->surface->Data.V;
+
+#if (MFX_VERSION >= 1027)
+    case MFX_FOURCC_Y410:
+      return mem->surface->Data.U;      /* Data.Y410 */
+#endif
+
+#if (MFX_VERSION >= 1031)
+    case MFX_FOURCC_Y416:
+      return mem->surface->Data.U;      /* The first channel is U */
+#endif
+
+#if (MFX_VERSION >= 2004)
+    case MFX_FOURCC_RGBP:
+      return mem->surface->Data.R;
+
+    case MFX_FOURCC_BGRP:
+      return mem->surface->Data.B;
+#endif
+
+    default:
+      return mem->surface->Data.Y;
+  }
 }
 
 static void
 gst_msdk_system_memory_unmap (GstMemory * base_mem)
 {
+}
+
+static GstMemory *
+gst_msdk_system_memory_copy (GstMemory * base_mem, gssize offset, gssize size)
+{
+  GstMsdkSystemMemory *copy;
+  GstVideoInfo *info;
+  GstMsdkSystemAllocator *msdk_allocator;
+  gsize mem_size;
+
+  /* FIXME: can we consider offset and size here ? */
+  copy =
+      (GstMsdkSystemMemory *) gst_msdk_system_memory_new (base_mem->allocator);
+
+  msdk_allocator = GST_MSDK_SYSTEM_ALLOCATOR_CAST (base_mem->allocator);
+
+  info = &msdk_allocator->image_info;
+  mem_size = GST_VIDEO_INFO_SIZE (info);
+
+  memcpy (copy->cache, GST_MSDK_SYSTEM_MEMORY_CAST (base_mem)->cache, mem_size);
+
+  return GST_MEMORY_CAST (copy);
 }
 
 /* GstMsdkSystemAllocator */
@@ -236,6 +331,7 @@ gst_msdk_system_allocator_free (GstAllocator * allocator, GstMemory * base_mem)
 
   _aligned_free (mem->cache);
   g_slice_free (mfxFrameSurface1, mem->surface);
+  g_slice_free (GstMsdkSystemMemory, mem);
 }
 
 static GstMemory *
@@ -262,6 +358,7 @@ gst_msdk_system_allocator_init (GstMsdkSystemAllocator * allocator)
   base_allocator->mem_type = GST_MSDK_SYSTEM_MEMORY_NAME;
   base_allocator->mem_map_full = gst_msdk_system_memory_map_full;
   base_allocator->mem_unmap = gst_msdk_system_memory_unmap;
+  base_allocator->mem_copy = gst_msdk_system_memory_copy;
 
   GST_OBJECT_FLAG_SET (allocator, GST_ALLOCATOR_FLAG_CUSTOM_ALLOC);
 }

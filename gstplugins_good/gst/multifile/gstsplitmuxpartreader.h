@@ -73,12 +73,14 @@ struct _GstSplitMuxPartReader
 
   GstClockTime duration;
   GstClockTime start_offset;
+  GstClockTime ts_offset;
 
   GList *pads;
 
   GCond inactive_cond;
   GMutex lock;
   GMutex type_lock;
+  GMutex msg_lock;
 
   GstSplitMuxPartReaderPadCb get_pad_cb;
   gpointer cb_data;
@@ -107,7 +109,7 @@ void gst_splitmux_part_reader_deactivate (GstSplitMuxPartReader *part);
 gboolean gst_splitmux_part_reader_is_active (GstSplitMuxPartReader *part);
 
 gboolean gst_splitmux_part_reader_src_query (GstSplitMuxPartReader *part, GstPad *src_pad, GstQuery * query);
-void gst_splitmux_part_reader_set_start_offset (GstSplitMuxPartReader *part, GstClockTime offset);
+void gst_splitmux_part_reader_set_start_offset (GstSplitMuxPartReader *part, GstClockTime time_offset, GstClockTime ts_offset);
 GstClockTime gst_splitmux_part_reader_get_start_offset (GstSplitMuxPartReader *part);
 GstClockTime gst_splitmux_part_reader_get_end_offset (GstSplitMuxPartReader *part);
 GstClockTime gst_splitmux_part_reader_get_duration (GstSplitMuxPartReader * reader);

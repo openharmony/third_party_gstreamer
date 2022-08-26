@@ -67,8 +67,7 @@ rtp_storage_class_init (RtpStorageClass * klass)
 
   rtp_storage_signals[SIGNAL_PACKET_RECOVERED] =
       g_signal_new ("packet-recovered", G_TYPE_FROM_CLASS (klass),
-      G_SIGNAL_RUN_LAST, 0, NULL, NULL,
-      g_cclosure_marshal_generic, G_TYPE_NONE, 1, GST_TYPE_BUFFER);
+      G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 1, GST_TYPE_BUFFER);
 
   gobject_class->dispose = rtp_storage_dispose;
 }
@@ -92,7 +91,7 @@ rtp_storage_get_packets_for_recovery (RtpStorage * self, gint fec_pt,
   STORAGE_UNLOCK (self);
 
   if (NULL == stream) {
-    GST_ERROR_OBJECT (self, "Cant find ssrc = 0x08%x", ssrc);
+    GST_ERROR_OBJECT (self, "Can't find ssrc = 0x08%x", ssrc);
   } else {
     STREAM_LOCK (stream);
     if (stream->queue.length > 0) {
@@ -128,7 +127,7 @@ rtp_storage_get_redundant_packet (RtpStorage * self, guint32 ssrc,
   STORAGE_UNLOCK (self);
 
   if (NULL == stream) {
-    GST_ERROR_OBJECT (self, "Cant find ssrc = 0x%x", ssrc);
+    GST_ERROR_OBJECT (self, "Can't find ssrc = 0x%x", ssrc);
   } else {
     STREAM_LOCK (stream);
     if (stream->queue.length > 0) {

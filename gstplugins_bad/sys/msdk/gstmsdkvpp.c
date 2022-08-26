@@ -31,6 +31,22 @@
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+/**
+ * SECTION: element-msdkvpp
+ * @title: msdkvpp
+ * @short_description: MSDK Video Postprocessor
+ *
+ * A MediaSDK Video Postprocessing Filter
+ *
+ * ## Example launch line
+ * ```
+ * gst-launch-1.0 videotestsrc ! msdkvpp ! glimagesink
+ * ```
+ *
+ * Since: 1.16
+ *
+ */
+
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
 #endif
@@ -54,20 +70,54 @@
 #endif
 #endif
 
+#if (MFX_VERSION >= 2004)
+#define EXT_SINK_FORMATS        ", RGB16, Y410, Y210, P012_LE, Y212_LE, Y412_LE"
+#define EXT_SRC_FORMATS         ", YV12, Y410, Y210, RGBP, BGRP, P012_LE, Y212_LE, Y412_LE"
+#elif (MFX_VERSION >= 1032)
+#define EXT_SINK_FORMATS        ", RGB16, Y410, Y210, P012_LE, Y212_LE, Y412_LE"
+#define EXT_SRC_FORMATS         ", YV12, Y410, Y210, P012_LE, Y212_LE, Y412_LE"
+#elif (MFX_VERSION >= 1031)
+#define EXT_SINK_FORMATS        ", RGB16, Y410, Y210, P012_LE, Y212_LE, Y412_LE"
+#define EXT_SRC_FORMATS         ", Y410, Y210, P012_LE, Y212_LE, Y412_LE"
+#elif (MFX_VERSION >= 1028)
+#define EXT_SINK_FORMATS        ", RGB16, Y410, Y210"
+#define EXT_SRC_FORMATS         ", Y410, Y210"
+#elif (MFX_VERSION >= 1027)
+#define EXT_SINK_FORMATS        ", Y410, Y210"
+#define EXT_SRC_FORMATS         ", Y410, Y210"
+#else
+#define EXT_SINK_FORMATS        ""
+#define EXT_SRC_FORMATS         ""
+#endif
+
 GST_DEBUG_CATEGORY_EXTERN (gst_msdkvpp_debug);
 #define GST_CAT_DEFAULT gst_msdkvpp_debug
 
-#if (MFX_VERSION >= 1028)
 #define SUPPORTED_SYSTEM_FORMAT \
-    "{ NV12, YV12, I420, YUY2, UYVY, VUYA, BGRA, BGRx, RGB16, P010_10LE }"
+    "{ NV12, YV12, I420, YUY2, UYVY, VUYA, BGRA, BGRx, P010_10LE" EXT_SINK_FORMATS "}"
 #define SUPPORTED_DMABUF_FORMAT \
-    "{ NV12, BGRA, YUY2, UYVY, VUYA, RGB16, P010_10LE}"
+    "{ NV12, BGRA, YUY2, UYVY, VUYA, P010_10LE" EXT_SINK_FORMATS "}"
+#define SRC_SYSTEM_FORMAT \
+    "{ NV12, BGRA, YUY2, UYVY, VUYA, BGRx, P010_10LE" EXT_FORMATS EXT_SRC_FORMATS "}"
+#define SRC_DMABUF_FORMAT       \
+    "{ NV12, BGRA, YUY2, UYVY, VUYA, BGRx, P010_10LE" EXT_FORMATS EXT_SRC_FORMATS "}"
+
+#ifndef _WIN32
+#define DMABUF_SINK_CAPS_STR \
+  GST_VIDEO_CAPS_MAKE_WITH_FEATURES (GST_CAPS_FEATURE_MEMORY_DMABUF, \
+      SUPPORTED_DMABUF_FORMAT)
 #else
-#define SUPPORTED_SYSTEM_FORMAT \
-    "{ NV12, YV12, I420, YUY2, UYVY, VUYA, BGRA, BGRx, P010_10LE }"
-#define SUPPORTED_DMABUF_FORMAT \
-    "{ NV12, BGRA, YUY2, UYVY, VUYA, P010_10LE}"
+#define DMABUF_SINK_CAPS_STR ""
 #endif
+
+#ifndef _WIN32
+#define DMABUF_SRC_CAPS_STR \
+  GST_VIDEO_CAPS_MAKE_WITH_FEATURES (GST_CAPS_FEATURE_MEMORY_DMABUF, \
+      SRC_DMABUF_FORMAT) ";"
+#else
+#define DMABUF_SRC_CAPS_STR ""
+#endif
+
 
 static GstStaticPadTemplate gst_msdkvpp_sink_factory =
     GST_STATIC_PAD_TEMPLATE ("sink",
@@ -75,19 +125,14 @@ static GstStaticPadTemplate gst_msdkvpp_sink_factory =
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE (SUPPORTED_SYSTEM_FORMAT)
         ", " "interlace-mode = (string){ progressive, interleaved, mixed }" ";"
-        GST_VIDEO_CAPS_MAKE_WITH_FEATURES (GST_CAPS_FEATURE_MEMORY_DMABUF,
-            SUPPORTED_DMABUF_FORMAT)));
+        DMABUF_SINK_CAPS_STR));
 
 static GstStaticPadTemplate gst_msdkvpp_src_factory =
     GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE_WITH_FEATURES
-        (GST_CAPS_FEATURE_MEMORY_DMABUF,
-            "{ BGRA, YUY2, UYVY, NV12, VUYA, BGRx, P010_10LE" EXT_FORMATS "}")
-        ";"
-        GST_VIDEO_CAPS_MAKE ("{ BGRA, NV12, YUY2, UYVY, VUYA, BGRx, P010_10LE"
-            EXT_FORMATS "}") ", "
+    GST_STATIC_CAPS (DMABUF_SRC_CAPS_STR
+        GST_VIDEO_CAPS_MAKE (SRC_SYSTEM_FORMAT) ", "
         "interlace-mode = (string){ progressive, interleaved, mixed }" ";"));
 
 enum
@@ -96,7 +141,9 @@ enum
   PROP_HARDWARE,
   PROP_ASYNC_DEPTH,
   PROP_DENOISE,
+#ifndef GST_REMOVE_DEPRECATED
   PROP_ROTATION,
+#endif
   PROP_DEINTERLACE_MODE,
   PROP_DEINTERLACE_METHOD,
   PROP_HUE,
@@ -104,17 +151,27 @@ enum
   PROP_BRIGHTNESS,
   PROP_CONTRAST,
   PROP_DETAIL,
+#ifndef GST_REMOVE_DEPRECATED
   PROP_MIRRORING,
+#endif
   PROP_SCALING_MODE,
   PROP_FORCE_ASPECT_RATIO,
   PROP_FRC_ALGORITHM,
+  PROP_VIDEO_DIRECTION,
+  PROP_CROP_LEFT,
+  PROP_CROP_RIGHT,
+  PROP_CROP_TOP,
+  PROP_CROP_BOTTOM,
   PROP_N,
 };
 
 #define PROP_HARDWARE_DEFAULT            TRUE
 #define PROP_ASYNC_DEPTH_DEFAULT         1
 #define PROP_DENOISE_DEFAULT             0
+#ifndef GST_REMOVE_DEPRECATED
 #define PROP_ROTATION_DEFAULT            MFX_ANGLE_0
+#define PROP_MIRRORING_DEFAULT           MFX_MIRRORING_DISABLED
+#endif
 #define PROP_DEINTERLACE_MODE_DEFAULT    GST_MSDKVPP_DEINTERLACE_MODE_AUTO
 #define PROP_DEINTERLACE_METHOD_DEFAULT  MFX_DEINTERLACING_BOB
 #define PROP_HUE_DEFAULT                 0
@@ -122,10 +179,17 @@ enum
 #define PROP_BRIGHTNESS_DEFAULT          0
 #define PROP_CONTRAST_DEFAULT            1
 #define PROP_DETAIL_DEFAULT              0
-#define PROP_MIRRORING_DEFAULT           MFX_MIRRORING_DISABLED
 #define PROP_SCALING_MODE_DEFAULT        MFX_SCALING_MODE_DEFAULT
 #define PROP_FORCE_ASPECT_RATIO_DEFAULT  TRUE
 #define PROP_FRC_ALGORITHM_DEFAULT       _MFX_FRC_ALGORITHM_NONE
+#define PROP_VIDEO_DIRECTION_DEFAULT     GST_VIDEO_ORIENTATION_IDENTITY
+#define PROP_CROP_LEFT_DEFAULT           0
+#define PROP_CROP_RIGHT_DEFAULT          0
+#define PROP_CROP_TOP_DEFAULT            0
+#define PROP_CROP_BOTTOM_DEFAULT         0
+
+/* 8 should enough for a normal encoder */
+#define SRC_POOL_SIZE_DEFAULT            8
 
 #define gst_msdkvpp_parent_class parent_class
 G_DEFINE_TYPE (GstMsdkVPP, gst_msdkvpp, GST_TYPE_BASE_TRANSFORM);
@@ -137,11 +201,76 @@ typedef struct
 } MsdkSurface;
 
 static void
-free_msdk_surface (MsdkSurface * surface)
+free_msdk_surface (gpointer p)
 {
+  MsdkSurface *surface = (MsdkSurface *) p;
   if (surface->buf)
     gst_buffer_unref (surface->buf);
   g_slice_free (MsdkSurface, surface);
+}
+
+static void
+release_msdk_surface (GstMsdkVPP * thiz, MsdkSurface * surface, GList ** list)
+{
+  if (surface->surface) {
+    if (surface->surface->Data.Locked) {
+      *list = g_list_append (*list, surface);
+    } else {
+      free_msdk_surface (surface);
+    }
+  }
+}
+
+static void
+release_in_surface (GstMsdkVPP * thiz, MsdkSurface * surface,
+    gboolean locked_by_others)
+{
+  if (locked_by_others) {
+    /* mfxFrameSurface1 locked by others, others will hold the surface->buf reference */
+    /* we are good to release it here */
+    free_msdk_surface (surface);
+  } else {
+    release_msdk_surface (thiz, surface, &thiz->locked_in_surfaces);
+  }
+}
+
+static void
+release_out_surface (GstMsdkVPP * thiz, MsdkSurface * surface)
+{
+  release_msdk_surface (thiz, surface, &thiz->locked_out_surfaces);
+}
+
+static void
+free_unlocked_msdk_surfaces_from_list (GstMsdkVPP * thiz, GList ** list)
+{
+  GList *l;
+  MsdkSurface *surface;
+
+  for (l = *list; l;) {
+    GList *next = l->next;
+    surface = l->data;
+    if (surface->surface->Data.Locked == 0) {
+      free_msdk_surface (surface);
+      *list = g_list_delete_link (*list, l);
+    }
+    l = next;
+  }
+}
+
+static void
+free_unlocked_msdk_surfaces (GstMsdkVPP * thiz)
+{
+  free_unlocked_msdk_surfaces_from_list (thiz, &thiz->locked_in_surfaces);
+  free_unlocked_msdk_surfaces_from_list (thiz, &thiz->locked_out_surfaces);
+}
+
+static void
+free_all_msdk_surfaces (GstMsdkVPP * thiz)
+{
+  g_list_free_full (thiz->locked_in_surfaces, free_msdk_surface);
+  thiz->locked_in_surfaces = NULL;
+  g_list_free_full (thiz->locked_out_surfaces, free_msdk_surface);
+  thiz->locked_out_surfaces = NULL;
 }
 
 static void
@@ -154,41 +283,73 @@ gst_msdkvpp_add_extra_param (GstMsdkVPP * thiz, mfxExtBuffer * param)
 }
 
 static gboolean
+gst_msdkvpp_context_prepare (GstMsdkVPP * thiz)
+{
+  /* Try to find an existing context from the pipeline. This may (indirectly)
+   * invoke gst_msdkvpp_set_context, which will set thiz->context. */
+  if (!gst_msdk_context_find (GST_ELEMENT_CAST (thiz), &thiz->context))
+    return FALSE;
+
+  if (thiz->context == thiz->old_context) {
+    GST_INFO_OBJECT (thiz, "Found old context %" GST_PTR_FORMAT
+        ", reusing as-is", thiz->context);
+    return TRUE;
+  }
+
+  GST_INFO_OBJECT (thiz, "Found context %" GST_PTR_FORMAT " from neighbour",
+      thiz->context);
+
+  /* Check GST_MSDK_JOB_VPP and GST_MSDK_JOB_ENCODER together to avoid sharing context
+   * between VPP and ENCODER
+   * Example:
+   * gst-launch-1.0 videotestsrc ! msdkvpp ! video/x-raw,format=YUY2 ! msdkh264enc ! fakesink
+   */
+  if (!(gst_msdk_context_get_job_type (thiz->context) & (GST_MSDK_JOB_VPP |
+              GST_MSDK_JOB_ENCODER))) {
+    gst_msdk_context_add_job_type (thiz->context, GST_MSDK_JOB_VPP);
+    return TRUE;
+  }
+
+  /* Found an existing context that's already being used as VPP, so clone the
+   * MFX session inside it to create a new one */
+  {
+    GstMsdkContext *parent_context, *msdk_context;
+
+    GST_INFO_OBJECT (thiz, "Creating new context %" GST_PTR_FORMAT " with "
+        "joined session", thiz->context);
+    parent_context = thiz->context;
+    msdk_context = gst_msdk_context_new_with_parent (parent_context);
+
+    if (!msdk_context) {
+      GST_ERROR_OBJECT (thiz, "Failed to create a context with parent context "
+          "as %" GST_PTR_FORMAT, parent_context);
+      return FALSE;
+    }
+
+    thiz->context = msdk_context;
+    gst_object_unref (parent_context);
+  }
+
+  return TRUE;
+}
+
+static gboolean
 ensure_context (GstBaseTransform * trans)
 {
   GstMsdkVPP *thiz = GST_MSDKVPP (trans);
 
-  if (gst_msdk_context_prepare (GST_ELEMENT_CAST (thiz), &thiz->context)) {
-    GST_INFO_OBJECT (thiz, "Found context from neighbour %" GST_PTR_FORMAT,
-        thiz->context);
-
-    if (gst_msdk_context_get_job_type (thiz->context) & GST_MSDK_JOB_VPP) {
-      GstMsdkContext *parent_context, *msdk_context;
-
-      parent_context = thiz->context;
-      msdk_context = gst_msdk_context_new_with_parent (parent_context);
-
-      if (!msdk_context) {
-        GST_ERROR_OBJECT (thiz, "Context creation failed");
-        return FALSE;
-      }
-
-      thiz->context = msdk_context;
-      gst_object_unref (parent_context);
-
-      GST_INFO_OBJECT (thiz,
-          "Creating new context %" GST_PTR_FORMAT " with joined session",
-          thiz->context);
-    } else {
-      gst_msdk_context_add_job_type (thiz->context, GST_MSDK_JOB_VPP);
-    }
-  } else {
+  if (!gst_msdkvpp_context_prepare (thiz)) {
     if (!gst_msdk_context_ensure_context (GST_ELEMENT_CAST (thiz),
             thiz->hardware, GST_MSDK_JOB_VPP))
       return FALSE;
     GST_INFO_OBJECT (thiz, "Creating new context %" GST_PTR_FORMAT,
         thiz->context);
   }
+
+  /* Save the current context in a separate field so that we know whether it
+   * has changed between calls to _start() */
+  gst_object_replace ((GstObject **) & thiz->old_context,
+      (GstObject *) thiz->context);
 
   gst_msdk_context_add_shared_async_depth (thiz->context, thiz->async_depth);
 
@@ -274,7 +435,7 @@ gst_msdkvpp_create_buffer_pool (GstMsdkVPP * thiz, GstPadDirection direction,
   if (!gst_video_info_from_caps (&info, caps))
     goto error_no_video_info;
 
-  gst_msdk_set_video_alignment (&info, &align);
+  gst_msdk_set_video_alignment (&info, 0, 0, &align);
   gst_video_info_align (&info, &align);
 
   if (use_dmabuf)
@@ -289,8 +450,9 @@ gst_msdkvpp_create_buffer_pool (GstMsdkVPP * thiz, GstPadDirection direction,
     goto error_no_allocator;
 
   config = gst_buffer_pool_get_config (GST_BUFFER_POOL_CAST (pool));
+  /* we do not support dynamic buffer count change */
   gst_buffer_pool_config_set_params (config, caps, info.size, min_num_buffers,
-      0);
+      min_num_buffers);
 
   gst_buffer_pool_config_add_option (config, GST_BUFFER_POOL_OPTION_VIDEO_META);
   gst_buffer_pool_config_add_option (config,
@@ -310,7 +472,7 @@ gst_msdkvpp_create_buffer_pool (GstMsdkVPP * thiz, GstPadDirection direction,
   if (!gst_buffer_pool_set_config (pool, config))
     goto error_pool_config;
 
-  /* Updating pool_info with algined info of allocator */
+  /* Updating pool_info with aligned info of allocator */
   *pool_info = info;
 
   return pool;
@@ -357,18 +519,76 @@ _gst_caps_has_feature (const GstCaps * caps, const gchar * feature)
   return FALSE;
 }
 
+static GstBufferPool *
+create_src_pool (GstMsdkVPP * thiz, GstQuery * query, GstCaps * caps)
+{
+  GstBufferPool *pool = NULL;
+  guint size = 0, min_buffers = 0, max_buffers = 0;
+  gboolean update_pool = FALSE;
+  GstAllocator *allocator = NULL;
+  GstAllocationParams params;
+  mfxFrameAllocRequest request;
+
+  /* Check whether the query has pool */
+  if (gst_query_get_n_allocation_pools (query) > 0) {
+    update_pool = TRUE;
+    gst_query_parse_nth_allocation_pool (query, 0, &pool, NULL, NULL, NULL);
+  }
+  if (pool) {
+    GstStructure *config = NULL;
+    /* get the configured pool properties inorder to set in query */
+    config = gst_buffer_pool_get_config (pool);
+    gst_object_unref (pool);
+
+    gst_buffer_pool_config_get_params (config, &caps, &size, &min_buffers,
+        &max_buffers);
+    if (gst_buffer_pool_config_get_allocator (config, &allocator, &params))
+      gst_query_add_allocation_param (query, allocator, &params);
+    gst_structure_free (config);
+  } else {
+    /* if we have tee after msdkvpp, we will not have pool for src pad,
+       we need assign size for the internal pool
+       gst-launch-1.0 -v videotestsrc  ! msdkvpp ! tee ! msdkh264enc ! fakesink silent=false
+     */
+    min_buffers = SRC_POOL_SIZE_DEFAULT;
+  }
+
+  /* Always create a pool for vpp out buffers. Each of the msdk element
+   * has to create it's own mfxsurfacepool which is an msdk constraint.
+   * For eg: Each Msdk component (vpp, dec and enc) will invoke the external
+   * Frame allocator for video-memory usage.So sharing the pool between
+   * gst-msdk elements might not be a good idea, rather each element
+   * can check the buffer type (whether it is from msdk-buffer pool)
+   * to make sure there is no copy. Since we share the context between
+   * msdk elements, using buffers from one sdk's framealloator in another
+   * sdk-components is perfectly fine */
+  gst_msdk_frame_free (thiz->context, &thiz->out_alloc_resp);
+
+  request = thiz->request[1];
+  min_buffers += thiz->async_depth + request.NumFrameSuggested;
+  request.NumFrameSuggested = min_buffers;
+  gst_msdk_frame_alloc (thiz->context, &request, &thiz->out_alloc_resp);
+
+  pool = gst_msdkvpp_create_buffer_pool (thiz, GST_PAD_SRC, caps, min_buffers);
+  if (!pool)
+    return NULL;
+  /* we do not support dynamic buffer count change */
+  max_buffers = min_buffers;
+  if (update_pool)
+    gst_query_set_nth_allocation_pool (query, 0, pool, size, min_buffers,
+        max_buffers);
+  else
+    gst_query_add_allocation_pool (query, pool, size, min_buffers, max_buffers);
+
+  return pool;
+}
+
 static gboolean
 gst_msdkvpp_decide_allocation (GstBaseTransform * trans, GstQuery * query)
 {
   GstMsdkVPP *thiz = GST_MSDKVPP (trans);
   GstVideoInfo info;
-  GstBufferPool *pool = NULL;
-  GstStructure *config = NULL;
   GstCaps *caps;
-  guint size = 0, min_buffers = 0, max_buffers = 0;
-  GstAllocator *allocator = NULL;
-  GstAllocationParams params;
-  gboolean update_pool = FALSE;
 
   gst_query_parse_allocation (query, &caps, NULL);
   if (!caps) {
@@ -391,42 +611,10 @@ gst_msdkvpp_decide_allocation (GstBaseTransform * trans, GstQuery * query)
   else
     thiz->add_video_meta = FALSE;
 
-  /* Check whether the query has pool */
-  if (gst_query_get_n_allocation_pools (query) > 0)
-    update_pool = TRUE;
-
-  /* increase the min_buffers with number of concurrent vpp operations */
-  min_buffers += thiz->async_depth;
-
-  /* invalidate the cached pool if there is an allocation_query */
-  if (thiz->srcpad_buffer_pool)
-    gst_object_unref (thiz->srcpad_buffer_pool);
-
-  /* Always create a pool for vpp out buffers. Each of the msdk element
-   * has to create it's own mfxsurfacepool which is an msdk contraint.
-   * For eg: Each Msdk component (vpp, dec and enc) will invoke the external
-   * Frame allocator for video-memory usage.So sharing the pool between
-   * gst-msdk elements might not be a good idea, rather each element
-   * can check the buffer type (whether it is from msdk-buffer pool)
-   * to make sure there is no copy. Since we share the context between
-   * msdk elements, using buffers from one sdk's framealloator in another
-   * sdk-components is perfectly fine */
-  pool = gst_msdkvpp_create_buffer_pool (thiz, GST_PAD_SRC, caps, min_buffers);
-  thiz->srcpad_buffer_pool = pool;
-
-  /* get the configured pool properties inorder to set in query */
-  config = gst_buffer_pool_get_config (pool);
-  gst_buffer_pool_config_get_params (config, &caps, &size, &min_buffers,
-      &max_buffers);
-  if (gst_buffer_pool_config_get_allocator (config, &allocator, &params))
-    gst_query_add_allocation_param (query, allocator, &params);
-  gst_structure_free (config);
-
-  if (update_pool)
-    gst_query_set_nth_allocation_pool (query, 0, pool, size, min_buffers,
-        max_buffers);
-  else
-    gst_query_add_allocation_pool (query, pool, size, min_buffers, max_buffers);
+  gst_clear_object (&thiz->srcpad_buffer_pool);
+  thiz->srcpad_buffer_pool = create_src_pool (thiz, query, caps);
+  if (!thiz->srcpad_buffer_pool)
+    return FALSE;
 
   gst_query_add_allocation_meta (query, GST_VIDEO_META_API_TYPE, NULL);
 
@@ -492,7 +680,7 @@ gst_msdkvpp_propose_allocation (GstBaseTransform * trans,
     gst_query_add_allocation_param (query, allocator, &params);
   gst_structure_free (config);
 
-  /* if upstream does't have a pool requirement, set only
+  /* if upstream doesn't have a pool requirement, set only
    *  size, min_buffers and max_buffers in query */
   gst_query_add_allocation_pool (query, need_pool ? pool : NULL, size,
       min_buffers, 0);
@@ -608,7 +796,9 @@ get_msdk_surface_from_input_buffer (GstMsdkVPP * thiz, GstBuffer * inbuf)
 {
   GstVideoFrame src_frame, out_frame;
   MsdkSurface *msdk_surface;
+#ifndef _WIN32
   GstMemory *mem = NULL;
+#endif
 
   if (gst_msdk_is_msdk_buffer (inbuf)) {
     msdk_surface = g_slice_new0 (MsdkSurface);
@@ -677,21 +867,52 @@ gst_msdkvpp_transform (GstBaseTransform * trans, GstBuffer * inbuf,
   mfxSession session;
   mfxSyncPoint sync_point = NULL;
   mfxStatus status;
+  mfxFrameInfo *in_info = NULL;
   MsdkSurface *in_surface = NULL;
   MsdkSurface *out_surface = NULL;
+  GstBuffer *outbuf_new = NULL;
+  gboolean locked_by_others;
+  gboolean create_new_surface = FALSE;
 
-  timestamp = GST_BUFFER_TIMESTAMP (inbuf);
+  free_unlocked_msdk_surfaces (thiz);
 
   in_surface = get_msdk_surface_from_input_buffer (thiz, inbuf);
   if (!in_surface)
     return GST_FLOW_ERROR;
 
+  if (!in_surface->surface) {
+    GST_ERROR_OBJECT (thiz, "mfx surface is NULL for the current input buffer");
+    free_msdk_surface (in_surface);
+    return GST_FLOW_ERROR;
+  }
+  locked_by_others = ! !in_surface->surface->Data.Locked;
+
+  /* always convert timestamp of input surface as msdk timestamp */
+  if (inbuf->pts == GST_CLOCK_TIME_NONE)
+    in_surface->surface->Data.TimeStamp = MFX_TIMESTAMP_UNKNOWN;
+  else
+    in_surface->surface->Data.TimeStamp =
+        gst_util_uint64_scale_round (inbuf->pts, 90000, GST_SECOND);
+
   if (gst_msdk_is_msdk_buffer (outbuf)) {
     out_surface = g_slice_new0 (MsdkSurface);
     out_surface->surface = gst_msdk_get_surface_from_buffer (outbuf);
   } else {
-    GST_ERROR ("Failed to get msdk outsurface!");
+    GST_ERROR_OBJECT (thiz, "Failed to get msdk outsurface!");
+    free_msdk_surface (in_surface);
     return GST_FLOW_ERROR;
+  }
+
+  /* update surface crop info (NOTE: msdk min frame size is 2x2) */
+  in_info = &in_surface->surface->Info;
+  if ((thiz->crop_left + thiz->crop_right >= in_info->CropW - 1)
+      || (thiz->crop_top + thiz->crop_bottom >= in_info->CropH - 1)) {
+    GST_WARNING_OBJECT (thiz, "ignoring crop... cropping too much!");
+  } else {
+    in_info->CropX = thiz->crop_left;
+    in_info->CropY = thiz->crop_top;
+    in_info->CropW -= thiz->crop_left + thiz->crop_right;
+    in_info->CropH -= thiz->crop_top + thiz->crop_bottom;
   }
 
   session = gst_msdk_context_get_session (thiz->context);
@@ -702,13 +923,23 @@ gst_msdkvpp_transform (GstBaseTransform * trans, GstBuffer * inbuf,
       status =
           MFXVideoVPP_RunFrameVPPAsync (session, in_surface->surface,
           out_surface->surface, NULL, &sync_point);
+      timestamp = out_surface->surface->Data.TimeStamp;
+
       if (status != MFX_WRN_DEVICE_BUSY)
         break;
       /* If device is busy, wait 1ms and retry, as per MSDK's recommendation */
       g_usleep (1000);
-    };
+    }
 
-    if (status != MFX_ERR_NONE && status != MFX_ERR_MORE_DATA
+    if (timestamp == MFX_TIMESTAMP_UNKNOWN)
+      timestamp = GST_CLOCK_TIME_NONE;
+    else
+      timestamp = gst_util_uint64_scale_round (timestamp, GST_SECOND, 90000);
+
+    if (status == MFX_WRN_INCOMPATIBLE_VIDEO_PARAM)
+      GST_WARNING_OBJECT (thiz, "VPP returned: %s",
+          msdk_status_to_string (status));
+    else if (status != MFX_ERR_NONE && status != MFX_ERR_MORE_DATA
         && status != MFX_ERR_MORE_SURFACE)
       goto vpp_error;
 
@@ -724,46 +955,58 @@ gst_msdkvpp_transform (GstBaseTransform * trans, GstBuffer * inbuf,
         MFXVideoCORE_SyncOperation (session, sync_point,
             300000) != MFX_ERR_NONE)
       GST_WARNING_OBJECT (thiz, "failed to do sync operation");
+    /* push new output buffer forward after sync operation */
+    if (create_new_surface) {
+      create_new_surface = FALSE;
+      ret = gst_pad_push (GST_BASE_TRANSFORM_SRC_PAD (trans), outbuf_new);
+      if (ret != GST_FLOW_OK)
+        goto error_push_buffer;
+    }
 
     /* More than one output buffers are generated */
     if (status == MFX_ERR_MORE_SURFACE) {
-      GST_BUFFER_TIMESTAMP (outbuf) = timestamp;
-      GST_BUFFER_DURATION (outbuf) = thiz->buffer_duration;
-      timestamp += thiz->buffer_duration;
-      ret = gst_pad_push (GST_BASE_TRANSFORM_SRC_PAD (trans), outbuf);
-      if (ret != GST_FLOW_OK)
-        goto error_push_buffer;
-      outbuf = create_output_buffer (thiz);
+      outbuf_new = create_output_buffer (thiz);
+      GST_BUFFER_TIMESTAMP (outbuf_new) = timestamp;
+      GST_BUFFER_DURATION (outbuf_new) = thiz->buffer_duration;
+
+      if (gst_msdk_is_msdk_buffer (outbuf_new)) {
+        release_out_surface (thiz, out_surface);
+        out_surface = g_slice_new0 (MsdkSurface);
+        out_surface->surface = gst_msdk_get_surface_from_buffer (outbuf_new);
+        create_new_surface = TRUE;
+      } else {
+        GST_ERROR_OBJECT (thiz, "Failed to get msdk outsurface!");
+        goto vpp_error;
+      }
     } else {
       GST_BUFFER_TIMESTAMP (outbuf) = timestamp;
       GST_BUFFER_DURATION (outbuf) = thiz->buffer_duration;
     }
   } while (status == MFX_ERR_MORE_SURFACE);
 
-  free_msdk_surface (in_surface);
-  return ret;
+  goto transform_end;
 
 vpp_error:
   GST_ERROR_OBJECT (thiz, "MSDK Failed to do VPP");
-  free_msdk_surface (in_surface);
-  free_msdk_surface (out_surface);
-  return GST_FLOW_ERROR;
+  ret = GST_FLOW_ERROR;
+  goto transform_end;
 
 error_more_data:
   GST_WARNING_OBJECT (thiz,
-      "MSDK Requries additional input for processing, "
+      "MSDK Requires additional input for processing, "
       "Retruning FLOW_DROPPED since no output buffer was generated");
-  free_msdk_surface (in_surface);
-  return GST_BASE_TRANSFORM_FLOW_DROPPED;
+  ret = GST_BASE_TRANSFORM_FLOW_DROPPED;
+  goto transform_end;
 
 error_push_buffer:
-  {
-    free_msdk_surface (in_surface);
-    free_msdk_surface (out_surface);
-    GST_DEBUG_OBJECT (thiz, "failed to push output buffer: %s",
-        gst_flow_get_name (ret));
-    return ret;
-  }
+  GST_DEBUG_OBJECT (thiz, "failed to push output buffer: %s",
+      gst_flow_get_name (ret));
+
+transform_end:
+  release_in_surface (thiz, in_surface, locked_by_others);
+  release_out_surface (thiz, out_surface);
+
+  return ret;
 }
 
 static void
@@ -774,24 +1017,25 @@ gst_msdkvpp_close (GstMsdkVPP * thiz)
   if (!thiz->context)
     return;
 
+  if (thiz->use_video_memory) {
+    gst_msdk_frame_free (thiz->context, &thiz->in_alloc_resp);
+    gst_msdk_frame_free (thiz->context, &thiz->out_alloc_resp);
+  }
+
   GST_DEBUG_OBJECT (thiz, "Closing VPP 0x%p", thiz->context);
   status = MFXVideoVPP_Close (gst_msdk_context_get_session (thiz->context));
   if (status != MFX_ERR_NONE && status != MFX_ERR_NOT_INITIALIZED) {
     GST_WARNING_OBJECT (thiz, "VPP close failed (%s)",
         msdk_status_to_string (status));
   }
+  free_all_msdk_surfaces (thiz);
 
-  if (thiz->context)
-    gst_object_replace ((GstObject **) & thiz->context, NULL);
+  gst_clear_object (&thiz->context);
 
   memset (&thiz->param, 0, sizeof (thiz->param));
 
-  if (thiz->sinkpad_buffer_pool)
-    gst_object_unref (thiz->sinkpad_buffer_pool);
-  thiz->sinkpad_buffer_pool = NULL;
-  if (thiz->srcpad_buffer_pool)
-    gst_object_unref (thiz->srcpad_buffer_pool);
-  thiz->srcpad_buffer_pool = NULL;
+  gst_clear_object (&thiz->sinkpad_buffer_pool);
+  gst_clear_object (&thiz->srcpad_buffer_pool);
 
   thiz->buffer_duration = GST_CLOCK_TIME_NONE;
   gst_video_info_init (&thiz->sinkpad_info);
@@ -801,7 +1045,6 @@ gst_msdkvpp_close (GstMsdkVPP * thiz)
 static void
 ensure_filters (GstMsdkVPP * thiz)
 {
-
   /* Denoise */
   if (thiz->flags & GST_MSDK_FLAG_DENOISE) {
     mfxExtVPPDenoise *mfx_denoise = &thiz->mfx_denoise;
@@ -812,7 +1055,7 @@ ensure_filters (GstMsdkVPP * thiz)
   }
 
   /* Rotation */
-  if (thiz->flags & GST_MSDK_FLAG_ROTATION) {
+  if (thiz->rotation != MFX_ANGLE_0) {
     mfxExtVPPRotation *mfx_rotation = &thiz->mfx_rotation;
     mfx_rotation->Header.BufferId = MFX_EXTBUFF_VPP_ROTATION;
     mfx_rotation->Header.BufferSz = sizeof (mfxExtVPPRotation);
@@ -852,7 +1095,7 @@ ensure_filters (GstMsdkVPP * thiz)
   }
 
   /* Mirroring */
-  if (thiz->flags & GST_MSDK_FLAG_MIRRORING) {
+  if (thiz->mirroring != MFX_MIRRORING_DISABLED) {
     mfxExtVPPMirroring *mfx_mirroring = &thiz->mfx_mirroring;
     mfx_mirroring->Header.BufferId = MFX_EXTBUFF_VPP_MIRRORING;
     mfx_mirroring->Header.BufferSz = sizeof (mfxExtVPPMirroring);
@@ -913,7 +1156,7 @@ gst_msdkvpp_initialize (GstMsdkVPP * thiz)
 {
   mfxSession session;
   mfxStatus status;
-  mfxFrameAllocRequest request[2];
+  mfxFrameAllocRequest *request = &thiz->request[0];
 
   if (!thiz->context) {
     GST_WARNING_OBJECT (thiz, "No MSDK Context");
@@ -927,8 +1170,17 @@ gst_msdkvpp_initialize (GstMsdkVPP * thiz)
    * otherwise the subsequent function call of MFXVideoVPP_Init() will
    * fail
    */
-  if (thiz->initialized)
+  if (thiz->initialized) {
+    if (thiz->use_video_memory) {
+      gst_msdk_frame_free (thiz->context, &thiz->in_alloc_resp);
+    }
+
     MFXVideoVPP_Close (session);
+
+    memset (&thiz->param, 0, sizeof (thiz->param));
+    memset (&thiz->extra_params, 0, sizeof (thiz->extra_params));
+    thiz->num_extra_params = 0;
+  }
 
   if (thiz->use_video_memory) {
     gst_msdk_set_frame_allocator (thiz->context);
@@ -954,8 +1206,10 @@ gst_msdkvpp_initialize (GstMsdkVPP * thiz)
           || GST_VIDEO_INFO_FPS_D (&thiz->sinkpad_info) !=
           GST_VIDEO_INFO_FPS_D (&thiz->srcpad_info))) {
     thiz->flags |= GST_MSDK_FLAG_FRC;
-    /* So far this is the only algorithm which is working somewhat good */
-    thiz->frc_algm = MFX_FRCALGM_PRESERVE_TIMESTAMP;
+    /* manually set distributed timestamp as frc algorithm
+     * as it is more resonable for framerate conversion
+     */
+    thiz->frc_algm = MFX_FRCALGM_DISTRIBUTED_TIMESTAMP;
   }
 
   /* work-around to avoid zero fps in msdk structure */
@@ -971,13 +1225,13 @@ gst_msdkvpp_initialize (GstMsdkVPP * thiz)
   /* Enable the required filters */
   ensure_filters (thiz);
 
-  /* Add exteneded buffers */
+  /* Add extended buffers */
   if (thiz->num_extra_params) {
     thiz->param.NumExtParam = thiz->num_extra_params;
     thiz->param.ExtParam = thiz->extra_params;
   }
 
-  /* validate parameters and allow the Media SDK to make adjustments */
+  /* validate parameters and allow MFX to make adjustments */
   status = MFXVideoVPP_Query (session, &thiz->param, &thiz->param);
   if (status < MFX_ERR_NONE) {
     GST_ERROR_OBJECT (thiz, "Video VPP Query failed (%s)",
@@ -1009,12 +1263,9 @@ gst_msdkvpp_initialize (GstMsdkVPP * thiz)
     request[1].Type |= MFX_MEMTYPE_VIDEO_MEMORY_PROCESSOR_TARGET;
     if (thiz->use_srcpad_dmabuf)
       request[1].Type |= MFX_MEMTYPE_EXPORT_FRAME;
-    gst_msdk_frame_alloc (thiz->context, &(request[1]), &thiz->out_alloc_resp);
   }
 
   thiz->in_num_surfaces = request[0].NumFrameSuggested;
-  thiz->out_num_surfaces = request[1].NumFrameSuggested;
-
 
   status = MFXVideoVPP_Init (session, &thiz->param);
   if (status < MFX_ERR_NONE) {
@@ -1031,8 +1282,7 @@ gst_msdkvpp_initialize (GstMsdkVPP * thiz)
 
 no_vpp:
   GST_OBJECT_UNLOCK (thiz);
-  if (thiz->context)
-    gst_object_replace ((GstObject **) & thiz->context, NULL);
+  gst_clear_object (&thiz->context);
   return FALSE;
 }
 
@@ -1046,7 +1296,8 @@ gst_msdkvpp_set_caps (GstBaseTransform * trans, GstCaps * caps,
   gboolean srcpad_info_changed = FALSE;
   gboolean deinterlace;
 
-  if (gst_caps_get_features (caps, 0) != gst_caps_get_features (out_caps, 0))
+  if (!gst_caps_features_is_equal (gst_caps_get_features (caps, 0),
+          gst_caps_get_features (out_caps, 0)))
     thiz->need_vpp = 1;
 
   gst_video_info_from_caps (&in_info, caps);
@@ -1084,19 +1335,14 @@ gst_msdkvpp_set_caps (GstBaseTransform * trans, GstCaps * caps,
   gst_msdkvpp_set_passthrough (thiz);
 
   /* Ensure sinkpad buffer pool */
+  if (thiz->sinkpad_buffer_pool)
+    gst_object_unref (thiz->sinkpad_buffer_pool);
+
   thiz->sinkpad_buffer_pool =
       gst_msdkvpp_create_buffer_pool (thiz, GST_PAD_SINK, caps,
       thiz->in_num_surfaces);
   if (!thiz->sinkpad_buffer_pool) {
     GST_ERROR_OBJECT (thiz, "Failed to ensure the sinkpad buffer pool");
-    return FALSE;
-  }
-  /* Ensure a srcpad buffer pool */
-  thiz->srcpad_buffer_pool =
-      gst_msdkvpp_create_buffer_pool (thiz, GST_PAD_SRC, out_caps,
-      thiz->out_num_surfaces);
-  if (!thiz->srcpad_buffer_pool) {
-    GST_ERROR_OBJECT (thiz, "Failed to ensure the srcpad buffer pool");
     return FALSE;
   }
 
@@ -1152,6 +1398,14 @@ gst_msdkvpp_fixate_caps (GstBaseTransform * trans,
     result = gst_caps_fixate (result);
     use_dmabuf = &thiz->use_sinkpad_dmabuf;
   } else {
+    /*
+     * Override mirroring & rotation properties once video-direction
+     * is set explicitly
+     */
+    if (thiz->flags & GST_MSDK_FLAG_VIDEO_DIRECTION)
+      gst_msdk_get_mfx_video_orientation_from_video_direction
+          (thiz->video_direction, &thiz->mirroring, &thiz->rotation);
+
     result = gst_msdkvpp_fixate_srccaps (thiz, caps, othercaps);
     use_dmabuf = &thiz->use_srcpad_dmabuf;
   }
@@ -1231,10 +1485,16 @@ gst_msdkvpp_set_property (GObject * object, guint prop_id,
       thiz->denoise_factor = g_value_get_uint (value);
       thiz->flags |= GST_MSDK_FLAG_DENOISE;
       break;
+#ifndef GST_REMOVE_DEPRECATED
     case PROP_ROTATION:
       thiz->rotation = g_value_get_enum (value);
       thiz->flags |= GST_MSDK_FLAG_ROTATION;
       break;
+    case PROP_MIRRORING:
+      thiz->mirroring = g_value_get_enum (value);
+      thiz->flags |= GST_MSDK_FLAG_MIRRORING;
+      break;
+#endif
     case PROP_DEINTERLACE_MODE:
       thiz->deinterlace_mode = g_value_get_enum (value);
       break;
@@ -1261,10 +1521,6 @@ gst_msdkvpp_set_property (GObject * object, guint prop_id,
       thiz->detail = g_value_get_uint (value);
       thiz->flags |= GST_MSDK_FLAG_DETAIL;
       break;
-    case PROP_MIRRORING:
-      thiz->mirroring = g_value_get_enum (value);
-      thiz->flags |= GST_MSDK_FLAG_MIRRORING;
-      break;
     case PROP_SCALING_MODE:
       thiz->scaling_mode = g_value_get_enum (value);
       thiz->flags |= GST_MSDK_FLAG_SCALING_MODE;
@@ -1274,6 +1530,22 @@ gst_msdkvpp_set_property (GObject * object, guint prop_id,
       break;
     case PROP_FRC_ALGORITHM:
       thiz->frc_algm = g_value_get_enum (value);
+      break;
+    case PROP_VIDEO_DIRECTION:
+      thiz->video_direction = g_value_get_enum (value);
+      thiz->flags |= GST_MSDK_FLAG_VIDEO_DIRECTION;
+      break;
+    case PROP_CROP_LEFT:
+      thiz->crop_left = g_value_get_uint (value);
+      break;
+    case PROP_CROP_RIGHT:
+      thiz->crop_right = g_value_get_uint (value);
+      break;
+    case PROP_CROP_TOP:
+      thiz->crop_top = g_value_get_uint (value);
+      break;
+    case PROP_CROP_BOTTOM:
+      thiz->crop_bottom = g_value_get_uint (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1297,9 +1569,14 @@ gst_msdkvpp_get_property (GObject * object, guint prop_id,
     case PROP_DENOISE:
       g_value_set_uint (value, thiz->denoise_factor);
       break;
+#ifndef GST_REMOVE_DEPRECATED
     case PROP_ROTATION:
       g_value_set_enum (value, thiz->rotation);
       break;
+    case PROP_MIRRORING:
+      g_value_set_enum (value, thiz->mirroring);
+      break;
+#endif
     case PROP_DEINTERLACE_MODE:
       g_value_set_enum (value, thiz->deinterlace_mode);
       break;
@@ -1321,9 +1598,6 @@ gst_msdkvpp_get_property (GObject * object, guint prop_id,
     case PROP_DETAIL:
       g_value_set_uint (value, thiz->detail);
       break;
-    case PROP_MIRRORING:
-      g_value_set_enum (value, thiz->mirroring);
-      break;
     case PROP_SCALING_MODE:
       g_value_set_enum (value, thiz->scaling_mode);
       break;
@@ -1333,6 +1607,21 @@ gst_msdkvpp_get_property (GObject * object, guint prop_id,
     case PROP_FRC_ALGORITHM:
       g_value_set_enum (value, thiz->frc_algm);
       break;
+    case PROP_VIDEO_DIRECTION:
+      g_value_set_enum (value, thiz->video_direction);
+      break;
+    case PROP_CROP_LEFT:
+      g_value_set_uint (value, thiz->crop_left);
+      break;
+    case PROP_CROP_RIGHT:
+      g_value_set_uint (value, thiz->crop_right);
+      break;
+    case PROP_CROP_TOP:
+      g_value_set_uint (value, thiz->crop_top);
+      break;
+    case PROP_CROP_BOTTOM:
+      g_value_set_uint (value, thiz->crop_bottom);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1340,9 +1629,13 @@ gst_msdkvpp_get_property (GObject * object, guint prop_id,
 }
 
 static void
-gst_msdkvpp_finalize (GObject * object)
+gst_msdkvpp_dispose (GObject * object)
 {
-  G_OBJECT_CLASS (parent_class)->finalize (object);
+  GstMsdkVPP *thiz = GST_MSDKVPP (object);
+
+  gst_clear_object (&thiz->old_context);
+
+  G_OBJECT_CLASS (parent_class)->dispose (object);
 }
 
 static void
@@ -1374,7 +1667,7 @@ gst_msdkvpp_class_init (GstMsdkVPPClass * klass)
 
   gobject_class->set_property = gst_msdkvpp_set_property;
   gobject_class->get_property = gst_msdkvpp_get_property;
-  gobject_class->finalize = gst_msdkvpp_finalize;
+  gobject_class->dispose = gst_msdkvpp_dispose;
 
   element_class->set_context = gst_msdkvpp_set_context;
 
@@ -1384,10 +1677,10 @@ gst_msdkvpp_class_init (GstMsdkVPPClass * klass)
       &gst_msdkvpp_sink_factory);
 
   gst_element_class_set_static_metadata (element_class,
-      "MSDK Video Postprocessor",
+      "Intel MSDK Video Postprocessor",
       "Filter/Converter/Video;Filter/Converter/Video/Scaler;"
       "Filter/Effect/Video;Filter/Effect/Video/Deinterlace",
-      "A MediaSDK Video Postprocessing Filter",
+      "Video Postprocessing Filter based on " MFX_API_SDK,
       "Sreerenj Balachandrn <sreerenj.balachandran@intel.com>");
 
   trans_class->start = GST_DEBUG_FUNCPTR (gst_msdkvpp_start);
@@ -1418,10 +1711,20 @@ gst_msdkvpp_class_init (GstMsdkVPPClass * klass)
       "Denoising Factor",
       0, 100, PROP_DENOISE_DEFAULT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
+#ifndef GST_REMOVE_DEPRECATED
   obj_properties[PROP_ROTATION] =
       g_param_spec_enum ("rotation", "Rotation",
-      "Rotation Angle", gst_msdkvpp_rotation_get_type (),
-      PROP_ROTATION_DEFAULT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+      "Rotation Angle (DEPRECATED, use video-direction instead)",
+      gst_msdkvpp_rotation_get_type (), PROP_ROTATION_DEFAULT,
+      G_PARAM_DEPRECATED | G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+  obj_properties[PROP_MIRRORING] =
+      g_param_spec_enum ("mirroring", "Mirroring",
+      "The Mirroring type (DEPRECATED, use video-direction instead)",
+      gst_msdkvpp_mirroring_get_type (), PROP_MIRRORING_DEFAULT,
+      G_PARAM_DEPRECATED | G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+#endif
 
   obj_properties[PROP_DEINTERLACE_MODE] =
       g_param_spec_enum ("deinterlace-mode", "Deinterlace Mode",
@@ -1462,11 +1765,6 @@ gst_msdkvpp_class_init (GstMsdkVPPClass * klass)
       "The factor of detail/edge enhancement filter algorithm",
       0, 100, PROP_DETAIL_DEFAULT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
-  obj_properties[PROP_MIRRORING] =
-      g_param_spec_enum ("mirroring", "Mirroring",
-      "The Mirroring type", gst_msdkvpp_mirroring_get_type (),
-      PROP_MIRRORING_DEFAULT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
-
   obj_properties[PROP_SCALING_MODE] =
       g_param_spec_enum ("scaling-mode", "Scaling Mode",
       "The Scaling mode to use", gst_msdkvpp_scaling_mode_get_type (),
@@ -1484,6 +1782,39 @@ gst_msdkvpp_class_init (GstMsdkVPPClass * klass)
       gst_msdkvpp_frc_algorithm_get_type (), PROP_FRC_ALGORITHM_DEFAULT,
       G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
+  /*
+   * The video-direction to use, expressed as an enum value. See
+   * #GstVideoOrientationMethod.
+   */
+  obj_properties[PROP_VIDEO_DIRECTION] = g_param_spec_enum ("video-direction",
+      "Video Direction", "Video direction: rotation and flipping"
+#ifndef GST_REMOVE_DEPRECATED
+      ", it will override both mirroring & rotation properties if set explicitly"
+#endif
+      ,
+      GST_TYPE_VIDEO_ORIENTATION_METHOD,
+      PROP_VIDEO_DIRECTION_DEFAULT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+  obj_properties[PROP_CROP_LEFT] = g_param_spec_uint ("crop-left",
+      "Crop Left", "Pixels to crop at left",
+      0, G_MAXUINT16, PROP_CROP_LEFT_DEFAULT,
+      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+  obj_properties[PROP_CROP_RIGHT] = g_param_spec_uint ("crop-right",
+      "Crop Right", "Pixels to crop at right",
+      0, G_MAXUINT16, PROP_CROP_RIGHT_DEFAULT,
+      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+  obj_properties[PROP_CROP_TOP] = g_param_spec_uint ("crop-top",
+      "Crop Top", "Pixels to crop at top",
+      0, G_MAXUINT16, PROP_CROP_TOP_DEFAULT,
+      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+  obj_properties[PROP_CROP_BOTTOM] = g_param_spec_uint ("crop-bottom",
+      "Crop Bottom", "Pixels to crop at bottom",
+      0, G_MAXUINT16, PROP_CROP_BOTTOM_DEFAULT,
+      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
   g_object_class_install_properties (gobject_class, PROP_N, obj_properties);
 }
 
@@ -1494,7 +1825,13 @@ gst_msdkvpp_init (GstMsdkVPP * thiz)
   thiz->hardware = PROP_HARDWARE_DEFAULT;
   thiz->async_depth = PROP_ASYNC_DEPTH_DEFAULT;
   thiz->denoise_factor = PROP_DENOISE_DEFAULT;
+#ifndef GST_REMOVE_DEPRECATED
   thiz->rotation = PROP_ROTATION_DEFAULT;
+  thiz->mirroring = PROP_MIRRORING_DEFAULT;
+#else
+  thiz->rotation = MFX_ANGLE_0;
+  thiz->mirroring = MFX_MIRRORING_DISABLED;
+#endif
   thiz->deinterlace_mode = PROP_DEINTERLACE_MODE_DEFAULT;
   thiz->deinterlace_method = PROP_DEINTERLACE_METHOD_DEFAULT;
   thiz->buffer_duration = GST_CLOCK_TIME_NONE;
@@ -1503,10 +1840,15 @@ gst_msdkvpp_init (GstMsdkVPP * thiz)
   thiz->brightness = PROP_BRIGHTNESS_DEFAULT;
   thiz->contrast = PROP_CONTRAST_DEFAULT;
   thiz->detail = PROP_DETAIL_DEFAULT;
-  thiz->mirroring = PROP_MIRRORING_DEFAULT;
   thiz->scaling_mode = PROP_SCALING_MODE_DEFAULT;
   thiz->keep_aspect = PROP_FORCE_ASPECT_RATIO_DEFAULT;
   thiz->frc_algm = PROP_FRC_ALGORITHM_DEFAULT;
+  thiz->video_direction = PROP_VIDEO_DIRECTION_DEFAULT;
+  thiz->crop_left = PROP_CROP_LEFT_DEFAULT;
+  thiz->crop_right = PROP_CROP_RIGHT_DEFAULT;
+  thiz->crop_top = PROP_CROP_TOP_DEFAULT;
+  thiz->crop_bottom = PROP_CROP_BOTTOM_DEFAULT;
+
   gst_video_info_init (&thiz->sinkpad_info);
   gst_video_info_init (&thiz->srcpad_info);
 }

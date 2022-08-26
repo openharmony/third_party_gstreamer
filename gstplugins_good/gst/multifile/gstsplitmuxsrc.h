@@ -44,6 +44,7 @@ struct _GstSplitMuxSrc
   GstBin parent;
 
   GMutex lock;
+  GMutex msg_lock;
   gboolean     running;
 
   gchar       *location;  /* OBJECT_LOCK */
@@ -57,7 +58,7 @@ struct _GstSplitMuxSrc
   gboolean async_pending;
   gboolean pads_complete;
 
-  GMutex pads_lock;
+  GRWLock pads_rwlock;
   GList  *pads; /* pads_lock */
   guint n_pads;
   guint n_notlinked;
@@ -103,13 +104,19 @@ struct _SplitMuxSrcPadClass
 };
 
 GType gst_splitmux_src_get_type (void);
-gboolean register_splitmuxsrc (GstPlugin * plugin);
 
 #define SPLITMUX_SRC_LOCK(s) g_mutex_lock(&(s)->lock)
 #define SPLITMUX_SRC_UNLOCK(s) g_mutex_unlock(&(s)->lock)
 
-#define SPLITMUX_SRC_PADS_LOCK(s) g_mutex_lock(&(s)->pads_lock)
-#define SPLITMUX_SRC_PADS_UNLOCK(s) g_mutex_unlock(&(s)->pads_lock)
+#define SPLITMUX_SRC_MSG_LOCK(s) g_mutex_lock(&(s)->msg_lock)
+#define SPLITMUX_SRC_MSG_UNLOCK(s) g_mutex_unlock(&(s)->msg_lock)
+
+#define SPLITMUX_SRC_PADS_WLOCK(s) g_rw_lock_writer_lock(&(s)->pads_rwlock)
+#define SPLITMUX_SRC_PADS_WUNLOCK(s) g_rw_lock_writer_unlock(&(s)->pads_rwlock)
+#define SPLITMUX_SRC_PADS_RLOCK(s) g_rw_lock_reader_lock(&(s)->pads_rwlock)
+#define SPLITMUX_SRC_PADS_RUNLOCK(s) g_rw_lock_reader_unlock(&(s)->pads_rwlock)
+
+GST_ELEMENT_REGISTER_DECLARE (splitmuxsrc);
 
 G_END_DECLS
 

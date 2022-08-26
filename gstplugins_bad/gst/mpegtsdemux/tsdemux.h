@@ -76,6 +76,8 @@ struct _GstTSDemux
   gint requested_program_number; /* Required program number (ignore:-1) */
   guint program_number;
   gboolean emit_statistics;
+  gboolean send_scte35_events;
+  gint latency; /* latency in ms */
 
   /*< private >*/
   gint program_generation; /* Incremented each time we switch program 0..15 */
@@ -84,7 +86,6 @@ struct _GstTSDemux
 					* the new program becomes active */
 
   /* segments to be sent */
-  GstSegment segment;
   GstEvent *segment_event;
   gboolean reset_segment;
 
@@ -101,6 +102,14 @@ struct _GstTSDemux
 
   /* Used when seeking for a keyframe to go backward in the stream */
   guint64 last_seek_offset;
+
+  /* The current difference between PES PTSs and our output running times,
+   * in the MPEG time domain. This is used for potentially updating
+   * SCTE 35 sections' pts_adjustment further down the line (eg mpegtsmux) */
+  guint64 mpeg_pts_offset;
+
+  /* This is to protect demux->segment_event */
+  GMutex lock;
 };
 
 struct _GstTSDemuxClass
@@ -109,8 +118,7 @@ struct _GstTSDemuxClass
 };
 
 G_GNUC_INTERNAL GType gst_ts_demux_get_type (void);
-
-G_GNUC_INTERNAL gboolean gst_ts_demux_plugin_init (GstPlugin * plugin);
+GST_ELEMENT_REGISTER_DECLARE (tsdemux);
 
 G_END_DECLS
 #endif /* GST_TS_DEMUX_H */

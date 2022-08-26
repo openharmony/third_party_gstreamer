@@ -49,10 +49,11 @@
  * @title: kateenc
  * @see_also: oggmux
  *
- * This element encodes Kate streams
- * <ulink url="http://libkate.googlecode.com/">Kate</ulink> is a free codec
- * for text based data, such as subtitles. Any number of kate streams can be
- * embedded in an Ogg stream.
+ * This element encodes Kate streams.
+ *
+ * [Kate](http://libkate.googlecode.com/) is a free codec for text based data,
+ * such as subtitles. Any number of kate streams can be embedded in an Ogg
+ * stream.
  *
  * libkate (see above url) is needed to build this plugin.
  *
@@ -82,7 +83,7 @@
 #include <gst/gsttagsetter.h>
 #include <gst/tag/tag.h>
 
-#include "gstkate.h"
+#include "gstkateelements.h"
 #include "gstkateutil.h"
 #include "gstkatespu.h"
 #include "gstkateenc.h"
@@ -143,9 +144,16 @@ static gboolean gst_kate_enc_sink_event (GstPad * pad, GstObject * parent,
 static gboolean gst_kate_enc_source_query (GstPad * pad, GstObject * parent,
     GstQuery * query);
 
+GST_DEBUG_CATEGORY (gst_kateenc_debug);
+
 #define gst_kate_enc_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstKateEnc, gst_kate_enc, GST_TYPE_ELEMENT,
     G_IMPLEMENT_INTERFACE (GST_TYPE_TAG_SETTER, NULL));
+#define _do_init \
+  kate_element_init (plugin); \
+  GST_DEBUG_CATEGORY_INIT (gst_kateenc_debug, "kateenc", 0, "Kate encoder");
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (kateenc, "kateenc", GST_RANK_NONE,
+    GST_TYPE_KATE_ENC, _do_init);
 
 /* initialize the plugin's class */
 static void
@@ -197,7 +205,7 @@ gst_kate_enc_class_init (GstKateEncClass * klass)
           0, G_MAXINT, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, ARG_KEEPALIVE_MIN_TIME,
-      g_param_spec_float ("keepalive-min-time", "Keepalive mimimum time",
+      g_param_spec_float ("keepalive-min-time", "Keepalive minimum time",
           "Minimum time to emit keepalive packets (0 disables keepalive packets)",
           0.0f, FLT_MAX, DEFAULT_KEEPALIVE_MIN_TIME,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));

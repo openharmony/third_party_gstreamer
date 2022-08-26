@@ -9,6 +9,7 @@ dtls_sources = [
   'gstdtlssrtpdemux.c',
   'gstdtlssrtpenc.c',
   'plugin.c',
+  'gstdtlselement.c',
 ]
 
 openssl_dep = dependency('openssl', version : '>= 1.0.1', required : get_option('dtls'))
@@ -24,4 +25,5 @@ if openssl_dep.found() and libcrypto_dep.found()
     install_dir : plugins_install_dir,
   )
   pkgconfig.generate(gstdtls, install_dir : plugins_pkgconfig_install_dir)
+  plugins += [gstdtls]
 endif

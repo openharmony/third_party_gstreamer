@@ -22,25 +22,7 @@
 #include "config.h"
 #endif
 
-/* ohos.ext.func.0022:
- * we only need gsth264parse element. However, gstreamer will build all parser elemenet together, which make the
- * memory bigger than expect.
- * To avoid this, we do not make other parser elements.
- */
-#ifndef OHOS_EXT_FUNC
-#include "gsth263parse.h"
-#include "gsth264parse.h"
-#include "gstdiracparse.h"
-#include "gstmpegvideoparse.h"
-#include "gstmpeg4videoparse.h"
-#include "gstpngparse.h"
-#include "gstjpeg2000parse.h"
-#include "gstvc1parse.h"
-#include "gsth265parse.h"
-#else
-#include "gsth264parse.h"
-#include "gstmpeg4videoparse.h"
-#endif
+#include "gstvideoparserselements.h"
 
 static gboolean
 plugin_init (GstPlugin * plugin)
@@ -56,29 +38,30 @@ plugin_init (GstPlugin * plugin)
  * The avmuxer need mpeg4videoparse, so mpeg4videoparse needs to be registered
  */
 #ifndef OHOS_EXT_FUNC
-  ret |= gst_element_register (plugin, "h263parse",
-      GST_RANK_PRIMARY + 1, GST_TYPE_H263_PARSE);
-  ret |= gst_element_register (plugin, "h264parse",
-      GST_RANK_PRIMARY + 1, GST_TYPE_H264_PARSE);
-  ret |= gst_element_register (plugin, "diracparse",
-      GST_RANK_NONE, GST_TYPE_DIRAC_PARSE);
-  ret |= gst_element_register (plugin, "mpegvideoparse",
-      GST_RANK_PRIMARY + 1, GST_TYPE_MPEGVIDEO_PARSE);
-  ret |= gst_element_register (plugin, "mpeg4videoparse",
-      GST_RANK_PRIMARY + 1, GST_TYPE_MPEG4VIDEO_PARSE);
-  ret |= gst_element_register (plugin, "pngparse",
-      GST_RANK_PRIMARY, GST_TYPE_PNG_PARSE);
-  ret |= gst_element_register (plugin, "jpeg2000parse",
-      GST_RANK_PRIMARY, GST_TYPE_JPEG2000_PARSE);
-  ret |= gst_element_register (plugin, "h265parse",
-      GST_RANK_SECONDARY, GST_TYPE_H265_PARSE);
-  ret |= gst_element_register (plugin, "vc1parse",
-      GST_RANK_NONE, GST_TYPE_VC1_PARSE);
+  ret |= GST_ELEMENT_REGISTER (h263parse, plugin);
+  ret |= GST_ELEMENT_REGISTER (h264parse, plugin);
+  ret |= GST_ELEMENT_REGISTER (diracparse, plugin);
+  ret |= GST_ELEMENT_REGISTER (mpegvideoparse, plugin);
+  ret |= GST_ELEMENT_REGISTER (mpeg4videoparse, plugin);
+  ret |= GST_ELEMENT_REGISTER (pngparse, plugin);
+  ret |= GST_ELEMENT_REGISTER (jpeg2000parse, plugin);
+  ret |= GST_ELEMENT_REGISTER (h265parse, plugin);
+  ret |= GST_ELEMENT_REGISTER (vc1parse, plugin);
+  /**
+   * element-vp9parse:
+   *
+   * Since: 1.20
+   */
+  ret |= GST_ELEMENT_REGISTER (vp9parse, plugin);
+  /**
+   * element-av1parse:
+   *
+   * Since: 1.20
+   */
+  ret |= GST_ELEMENT_REGISTER (av1parse, plugin);
 #else
-  ret |= gst_element_register (plugin, "h264parse",
-      GST_RANK_PRIMARY + 1, GST_TYPE_H264_PARSE);
-  ret |= gst_element_register (plugin, "mpeg4videoparse",
-      GST_RANK_PRIMARY + 1, GST_TYPE_MPEG4VIDEO_PARSE);
+  ret |= GST_ELEMENT_REGISTER (h264parse, plugin);
+  ret |= GST_ELEMENT_REGISTER (mpeg4videoparse, plugin);
 #endif
   return ret;
 }

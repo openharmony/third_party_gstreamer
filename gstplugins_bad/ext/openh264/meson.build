@@ -1,6 +1,7 @@
 openh264_sources = [
   'gstopenh264dec.cpp',
   'gstopenh264enc.cpp',
+  'gstopenh264element.c',
   'gstopenh264plugin.c',
 ]
 
@@ -14,9 +15,10 @@ if openh264_dep.found()
     c_args : gst_plugins_bad_args,
     link_args : noseh_link_args,
     include_directories : [configinc],
-    dependencies : [gstvideo_dep, openh264_dep],
+    dependencies : [gstvideo_dep, openh264_dep, gstpbutils_dep, ],
     install : true,
     install_dir : plugins_install_dir,
   )
   pkgconfig.generate(gstopenh264, install_dir : plugins_pkgconfig_install_dir)
+  plugins += [gstopenh264]
 endif
