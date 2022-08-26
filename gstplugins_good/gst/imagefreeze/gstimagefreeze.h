@@ -49,6 +49,9 @@ struct _GstImageFreeze
 
   GMutex lock;
   GstBuffer *buffer;
+  GstCaps *buffer_caps, *current_caps;
+
+  gboolean negotiated_framerate;
   gint fps_n, fps_d;
 
   GstSegment segment;
@@ -58,11 +61,16 @@ struct _GstImageFreeze
   gint num_buffers;
   gint num_buffers_left;
 
+  gboolean allow_replace;
+
+  gboolean is_live;
+  gboolean blocked;
+  GCond blocked_cond;
+  GstClockID clock_id;
+
   guint64 offset;
 
-  /* TRUE if currently doing a flushing seek, protected
-   * by srcpad's stream lock */
-  gint seeking;
+  gboolean flushing;
 };
 
 struct _GstImageFreezeClass
@@ -71,6 +79,8 @@ struct _GstImageFreezeClass
 };
 
 GType gst_image_freeze_get_type (void);
+
+GST_ELEMENT_REGISTER_DECLARE (imagefreeze);
 
 G_END_DECLS
 

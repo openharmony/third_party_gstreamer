@@ -143,6 +143,7 @@ struct _GstNetClientInternalClock
   GstClockTime rtt_avg;
   GstClockTime minimum_update_interval;
   GstClockTime last_remote_poll_interval;
+  GstClockTime remote_avg_old;
   guint skipped_updates;
   GstClockTime last_rtts[MEDIAN_PRE_FILTERING_WINDOW];
   gint last_rtts_missing;
@@ -229,6 +230,7 @@ gst_net_client_internal_clock_init (GstNetClientInternalClock * self)
   self->last_remote_poll_interval = GST_CLOCK_TIME_NONE;
   self->skipped_updates = 0;
   self->last_rtts_missing = MEDIAN_PRE_FILTERING_WINDOW;
+  self->remote_avg_old = 0;
 }
 
 static void
@@ -519,6 +521,20 @@ gst_net_client_internal_clock_observe_times (GstNetClientInternalClock * self,
       && GST_CLOCK_DIFF (time_before,
           remote_avg) < (GstClockTimeDiff) (max_discont));
 
+  /* Check if new remote_avg is less than before to detect if signal lost
+   * sync due to the remote clock has restarted. Then the new remote time will
+   * be less than the previous time which should not happen if increased in a
+   * monotonic way. Also, only perform this check on a synchronized clock to
+   * avoid startup issues.
+   */
+  if (synched) {
+    if (remote_avg < self->remote_avg_old) {
+      gst_clock_set_synced (GST_CLOCK (self), FALSE);
+    } else {
+      self->remote_avg_old = remote_avg;
+    }
+  }
+
   if (gst_clock_add_observation_unapplied (GST_CLOCK_CAST (self),
           local_avg, remote_avg, &r_squared, &internal_time, &external_time,
           &rate_num, &rate_den)) {
@@ -677,7 +693,7 @@ gst_net_client_internal_clock_thread (gpointer data)
         /* before next sending check if need to change QoS */
         new_qos_dscp = self->qos_dscp;
         if (cur_qos_dscp != new_qos_dscp &&
-            gst_net_utils_set_socket_dscp (socket, new_qos_dscp)) {
+            gst_net_utils_set_socket_tos (socket, new_qos_dscp)) {
           GST_DEBUG_OBJECT (self, "changed QoS DSCP to: %d", new_qos_dscp);
           cur_qos_dscp = new_qos_dscp;
         }
@@ -1415,7 +1431,7 @@ gst_net_client_clock_get_internal_time (GstClock * clock)
  * @remote_port: the port of the remote clock provider
  * @base_time: initial time of the clock
  *
- * Create a new #GstNetClientInternalClock that will report the time
+ * Create a new #GstNetClientClock that will report the time
  * provided by the #GstNetTimeProvider on @remote_address and
  * @remote_port.
  *

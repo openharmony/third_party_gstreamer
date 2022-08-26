@@ -1,6 +1,7 @@
 d3dvideosink_sources = [
   'd3dhelpers.c',
   'd3dvideosink.c',
+  'gstd3d9overlay.c'
 ]
 
 if host_system != 'windows' or get_option('d3dvideosink').disabled()
@@ -23,4 +24,5 @@ if d3d_dep.found() and gdi_dep.found() and have_d3d9_h
     install : true,
     install_dir : plugins_install_dir)
   pkgconfig.generate(gstd3dvideosink, install_dir : plugins_pkgconfig_install_dir)
+  plugins += [gstd3dvideosink]
 endif

@@ -46,6 +46,12 @@ G_BEGIN_DECLS
 typedef struct _MpegTSParse2 MpegTSParse2;
 typedef struct _MpegTSParse2Class MpegTSParse2Class;
 
+typedef struct _MpegTSParse2Adapter {
+  GstAdapter *adapter;
+  guint packets_in_adapter;
+  gboolean first_is_keyframe;
+} MpegTSParse2Adapter;
+
 struct _MpegTSParse2 {
   MpegTSBase parent;
 
@@ -66,7 +72,7 @@ struct _MpegTSParse2 {
   GList *srcpads;
 
   GstFlowCombiner *flowcombiner;
-  
+
   /* state */
   gboolean first;
   gboolean set_timestamps;
@@ -75,6 +81,13 @@ struct _MpegTSParse2 {
   GList *pending_buffers;
   GstClockTime previous_pcr;
   guint bytes_since_pcr;
+
+  /* Combine several packets into a larger buffer */
+  MpegTSParse2Adapter ts_adapter;
+  guint alignment;
+  gboolean split_on_rai;
+  gboolean is_eos;
+  guint32 header;
 };
 
 struct _MpegTSParse2Class {
@@ -82,8 +95,7 @@ struct _MpegTSParse2Class {
 };
 
 G_GNUC_INTERNAL GType mpegts_parse_get_type(void);
-
-G_GNUC_INTERNAL gboolean gst_mpegtsparse_plugin_init (GstPlugin * plugin);
+GST_ELEMENT_REGISTER_DECLARE (tsparse);
 
 G_END_DECLS
 

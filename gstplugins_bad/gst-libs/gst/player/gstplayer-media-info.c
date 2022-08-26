@@ -47,14 +47,7 @@ gst_player_stream_info_finalize (GObject * object)
 {
   GstPlayerStreamInfo *sinfo = GST_PLAYER_STREAM_INFO (object);
 
-  g_free (sinfo->codec);
-  g_free (sinfo->stream_id);
-
-  if (sinfo->caps)
-    gst_caps_unref (sinfo->caps);
-
-  if (sinfo->tags)
-    gst_tag_list_unref (sinfo->tags);
+  g_clear_object (&sinfo->info);
 
   G_OBJECT_CLASS (gst_player_stream_info_parent_class)->finalize (object);
 }
@@ -71,7 +64,8 @@ gst_player_stream_info_class_init (GstPlayerStreamInfoClass * klass)
  * gst_player_stream_info_get_index:
  * @info: a #GstPlayerStreamInfo
  *
- * Function to get stream index from #GstPlayerStreamInfo instance.
+ * Function to get stream index from #GstPlayerStreamInfo instance or -1 if
+ * unknown.
  *
  * Returns: the stream index of this stream.
  */
@@ -97,26 +91,21 @@ gst_player_stream_info_get_stream_type (const GstPlayerStreamInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_STREAM_INFO (info), NULL);
 
-  if (GST_IS_PLAYER_VIDEO_INFO (info))
-    return "video";
-  else if (GST_IS_PLAYER_AUDIO_INFO (info))
-    return "audio";
-  else
-    return "subtitle";
+  return gst_play_stream_info_get_stream_type (info->info);
 }
 
 /**
  * gst_player_stream_info_get_tags:
  * @info: a #GstPlayerStreamInfo
  *
- * Returns: (transfer none): the tags contained in this stream.
+ * Returns: (transfer none) (nullable): the tags contained in this stream.
  */
 GstTagList *
 gst_player_stream_info_get_tags (const GstPlayerStreamInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_STREAM_INFO (info), NULL);
 
-  return info->tags;
+  return gst_play_stream_info_get_tags (info->info);
 }
 
 /**
@@ -125,28 +114,28 @@ gst_player_stream_info_get_tags (const GstPlayerStreamInfo * info)
  *
  * A string describing codec used in #GstPlayerStreamInfo.
  *
- * Returns: codec string or NULL on unknown.
+ * Returns: (nullable): codec string or %NULL on unknown.
  */
 const gchar *
 gst_player_stream_info_get_codec (const GstPlayerStreamInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_STREAM_INFO (info), NULL);
 
-  return info->codec;
+  return gst_play_stream_info_get_codec (info->info);
 }
 
 /**
  * gst_player_stream_info_get_caps:
  * @info: a #GstPlayerStreamInfo
  *
- * Returns: (transfer none): the #GstCaps of the stream.
+ * Returns: (transfer none) (nullable): the #GstCaps of the stream.
  */
 GstCaps *
 gst_player_stream_info_get_caps (const GstPlayerStreamInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_STREAM_INFO (info), NULL);
 
-  return info->caps;
+  return gst_play_stream_info_get_caps (info->info);
 }
 
 /* Video information */
@@ -154,14 +143,9 @@ G_DEFINE_TYPE (GstPlayerVideoInfo, gst_player_video_info,
     GST_TYPE_PLAYER_STREAM_INFO);
 
 static void
-gst_player_video_info_init (GstPlayerVideoInfo * info)
+gst_player_video_info_init (G_GNUC_UNUSED GstPlayerVideoInfo * info)
 {
-  info->width = -1;
-  info->height = -1;
-  info->framerate_num = 0;
-  info->framerate_denom = 1;
-  info->par_num = 1;
-  info->par_denom = 1;
+
 }
 
 static void
@@ -174,28 +158,28 @@ gst_player_video_info_class_init (G_GNUC_UNUSED GstPlayerVideoInfoClass * klass)
  * gst_player_video_info_get_width:
  * @info: a #GstPlayerVideoInfo
  *
- * Returns: the width of video in #GstPlayerVideoInfo.
+ * Returns: the width of video in #GstPlayerVideoInfo or -1 if unknown.
  */
 gint
 gst_player_video_info_get_width (const GstPlayerVideoInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_VIDEO_INFO (info), -1);
 
-  return info->width;
+  return gst_play_video_info_get_width (info->info);
 }
 
 /**
  * gst_player_video_info_get_height:
  * @info: a #GstPlayerVideoInfo
  *
- * Returns: the height of video in #GstPlayerVideoInfo.
+ * Returns: the height of video in #GstPlayerVideoInfo or -1 if unknown.
  */
 gint
 gst_player_video_info_get_height (const GstPlayerVideoInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_VIDEO_INFO (info), -1);
 
-  return info->height;
+  return gst_play_video_info_get_height (info->info);
 }
 
 /**
@@ -211,8 +195,7 @@ gst_player_video_info_get_framerate (const GstPlayerVideoInfo * info,
 {
   g_return_if_fail (GST_IS_PLAYER_VIDEO_INFO (info));
 
-  *fps_n = info->framerate_num;
-  *fps_d = info->framerate_denom;
+  gst_play_video_info_get_framerate (info->info, fps_n, fps_d);
 }
 
 /**
@@ -230,36 +213,37 @@ gst_player_video_info_get_pixel_aspect_ratio (const GstPlayerVideoInfo * info,
 {
   g_return_if_fail (GST_IS_PLAYER_VIDEO_INFO (info));
 
-  *par_n = info->par_num;
-  *par_d = info->par_denom;
+  gst_play_video_info_get_pixel_aspect_ratio (info->info, par_n, par_d);
 }
 
 /**
  * gst_player_video_info_get_bitrate:
  * @info: a #GstPlayerVideoInfo
  *
- * Returns: the current bitrate of video in #GstPlayerVideoInfo.
+ * Returns: the current bitrate of video in #GstPlayerVideoInfo or -1 if
+ * unknown.
  */
 gint
 gst_player_video_info_get_bitrate (const GstPlayerVideoInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_VIDEO_INFO (info), -1);
 
-  return info->bitrate;
+  return gst_play_video_info_get_bitrate (info->info);
 }
 
 /**
  * gst_player_video_info_get_max_bitrate:
  * @info: a #GstPlayerVideoInfo
  *
- * Returns: the maximum bitrate of video in #GstPlayerVideoInfo.
+ * Returns: the maximum bitrate of video in #GstPlayerVideoInfo or -1 if
+ * unknown.
  */
 gint
 gst_player_video_info_get_max_bitrate (const GstPlayerVideoInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_VIDEO_INFO (info), -1);
 
-  return info->max_bitrate;
+  return gst_play_video_info_get_max_bitrate (info->info);
 }
 
 /* Audio information */
@@ -267,12 +251,9 @@ G_DEFINE_TYPE (GstPlayerAudioInfo, gst_player_audio_info,
     GST_TYPE_PLAYER_STREAM_INFO);
 
 static void
-gst_player_audio_info_init (GstPlayerAudioInfo * info)
+gst_player_audio_info_init (G_GNUC_UNUSED GstPlayerAudioInfo * info)
 {
-  info->channels = 0;
-  info->sample_rate = 0;
-  info->bitrate = -1;
-  info->max_bitrate = -1;
+
 }
 
 static void
@@ -280,7 +261,7 @@ gst_player_audio_info_finalize (GObject * object)
 {
   GstPlayerAudioInfo *info = GST_PLAYER_AUDIO_INFO (object);
 
-  g_free (info->language);
+  g_clear_object (&info->info);
 
   G_OBJECT_CLASS (gst_player_audio_info_parent_class)->finalize (object);
 }
@@ -297,70 +278,71 @@ gst_player_audio_info_class_init (GstPlayerAudioInfoClass * klass)
  * gst_player_audio_info_get_language:
  * @info: a #GstPlayerAudioInfo
  *
- * Returns: the language of the stream, or NULL if unknown.
+ * Returns: (nullable): the language of the stream, or NULL if unknown.
  */
 const gchar *
 gst_player_audio_info_get_language (const GstPlayerAudioInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_AUDIO_INFO (info), NULL);
 
-  return info->language;
+  return gst_play_audio_info_get_language (info->info);
 }
 
 /**
  * gst_player_audio_info_get_channels:
  * @info: a #GstPlayerAudioInfo
  *
- * Returns: the number of audio channels in #GstPlayerAudioInfo.
+ * Returns: the number of audio channels in #GstPlayerAudioInfo or 0 if
+ * unknown.
  */
 gint
 gst_player_audio_info_get_channels (const GstPlayerAudioInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_AUDIO_INFO (info), 0);
 
-  return info->channels;
+  return gst_play_audio_info_get_channels (info->info);
 }
 
 /**
  * gst_player_audio_info_get_sample_rate:
  * @info: a #GstPlayerAudioInfo
  *
- * Returns: the audio sample rate in #GstPlayerAudioInfo.
+ * Returns: the audio sample rate in #GstPlayerAudioInfo or 0 if unknown.
  */
 gint
 gst_player_audio_info_get_sample_rate (const GstPlayerAudioInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_AUDIO_INFO (info), 0);
 
-  return info->sample_rate;
+  return gst_play_audio_info_get_sample_rate (info->info);
 }
 
 /**
  * gst_player_audio_info_get_bitrate:
  * @info: a #GstPlayerAudioInfo
  *
- * Returns: the audio bitrate in #GstPlayerAudioInfo.
+ * Returns: the audio bitrate in #GstPlayerAudioInfo or -1 if unknown.
  */
 gint
 gst_player_audio_info_get_bitrate (const GstPlayerAudioInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_AUDIO_INFO (info), -1);
 
-  return info->bitrate;
+  return gst_play_audio_info_get_bitrate (info->info);
 }
 
 /**
  * gst_player_audio_info_get_max_bitrate:
  * @info: a #GstPlayerAudioInfo
  *
- * Returns: the audio maximum bitrate in #GstPlayerAudioInfo.
+ * Returns: the audio maximum bitrate in #GstPlayerAudioInfo or -1 if unknown.
  */
 gint
 gst_player_audio_info_get_max_bitrate (const GstPlayerAudioInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_AUDIO_INFO (info), -1);
 
-  return info->max_bitrate;
+  return gst_play_audio_info_get_max_bitrate (info->info);
 }
 
 /* Subtitle information */
@@ -378,7 +360,7 @@ gst_player_subtitle_info_finalize (GObject * object)
 {
   GstPlayerSubtitleInfo *info = GST_PLAYER_SUBTITLE_INFO (object);
 
-  g_free (info->language);
+  g_clear_object (&info->info);
 
   G_OBJECT_CLASS (gst_player_subtitle_info_parent_class)->finalize (object);
 }
@@ -395,43 +377,29 @@ gst_player_subtitle_info_class_init (GstPlayerSubtitleInfoClass * klass)
  * gst_player_subtitle_info_get_language:
  * @info: a #GstPlayerSubtitleInfo
  *
- * Returns: the language of the stream, or NULL if unknown.
+ * Returns: (nullable): the language of the stream, or %NULL if unknown.
  */
 const gchar *
 gst_player_subtitle_info_get_language (const GstPlayerSubtitleInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_SUBTITLE_INFO (info), NULL);
 
-  return info->language;
+  return gst_play_subtitle_info_get_language (info->info);
 }
 
 /* Global media information */
 G_DEFINE_TYPE (GstPlayerMediaInfo, gst_player_media_info, G_TYPE_OBJECT);
 
 static void
-gst_player_media_info_init (GstPlayerMediaInfo * info)
+gst_player_media_info_init (G_GNUC_UNUSED GstPlayerMediaInfo * info)
 {
-  info->duration = -1;
-  info->is_live = FALSE;
-  info->seekable = FALSE;
+
 }
 
 static void
 gst_player_media_info_finalize (GObject * object)
 {
   GstPlayerMediaInfo *info = GST_PLAYER_MEDIA_INFO (object);
-
-  g_free (info->uri);
-
-  if (info->tags)
-    gst_tag_list_unref (info->tags);
-
-  g_free (info->title);
-
-  g_free (info->container);
-
-  if (info->image_sample)
-    gst_sample_unref (info->image_sample);
 
   if (info->audio_stream_list)
     g_list_free (info->audio_stream_list);
@@ -444,6 +412,7 @@ gst_player_media_info_finalize (GObject * object)
 
   if (info->stream_list)
     g_list_free_full (info->stream_list, g_object_unref);
+  g_clear_object (&info->info);
 
   G_OBJECT_CLASS (gst_player_media_info_parent_class)->finalize (object);
 }
@@ -480,15 +449,7 @@ gst_player_video_info_copy (GstPlayerVideoInfo * ref)
   GstPlayerVideoInfo *ret;
 
   ret = gst_player_video_info_new ();
-
-  ret->width = ref->width;
-  ret->height = ref->height;
-  ret->framerate_num = ref->framerate_num;
-  ret->framerate_denom = ref->framerate_denom;
-  ret->par_num = ref->par_num;
-  ret->par_denom = ref->par_denom;
-  ret->bitrate = ref->bitrate;
-  ret->max_bitrate = ref->max_bitrate;
+  ret->info = g_object_ref (ref->info);
 
   return (GstPlayerStreamInfo *) ret;
 }
@@ -499,14 +460,7 @@ gst_player_audio_info_copy (GstPlayerAudioInfo * ref)
   GstPlayerAudioInfo *ret;
 
   ret = gst_player_audio_info_new ();
-
-  ret->sample_rate = ref->sample_rate;
-  ret->channels = ref->channels;
-  ret->bitrate = ref->bitrate;
-  ret->max_bitrate = ref->max_bitrate;
-
-  if (ref->language)
-    ret->language = g_strdup (ref->language);
+  ret->info = g_object_ref (ref->info);
 
   return (GstPlayerStreamInfo *) ret;
 }
@@ -517,8 +471,7 @@ gst_player_subtitle_info_copy (GstPlayerSubtitleInfo * ref)
   GstPlayerSubtitleInfo *ret;
 
   ret = gst_player_subtitle_info_new ();
-  if (ref->language)
-    ret->language = g_strdup (ref->language);
+  ret->info = g_object_ref (ref->info);
 
   return (GstPlayerStreamInfo *) ret;
 }
@@ -539,14 +492,6 @@ gst_player_stream_info_copy (GstPlayerStreamInfo * ref)
     info = gst_player_subtitle_info_copy ((GstPlayerSubtitleInfo *) ref);
 
   info->stream_index = ref->stream_index;
-  if (ref->tags)
-    info->tags = gst_tag_list_ref (ref->tags);
-  if (ref->caps)
-    info->caps = gst_caps_copy (ref->caps);
-  if (ref->codec)
-    info->codec = g_strdup (ref->codec);
-  if (ref->stream_id)
-    info->stream_id = g_strdup (ref->stream_id);
 
   return info;
 }
@@ -560,20 +505,9 @@ gst_player_media_info_copy (GstPlayerMediaInfo * ref)
   if (!ref)
     return NULL;
 
-  info = gst_player_media_info_new (ref->uri);
-  info->duration = ref->duration;
-  info->seekable = ref->seekable;
-  info->is_live = ref->is_live;
-  if (ref->tags)
-    info->tags = gst_tag_list_ref (ref->tags);
-  if (ref->title)
-    info->title = g_strdup (ref->title);
-  if (ref->container)
-    info->container = g_strdup (ref->container);
-  if (ref->image_sample)
-    info->image_sample = gst_sample_ref (ref->image_sample);
+  info = gst_player_media_info_new ();
 
-  for (l = ref->stream_list; l != NULL; l = l->next) {
+  for (l = gst_player_media_info_get_stream_list (ref); l != NULL; l = l->next) {
     GstPlayerStreamInfo *s;
 
     s = gst_player_stream_info_copy ((GstPlayerStreamInfo *) l->data);
@@ -587,6 +521,8 @@ gst_player_media_info_copy (GstPlayerMediaInfo * ref)
       info->subtitle_stream_list =
           g_list_append (info->subtitle_stream_list, s);
   }
+
+  info->info = g_object_ref (ref->info);
 
   return info;
 }
@@ -608,17 +544,99 @@ gst_player_stream_info_new (gint stream_index, GType type)
   return info;
 }
 
-GstPlayerMediaInfo *
-gst_player_media_info_new (const gchar * uri)
+GstPlayerStreamInfo *
+gst_player_stream_info_wrapped (GstPlayStreamInfo * info)
 {
-  GstPlayerMediaInfo *info;
+  GstPlayerStreamInfo *ret;
+  GType type;
 
-  g_return_val_if_fail (uri != NULL, NULL);
+  if (GST_IS_PLAY_AUDIO_INFO (info)) {
+    type = GST_TYPE_PLAYER_AUDIO_INFO;
+  } else if (GST_IS_PLAY_VIDEO_INFO (info)) {
+    type = GST_TYPE_PLAYER_VIDEO_INFO;
+  } else {
+    type = GST_TYPE_PLAYER_SUBTITLE_INFO;
+  }
 
-  info = g_object_new (GST_TYPE_PLAYER_MEDIA_INFO, NULL);
-  info->uri = g_strdup (uri);
+  ret =
+      gst_player_stream_info_new (gst_play_stream_info_get_index (info), type);
+  ret->info = g_object_ref (info);
+  return ret;
+}
 
-  return info;
+GstPlayerMediaInfo *
+gst_player_media_info_new (void)
+{
+  return g_object_new (GST_TYPE_PLAYER_MEDIA_INFO, NULL);
+}
+
+GstPlayerMediaInfo *
+gst_player_media_info_wrapped (GstPlayMediaInfo * info)
+{
+  GstPlayerMediaInfo *ret;
+  GList *l;
+
+  ret = gst_player_media_info_new ();
+  ret->info = g_object_ref (info);
+
+  for (l = gst_play_media_info_get_stream_list (info); l != NULL; l = l->next) {
+    GstPlayerStreamInfo *s;
+
+    s = gst_player_stream_info_wrapped ((GstPlayStreamInfo *) l->data);
+    ret->stream_list = g_list_append (ret->stream_list, s);
+
+    if (GST_IS_PLAYER_AUDIO_INFO (s)) {
+      GstPlayerAudioInfo *i = GST_PLAYER_AUDIO_INFO (s);
+      i->info = g_object_ref (GST_PLAY_AUDIO_INFO (l->data));
+      ret->audio_stream_list = g_list_append (ret->audio_stream_list, i);
+    } else if (GST_IS_PLAYER_VIDEO_INFO (s)) {
+      GstPlayerVideoInfo *i = GST_PLAYER_VIDEO_INFO (s);
+      i->info = g_object_ref (GST_PLAY_VIDEO_INFO (l->data));
+      ret->video_stream_list = g_list_append (ret->video_stream_list, i);
+    } else {
+      GstPlayerSubtitleInfo *i = GST_PLAYER_SUBTITLE_INFO (s);
+      i->info = g_object_ref (GST_PLAY_SUBTITLE_INFO (l->data));
+      ret->subtitle_stream_list = g_list_append (ret->subtitle_stream_list, i);
+    }
+  }
+
+  return ret;
+}
+
+GstPlayerAudioInfo *
+gst_player_audio_info_wrapped (GstPlayAudioInfo * info)
+{
+  GstPlayerStreamInfo *s;
+  GstPlayerAudioInfo *i;
+
+  s = gst_player_stream_info_wrapped ((GstPlayStreamInfo *) info);
+  i = GST_PLAYER_AUDIO_INFO (s);
+  i->info = g_object_ref (info);
+  return i;
+}
+
+GstPlayerVideoInfo *
+gst_player_video_info_wrapped (GstPlayVideoInfo * info)
+{
+  GstPlayerStreamInfo *s;
+  GstPlayerVideoInfo *i;
+
+  s = gst_player_stream_info_wrapped ((GstPlayStreamInfo *) info);
+  i = GST_PLAYER_VIDEO_INFO (s);
+  i->info = g_object_ref (info);
+  return i;
+}
+
+GstPlayerSubtitleInfo *
+gst_player_subtitle_info_wrapped (GstPlaySubtitleInfo * info)
+{
+  GstPlayerStreamInfo *s;
+  GstPlayerSubtitleInfo *i;
+
+  s = gst_player_stream_info_wrapped ((GstPlayStreamInfo *) info);
+  i = GST_PLAYER_SUBTITLE_INFO (s);
+  i->info = g_object_ref (info);
+  return i;
 }
 
 /**
@@ -632,7 +650,7 @@ gst_player_media_info_get_uri (const GstPlayerMediaInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_MEDIA_INFO (info), NULL);
 
-  return info->uri;
+  return gst_play_media_info_get_uri (info->info);
 }
 
 /**
@@ -646,7 +664,7 @@ gst_player_media_info_is_seekable (const GstPlayerMediaInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_MEDIA_INFO (info), FALSE);
 
-  return info->seekable;
+  return gst_play_media_info_is_seekable (info->info);
 }
 
 /**
@@ -660,7 +678,7 @@ gst_player_media_info_is_live (const GstPlayerMediaInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_MEDIA_INFO (info), FALSE);
 
-  return info->is_live;
+  return gst_play_media_info_is_live (info->info);
 }
 
 /**
@@ -727,56 +745,56 @@ gst_player_media_info_get_audio_streams (const GstPlayerMediaInfo * info)
  * gst_player_media_info_get_duration:
  * @info: a #GstPlayerMediaInfo
  *
- * Returns: duration of the media.
+ * Returns: duration of the media or %GST_CLOCK_TIME_NONE if unknown.
  */
 GstClockTime
 gst_player_media_info_get_duration (const GstPlayerMediaInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_MEDIA_INFO (info), -1);
 
-  return info->duration;
+  return gst_play_media_info_get_duration (info->info);
 }
 
 /**
  * gst_player_media_info_get_tags:
  * @info: a #GstPlayerMediaInfo
  *
- * Returns: (transfer none): the tags contained in media info.
+ * Returns: (transfer none) (nullable): the tags contained in media info.
  */
 GstTagList *
 gst_player_media_info_get_tags (const GstPlayerMediaInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_MEDIA_INFO (info), NULL);
 
-  return info->tags;
+  return gst_play_media_info_get_tags (info->info);
 }
 
 /**
  * gst_player_media_info_get_title:
  * @info: a #GstPlayerMediaInfo
  *
- * Returns: the media title.
+ * Returns: (nullable): the media title or %NULL if unknown.
  */
 const gchar *
 gst_player_media_info_get_title (const GstPlayerMediaInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_MEDIA_INFO (info), NULL);
 
-  return info->title;
+  return gst_play_media_info_get_title (info->info);
 }
 
 /**
  * gst_player_media_info_get_container_format:
  * @info: a #GstPlayerMediaInfo
  *
- * Returns: the container format.
+ * Returns: (nullable): the container format or %NULL if unknown.
  */
 const gchar *
 gst_player_media_info_get_container_format (const GstPlayerMediaInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_MEDIA_INFO (info), NULL);
 
-  return info->container;
+  return gst_play_media_info_get_container_format (info->info);
 }
 
 /**
@@ -784,23 +802,24 @@ gst_player_media_info_get_container_format (const GstPlayerMediaInfo * info)
  * @info: a #GstPlayerMediaInfo
  *
  * Function to get the image (or preview-image) stored in taglist.
- * Application can use gst_sample_*_() API's to get caps, buffer etc.
+ * Application can use `gst_sample_*_()` API's to get caps, buffer etc.
  *
- * Returns: (transfer none): GstSample or NULL.
+ * Returns: (transfer none) (nullable): GstSample or %NULL.
  */
 GstSample *
 gst_player_media_info_get_image_sample (const GstPlayerMediaInfo * info)
 {
   g_return_val_if_fail (GST_IS_PLAYER_MEDIA_INFO (info), NULL);
 
-  return info->image_sample;
+  return gst_play_media_info_get_image_sample (info->info);
 }
 
 /**
  * gst_player_media_info_get_number_of_streams:
  * @info: a #GstPlayerMediaInfo
  *
- * Returns: number of total streams.
+ * Returns: number of total streams or 0 if unknown.
+ *
  * Since: 1.12
  */
 guint
@@ -815,7 +834,8 @@ gst_player_media_info_get_number_of_streams (const GstPlayerMediaInfo * info)
  * gst_player_media_info_get_number_of_video_streams:
  * @info: a #GstPlayerMediaInfo
  *
- * Returns: number of video streams.
+ * Returns: number of video streams or 0 if unknown.
+ *
  * Since: 1.12
  */
 guint
@@ -831,7 +851,8 @@ gst_player_media_info_get_number_of_video_streams (const GstPlayerMediaInfo *
  * gst_player_media_info_get_number_of_audio_streams:
  * @info: a #GstPlayerMediaInfo
  *
- * Returns: number of audio streams.
+ * Returns: number of audio streams or 0 if unknown.
+ *
  * Since: 1.12
  */
 guint
@@ -847,7 +868,8 @@ gst_player_media_info_get_number_of_audio_streams (const GstPlayerMediaInfo *
  * gst_player_media_info_get_number_of_subtitle_streams:
  * @info: a #GstPlayerMediaInfo
  *
- * Returns: number of subtitle streams.
+ * Returns: number of subtitle streams or 0 if unknown.
+ *
  * Since: 1.12
  */
 guint gst_player_media_info_get_number_of_subtitle_streams

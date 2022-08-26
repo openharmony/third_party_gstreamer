@@ -19,22 +19,22 @@
 
 /**
  * SECTION:element-shapewipe
+ * @title: shapewipe
  *
  * The shapewipe element provides custom transitions on video streams
  * based on a grayscale bitmap. The state of the transition can be
  * controlled by the position property and an optional blended border
  * can be added by the border property.
  *
- * Transition bitmaps can be downloaded from the
- * <ulink url="http://cinelerra.org/transitions.php">Cinelerra transition</ulink>
- * page.
+ * Transition bitmaps can be downloaded from the Cinelerra pages
+ * [here](http://cinelerra-cv.wikidot.com/main:transitions-themes) or
+ * [here](https://cinelerra-gg.org/download/CinelerraGG_Manual/Shape_Wipe.html).
  *
- * <refsect2>
- * <title>Example launch line</title>
+ * ## Example launch line
  * |[
  * gst-launch-1.0 -v videotestsrc ! video/x-raw,format=AYUV,width=640,height=480 ! shapewipe position=0.5 name=shape ! videomixer name=mixer ! videoconvert ! autovideosink     filesrc location=mask.png ! typefind ! decodebin ! videoconvert ! videoscale ! queue ! shape.mask_sink    videotestsrc pattern=snow ! video/x-raw,format=AYUV,width=640,height=480 ! queue ! mixer.
  * ]| This pipeline adds the transition from mask.png with position 0.5 to an SMPTE test screen and snow.
- * </refsect2>
+ *
  */
 
 
@@ -127,6 +127,9 @@ GST_DEBUG_CATEGORY_STATIC (gst_shape_wipe_debug);
 
 #define gst_shape_wipe_parent_class parent_class
 G_DEFINE_TYPE (GstShapeWipe, gst_shape_wipe, GST_TYPE_ELEMENT);
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (shapewipe, "shapewipe", GST_RANK_NONE,
+    GST_TYPE_SHAPE_WIPE, GST_DEBUG_CATEGORY_INIT (gst_shape_wipe_debug,
+        "shapewipe", 0, "shapewipe element"););
 
 static void
 gst_shape_wipe_class_init (GstShapeWipeClass * klass)
@@ -1133,14 +1136,7 @@ gst_shape_wipe_src_event (GstPad * pad, GstObject * parent, GstEvent * event)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  GST_DEBUG_CATEGORY_INIT (gst_shape_wipe_debug, "shapewipe", 0,
-      "shapewipe element");
-
-  if (!gst_element_register (plugin, "shapewipe", GST_RANK_NONE,
-          GST_TYPE_SHAPE_WIPE))
-    return FALSE;
-
-  return TRUE;
+  return GST_ELEMENT_REGISTER (shapewipe, plugin);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

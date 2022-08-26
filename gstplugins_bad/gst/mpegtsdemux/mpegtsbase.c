@@ -59,10 +59,13 @@ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_STATIC_CAPS ("video/mpegts, " "systemstream = (boolean) true ")
     );
 
+#define DEFAULT_IGNORE_PCR FALSE
+
 enum
 {
   PROP_0,
   PROP_PARSE_PRIVATE_SECTIONS,
+  PROP_IGNORE_PCR,
   /* FILL ME */
 };
 
@@ -93,7 +96,7 @@ static gboolean mpegts_base_get_tags_from_eit (MpegTSBase * base,
     GstMpegtsSection * section);
 static gboolean mpegts_base_parse_atsc_mgt (MpegTSBase * base,
     GstMpegtsSection * section);
-static gboolean remove_each_program (gpointer key, MpegTSBaseProgram * program,
+static void remove_each_program (MpegTSBaseProgram * program,
     MpegTSBase * base);
 
 static void
@@ -105,6 +108,9 @@ _extra_init (void)
   QUARK_PCR_PID = g_quark_from_string ("pcr-pid");
   QUARK_STREAMS = g_quark_from_string ("streams");
   QUARK_STREAM_TYPE = g_quark_from_string ("stream-type");
+  GST_DEBUG_CATEGORY_INIT (mpegts_base_debug, "mpegtsbase", 0,
+      "MPEG transport stream base class");
+  gst_mpegts_initialize ();
 }
 
 #define mpegts_base_parent_class parent_class
@@ -142,7 +148,23 @@ mpegts_base_class_init (MpegTSBaseClass * klass)
           "Parse private sections", FALSE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  /**
+   * GstMpegtsBase:ignore-pcr:
+   *
+   * Ignore PCR (Program Clock Reference) data from MPEG-TS PSI.
+   * This can help with playback of some broken files.
+   *
+   * Since: 1.18
+   */
+  g_object_class_install_property (gobject_class, PROP_IGNORE_PCR,
+      g_param_spec_boolean ("ignore-pcr", "Ignore PCR stream for timing",
+          "Ignore PCR stream for timing", DEFAULT_IGNORE_PCR,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   klass->sink_query = GST_DEBUG_FUNCPTR (mpegts_base_default_sink_query);
+  klass->handle_psi = NULL;
+
+  gst_type_mark_as_plugin_api (GST_TYPE_MPEGTS_BASE, 0);
 }
 
 static void
@@ -154,6 +176,9 @@ mpegts_base_set_property (GObject * object, guint prop_id,
   switch (prop_id) {
     case PROP_PARSE_PRIVATE_SECTIONS:
       base->parse_private_sections = g_value_get_boolean (value);
+      break;
+    case PROP_IGNORE_PCR:
+      base->ignore_pcr = g_value_get_boolean (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -169,6 +194,9 @@ mpegts_base_get_property (GObject * object, guint prop_id,
   switch (prop_id) {
     case PROP_PARSE_PRIVATE_SECTIONS:
       g_value_set_boolean (value, base->parse_private_sections);
+      break;
+    case PROP_IGNORE_PCR:
+      g_value_set_boolean (value, base->ignore_pcr);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -206,19 +234,22 @@ mpegts_base_reset (MpegTSBase * base)
   }
 
   gst_segment_init (&base->segment, GST_FORMAT_UNDEFINED);
+  gst_segment_init (&base->out_segment, GST_FORMAT_UNDEFINED);
   base->last_seek_seqnum = GST_SEQNUM_INVALID;
 
   base->mode = BASE_MODE_STREAMING;
   base->seen_pat = FALSE;
   base->seek_offset = -1;
 
-  g_hash_table_foreach_remove (base->programs, (GHRFunc) remove_each_program,
-      base);
+  g_ptr_array_foreach (base->programs, (GFunc) remove_each_program, base);
+  g_ptr_array_remove_range (base->programs, 0, base->programs->len);
 
   base->streams_aware = GST_OBJECT_PARENT (base)
       && GST_OBJECT_FLAG_IS_SET (GST_OBJECT_PARENT (base),
       GST_BIN_FLAG_STREAMS_AWARE);
   GST_DEBUG_OBJECT (base, "Streams aware : %d", base->streams_aware);
+
+  gst_event_replace (&base->seek_event, NULL);
 
   if (klass->reset)
     klass->reset (base);
@@ -238,8 +269,8 @@ mpegts_base_init (MpegTSBase * base)
 
   base->disposed = FALSE;
   base->packetizer = mpegts_packetizer_new ();
-  base->programs = g_hash_table_new_full (g_direct_hash, g_direct_equal,
-      NULL, (GDestroyNotify) mpegts_base_free_program);
+  base->programs =
+      g_ptr_array_new_full (16, (GDestroyNotify) mpegts_base_free_program);
 
   base->parse_private_sections = FALSE;
   base->is_pes = g_new0 (guint8, 1024);
@@ -249,6 +280,7 @@ mpegts_base_init (MpegTSBase * base)
 
   base->push_data = TRUE;
   base->push_section = TRUE;
+  base->ignore_pcr = DEFAULT_IGNORE_PCR;
 
   mpegts_base_reset (base);
 }
@@ -278,7 +310,9 @@ mpegts_base_finalize (GObject * object)
     g_ptr_array_unref (base->pat);
     base->pat = NULL;
   }
-  g_hash_table_destroy (base->programs);
+  g_ptr_array_free (base->programs, TRUE);
+
+  gst_event_replace (&base->seek_event, NULL);
 
   if (G_OBJECT_CLASS (parent_class)->finalize)
     G_OBJECT_CLASS (parent_class)->finalize (object);
@@ -299,6 +333,20 @@ mpegts_get_descriptor_from_stream (MpegTSBaseStream * stream, guint8 tag)
   return gst_mpegts_find_descriptor (pmt->descriptors, tag);
 }
 
+const GstMpegtsDescriptor *
+mpegts_get_descriptor_from_stream_with_extension (MpegTSBaseStream * stream,
+    guint8 tag, guint8 tag_extension)
+{
+  GstMpegtsPMTStream *pmt = stream->stream;
+
+  GST_DEBUG ("Searching for tag 0x%02x tag_extension 0x%02x "
+      "in stream 0x%04x (stream_type 0x%02x)",
+      tag, tag_extension, stream->pid, stream->stream_type);
+
+  return gst_mpegts_find_descriptor_with_extension (pmt->descriptors, tag,
+      tag_extension);
+}
+
 typedef struct
 {
   gboolean res;
@@ -306,8 +354,7 @@ typedef struct
 } PIDLookup;
 
 static void
-foreach_pid_in_program (gpointer key, MpegTSBaseProgram * program,
-    PIDLookup * lookup)
+foreach_pid_in_program (MpegTSBaseProgram * program, PIDLookup * lookup)
 {
   if (!program->active)
     return;
@@ -322,8 +369,7 @@ mpegts_pid_in_active_programs (MpegTSBase * base, guint16 pid)
 
   lookup.res = FALSE;
   lookup.pid = pid;
-  g_hash_table_foreach (base->programs, (GHFunc) foreach_pid_in_program,
-      &lookup);
+  g_ptr_array_foreach (base->programs, (GFunc) foreach_pid_in_program, &lookup);
 
   return lookup.res;
 }
@@ -386,7 +432,7 @@ mpegts_base_new_program (MpegTSBase * base,
   MpegTSBaseProgram *program;
   gchar *upstream_id, *stream_id;
 
-  GST_DEBUG_OBJECT (base, "program_number : %d, pmt_pid : %d",
+  GST_DEBUG_OBJECT (base, "program_number : %d, pmt_pid : 0x%04x",
       program_number, pmt_pid);
 
   program = g_malloc0 (base->program_size);
@@ -411,7 +457,7 @@ mpegts_base_add_program (MpegTSBase * base,
 {
   MpegTSBaseProgram *program;
 
-  GST_DEBUG_OBJECT (base, "program_number : %d, pmt_pid : %d",
+  GST_DEBUG_OBJECT (base, "program_number : %d, pmt_pid : 0x%04x",
       program_number, pmt_pid);
 
   program = mpegts_base_new_program (base, program_number, pmt_pid);
@@ -423,8 +469,14 @@ mpegts_base_add_program (MpegTSBase * base,
   }
   MPEGTS_BIT_SET (base->known_psi, pmt_pid);
 
-  g_hash_table_insert (base->programs,
-      GINT_TO_POINTER (program_number), program);
+  /* Ensure the PMT PID was not used by some PES stream */
+  if (G_UNLIKELY (MPEGTS_BIT_IS_SET (base->is_pes, pmt_pid))) {
+    GST_DEBUG ("New program PMT PID was previously used by a PES stream");
+    MPEGTS_BIT_UNSET (base->is_pes, pmt_pid);
+  }
+
+
+  g_ptr_array_add (base->programs, program);
 
   return program;
 }
@@ -432,27 +484,35 @@ mpegts_base_add_program (MpegTSBase * base,
 MpegTSBaseProgram *
 mpegts_base_get_program (MpegTSBase * base, gint program_number)
 {
-  MpegTSBaseProgram *program;
+  guint i;
 
-  program = (MpegTSBaseProgram *) g_hash_table_lookup (base->programs,
-      GINT_TO_POINTER ((gint) program_number));
-
-  return program;
+  for (i = 0; i < base->programs->len; i++) {
+    MpegTSBaseProgram *program = g_ptr_array_index (base->programs, i);
+    if (program->program_number == program_number)
+      return program;
+  }
+  return NULL;
 }
 
 static MpegTSBaseProgram *
 mpegts_base_steal_program (MpegTSBase * base, gint program_number)
 {
-  MpegTSBaseProgram *program;
+  guint i;
 
-  program = (MpegTSBaseProgram *) g_hash_table_lookup (base->programs,
-      GINT_TO_POINTER ((gint) program_number));
+  for (i = 0; i < base->programs->len; i++) {
+    MpegTSBaseProgram *program = g_ptr_array_index (base->programs, i);
+    if (program->program_number == program_number) {
+#if GLIB_CHECK_VERSION(2, 58, 0)
+      return g_ptr_array_steal_index (base->programs, i);
+#else
+      program->recycle = TRUE;
+      g_ptr_array_remove_index (base->programs, i);
+      return program;
+#endif
+    }
+  }
 
-  if (program)
-    g_hash_table_steal (base->programs,
-        GINT_TO_POINTER ((gint) program_number));
-
-  return program;
+  return NULL;
 }
 
 static void
@@ -469,6 +529,11 @@ static void
 mpegts_base_free_program (MpegTSBaseProgram * program)
 {
   GList *tmp;
+
+  if (program->recycle) {
+    program->recycle = FALSE;
+    return;
+  }
 
   if (program->pmt) {
     gst_mpegts_section_unref (program->section);
@@ -503,11 +568,11 @@ mpegts_base_deactivate_and_free_program (MpegTSBase * base,
 }
 
 static void
-mpegts_base_remove_program (MpegTSBase * base, gint program_number)
+mpegts_base_remove_program (MpegTSBase * base, MpegTSBaseProgram * program)
 {
-  GST_DEBUG_OBJECT (base, "program_number : %d", program_number);
+  GST_DEBUG_OBJECT (base, "program_number : %d", program->program_number);
 
-  g_hash_table_remove (base->programs, GINT_TO_POINTER (program_number));
+  g_ptr_array_remove (base->programs, program);
 }
 
 static guint32
@@ -525,6 +590,28 @@ get_registration_from_descriptors (GPtrArray * descriptors)
   }
 
   return 0;
+}
+
+static gboolean
+find_registration_in_descriptors (GPtrArray * descriptors,
+    guint32 registration_id)
+{
+
+  guint i, nb_desc;
+
+  if (!descriptors)
+    return FALSE;
+
+  nb_desc = descriptors->len;
+  for (i = 0; i < nb_desc; i++) {
+    GstMpegtsDescriptor *desc = g_ptr_array_index (descriptors, i);
+    if (desc->tag == GST_MTS_DESC_REGISTRATION) {
+      guint32 reg_desc = GST_READ_UINT32_BE (desc->data + 2);
+      if (reg_desc == registration_id)
+        return TRUE;
+    }
+  }
+  return FALSE;
 }
 
 static MpegTSBaseStream *
@@ -567,9 +654,11 @@ mpegts_base_program_add_stream (MpegTSBase * base,
   program->stream_list = g_list_append (program->stream_list, bstream);
 
   if (klass->stream_added)
-    if (klass->stream_added (base, bstream, program))
+    if (klass->stream_added (base, bstream, program)) {
       gst_stream_collection_add_stream (program->collection,
           (GstStream *) gst_object_ref (bstream->stream_object));
+      bstream->in_collection = TRUE;
+    }
 
 
   return bstream;
@@ -652,7 +741,7 @@ mpegts_base_update_program (MpegTSBase * base, MpegTSBaseProgram * program,
   /* Copy over gststream that still exist into the collection */
   for (tmp = program->stream_list; tmp; tmp = tmp->next) {
     MpegTSBaseStream *stream = (MpegTSBaseStream *) tmp->data;
-    if (_stream_in_pmt (pmt, stream)) {
+    if (_stream_in_pmt (pmt, stream) && stream->in_collection) {
       gst_stream_collection_add_stream (program->collection,
           gst_object_ref (stream->stream_object));
     }
@@ -687,7 +776,8 @@ mpegts_base_update_program (MpegTSBase * base, MpegTSBaseProgram * program,
 
 
 static gboolean
-_stream_is_private_section (GstMpegtsPMTStream * stream)
+_stream_is_private_section (const GstMpegtsPMT * pmt,
+    GstMpegtsPMTStream * stream)
 {
   switch (stream->stream_type) {
     case GST_MPEGTS_STREAM_TYPE_SCTE_DSMCC_DCB:
@@ -710,6 +800,13 @@ _stream_is_private_section (GstMpegtsPMTStream * stream)
     case GST_MPEGTS_STREAM_TYPE_METADATA_SECTIONS:
       /* known PSI streams */
       return TRUE;
+    case GST_MPEGTS_STREAM_TYPE_SCTE_SIT:
+    {
+      /* Not a private section stream */
+      if (!find_registration_in_descriptors (pmt->descriptors, DRF_ID_CUEI))
+        return FALSE;
+      return TRUE;
+    }
     default:
       return FALSE;
   }
@@ -730,7 +827,7 @@ mpegts_base_is_same_program (MpegTSBase * base, MpegTSBaseProgram * oldprogram,
     return FALSE;
   }
 
-  if (oldprogram->pcr_pid != new_pmt->pcr_pid) {
+  if (!base->ignore_pcr && oldprogram->pcr_pid != new_pmt->pcr_pid) {
     GST_DEBUG ("Different pcr_pid (new:0x%04x, old:0x%04x)",
         new_pmt->pcr_pid, oldprogram->pcr_pid);
     return FALSE;
@@ -817,7 +914,7 @@ mpegts_base_is_program_update (MpegTSBase * base,
       GST_DEBUG
           ("New stream 0x%04x has a different stream type (new:%d, old:%d)",
           stream->pid, stream->stream_type, oldstream->stream_type);
-    } else if (!_stream_is_private_section (stream)) {
+    } else if (!_stream_is_private_section (new_pmt, stream)) {
       /* FIXME : We should actually be checking a bit deeper,
        * especially for private streams (where the differentiation is
        * done at the registration level) */
@@ -854,7 +951,7 @@ mpegts_base_deactivate_program (MpegTSBase * base, MpegTSBaseProgram * program)
       /* Only unset the is_pes/known_psi bit if the PID isn't used in any other active
        * program */
       if (!mpegts_pid_in_active_programs (base, stream->pid)) {
-        if (_stream_is_private_section (stream)) {
+        if (_stream_is_private_section (program->pmt, stream)) {
           if (base->parse_private_sections)
             MPEGTS_BIT_UNSET (base->known_psi, stream->pid);
         } else {
@@ -897,7 +994,10 @@ mpegts_base_activate_program (MpegTSBase * base, MpegTSBaseProgram * program,
 
   program->pmt = pmt;
   program->pmt_pid = pmt_pid;
-  program->pcr_pid = pmt->pcr_pid;
+  if (!base->ignore_pcr)
+    program->pcr_pid = pmt->pcr_pid;
+  else
+    program->pcr_pid = 0x1fff;
 
   /* extract top-level registration_id if present */
   program->registration_id =
@@ -907,7 +1007,7 @@ mpegts_base_activate_program (MpegTSBase * base, MpegTSBaseProgram * program,
 
   for (i = 0; i < pmt->streams->len; ++i) {
     GstMpegtsPMTStream *stream = g_ptr_array_index (pmt->streams, i);
-    if (_stream_is_private_section (stream)) {
+    if (_stream_is_private_section (pmt, stream)) {
       if (base->parse_private_sections)
         MPEGTS_BIT_SET (base->known_psi, stream->pid);
     } else {
@@ -928,8 +1028,8 @@ mpegts_base_activate_program (MpegTSBase * base, MpegTSBaseProgram * program,
   }
   /* We add the PCR pid last. If that PID is already used by one of the media
    * streams above, no new stream will be created */
-  mpegts_base_program_add_stream (base, program, pmt->pcr_pid, -1, NULL);
-  MPEGTS_BIT_SET (base->is_pes, pmt->pcr_pid);
+  mpegts_base_program_add_stream (base, program, program->pcr_pid, -1, NULL);
+  MPEGTS_BIT_SET (base->is_pes, program->pcr_pid);
 
   program->active = TRUE;
   program->initial_program = initial_program;
@@ -971,10 +1071,21 @@ mpegts_base_apply_pat (MpegTSBase * base, GstMpegtsSection * section)
   for (i = 0; i < pat->len; ++i) {
     GstMpegtsPatProgram *patp = g_ptr_array_index (pat, i);
 
+    GST_LOG ("Looking for program %d / 0x%04x", patp->program_number,
+        patp->network_or_program_map_PID);
     program = mpegts_base_get_program (base, patp->program_number);
     if (program) {
-      /* IF the program already existed, just check if the PMT PID changed */
-      if (program->pmt_pid != patp->network_or_program_map_PID) {
+      GST_LOG ("Program exists on pid 0x%04x", program->pmt_pid);
+      /* If the new PMT PID clashes with an existing known PES stream, we know
+       * it is not an update */
+      if (MPEGTS_BIT_IS_SET (base->is_pes, patp->network_or_program_map_PID)) {
+        GST_LOG ("Program is not an update");
+        program =
+            mpegts_base_add_program (base, patp->program_number,
+            patp->network_or_program_map_PID);
+      } else if (program->pmt_pid != patp->network_or_program_map_PID) {
+        /* IF the program already existed, just check if the PMT PID changed */
+        GST_LOG ("PMT is on a different PID");
         if (program->pmt_pid != G_MAXUINT16) {
           /* pmt pid changed */
           /* FIXME: when this happens it may still be pmt pid of another
@@ -989,6 +1100,8 @@ mpegts_base_apply_pat (MpegTSBase * base, GstMpegtsSection * section)
               ("Refcounting issue. Setting twice a PMT PID (0x%04x) as know PSI",
               program->pmt_pid);
         MPEGTS_BIT_SET (base->known_psi, patp->network_or_program_map_PID);
+      } else {
+        GST_LOG ("Regular program update");
       }
     } else {
       /* Create a new program */
@@ -1015,21 +1128,25 @@ mpegts_base_apply_pat (MpegTSBase * base, GstMpegtsSection * section)
         continue;
       }
 
-      if (--program->patcount > 0)
+      GST_LOG ("Deactivating program %d / 0x%04x", patp->program_number,
+          patp->network_or_program_map_PID);
+
+      if (--program->patcount > 0) {
+        GST_LOG ("Referenced by new program, keeping");
         /* the program has been referenced by the new pat, keep it */
         continue;
+      }
 
       GST_INFO_OBJECT (base, "PAT removing program 0x%04x 0x%04x",
           patp->program_number, patp->network_or_program_map_PID);
 
       if (klass->can_remove_program (base, program)) {
         mpegts_base_deactivate_program (base, program);
-        mpegts_base_remove_program (base, patp->program_number);
+        mpegts_base_remove_program (base, program);
       } else {
         /* sub-class now owns the program and must call
          * mpegts_base_deactivate_and_free_program later */
-        g_hash_table_steal (base->programs,
-            GINT_TO_POINTER ((gint) patp->program_number));
+        mpegts_base_steal_program (base, patp->program_number);
       }
       /* FIXME: when this happens it may still be pmt pid of another
        * program, so setting to False may make it go through expensive
@@ -1073,6 +1190,12 @@ mpegts_base_apply_pmt (MpegTSBase * base, GstMpegtsSection * section)
     return TRUE;
   }
 
+  /* Don't attempt to handle pmt without any streams */
+  if (G_UNLIKELY (pmt->streams->len == 0)) {
+    GST_WARNING ("Skipping PMT without any entries");
+    return TRUE;
+  }
+
   program_number = section->subtable_extension;
   GST_DEBUG ("Applying PMT (program_number:%d, pid:0x%04x)",
       program_number, section->pid);
@@ -1105,7 +1228,7 @@ mpegts_base_apply_pmt (MpegTSBase * base, GstMpegtsSection * section)
     program = mpegts_base_new_program (base, program_number, section->pid);
     program->patcount = old_program->patcount;
 
-    /* Desactivate the old program */
+    /* Deactivate the old program */
     /* FIXME : THIS IS BREAKING THE STREAM SWITCHING LOGIC !
      *  */
     if (klass->can_remove_program (base, old_program)) {
@@ -1114,12 +1237,10 @@ mpegts_base_apply_pmt (MpegTSBase * base, GstMpegtsSection * section)
     } else {
       /* sub-class now owns the program and must call
        * mpegts_base_deactivate_and_free_program later */
-      g_hash_table_steal (base->programs,
-          GINT_TO_POINTER ((gint) old_program->program_number));
+      mpegts_base_steal_program (base, old_program->program_number);
     }
     /* Add new program to the programs we track */
-    g_hash_table_insert (base->programs,
-        GINT_TO_POINTER (program_number), program);
+    g_ptr_array_add (base->programs, program);
     initial_program = FALSE;
   } else {
     GST_DEBUG ("Program update, re-using same program");
@@ -1179,6 +1300,10 @@ mpegts_base_handle_psi (MpegTSBase * base, GstMpegtsSection * section)
     default:
       break;
   }
+
+  /* Give the subclass a chance to look at the section */
+  if (GST_MPEGTS_BASE_GET_CLASS (base)->handle_psi)
+    GST_MPEGTS_BASE_GET_CLASS (base)->handle_psi (base, section);
 
   /* Finally post message (if it wasn't corrupted) */
   if (post_message)
@@ -1275,14 +1400,11 @@ mpegts_base_get_tags_from_eit (MpegTSBase * base, GstMpegtsSection * section)
   return TRUE;
 }
 
-static gboolean
-remove_each_program (gpointer key, MpegTSBaseProgram * program,
-    MpegTSBase * base)
+static void
+remove_each_program (MpegTSBaseProgram * program, MpegTSBase * base)
 {
   /* First deactivate it */
   mpegts_base_deactivate_program (base, program);
-
-  return TRUE;
 }
 
 static inline GstFlowReturn
@@ -1394,9 +1516,6 @@ mpegts_base_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   packetizer = base->packetizer;
 
-  if (klass->input_done)
-    gst_buffer_ref (buf);
-
   if (GST_BUFFER_IS_DISCONT (buf)) {
     GST_DEBUG_OBJECT (base, "Got DISCONT buffer, flushing");
     res = mpegts_base_drain (base);
@@ -1457,6 +1576,8 @@ mpegts_base_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       if (base->push_section)
         res = klass->push (base, &packet, section);
 
+    } else if (base->push_unknown) {
+      res = klass->push (base, &packet, NULL);
     } else if (packet.payload && packet.pid != 0x1fff)
       GST_LOG ("PID 0x%04x Saw packet on a pid we don't handle", packet.pid);
 
@@ -1464,12 +1585,8 @@ mpegts_base_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     mpegts_packetizer_clear_packet (base->packetizer, &packet);
   }
 
-  if (klass->input_done) {
-    if (res == GST_FLOW_OK)
-      res = klass->input_done (base, buf);
-    else
-      gst_buffer_unref (buf);
-  }
+  if (res == GST_FLOW_OK && klass->input_done)
+    res = klass->input_done (base);
 
   return res;
 }
@@ -1655,7 +1772,7 @@ mpegts_base_handle_seek_event (MpegTSBase * base, GstPad * pad,
   MpegTSBaseClass *klass = GST_MPEGTS_BASE_GET_CLASS (base);
   GstFlowReturn ret = GST_FLOW_ERROR;
   gdouble rate;
-  gboolean flush;
+  gboolean flush, instant_rate_change;
   GstFormat format;
   GstSeekFlags flags;
   GstSeekType start_type, stop_type;
@@ -1721,7 +1838,33 @@ mpegts_base_handle_seek_event (MpegTSBase * base, GstPad * pad,
       " stop: %" GST_TIME_FORMAT, rate, GST_TIME_ARGS (start),
       GST_TIME_ARGS (stop));
 
-  flush = flags & GST_SEEK_FLAG_FLUSH;
+  flush = ! !(flags & GST_SEEK_FLAG_FLUSH);
+  instant_rate_change = ! !(flags & GST_SEEK_FLAG_INSTANT_RATE_CHANGE);
+
+  /* Directly send the instant-rate-change event here before taking the
+   * stream-lock so that it can be applied as soon as possible */
+  if (base->mode != BASE_MODE_PUSHING && instant_rate_change) {
+    GstEvent *ev;
+
+    /* instant rate change only supported if direction does not change. All
+     * other requirements are already checked before creating the seek event
+     * but let's double-check here to be sure */
+    if ((rate > 0 && base->out_segment.rate < 0) ||
+        (rate < 0 && base->out_segment.rate > 0) ||
+        start_type != GST_SEEK_TYPE_NONE ||
+        stop_type != GST_SEEK_TYPE_NONE || flush) {
+      GST_ERROR_OBJECT (base,
+          "Instant rate change seeks only supported in the "
+          "same direction, without flushing and position change");
+      return FALSE;
+    }
+
+    ev = gst_event_new_instant_rate_change (rate / base->out_segment.rate,
+        (GstSegmentFlags) (flags));
+    gst_event_set_seqnum (ev, GST_EVENT_SEQNUM (event));
+    GST_MPEGTS_BASE_GET_CLASS (base)->push_event (base, ev);
+    return TRUE;
+  }
 
   /* stop streaming, either by flushing or by pausing the task */
   base->mode = BASE_MODE_SEEKING;

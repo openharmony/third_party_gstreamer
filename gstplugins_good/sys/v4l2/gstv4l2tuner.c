@@ -105,7 +105,7 @@ GstTunerChannel *
 gst_v4l2_tuner_get_channel (GstV4l2Object * v4l2object)
 {
   GList *item;
-  gint channel;
+  guint32 channel;
 
   /* assert that we're opened and that we're using a known item */
   g_return_val_if_fail (GST_V4L2_IS_OPEN (v4l2object), NULL);
@@ -181,7 +181,8 @@ gst_v4l2_tuner_get_norm (GstV4l2Object * v4l2object)
   /* assert that we're opened and that we're using a known item */
   g_return_val_if_fail (GST_V4L2_IS_OPEN (v4l2object), NULL);
 
-  gst_v4l2_get_norm (v4l2object, &norm);
+  if (!gst_v4l2_get_norm (v4l2object, &norm))
+    return NULL;
 
   return gst_v4l2_tuner_get_norm_by_std_id (v4l2object, norm);
 }
@@ -229,7 +230,7 @@ gst_v4l2_tuner_set_frequency (GstV4l2Object * v4l2object,
     GstTunerChannel * channel, gulong frequency)
 {
   GstV4l2TunerChannel *v4l2channel = GST_V4L2_TUNER_CHANNEL (channel);
-  gint chan;
+  guint32 chan;
 
   /* assert that we're opened and that we're using a known item */
   g_return_val_if_fail (GST_V4L2_IS_OPEN (v4l2object), FALSE);
@@ -257,7 +258,7 @@ gst_v4l2_tuner_get_frequency (GstV4l2Object * v4l2object,
     GstTunerChannel * channel)
 {
   GstV4l2TunerChannel *v4l2channel = GST_V4L2_TUNER_CHANNEL (channel);
-  gint chan;
+  guint32 chan;
   gulong frequency = 0;
 
   /* assert that we're opened and that we're using a known item */
@@ -282,7 +283,7 @@ gst_v4l2_tuner_signal_strength (GstV4l2Object * v4l2object,
     GstTunerChannel * channel)
 {
   GstV4l2TunerChannel *v4l2channel = GST_V4L2_TUNER_CHANNEL (channel);
-  gint chan;
+  guint32 chan;
   gulong signal = 0;
 
   /* assert that we're opened and that we're using a known item */

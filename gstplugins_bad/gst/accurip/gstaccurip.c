@@ -38,8 +38,8 @@
  *
  * The accurip element calculates a CRC for an audio stream which can be used
  * to match the audio stream to a database hosted on
- * <ulink url="http://accuraterip.com/">AccurateRip</ulink>. This database
- * is used to check for a CD rip accuracy.
+ * [AccurateRip](http://accuraterip.com/). This database is used to check for a
+ * CD rip accuracy.
  *
  * ## Example launch line
  * |[
@@ -72,8 +72,6 @@ enum
   PROP_LAST_TRACK
 };
 
-#define parent_class gst_accurip_parent_class
-G_DEFINE_TYPE (GstAccurip, gst_accurip, GST_TYPE_AUDIO_FILTER);
 
 
 
@@ -86,6 +84,11 @@ static GstFlowReturn gst_accurip_transform_ip (GstBaseTransform * trans,
     GstBuffer * buf);
 static gboolean gst_accurip_sink_event (GstBaseTransform * trans,
     GstEvent * event);
+static gboolean accurip_element_init (GstPlugin * plugin);
+
+#define parent_class gst_accurip_parent_class
+G_DEFINE_TYPE (GstAccurip, gst_accurip, GST_TYPE_AUDIO_FILTER);
+GST_ELEMENT_REGISTER_DEFINE_CUSTOM (accurip, accurip_element_init);
 
 static void
 gst_accurip_class_init (GstAccuripClass * klass)
@@ -186,7 +189,7 @@ gst_accurip_emit_tags (GstAccurip * accurip)
   tags = gst_tag_list_new (GST_TAG_ACCURIP_CRC, accurip->crc,
       GST_TAG_ACCURIP_CRC_V2, accurip->crc_v2, NULL);
 
-  GST_DEBUG_OBJECT (accurip, "Computed CRC=%08X and CRCv2=0x%08X \n",
+  GST_DEBUG_OBJECT (accurip, "Computed CRC=%08X and CRCv2=0x%08X",
       accurip->crc, accurip->crc_v2);
 
   gst_pad_push_event (GST_BASE_TRANSFORM_SRC_PAD (accurip),
@@ -342,7 +345,7 @@ gst_accurip_get_property (GObject * object, guint prop_id,
 }
 
 static gboolean
-plugin_init (GstPlugin * plugin)
+accurip_element_init (GstPlugin * plugin)
 {
   gboolean ret;
 
@@ -360,6 +363,12 @@ plugin_init (GstPlugin * plugin)
   }
 
   return ret;
+}
+
+static gboolean
+plugin_init (GstPlugin * plugin)
+{
+  return GST_ELEMENT_REGISTER (accurip, plugin);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

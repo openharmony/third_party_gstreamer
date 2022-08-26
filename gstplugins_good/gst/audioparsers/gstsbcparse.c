@@ -23,6 +23,7 @@
 
 /**
  * SECTION:element-sbcparse
+ * @title: sbcparse
  * @see_also: sbcdec, sbcenc
  *
  * The sbcparse element will parse a bluetooth SBC audio stream into
@@ -35,6 +36,7 @@
 #include "config.h"
 #endif
 
+#include "gstaudioparserselements.h"
 #include "gstsbcparse.h"
 
 #include <string.h>
@@ -80,6 +82,8 @@ static gsize gst_sbc_parse_header (const guint8 * data, guint * rate,
 
 #define parent_class gst_sbc_parse_parent_class
 G_DEFINE_TYPE (GstSbcParse, gst_sbc_parse, GST_TYPE_BASE_PARSE);
+GST_ELEMENT_REGISTER_DEFINE (sbcparse, "sbcparse",
+    GST_RANK_PRIMARY + 1, GST_TYPE_SBC_PARSE);
 
 static void
 gst_sbc_parse_class_init (GstSbcParseClass * klass)
@@ -528,6 +532,8 @@ gst_sbc_parse_pre_push_frame (GstBaseParse * parse, GstBaseParseFrame * frame)
     /* also signals the end of first-frame processing */
     sbcparse->sent_codec_tag = TRUE;
   }
+
+  frame->flags |= GST_BASE_PARSE_FRAME_FLAG_CLIP;
 
   return GST_FLOW_OK;
 }

@@ -23,20 +23,29 @@
 
 #include <openjpeg.h>
 
-#ifdef HAVE_OPENJPEG_1
-#define OPJ_CLRSPC_UNKNOWN CLRSPC_UNKNOWN
-#define OPJ_CLRSPC_SRGB CLRSPC_SRGB
-#define OPJ_CLRSPC_GRAY CLRSPC_GRAY
-#define OPJ_CLRSPC_SYCC CLRSPC_SYCC
+typedef enum
+{
+  OPENJPEG_ERROR_NONE = 0,
+  OPENJPEG_ERROR_INIT,
+  OPENJPEG_ERROR_ENCODE,
+  OPENJPEG_ERROR_DECODE,
+  OPENJPEG_ERROR_OPEN,
+  OPENJPEG_ERROR_MAP_READ,
+  OPENJPEG_ERROR_MAP_WRITE,
+  OPENJPEG_ERROR_FILL_IMAGE,
+  OPENJPEG_ERROR_NEGOCIATE,
+  OPENJPEG_ERROR_ALLOCATE,
+} OpenJPEGErrorCode;
 
-#define OPJ_CODEC_J2K CODEC_J2K
-#define OPJ_CODEC_JP2 CODEC_JP2
-
-#define OPJ_LRCP LRCP
-#define OPJ_RLCP RLCP
-#define OPJ_RPCL RPCL
-#define OPJ_PCRL PCRL
-#define OPJ_CPRL CPRL
-#endif
+typedef struct
+{
+  GstVideoCodecFrame *frame;
+  GstBuffer *output_buffer;
+  GstBuffer *input_buffer;
+  gint stripe;
+  OpenJPEGErrorCode last_error;
+  gboolean direct;
+  gboolean last_subframe;
+} GstOpenJPEGCodecMessage;
 
 #endif /* __GST_OPENJPEG_H__ */

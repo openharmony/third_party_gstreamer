@@ -51,6 +51,8 @@ enum
 
 #define gst_color_effects_parent_class parent_class
 G_DEFINE_TYPE (GstColorEffects, gst_color_effects, GST_TYPE_VIDEO_FILTER);
+GST_ELEMENT_REGISTER_DEFINE (coloreffects, "coloreffects",
+    GST_RANK_NONE, gst_color_effects_get_type ());
 
 #define CAPS_STR GST_VIDEO_CAPS_MAKE ("{ " \
     "ARGB, BGRA, ABGR, RGBA, xRGB, BGRx, xBGR, RGBx, RGB, BGR, AYUV }")
@@ -594,6 +596,8 @@ gst_color_effects_class_init (GstColorEffectsClass * klass)
       &gst_color_effects_sink_template);
   gst_element_class_add_static_pad_template (element_class,
       &gst_color_effects_src_template);
+
+  gst_type_mark_as_plugin_api (GST_TYPE_COLOR_EFFECTS_PRESET, 0);
 }
 
 static void

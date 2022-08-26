@@ -24,30 +24,18 @@
 #include "gst/gst-i18n-plugin.h"
 
 #include "common.h"
+#include "gstossaudioelements.h"
 #include "gstosssink.h"
 #include "gstosssrc.h"
 
-GST_DEBUG_CATEGORY (oss_debug);
-#define GST_CAT_DEFAULT oss_debug
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  if (!gst_element_register (plugin, "osssrc", GST_RANK_SECONDARY,
-          GST_TYPE_OSS_SRC) ||
-      !gst_element_register (plugin, "osssink", GST_RANK_SECONDARY,
-          GST_TYPE_OSSSINK)) {
-    return FALSE;
-  }
+  gboolean ret = FALSE;
 
-  GST_DEBUG_CATEGORY_INIT (oss_debug, "oss", 0, "OSS elements");
-
-#ifdef ENABLE_NLS
-  GST_DEBUG ("binding text domain %s to locale dir %s", GETTEXT_PACKAGE,
-      LOCALEDIR);
-  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
-  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
-#endif /* ENABLE_NLS */
+  ret |= GST_ELEMENT_REGISTER (osssrc, plugin);
+  ret |= GST_ELEMENT_REGISTER (osssink, plugin);
 
   return TRUE;
 }

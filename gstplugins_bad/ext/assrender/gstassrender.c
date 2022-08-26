@@ -113,6 +113,13 @@ static GstStateChangeReturn gst_ass_render_change_state (GstElement * element,
 
 #define gst_ass_render_parent_class parent_class
 G_DEFINE_TYPE (GstAssRender, gst_ass_render, GST_TYPE_ELEMENT);
+#define _do_init \
+  GST_DEBUG_CATEGORY_INIT (gst_ass_render_debug, "assrender", \
+      0, "ASS/SSA subtitle renderer");\
+  GST_DEBUG_CATEGORY_INIT (gst_ass_render_lib_debug, "assrender_library",\
+      0, "ASS/SSA subtitle renderer library");
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (assrender, "assrender",
+    GST_RANK_PRIMARY, GST_TYPE_ASS_RENDER, _do_init);
 
 static GstCaps *gst_ass_render_get_videosink_caps (GstPad * pad,
     GstAssRender * render, GstCaps * filter);
@@ -832,7 +839,7 @@ gst_ass_render_negotiate (GstAssRender * render, GstCaps * caps)
   }
 
   if (upstream_has_meta || caps_has_meta) {
-    /* Send caps immediatly, it's needed by GstBaseTransform to get a reply
+    /* Send caps immediately, it's needed by GstBaseTransform to get a reply
      * from allocation query */
     ret = gst_pad_set_caps (render->srcpad, overlay_caps);
 
@@ -875,7 +882,7 @@ gst_ass_render_negotiate (GstAssRender * render, GstCaps * caps)
   render->window_height = height;
   gst_ass_render_update_render_size (render);
 
-  /* For backward compatbility, we will prefer bliting if downstream
+  /* For backward compatibility, we will prefer bliting if downstream
    * allocation does not support the meta. In other case we will prefer
    * attaching, and will fail the negotiation in the unlikely case we are
    * force to blit, but format isn't supported. */
@@ -916,7 +923,7 @@ gst_ass_render_negotiate (GstAssRender * render, GstCaps * caps)
     ass_set_pixel_aspect (render->ass_renderer,
         (gdouble) render->info.par_n / (gdouble) render->info.par_d);
     ass_set_font_scale (render->ass_renderer, 1.0);
-    ass_set_hinting (render->ass_renderer, ASS_HINTING_LIGHT);
+    ass_set_hinting (render->ass_renderer, ASS_HINTING_NONE);
 
     ass_set_fonts (render->ass_renderer, "Arial", "sans-serif", 1, NULL, 1);
     ass_set_fonts (render->ass_renderer, NULL, "Sans", 1, NULL, 1);
@@ -1171,7 +1178,7 @@ gst_ass_render_chain_video (GstPad * pad, GstObject * parent,
     if (!gst_ass_render_negotiate (render, NULL)) {
       gst_pad_mark_reconfigure (render->srcpad);
       if (GST_PAD_IS_FLUSHING (render->srcpad))
-        goto flushing;
+        goto flushing_no_unlock;
       else
         goto not_negotiated;
     }
@@ -1443,7 +1450,6 @@ missing_timestamp:
   }
 not_negotiated:
   {
-    GST_ASS_RENDER_UNLOCK (render);
     GST_DEBUG_OBJECT (render, "not negotiated");
     gst_buffer_unref (buffer);
     return GST_FLOW_NOT_NEGOTIATED;
@@ -1451,6 +1457,9 @@ not_negotiated:
 flushing:
   {
     GST_ASS_RENDER_UNLOCK (render);
+  }
+flushing_no_unlock:
+  {
     GST_DEBUG_OBJECT (render, "flushing, discarding buffer");
     gst_buffer_unref (buffer);
     return GST_FLOW_FLUSHING;
@@ -1544,18 +1553,24 @@ gst_ass_render_handle_tag_sample (GstAssRender * render, GstSample * sample)
   static const gchar *mimetypes[] = {
     "application/x-font-ttf",
     "application/x-font-otf",
-    "application/x-truetype-font"
+    "application/x-truetype-font",
+    "application/vnd.ms-opentype",
+    "font/ttf",
+    "font/otf",
+    "font/sfnt",
+    "font/collection"
   };
   static const gchar *extensions[] = {
     ".otf",
-    ".ttf"
+    ".ttf",
+    ".ttc"
   };
 
   GstBuffer *buf;
   const GstStructure *structure;
   gboolean valid_mimetype, valid_extension;
   guint i;
-  const gchar *filename;
+  const gchar *mimetype, *filename;
 
   buf = gst_sample_get_buffer (sample);
   structure = gst_sample_get_info (sample);
@@ -1563,19 +1578,22 @@ gst_ass_render_handle_tag_sample (GstAssRender * render, GstSample * sample)
   if (!buf || !structure)
     return;
 
-  valid_mimetype = FALSE;
-  valid_extension = FALSE;
-
-  for (i = 0; i < G_N_ELEMENTS (mimetypes); i++) {
-    if (gst_structure_has_name (structure, mimetypes[i])) {
-      valid_mimetype = TRUE;
-      break;
-    }
-  }
-
   filename = gst_structure_get_string (structure, "filename");
   if (!filename)
     return;
+
+  valid_mimetype = FALSE;
+  valid_extension = FALSE;
+
+  mimetype = gst_structure_get_string (structure, "mimetype");
+  if (mimetype) {
+    for (i = 0; i < G_N_ELEMENTS (mimetypes); i++) {
+      if (strcmp (mimetype, mimetypes[i]) == 0) {
+        valid_mimetype = TRUE;
+        break;
+      }
+    }
+  }
 
   if (!valid_mimetype) {
     guint len = strlen (filename);
@@ -1871,13 +1889,7 @@ gst_ass_render_event_text (GstPad * pad, GstObject * parent, GstEvent * event)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  GST_DEBUG_CATEGORY_INIT (gst_ass_render_debug, "assrender",
-      0, "ASS/SSA subtitle renderer");
-  GST_DEBUG_CATEGORY_INIT (gst_ass_render_lib_debug, "assrender_library",
-      0, "ASS/SSA subtitle renderer library");
-
-  return gst_element_register (plugin, "assrender",
-      GST_RANK_PRIMARY, GST_TYPE_ASS_RENDER);
+  return GST_ELEMENT_REGISTER (assrender, plugin);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

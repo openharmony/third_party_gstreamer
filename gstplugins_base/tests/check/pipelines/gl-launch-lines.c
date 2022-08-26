@@ -158,12 +158,10 @@ GST_START_TEST (test_glshader)
       GST_MESSAGE_ANY & ~(GST_MESSAGE_ERROR | GST_MESSAGE_WARNING),
       GST_MESSAGE_UNKNOWN, target_state);
 
-#if GST_GL_HAVE_OPENGL
   s = "gltestsrc num-buffers=10 ! glshader ! fakesink";
   run_pipeline (setup_pipeline (s), s,
       GST_MESSAGE_ANY & ~(GST_MESSAGE_ERROR | GST_MESSAGE_WARNING),
       GST_MESSAGE_UNKNOWN, target_state);
-#endif
 }
 
 GST_END_TEST
@@ -177,17 +175,30 @@ GST_START_TEST (test_glfilterapp)
       GST_MESSAGE_ANY & ~(GST_MESSAGE_ERROR | GST_MESSAGE_WARNING),
       GST_MESSAGE_UNKNOWN, target_state);
 
-#if GST_GL_HAVE_OPENGL
   s = "gltestsrc num-buffers=10 ! glfilterapp ! fakesink";
   run_pipeline (setup_pipeline (s), s,
       GST_MESSAGE_ANY & ~(GST_MESSAGE_ERROR | GST_MESSAGE_WARNING),
       GST_MESSAGE_UNKNOWN, target_state);
-#endif
 }
 
 GST_END_TEST
-#ifdef HAVE_PNG
-#ifdef HAVE_JPEG
+GST_START_TEST (test_glmosaic)
+{
+  const gchar *s;
+  GstState target_state = GST_STATE_PLAYING;
+
+  s = "videotestsrc num-buffers=10 ! glupload ! glmosaic ! fakesink";
+  run_pipeline (setup_pipeline (s), s,
+      GST_MESSAGE_ANY & ~(GST_MESSAGE_ERROR | GST_MESSAGE_WARNING),
+      GST_MESSAGE_UNKNOWN, target_state);
+
+  s = "gltestsrc num-buffers=10 ! glmosaic ! fakesink";
+  run_pipeline (setup_pipeline (s), s,
+      GST_MESSAGE_ANY & ~(GST_MESSAGE_ERROR | GST_MESSAGE_WARNING),
+      GST_MESSAGE_UNKNOWN, target_state);
+}
+
+GST_END_TEST
 GST_START_TEST (test_gloverlay)
 {
   const gchar *s;
@@ -198,18 +209,13 @@ GST_START_TEST (test_gloverlay)
       GST_MESSAGE_ANY & ~(GST_MESSAGE_ERROR | GST_MESSAGE_WARNING),
       GST_MESSAGE_UNKNOWN, target_state);
 
-#if GST_GL_HAVE_OPENGL
   s = "gltestsrc num-buffers=10 ! gloverlay ! fakesink";
   run_pipeline (setup_pipeline (s), s,
       GST_MESSAGE_ANY & ~(GST_MESSAGE_ERROR | GST_MESSAGE_WARNING),
       GST_MESSAGE_UNKNOWN, target_state);
-#endif
 }
 
 GST_END_TEST
-#endif
-#endif
-#if GST_GL_HAVE_OPENGL
 #define N_SRCS 13
 GST_START_TEST (test_gltestsrc)
 {
@@ -228,6 +234,7 @@ GST_START_TEST (test_gltestsrc)
 
 GST_END_TEST
 #undef N_SRCS
+#if GST_GL_HAVE_OPENGL
 GST_START_TEST (test_glfilterglass)
 {
   const gchar *s;
@@ -282,24 +289,6 @@ GST_START_TEST (test_gldeinterlace)
 }
 
 GST_END_TEST
-GST_START_TEST (test_glmosaic)
-{
-  const gchar *s;
-  GstState target_state = GST_STATE_PLAYING;
-
-  s = "videotestsrc num-buffers=10 ! glupload ! glmosaic ! fakesink";
-  run_pipeline (setup_pipeline (s), s,
-      GST_MESSAGE_ANY & ~(GST_MESSAGE_ERROR | GST_MESSAGE_WARNING),
-      GST_MESSAGE_UNKNOWN, target_state);
-
-  s = "gltestsrc num-buffers=10 ! glmosaic ! fakesink";
-  run_pipeline (setup_pipeline (s), s,
-      GST_MESSAGE_ANY & ~(GST_MESSAGE_ERROR | GST_MESSAGE_WARNING),
-      GST_MESSAGE_UNKNOWN, target_state);
-}
-
-GST_END_TEST
-#ifdef HAVE_PNG
 GST_START_TEST (test_gldifferencematte)
 {
   const gchar *s;
@@ -317,17 +306,27 @@ GST_START_TEST (test_gldifferencematte)
 }
 
 GST_END_TEST
-#endif /* HAVE_PNG */
 #endif /* GST_GL_HAVE_OPENGL */
 #endif /* !GST_DISABLE_PARSE */
 static Suite *
 gl_launch_lines_suite (void)
 {
+  gboolean have_gldifferencematte;
+  gboolean have_gloverlay;
+
   Suite *s = suite_create ("OpenGL pipelines");
   TCase *tc_chain = tcase_create ("linear");
 
   /* time out after 60s, not the default 3 */
   tcase_set_timeout (tc_chain, 60);
+
+  have_gldifferencematte =
+      gst_registry_check_feature_version (gst_registry_get (),
+      "gldifferencematte", GST_VERSION_MAJOR, GST_VERSION_MINOR, 0);
+
+  have_gloverlay =
+      gst_registry_check_feature_version (gst_registry_get (),
+      "gloverlay", GST_VERSION_MAJOR, GST_VERSION_MINOR, 0);
 
   suite_add_tcase (s, tc_chain);
 #ifndef GST_DISABLE_PARSE
@@ -336,27 +335,21 @@ gl_launch_lines_suite (void)
   tcase_add_test (tc_chain, test_gleffects);
   tcase_add_test (tc_chain, test_glshader);
   tcase_add_test (tc_chain, test_glfilterapp);
-#ifdef HAVE_PNG
-#ifdef HAVE_JPEG
-  tcase_add_test (tc_chain, test_gloverlay);
-#endif
-#endif
-#if GST_GL_HAVE_OPENGL
+  tcase_add_test (tc_chain, test_glmosaic);
+  if (have_gloverlay) {
+    tcase_add_test (tc_chain, test_gloverlay);
+  }
   tcase_add_test (tc_chain, test_gltestsrc);
+
+#if GST_GL_HAVE_OPENGL
   tcase_add_test (tc_chain, test_glfilterglass);
 /*  tcase_add_test (tc_chain, test_glfilterreflectedscreen);*/
-  /* glmosaic is still in -bad because it relies on GstVideoAggregator */
-  if (gst_registry_check_feature_version (gst_registry_get (), "glmosaic", 1, 0,
-          0)) {
-    tcase_add_test (tc_chain, test_glmosaic);
-  }
   tcase_add_test (tc_chain, test_gldeinterlace);
-#ifdef HAVE_PNG
-  tcase_add_test (tc_chain, test_gldifferencematte);
+
+  if (have_gldifferencematte) {
+    tcase_add_test (tc_chain, test_gldifferencematte);
+  }
 /*  tcase_add_test (tc_chain, test_glbumper);*/
-#ifdef HAVE_JPEG
-#endif /* HAVE_JPEG */
-#endif /* HAVE_PNG */
 #endif /* GST_GL_HAVE_OPENGL */
 #endif /* !GST_DISABLE_PARSE */
   return s;

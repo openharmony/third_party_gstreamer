@@ -36,6 +36,7 @@
 #include "msdk.h"
 #ifndef _WIN32
 #include <va/va.h>
+#include <va/va_drmcommon.h>
 #endif
 
 G_BEGIN_DECLS
@@ -97,9 +98,9 @@ gint gst_msdk_context_get_fd (GstMsdkContext * context);
 typedef struct _GstMsdkAllocResponse GstMsdkAllocResponse;
 
 struct _GstMsdkAllocResponse {
-  mfxFrameAllocResponse *response;
+  gint refcount;
+  mfxFrameAllocResponse response;
   mfxFrameAllocRequest request;
-  mfxMemId *mem_ids;
   GList *surfaces_avail;
   GList *surfaces_used;
   GList *surfaces_locked;

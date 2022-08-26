@@ -48,6 +48,7 @@
 #include <string.h>
 
 #include "gstinputselector.h"
+#include "gstcoreelementselements.h"
 
 #define DEBUG_CACHED_BUFFERS 0
 
@@ -913,7 +914,6 @@ gst_input_selector_cleanup_old_cached_buffers (GstInputSelector * sel,
   GST_DEBUG_OBJECT (sel, "Cleaning up old cached buffers");
   for (walk = GST_ELEMENT_CAST (sel)->sinkpads; walk; walk = g_list_next (walk)) {
     GstSelectorPad *selpad;
-    GstSegment *seg;
     GstSelectorPadCachedBuffer *cached_buffer;
     GSList *maybe_remove;
     guint queue_position;
@@ -922,13 +922,12 @@ gst_input_selector_cleanup_old_cached_buffers (GstInputSelector * sel,
     if (!selpad->cached_buffers)
       continue;
 
-    seg = &selpad->segment;
-
     maybe_remove = NULL;
     queue_position = 0;
     while ((cached_buffer = g_queue_peek_nth (selpad->cached_buffers,
                 queue_position))) {
       GstBuffer *buffer = cached_buffer->buffer;
+      GstSegment *seg = &cached_buffer->segment;
       GstClockTime running_time;
       GSList *l;
 
@@ -1213,6 +1212,8 @@ static gboolean gst_input_selector_query (GstPad * pad, GstObject * parent,
 #define gst_input_selector_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstInputSelector, gst_input_selector, GST_TYPE_ELEMENT,
     _do_init);
+GST_ELEMENT_REGISTER_DEFINE (input_selector, "input-selector", GST_RANK_NONE,
+    GST_TYPE_INPUT_SELECTOR);
 
 static void
 gst_input_selector_class_init (GstInputSelectorClass * klass)
@@ -1304,6 +1305,9 @@ gst_input_selector_class_init (GstInputSelectorClass * klass)
   gstelement_class->request_new_pad = gst_input_selector_request_new_pad;
   gstelement_class->release_pad = gst_input_selector_release_pad;
   gstelement_class->change_state = gst_input_selector_change_state;
+
+  gst_type_mark_as_plugin_api (GST_TYPE_SELECTOR_PAD, 0);
+  gst_type_mark_as_plugin_api (GST_TYPE_INPUT_SELECTOR_SYNC_MODE, 0);
 }
 
 static void
@@ -1427,6 +1431,7 @@ gst_input_selector_set_property (GObject * object, guint prop_id,
 
       GST_INPUT_SELECTOR_LOCK (sel);
 
+      sel->active_sinkpad_from_user = ! !pad;
 #if DEBUG_CACHED_BUFFERS
       gst_input_selector_debug_cached_buffers (sel);
 #endif
@@ -1542,6 +1547,19 @@ gst_input_selector_event (GstPad * pad, GstObject * parent, GstEvent * event)
   /* Send upstream events to all sinkpads */
   iter = gst_element_iterate_sink_pads (GST_ELEMENT_CAST (sel));
 
+  GST_INPUT_SELECTOR_LOCK (sel);
+  if (sel->active_sinkpad) {
+    eventpad = gst_object_ref (sel->active_sinkpad);
+    GST_INPUT_SELECTOR_UNLOCK (sel);
+
+    gst_event_ref (event);
+    result |= gst_pad_push_event (eventpad, event);
+    pushed_pads = g_list_append (pushed_pads, eventpad);
+    gst_object_unref (eventpad);
+  } else {
+    GST_INPUT_SELECTOR_UNLOCK (sel);
+  }
+
   /* This is now essentially a copy of gst_pad_event_default_dispatch
    * with a different iterator */
   while (!done) {
@@ -1557,6 +1575,7 @@ gst_input_selector_event (GstPad * pad, GstObject * parent, GstEvent * event)
 
         gst_event_ref (event);
         result |= gst_pad_push_event (eventpad, event);
+        pushed_pads = g_list_append (pushed_pads, eventpad);
 
         g_value_reset (&item);
         break;
@@ -1794,8 +1813,8 @@ gst_input_selector_request_new_pad (GstElement * element,
   GST_OBJECT_FLAG_SET (sinkpad, GST_PAD_FLAG_PROXY_CAPS);
   GST_OBJECT_FLAG_SET (sinkpad, GST_PAD_FLAG_PROXY_ALLOCATION);
   gst_pad_set_active (sinkpad, TRUE);
-  gst_element_add_pad (GST_ELEMENT (sel), sinkpad);
   GST_INPUT_SELECTOR_UNLOCK (sel);
+  gst_element_add_pad (GST_ELEMENT (sel), sinkpad);
 
   return sinkpad;
 }
@@ -1803,9 +1822,11 @@ gst_input_selector_request_new_pad (GstElement * element,
 static void
 gst_input_selector_release_pad (GstElement * element, GstPad * pad)
 {
+  GstSelectorPad *selpad;
   GstInputSelector *sel;
 
   sel = GST_INPUT_SELECTOR (element);
+  selpad = GST_SELECTOR_PAD (pad);
   GST_LOG_OBJECT (sel, "Releasing pad %s:%s", GST_DEBUG_PAD_NAME (pad));
 
   GST_INPUT_SELECTOR_LOCK (sel);
@@ -1814,7 +1835,15 @@ gst_input_selector_release_pad (GstElement * element, GstPad * pad)
     GST_DEBUG_OBJECT (sel, "Deactivating pad %s:%s", GST_DEBUG_PAD_NAME (pad));
     gst_object_unref (sel->active_sinkpad);
     sel->active_sinkpad = NULL;
+    sel->active_sinkpad_from_user = FALSE;
   }
+
+  /* wake up the pad if it's currently waiting for EOS or a running time to be
+   * reached. Otherwise we'll deadlock on the streaming thread further below
+   * when deactivating the pad. */
+  selpad->flushing = TRUE;
+  GST_INPUT_SELECTOR_BROADCAST (sel);
+
   sel->n_pads--;
   GST_INPUT_SELECTOR_UNLOCK (sel);
 
@@ -1829,7 +1858,7 @@ gst_input_selector_reset (GstInputSelector * sel)
 
   GST_INPUT_SELECTOR_LOCK (sel);
   /* clear active pad */
-  if (sel->active_sinkpad) {
+  if (sel->active_sinkpad && !sel->active_sinkpad_from_user) {
     gst_object_unref (sel->active_sinkpad);
     sel->active_sinkpad = NULL;
   }

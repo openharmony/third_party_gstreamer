@@ -22,8 +22,9 @@
 #ifndef __GST_GIO_BASE_SINK_H__
 #define __GST_GIO_BASE_SINK_H__
 
-#include "gstgio.h"
 
+#include <gst/gst.h>
+#include <gio/gio.h>
 #include <gst/base/gstbasesink.h>
 
 G_BEGIN_DECLS
@@ -65,6 +66,8 @@ struct _GstGioBaseSinkClass
 };
 
 GType gst_gio_base_sink_get_type (void);
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (GstGioBaseSink, gst_object_unref)
 
 G_END_DECLS
 

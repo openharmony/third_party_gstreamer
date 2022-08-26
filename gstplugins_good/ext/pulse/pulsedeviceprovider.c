@@ -207,6 +207,10 @@ new_source (GstPulseDeviceProvider * self, const pa_source_info * info)
 
   props = gst_pulse_make_structure (info->proplist);
 
+  if (!g_strcmp0 (gst_structure_get_string (props, "device.api"), "alsa"))
+    gst_device_provider_hide_provider (GST_DEVICE_PROVIDER (self),
+        "alsadeviceprovider");
+
   return gst_pulse_device_new (info->index, info->description,
       caps, info->name, GST_PULSE_DEVICE_TYPE_SOURCE, props,
       !g_strcmp0 (info->name, self->default_source_name));
@@ -337,8 +341,6 @@ context_subscribe_cb (pa_context * context, pa_subscription_event_type_t type,
   if (facility == PA_SUBSCRIPTION_EVENT_SERVER ||
       facility != PA_SUBSCRIPTION_EVENT_CHANGE) {
     pa_context_get_server_info (self->context, get_server_info_cb, self);
-
-    return;
   }
 
   if (facility != PA_SUBSCRIPTION_EVENT_SOURCE &&

@@ -20,21 +20,22 @@
  */
 /**
  * SECTION:element-udpsink
+ * @title: udpsink
  * @see_also: udpsrc, multifdsink
  *
  * udpsink is a network sink that sends UDP packets to the network.
  * It can be combined with RTP payloaders to implement RTP streaming.
  *
- * <refsect2>
- * <title>Examples</title>
+ * ## Examples
  * |[
  * gst-launch-1.0 -v audiotestsrc ! udpsink
  * ]|
- * </refsect2>
+ *
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#include "gstudpelements.h"
 #include "gstudpsink.h"
 
 #define UDP_DEFAULT_HOST        "localhost"
@@ -70,6 +71,8 @@ static void gst_udpsink_get_property (GObject * object, guint prop_id,
 #define gst_udpsink_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstUDPSink, gst_udpsink, GST_TYPE_MULTIUDPSINK,
     G_IMPLEMENT_INTERFACE (GST_TYPE_URI_HANDLER, gst_udpsink_uri_handler_init));
+GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (udpsink, "udpsink", GST_RANK_NONE,
+    GST_TYPE_UDPSINK, udp_element_init (plugin));
 
 static void
 gst_udpsink_class_init (GstUDPSinkClass * klass)

@@ -52,6 +52,8 @@ GST_DEBUG_CATEGORY (wrapper_camera_bin_src_debug);
 #define gst_wrapper_camera_bin_src_parent_class parent_class
 G_DEFINE_TYPE (GstWrapperCameraBinSrc, gst_wrapper_camera_bin_src,
     GST_TYPE_BASE_CAMERA_SRC);
+GST_ELEMENT_REGISTER_DEFINE (wrappercamerabinsrc, "wrappercamerabinsrc",
+    GST_RANK_NONE, gst_wrapper_camera_bin_src_get_type ());
 
 static GstStaticPadTemplate vfsrc_template =
 GST_STATIC_PAD_TEMPLATE (GST_BASE_CAMERA_SRC_VIEWFINDER_PAD_NAME,
@@ -200,7 +202,7 @@ gst_wrapper_camera_bin_reset_video_src_caps (GstWrapperCameraBinSrc * self,
     /* After pipe was negotiated src_filter do not have any filter caps.
      * In this situation we should compare negotiated caps on capsfilter pad
      * with requested range of caps. If one of this caps intersect,
-     * then we can avoid reseting.
+     * then we can avoid resetting.
      */
     src_neg_caps = gst_pad_get_current_caps (self->srcfilter_pad);
     if (src_neg_caps && new_filter_caps && gst_caps_is_fixed (new_filter_caps))
@@ -209,7 +211,7 @@ gst_wrapper_camera_bin_reset_video_src_caps (GstWrapperCameraBinSrc * self,
       /* If new_filter_caps = NULL, then some body wont to empty
        * capsfilter (set to ANY). In this case we will need to reset pipe,
        * but if capsfilter is actually empthy, then we can avoid
-       * one more reseting.
+       * one more resetting.
        */
       GstCaps *old_filter_caps; /* range of caps on capsfilter */
 
@@ -592,14 +594,14 @@ gst_wrapper_camera_bin_src_construct_pipeline (GstBaseCameraSrc * bcamsrc)
 
     /* keep a 'tee' element that has 2 source pads, one is linked to the
      * vidsrc pad and the other is linked as needed to the viewfinder
-     * when video recording is hapenning */
+     * when video recording is happening */
     video_recording_tee = gst_element_factory_make ("tee", "video_rec_tee");
     gst_bin_add (GST_BIN_CAST (self), video_recording_tee);     /* TODO check returns */
     self->video_tee_vf_pad =
-        gst_element_get_request_pad (video_recording_tee, "src_%u");
+        gst_element_request_pad_simple (video_recording_tee, "src_%u");
     self->video_tee_sink =
         gst_element_get_static_pad (video_recording_tee, "sink");
-    tee_pad = gst_element_get_request_pad (video_recording_tee, "src_%u");
+    tee_pad = gst_element_request_pad_simple (video_recording_tee, "src_%u");
     gst_ghost_pad_set_target (GST_GHOST_PAD (self->vidsrc), tee_pad);
     gst_object_unref (tee_pad);
 
@@ -1039,7 +1041,7 @@ gst_wrapper_camera_bin_src_stop_capture (GstBaseCameraSrc * camerasrc)
 {
   GstWrapperCameraBinSrc *src = GST_WRAPPER_CAMERA_BIN_SRC (camerasrc);
 
-  /* TODO shoud we access this directly? Maybe a macro is better? */
+  /* TODO should we access this directly? Maybe a macro is better? */
   if (src->mode == MODE_VIDEO) {
     if (src->video_rec_status == GST_VIDEO_RECORDING_STATUS_STARTING) {
       GST_DEBUG_OBJECT (src, "Aborting, had not started recording");
@@ -1168,11 +1170,4 @@ gst_wrapper_camera_bin_src_init (GstWrapperCameraBinSrc * self)
   self->image_renegotiate = TRUE;
   self->mode = GST_BASE_CAMERA_SRC_CAST (self)->mode;
   self->app_vid_filter = NULL;
-}
-
-gboolean
-gst_wrapper_camera_bin_src_plugin_init (GstPlugin * plugin)
-{
-  return gst_element_register (plugin, "wrappercamerabinsrc", GST_RANK_NONE,
-      gst_wrapper_camera_bin_src_get_type ());
 }

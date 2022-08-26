@@ -109,7 +109,12 @@ static void oom_callback (void);
 #define parent_class gst_neonhttp_src_parent_class
 G_DEFINE_TYPE_WITH_CODE (GstNeonhttpSrc, gst_neonhttp_src, GST_TYPE_PUSH_SRC,
     G_IMPLEMENT_INTERFACE (GST_TYPE_URI_HANDLER,
-        gst_neonhttp_src_uri_handler_init));
+        gst_neonhttp_src_uri_handler_init);
+    GST_DEBUG_CATEGORY_INIT (neonhttpsrc_debug, "neonhttpsrc", 0,
+        "NEON HTTP src");
+    );
+GST_ELEMENT_REGISTER_DEFINE (neonhttpsrc, "neonhttpsrc", GST_RANK_NONE,
+    GST_TYPE_NEONHTTP_SRC);
 
 static void
 gst_neonhttp_src_class_init (GstNeonhttpSrcClass * klass)
@@ -298,7 +303,7 @@ gst_neonhttp_src_set_property (GObject * object, guint prop_id,
         goto done;
       }
       if (!gst_neonhttp_src_set_proxy (src, proxy)) {
-        GST_WARNING ("badly formated proxy");
+        GST_WARNING ("badly formatted proxy");
         goto done;
       }
       break;
@@ -314,14 +319,14 @@ gst_neonhttp_src_set_property (GObject * object, guint prop_id,
         goto done;
       }
       if (!gst_neonhttp_src_set_location (src, location, NULL)) {
-        GST_WARNING ("badly formated location");
+        GST_WARNING ("badly formatted location");
         goto done;
       }
       break;
     }
     case PROP_USER_AGENT:
       g_free (src->user_agent);
-      src->user_agent = g_strdup (g_value_get_string (value));
+      src->user_agent = g_value_dup_string (value);
       break;
     case PROP_COOKIES:
       if (src->cookies)
@@ -429,7 +434,7 @@ gst_neonhttp_src_get_property (GObject * object, guint prop_id,
 static void
 oom_callback (void)
 {
-  GST_ERROR ("memory exeception in neon");
+  GST_ERROR ("memory exception in neon");
 }
 
 static GstFlowReturn
@@ -817,7 +822,7 @@ ssl_verify_callback (void *data, int failures, const ne_ssl_certificate * cert)
     GST_ELEMENT_ERROR (src, RESOURCE, READ,
         (NULL), ("Server certificate signer not trusted"));
 
-  GST_DEBUG_OBJECT (src, "failures: %d\n", failures);
+  GST_DEBUG_OBJECT (src, "failures: %d", failures);
 
   return failures;
 }
@@ -1099,11 +1104,7 @@ gst_neonhttp_src_uri_handler_init (gpointer g_iface, gpointer iface_data)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  GST_DEBUG_CATEGORY_INIT (neonhttpsrc_debug, "neonhttpsrc", 0,
-      "NEON HTTP src");
-
-  return gst_element_register (plugin, "neonhttpsrc", GST_RANK_NONE,
-      GST_TYPE_NEONHTTP_SRC);
+  return GST_ELEMENT_REGISTER (neonhttpsrc, plugin);
 }
 
 /* this is the structure that gst-register looks for

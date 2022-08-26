@@ -609,7 +609,7 @@ gst_tag_list_has_ifd_tags (const GstTagList * taglist,
  * The tag entry is the tag id, the tag type,
  * the count and the offset.
  *
- * The offset is the on the amount of data writen so far, as one
+ * The offset is the on the amount of data written so far, as one
  * can't predict the total bytes that the tag entries will take.
  * This means those fields requires being updated later.
  */
@@ -1501,6 +1501,9 @@ exif_reader_read_rational_tag (GstExifReader * exif_reader,
         goto reader_fail;
     }
   }
+
+  if (frac_d == 0)
+    return FALSE;               /* Ignore invalid fractions */
 
   if (_frac_n)
     *_frac_n = frac_n;

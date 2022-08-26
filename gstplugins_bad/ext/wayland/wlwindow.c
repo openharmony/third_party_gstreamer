@@ -43,6 +43,8 @@ G_DEFINE_TYPE (GstWlWindow, gst_wl_window, G_TYPE_OBJECT);
 
 static void gst_wl_window_finalize (GObject * gobject);
 
+static void gst_wl_window_update_borders (GstWlWindow * window);
+
 static void
 handle_xdg_toplevel_close (void *data, struct xdg_toplevel *xdg_toplevel)
 {
@@ -190,6 +192,7 @@ static GstWlWindow *
 gst_wl_window_new_internal (GstWlDisplay * display, GMutex * render_lock)
 {
   GstWlWindow *window;
+  struct wl_region *region;
 
   window = g_object_new (GST_TYPE_WL_WINDOW, NULL);
   window->display = g_object_ref (display);
@@ -221,9 +224,10 @@ gst_wl_window_new_internal (GstWlDisplay * display, GMutex * render_lock)
         window->video_surface);
   }
 
-  /* do not accept input */
-  wl_surface_set_input_region (window->area_surface, NULL);
-  wl_surface_set_input_region (window->video_surface, NULL);
+  /* never accept input events on the video surface */
+  region = wl_compositor_create_region (display->compositor);
+  wl_surface_set_input_region (window->video_surface, region);
+  wl_region_destroy (region);
 
   return window;
 }
@@ -253,7 +257,6 @@ gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info,
     gboolean fullscreen, GMutex * render_lock)
 {
   GstWlWindow *window;
-  gint width;
 
   window = gst_wl_window_new_internal (display, render_lock);
 
@@ -284,7 +287,7 @@ gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info,
 
     /* Finally, commit the xdg_surface state as toplevel */
     window->configured = FALSE;
-    wl_surface_commit (window->video_surface);
+    wl_surface_commit (window->area_surface);
     wl_display_flush (display->display);
 
     g_mutex_lock (&window->configure_mutex);
@@ -319,10 +322,14 @@ gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info,
     goto error;
   }
 
-  /* set the initial size to be the same as the reported video size */
-  width =
-      gst_util_uint64_scale_int_round (info->width, info->par_n, info->par_d);
-  gst_wl_window_set_render_rectangle (window, 0, 0, width, info->height);
+  /* render_rectangle is already set via toplevel_configure in
+   * xdg_shell fullscreen mode */
+  if (!(display->xdg_wm_base && fullscreen)) {
+    /* set the initial size to be the same as the reported video size */
+    gint width =
+        gst_util_uint64_scale_int_round (info->width, info->par_n, info->par_d);
+    gst_wl_window_set_render_rectangle (window, 0, 0, width, info->height);
+  }
 
   return window;
 
@@ -336,7 +343,13 @@ gst_wl_window_new_in_surface (GstWlDisplay * display,
     struct wl_surface * parent, GMutex * render_lock)
 {
   GstWlWindow *window;
+  struct wl_region *region;
   window = gst_wl_window_new_internal (display, render_lock);
+
+  /* do not accept input events on the area surface when embedded */
+  region = wl_compositor_create_region (display->compositor);
+  wl_surface_set_input_region (window->area_surface, region);
+  wl_region_destroy (region);
 
   /* embed in parent */
   window->area_subsurface =
@@ -398,22 +411,9 @@ gst_wl_window_resize_video_surface (GstWlWindow * window, gboolean commit)
 
   wl_subsurface_set_position (window->video_subsurface, res.x, res.y);
 
-  if (commit) {
-    wl_surface_damage (window->video_surface_wrapper, 0, 0, res.w, res.h);
+  if (commit)
     wl_surface_commit (window->video_surface_wrapper);
-  }
 
-  if (gst_wl_window_is_toplevel (window)) {
-    struct wl_region *region;
-
-    region = wl_compositor_create_region (window->display->compositor);
-    wl_region_add (region, 0, 0, window->render_rectangle.w,
-        window->render_rectangle.h);
-    wl_surface_set_input_region (window->area_surface, region);
-    wl_region_destroy (region);
-  }
-
-  /* this is saved for use in wl_surface_damage */
   window->video_rectangle = res;
 }
 
@@ -424,16 +424,14 @@ gst_wl_window_set_opaque (GstWlWindow * window, const GstVideoInfo * info)
 
   /* Set area opaque */
   region = wl_compositor_create_region (window->display->compositor);
-  wl_region_add (region, 0, 0, window->render_rectangle.w,
-      window->render_rectangle.h);
+  wl_region_add (region, 0, 0, G_MAXINT32, G_MAXINT32);
   wl_surface_set_opaque_region (window->area_surface, region);
   wl_region_destroy (region);
 
   if (!GST_VIDEO_INFO_HAS_ALPHA (info)) {
     /* Set video opaque */
     region = wl_compositor_create_region (window->display->compositor);
-    wl_region_add (region, 0, 0, window->render_rectangle.w,
-        window->render_rectangle.h);
+    wl_region_add (region, 0, 0, G_MAXINT32, G_MAXINT32);
     wl_surface_set_opaque_region (window->video_surface, region);
     wl_region_destroy (region);
   }
@@ -453,20 +451,29 @@ gst_wl_window_render (GstWlWindow * window, GstWlBuffer * buffer,
     gst_wl_window_set_opaque (window, info);
   }
 
-  if (G_LIKELY (buffer))
+  if (G_LIKELY (buffer)) {
     gst_wl_buffer_attach (buffer, window->video_surface_wrapper);
-  else
-    wl_surface_attach (window->video_surface_wrapper, NULL, 0, 0);
+    wl_surface_damage_buffer (window->video_surface_wrapper, 0, 0, G_MAXINT32,
+        G_MAXINT32);
+    wl_surface_commit (window->video_surface_wrapper);
 
-  wl_surface_damage (window->video_surface_wrapper, 0, 0,
-      window->video_rectangle.w, window->video_rectangle.h);
-  wl_surface_commit (window->video_surface_wrapper);
+    if (!window->is_area_surface_mapped) {
+      gst_wl_window_update_borders (window);
+      wl_surface_commit (window->area_surface_wrapper);
+      window->is_area_surface_mapped = TRUE;
+    }
+  } else {
+    /* clear both video and parent surfaces */
+    wl_surface_attach (window->video_surface_wrapper, NULL, 0, 0);
+    wl_surface_commit (window->video_surface_wrapper);
+    wl_surface_attach (window->area_surface_wrapper, NULL, 0, 0);
+    wl_surface_commit (window->area_surface_wrapper);
+    window->is_area_surface_mapped = FALSE;
+  }
 
   if (G_UNLIKELY (info)) {
     /* commit also the parent (area_surface) in order to change
      * the position of the video_subsurface */
-    wl_surface_damage (window->area_surface_wrapper, 0, 0,
-        window->render_rectangle.w, window->render_rectangle.h);
     wl_surface_commit (window->area_surface_wrapper);
     wl_subsurface_set_desync (window->video_subsurface);
   }
@@ -488,23 +495,26 @@ gst_wl_window_update_borders (GstWlWindow * window)
   GstWlBuffer *gwlbuf;
   GstAllocator *alloc;
 
-  if (window->no_border_update)
-    return;
+  if (window->display->viewporter) {
+    wp_viewport_set_destination (window->area_viewport,
+        window->render_rectangle.w, window->render_rectangle.h);
+
+    if (window->is_area_surface_mapped) {
+      /* The area_surface is already visible and only needed to get resized.
+       * We don't need to attach a new buffer and are done here. */
+      return;
+    }
+  }
 
   if (window->display->viewporter) {
     width = height = 1;
-    window->no_border_update = TRUE;
   } else {
     width = window->render_rectangle.w;
     height = window->render_rectangle.h;
   }
 
   /* we want WL_SHM_FORMAT_XRGB8888 */
-#if G_BYTE_ORDER == G_BIG_ENDIAN
-  format = GST_VIDEO_FORMAT_xRGB;
-#else
   format = GST_VIDEO_FORMAT_BGRx;
-#endif
 
   /* draw the area_subsurface */
   gst_video_info_set_format (&info, format, width, height);
@@ -518,6 +528,8 @@ gst_wl_window_update_borders (GstWlWindow * window)
       window->display, &info);
   gwlbuf = gst_buffer_add_wl_buffer (buf, wlbuf, window->display);
   gst_wl_buffer_attach (gwlbuf, window->area_surface_wrapper);
+  wl_surface_damage_buffer (window->area_surface_wrapper, 0, 0, G_MAXINT32,
+      G_MAXINT32);
 
   /* at this point, the GstWlBuffer keeps the buffer
    * alive and will free it on wl_buffer::release */
@@ -531,6 +543,10 @@ gst_wl_window_set_render_rectangle (GstWlWindow * window, gint x, gint y,
 {
   g_return_if_fail (window != NULL);
 
+  if (window->render_rectangle.x == x && window->render_rectangle.y == y &&
+      window->render_rectangle.w == w && window->render_rectangle.h == h)
+    return;
+
   window->render_rectangle.x = x;
   window->render_rectangle.y = y;
   window->render_rectangle.w = w;
@@ -540,18 +556,17 @@ gst_wl_window_set_render_rectangle (GstWlWindow * window, gint x, gint y,
   if (window->area_subsurface)
     wl_subsurface_set_position (window->area_subsurface, x, y);
 
-  /* change the size of the area */
-  if (window->area_viewport)
-    wp_viewport_set_destination (window->area_viewport, w, h);
+  if (window->is_area_surface_mapped)
+    gst_wl_window_update_borders (window);
 
-  gst_wl_window_update_borders (window);
+  if (!window->configured)
+    return;
 
   if (window->video_width != 0) {
     wl_subsurface_set_sync (window->video_subsurface);
     gst_wl_window_resize_video_surface (window, TRUE);
   }
 
-  wl_surface_damage (window->area_surface_wrapper, 0, 0, w, h);
   wl_surface_commit (window->area_surface_wrapper);
 
   if (window->video_width != 0)
