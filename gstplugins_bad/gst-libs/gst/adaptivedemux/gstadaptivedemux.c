@@ -2085,7 +2085,18 @@ gst_adaptive_demux_handle_seek_event (GstAdaptiveDemux * demux, GstPad * pad,
     GST_DEBUG_OBJECT (demux, "Sending flush stop on all pad");
     fevent = gst_event_new_flush_stop (TRUE);
     gst_event_set_seqnum (fevent, seqnum);
+#ifdef OHOS_OPT_COMPAT
+    /**
+     * ohos.opt.compat.0037
+     * Fixed deadlock when seek and reconfigure are concurrent
+     */
+    GST_MANIFEST_UNLOCK (demux);
+#endif
     gst_adaptive_demux_push_src_event (demux, fevent);
+#ifdef OHOS_OPT_COMPAT
+    // ohos.opt.compat.0037
+    GST_MANIFEST_LOCK (demux);
+#endif
   }
 
   if (demux->next_streams) {
