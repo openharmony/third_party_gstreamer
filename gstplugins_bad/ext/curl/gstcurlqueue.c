@@ -71,7 +71,7 @@ gst_curl_http_src_add_queue_item (GstCurlHttpSrcQueueElement ** queue,
     insert_point = *queue;
   } else {
     insert_point = *queue;
-#ifndef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_COMPAT
     /**
      * ohos.opt.compat.0033
      * When remove the GstCurlHttpSrc instance from queue, only the one item will be removed, but
