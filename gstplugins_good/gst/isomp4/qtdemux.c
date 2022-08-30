@@ -10296,6 +10296,13 @@ qtdemux_inspect_transformation_matrix (GstQTDemux * qtdemux,
         *taglist = gst_tag_list_new_empty ();
       gst_tag_list_add (*taglist, GST_TAG_MERGE_REPLACE,
           GST_TAG_IMAGE_ORIENTATION, rotation_tag, NULL);
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0032
+      GstMessage *msg_video_rotation = gst_message_new_video_rotation (GST_OBJECT (qtdemux), rotation_tag);
+      if (msg_video_rotation != NULL) {
+        gst_element_post_message (GST_ELEMENT (qtdemux), msg_video_rotation);
+      }
+#endif
     }
   } else {
     GST_FIXME_OBJECT (qtdemux, "Unhandled transformation matrix values");
