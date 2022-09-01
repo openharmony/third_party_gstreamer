@@ -2592,7 +2592,7 @@ handle_gathered_gop (GstSplitMuxSink * splitmux, const InputGop * gop,
 
 error_gop_duration:
 #ifdef OHOS_OPT_COMPAT
-// ohos.opt.compat.0036
+// ohos.opt.compat.0039
 // Make handle_mq_Input is not blocked
   splitmux->input_state = SPLITMUX_INPUT_STATE_COLLECTING_GOP_START;
 // Wake up handle_mq_output
@@ -2608,7 +2608,7 @@ error_gop_duration:
   return;
 error_queued_time:
 #ifdef OHOS_OPT_COMPAT
-// ohos.opt.compat.0036
+// ohos.opt.compat.0039
 // Make handle_mq_Input is not blocked
   splitmux->input_state = SPLITMUX_INPUT_STATE_COLLECTING_GOP_START;
 // Wake up handle_mq_output
