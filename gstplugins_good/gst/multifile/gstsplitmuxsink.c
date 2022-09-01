@@ -2468,6 +2468,27 @@ video_time_code_replace (GstVideoTimeCode ** old_tc, GstVideoTimeCode * new_tc)
   *old_tc = timecode;
 }
 
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0039
+// Ignore the error and continue to execute, waiting for EOS
+static void continue_execution (GstSplitMuxSink * splitmux, GstClockTimeDiff max_out_running_time)
+{
+  SplitMuxOutputCommand *cmd;
+
+  if (splitmux) {
+    // Make handle_mq_Input is not blocked
+    splitmux->input_state = SPLITMUX_INPUT_STATE_COLLECTING_GOP_START;
+    // Wake up handle_mq_output
+    cmd = out_cmd_buf_new ();
+    cmd->start_new_fragment = FALSE;
+    cmd->max_output_ts = max_out_running_time;
+    g_queue_push_head (&splitmux->out_cmd_q, cmd);
+  }
+
+  return;
+}
+#endif
+
 /* Called with splitmux lock held */
 /* Called when entering ProcessingCompleteGop state
  * Assess if mq contents overflowed the current file
@@ -2506,24 +2527,11 @@ handle_gathered_gop (GstSplitMuxSink * splitmux, const InputGop * gop,
       GST_STIME_ARGS (queued_time), queued_bytes,
       GST_STIME_ARGS (next_gop_start_time), GST_STIME_ARGS (gop->start_time));
 
-#ifdef OHOS_OPT_COMPAT
-// ohos.opt.compat.0039
-  if (queued_gop_time < 0) {
-    GST_ELEMENT_ERROR (splitmux,
-      STREAM, FAILED, ("Timestamping error on input streams"),
-      ("Queued GOP time is negative %" GST_STIME_FORMAT,
-          GST_STIME_ARGS (queued_gop_time)));
-    goto error_time;
-  }
+  if (queued_gop_time < 0)
+    goto error_gop_duration;
 
-  if (queued_time < splitmux->fragment_start_time) {
-    GST_ELEMENT_ERROR (splitmux,
-      STREAM, FAILED, ("Timestamping error on input streams"),
-      ("Queued time is negative. Input went backwards. queued_time - %"
-          GST_STIME_FORMAT, GST_STIME_ARGS (queued_time)));
-    goto error_time;
-  }
-#endif
+  if (queued_time < splitmux->fragment_start_time)
+    goto error_queued_time;
 
   queued_time -= splitmux->fragment_start_time;
   if (queued_time < queued_gop_time)
@@ -2603,18 +2611,26 @@ handle_gathered_gop (GstSplitMuxSink * splitmux, const InputGop * gop,
 
   return;
 
+error_gop_duration:
 #ifdef OHOS_OPT_COMPAT
-error_time:
 // ohos.opt.compat.0039
-// Make handle_mq_Input is not blocked
-  splitmux->input_state = SPLITMUX_INPUT_STATE_COLLECTING_GOP_START;
-// Wake up handle_mq_output
-  cmd = out_cmd_buf_new ();
-  cmd->start_new_fragment = FALSE;
-  cmd->max_output_ts = max_out_running_time;
-  g_queue_push_head (&splitmux->out_cmd_q, cmd);
-  return;
+  continue_execution(splitmux, max_out_running_time);
 #endif
+  GST_ELEMENT_ERROR (splitmux,
+      STREAM, FAILED, ("Timestamping error on input streams"),
+      ("Queued GOP time is negative %" GST_STIME_FORMAT,
+          GST_STIME_ARGS (queued_gop_time)));
+  return;
+error_queued_time:
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0039
+  continue_execution(splitmux, max_out_running_time);
+#endif
+  GST_ELEMENT_ERROR (splitmux,
+      STREAM, FAILED, ("Timestamping error on input streams"),
+      ("Queued time is negative. Input went backwards. queued_time - %"
+          GST_STIME_FORMAT, GST_STIME_ARGS (queued_time)));
+  return;
 }
 
 /* Called with splitmux lock held */
