@@ -2591,12 +2591,32 @@ handle_gathered_gop (GstSplitMuxSink * splitmux, const InputGop * gop,
   return;
 
 error_gop_duration:
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0036
+// Make handle_mq_Input is not blocked
+  splitmux->input_state = SPLITMUX_INPUT_STATE_COLLECTING_GOP_START;
+// Wake up handle_mq_output
+  cmd = out_cmd_buf_new ();
+  cmd->start_new_fragment = FALSE;
+  cmd->max_output_ts = max_out_running_time;
+  g_queue_push_head (&splitmux->out_cmd_q, cmd);
+#endif
   GST_ELEMENT_ERROR (splitmux,
       STREAM, FAILED, ("Timestamping error on input streams"),
       ("Queued GOP time is negative %" GST_STIME_FORMAT,
           GST_STIME_ARGS (queued_gop_time)));
   return;
 error_queued_time:
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0036
+// Make handle_mq_Input is not blocked
+  splitmux->input_state = SPLITMUX_INPUT_STATE_COLLECTING_GOP_START;
+// Wake up handle_mq_output
+  cmd = out_cmd_buf_new ();
+  cmd->start_new_fragment = FALSE;
+  cmd->max_output_ts = max_out_running_time;
+  g_queue_push_head (&splitmux->out_cmd_q, cmd);
+#endif
   GST_ELEMENT_ERROR (splitmux,
       STREAM, FAILED, ("Timestamping error on input streams"),
       ("Queued time is negative. Input went backwards. queued_time - %"
