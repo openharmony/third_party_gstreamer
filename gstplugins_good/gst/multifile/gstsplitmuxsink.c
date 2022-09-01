@@ -2483,6 +2483,7 @@ static void continue_execution (GstSplitMuxSink * splitmux, GstClockTimeDiff max
     cmd->start_new_fragment = FALSE;
     cmd->max_output_ts = max_out_running_time;
     g_queue_push_head (&splitmux->out_cmd_q, cmd);
+    GST_SPLITMUX_BROADCAST_OUTPUT (splitmux);
   }
 
   return;
