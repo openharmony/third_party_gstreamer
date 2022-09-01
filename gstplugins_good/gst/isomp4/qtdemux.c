@@ -8635,11 +8635,24 @@ gst_qtdemux_guess_framerate (GstQTDemux * qtdemux, QtDemuxStream * stream)
           " minus first sample %u, leaving %d samples gives %"
           GST_TIME_FORMAT, duration, first_duration,
           n_samples - 1, GST_TIME_ARGS (avg_duration));
-
+#ifdef OHOS_OPT_COMPAT
+      /**
+       * ohos.opt.compat.0038
+       * Solve the problem of correct frame rate not passing forward
+       */
+      if (avg_duration == 0) {
+        fps_available = FALSE;
+        GST_ERROR_OBJECT (qtdemux, "Calculating avg duration abnormal");
+      } else {
+        gst_video_guess_framerate (avg_duration, &CUR_STREAM (stream)->fps_n, &CUR_STREAM (stream)->fps_d);
+        GST_DEBUG_OBJECT (qtdemux, "Guess framerate fps_n %d fps_d %d",
+            CUR_STREAM (stream)->fps_n, CUR_STREAM (stream)->fps_d);
+      }
+#else
       fps_available =
           gst_video_guess_framerate (avg_duration,
           &CUR_STREAM (stream)->fps_n, &CUR_STREAM (stream)->fps_d);
-
+#endif
       GST_DEBUG_OBJECT (qtdemux,
           "Calculating framerate, timescale %u gave fps_n %d fps_d %d",
           stream->timescale, CUR_STREAM (stream)->fps_n,
