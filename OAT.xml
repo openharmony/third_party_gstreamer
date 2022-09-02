@@ -55,7 +55,7 @@ Note:If the text contains special characters, please escape them according to th
 -->
 <configuration>
     <oatconfig>
-        <licensefile>gstreamer/COPYING|gst_libav/COPYING.LIB|gstplugins_bad/COPYING.LIB|gstplugins_base/COPYING|gstplugins_good/COPYING</licensefile>
+        <licensefile>gstreamer/COPYING|gst_libav/COPYING|gstplugins_bad/COPYING|gstplugins_base/COPYING|gstplugins_good/COPYING</licensefile>
         <policylist>
             <policy name="projectPolicy" desc="">
             </policy>
