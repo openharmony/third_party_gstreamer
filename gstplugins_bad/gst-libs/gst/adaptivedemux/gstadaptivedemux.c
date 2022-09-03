@@ -2241,10 +2241,12 @@ gst_adaptive_demux_src_query (GstPad * pad, GstObject * parent,
 
       gst_query_parse_duration (query, &fmt, NULL);
 
+      GST_MANIFEST_LOCK (demux);
       if (gst_adaptive_demux_is_live (demux)) {
         /* We are able to answer this query: the duration is unknown */
         gst_query_set_duration (query, fmt, -1);
         ret = TRUE;
+        GST_MANIFEST_UNLOCK (demux);
         break;
       }
 
@@ -2260,6 +2262,7 @@ gst_adaptive_demux_src_query (GstPad * pad, GstObject * parent,
 
       GST_LOG_OBJECT (demux, "GST_QUERY_DURATION returns %s with duration %"
           GST_TIME_FORMAT, ret ? "TRUE" : "FALSE", GST_TIME_ARGS (duration));
+      GST_MANIFEST_LOCK (demux);
       break;
     }
     case GST_QUERY_LATENCY:{
