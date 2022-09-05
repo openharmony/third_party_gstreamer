@@ -1429,6 +1429,46 @@ gst_message_parse_resulution_changed (GstMessage * message, gint * width, gint *
     (void)gst_structure_get_int(structure, "height", height);
   }
 }
+
+// ohos.ext.func.0032
+/**
+ * gst_message_new_video_rotation:
+ * @src: (transfer none) (allow-none): The object originating the message.
+ * @rotation: video of rotation
+ *
+ * Create a new video rotation message. This message can be posted by demux that
+ * needs to report the video rotation
+ *
+ * MT safe.
+ *
+ * Returns: (transfer full) (nullable): The new video rotation message.
+ */
+GstMessage *
+gst_message_new_video_rotation (GstObject * src, const gchar *rotation)
+{
+  GstMessage *message;
+  GstStructure *structure;
+  structure = gst_structure_new ("video-rotation", "rotation", G_TYPE_STRING, rotation, NULL);
+  message = gst_message_new_custom (GST_MESSAGE_ELEMENT, src, structure);
+  return message;
+}
+
+/**
+ * gst_message_parse_video_rotation:
+ * @message: A valid #GstMessage of type video-rotation.
+ * @rotation: (out) (allow-none): video of rotation, or %NULL
+ *
+ * Extracts the video rotation values from @message.
+ */
+void
+gst_message_parse_video_rotation (GstMessage * message, gchar **rotation)
+{
+  GstStructure *structure;
+  g_return_if_fail (GST_MESSAGE_TYPE (message) == GST_MESSAGE_ELEMENT);
+  structure = GST_MESSAGE_STRUCTURE (message);
+
+  *rotation = gst_structure_get_string(structure, "rotation");
+}
 #endif
 
 /**
