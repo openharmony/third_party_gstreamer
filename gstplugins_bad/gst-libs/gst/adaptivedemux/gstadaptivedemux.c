@@ -2262,7 +2262,7 @@ gst_adaptive_demux_src_query (GstPad * pad, GstObject * parent,
 
       GST_LOG_OBJECT (demux, "GST_QUERY_DURATION returns %s with duration %"
           GST_TIME_FORMAT, ret ? "TRUE" : "FALSE", GST_TIME_ARGS (duration));
-      GST_MANIFEST_LOCK (demux);
+      GST_MANIFEST_UNLOCK (demux);
       break;
     }
     case GST_QUERY_LATENCY:{
