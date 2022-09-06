@@ -2251,12 +2251,16 @@ gst_adaptive_demux_src_query (GstPad * pad, GstObject * parent,
         /* We are able to answer this query: the duration is unknown */
         gst_query_set_duration (query, fmt, -1);
         ret = TRUE;
+#ifdef OHOS_OPT_COMPAT        
         // ohos.opt.compat.0040
         GST_MANIFEST_UNLOCK (demux);
+#endif
         break;
       }
-      // ohos.opt.compat.0040
-      GST_MANIFEST_UNLOCK (demux);
+#ifdef OHOS_OPT_COMPAT        
+        // ohos.opt.compat.0040
+        GST_MANIFEST_UNLOCK (demux);
+#endif
 
       if (fmt == GST_FORMAT_TIME
           && g_atomic_int_get (&demux->priv->have_manifest)) {
