@@ -2240,15 +2240,23 @@ gst_adaptive_demux_src_query (GstPad * pad, GstObject * parent,
       GstFormat fmt;
 
       gst_query_parse_duration (query, &fmt, NULL);
-
+#ifdef OHOS_OPT_COMPAT
+    /**
+     * ohos.opt.compat.0040
+     * Fixed query duration failed.
+     */
       GST_MANIFEST_LOCK (demux);
+#endif
       if (gst_adaptive_demux_is_live (demux)) {
         /* We are able to answer this query: the duration is unknown */
         gst_query_set_duration (query, fmt, -1);
         ret = TRUE;
+        // ohos.opt.compat.0040
         GST_MANIFEST_UNLOCK (demux);
         break;
       }
+      // ohos.opt.compat.0040
+      GST_MANIFEST_UNLOCK (demux);
 
       if (fmt == GST_FORMAT_TIME
           && g_atomic_int_get (&demux->priv->have_manifest)) {
@@ -2262,7 +2270,6 @@ gst_adaptive_demux_src_query (GstPad * pad, GstObject * parent,
 
       GST_LOG_OBJECT (demux, "GST_QUERY_DURATION returns %s with duration %"
           GST_TIME_FORMAT, ret ? "TRUE" : "FALSE", GST_TIME_ARGS (duration));
-      GST_MANIFEST_UNLOCK (demux);
       break;
     }
     case GST_QUERY_LATENCY:{
