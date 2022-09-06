@@ -605,6 +605,13 @@ void            gst_message_parse_resulution_changed (GstMessage * message, gint
 // ohos.ext.func.0015
 GST_API
 GstMessage *    gst_message_new_render_first_video_frame (GstObject * src);
+
+// ohos.ext.func.0032
+GST_API
+GstMessage *    gst_message_new_video_rotation (GstObject * src, const gchar *rotation);
+
+GST_API
+void            gst_message_parse_video_rotation (GstMessage * message, gchar **rotation);
 #endif
 
 /* STATE_CHANGED */
