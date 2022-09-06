@@ -2241,10 +2241,10 @@ gst_adaptive_demux_src_query (GstPad * pad, GstObject * parent,
 
       gst_query_parse_duration (query, &fmt, NULL);
 #ifdef OHOS_OPT_COMPAT
-    /**
-     * ohos.opt.compat.0040
-     * Fixed query duration failed.
-     */
+      /**
+       * ohos.opt.compat.0040
+       * Fixed query duration failed.
+       */
       GST_MANIFEST_LOCK (demux);
 #endif
       if (gst_adaptive_demux_is_live (demux)) {
