@@ -2258,8 +2258,8 @@ gst_adaptive_demux_src_query (GstPad * pad, GstObject * parent,
         break;
       }
 #ifdef OHOS_OPT_COMPAT        
-        // ohos.opt.compat.0040
-        GST_MANIFEST_UNLOCK (demux);
+      // ohos.opt.compat.0040
+      GST_MANIFEST_UNLOCK (demux);
 #endif
 
       if (fmt == GST_FORMAT_TIME
