@@ -2242,8 +2242,10 @@ gst_adaptive_demux_src_query (GstPad * pad, GstObject * parent,
       gst_query_parse_duration (query, &fmt, NULL);
 #ifdef OHOS_OPT_COMPAT
       /**
-       * ohos.opt.compat.0040
-       * Fixed query duration failed.
+       * ohos.opt.compat.0040 Fixed query duration failed.
+       * gst_hls_demux_process_manifest() function taken manifest_lock to update playlist. 
+       * During this period, the value obtained by judgment(gst_adaptive_demux_is_live) is wrong,
+       * Thus, use manifest_lock blocking until the attribute endlist of m3u8 is updated.
        */
       GST_MANIFEST_LOCK (demux);
 #endif
