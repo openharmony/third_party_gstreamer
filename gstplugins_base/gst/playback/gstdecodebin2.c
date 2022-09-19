@@ -1526,9 +1526,11 @@ gst_decode_bin_get_property (GObject * object, guint prop_id,
 #ifdef OHOS_EXT_FUNC
     // ohos.ext.func.0013
     case PROP_MQ_NUM_USE_BUFFRING:
-      CHAIN_MUTEX_LOCK (dbin->decode_chain);
-      g_value_set_uint64 (value, dbin->mq_num_use_buffering);
-      CHAIN_MUTEX_UNLOCK (dbin->decode_chain);
+      if (dbin->decode_chain) {
+        CHAIN_MUTEX_LOCK (dbin->decode_chain);
+        g_value_set_uint64 (value, dbin->mq_num_use_buffering);
+        CHAIN_MUTEX_UNLOCK (dbin->decode_chain);
+      }
       break;
 #endif
     default:
