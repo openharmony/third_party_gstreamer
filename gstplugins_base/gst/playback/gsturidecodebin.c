@@ -1476,6 +1476,16 @@ array_has_uri_value (const gchar * values[], const gchar * value)
   return FALSE;
 }
 
+#ifdef OHOS_OPT_PERFORMANCE
+/*
+ * ohos.opt.performance.0003
+ * remove fd:// from network for performance.
+ */
+static const gchar *stream_uris[] = { "http://", "https://", "mms://",
+  "mmsh://", "mmsu://", "mmst://", "myth://", "ssh://", "ftp://", "sftp://",
+  NULL
+};
+#else
 /* list of URIs that we consider to be streams and that need buffering.
  * We have no mechanism yet to figure this out with a query. */
 static const gchar *stream_uris[] = { "http://", "https://", "mms://",
@@ -1483,6 +1493,7 @@ static const gchar *stream_uris[] = { "http://", "https://", "mms://",
   "ftp://", "sftp://",
   NULL
 };
+#endif
 
 /* list of URIs that need a queue because they are pretty bursty */
 static const gchar *queue_uris[] = { "cdda://", NULL };
