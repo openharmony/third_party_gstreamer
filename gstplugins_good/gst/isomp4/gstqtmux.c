@@ -3755,6 +3755,12 @@ gst_qt_mux_update_edit_lists (GstQTMux * qtmux)
       guint32 lateness = 0;
       guint32 duration = qtpad->trak->tkhd.duration;
       gboolean has_gap;
+/* ohos.opt.compat.0041
+ * Do not generate blank segments, which will cause the current time not to be 0 at the beginning of playback
+ */
+#ifdef OHOS_OPT_COMPAT
+      gboolean process_gap = FALSE;
+#endif
 
       has_gap = (qtpad->first_ts > (qtmux->first_ts + qtpad->dts_adjustment));
 
@@ -3776,8 +3782,15 @@ gst_qt_mux_update_edit_lists (GstQTMux * qtmux)
               "Pad %s is a late stream by %" GST_TIME_FORMAT,
               GST_PAD_NAME (qtpad), GST_TIME_ARGS (diff));
 
+/* ohos.opt.compat.0041
+ * Do not generate blank segments, which will cause the current time not to be 0 at the beginning of playback
+ */
+#ifdef OHOS_OPT_COMPAT
+          process_gap = TRUE;
+#else
           atom_trak_set_elst_entry (qtpad->trak, 0, lateness, (guint32) - 1,
               (guint32) (1 * 65536.0));
+#endif
         }
       }
 
@@ -3795,6 +3808,15 @@ gst_qt_mux_update_edit_lists (GstQTMux * qtmux)
 
         media_start = gst_util_uint64_scale_round (ctts,
             atom_trak_get_timescale (qtpad->trak), GST_SECOND);
+
+/* ohos.opt.compat.0041
+ * Do not generate blank segments, which will cause the current time not to be 0 at the beginning of playback
+ */
+#ifdef OHOS_OPT_COMPAT
+        if (process_gap) {
+            media_start += lateness;
+        }
+#endif
 
         /* atom_trak_set_elst_entry() has a quirk - if the edit list
          * is empty because there's no gap added above, this call
