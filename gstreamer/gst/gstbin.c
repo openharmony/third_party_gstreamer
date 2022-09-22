@@ -4110,8 +4110,21 @@ bin_query_position_fold (const GValue * vitem, GValue * ret, QueryFold * fold)
 
     GST_DEBUG_OBJECT (item, "got position %" G_GINT64_FORMAT, position);
 
+/* ohos.opt.compat.0041
+ * In the recorded file, the data source is not aligned.
+ * For example, audio starts from 0ms and video starts from 100ms.
+ * The current time after the prepare action is not 0.
+ */
+#ifdef OHOS_OPT_COMPAT
+    if ((position == 0) || (fold->max == 0)) {
+      fold->max = 0;
+    } else if (position > fold->max) {
+      fold->max = position;
+    }
+#else
     if (position > fold->max)
       fold->max = position;
+#endif
   }
 
   return TRUE;
