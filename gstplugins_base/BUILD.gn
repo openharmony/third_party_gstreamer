@@ -270,7 +270,7 @@ ohos_source_set("gstaudio_source") {
 ohos_shared_library("gstaudio") {
   deps = [
     ":gstaudio_source",
-    ":gsttag",
+    # ":gsttag",
     "//third_party/glib:glib",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstreamer:gstbase",
