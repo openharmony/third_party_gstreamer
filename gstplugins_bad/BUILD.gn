@@ -140,14 +140,11 @@ ohos_source_set("hls_source") {
 ohos_shared_library("gsthls") {
   deps = [
     ":hls_source",
-    "//third_party/glib:gio",
     "//third_party/glib:glib",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_bad:gstadaptivedemux",
     "//third_party/gstreamer/gstplugins_bad:gsturidownloader",
-    "//third_party/gstreamer/gstplugins_base:gstpbutils",
     "//third_party/gstreamer/gstplugins_base:gsttag",
-    "//third_party/gstreamer/gstplugins_base:gstvideo",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
