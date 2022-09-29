@@ -2456,7 +2456,7 @@ gst_adaptive_demux_stop_tasks (GstAdaptiveDemux * demux, gboolean stop_updates)
       g_mutex_unlock (&stream->fragment_download_lock);
 #ifdef OHOS_OPT_COMPAT
       /* ohos.opt.compat.0042
-       * Preroll_pending needs to reset when cancelled.
+       * Preroll_pending needs to reset when stream blocked cancelled.
        */
       GST_MANIFEST_UNLOCK (demux);
       g_mutex_lock (&demux->priv->preroll_lock);
