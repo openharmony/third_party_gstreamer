@@ -2127,7 +2127,7 @@ gst_adaptive_demux_handle_seek_event (GstAdaptiveDemux * demux, GstPad * pad,
           (GDestroyNotify) gst_adaptive_demux_stream_free);
       demux->prepared_streams = NULL;
       /* ohos.opt.compat.0042
-       * Preroll_pending needs to be reseted when prepared_streams are released. The reason is
+       * Preroll_pending needs to be resetted when prepared_streams are released. The reason is
        * gst_adaptive_demux_stream_new() will increase the value, while after the streams were
        * prepared and released the value is not changed.
        */
