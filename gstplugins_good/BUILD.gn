@@ -83,7 +83,6 @@ ohos_shared_library("gstaudioparsers") {
     ":audioparsers_source",
     "//third_party/glib:glib",
     "//third_party/glib:gobject",
-    "//third_party/gstreamer/gstplugins_base:gstaudio",
     "//third_party/gstreamer/gstplugins_base:gstpbutils",
     "//third_party/gstreamer/gstplugins_base:gsttag",
     "//third_party/gstreamer/gstreamer:gstbase",
@@ -283,7 +282,6 @@ ohos_shared_library("gstsoup") {
     "//third_party/gstreamer/gstplugins_base:gsttag",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
-    "//third_party/libsoup:libohossoup",
   ]
   relative_install_dir = "media/plugins"
   part_name = "multimedia_player_framework"
