@@ -2737,7 +2737,7 @@ check_completed_gop (GstSplitMuxSink * splitmux, MqStreamCtx * ctx)
         if (next_gop_start != GST_CLOCK_STIME_NONE &&
             tmpctx->in_running_time < next_gop_start && !tmpctx->in_eos) {
 #ifdef OHOS_OPT_COMPAT
-// ohos.opt.compat.0041
+// ohos.opt.compat.0042
 // Prevent the gap between video pts and audio pts from being too large, which will lead to waiting all the time
           GstClockTimeDiff diff = next_gop_start - tmpctx->in_running_time;
           if (diff >= GST_SECOND) { // Error reported for more than 1s
