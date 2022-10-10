@@ -2743,12 +2743,12 @@ check_completed_gop (GstSplitMuxSink * splitmux, MqStreamCtx * ctx)
           if (diff >= GST_SECOND) { // Error reported for more than 1s
               GST_ELEMENT_ERROR (splitmux, STREAM, FAILED, ("Timestamping error on input streams"),
                   ("Context %p sink pad %" GST_PTR_FORMAT " running time %" GST_STIME_FORMAT
-                  ", next gop start: %" GST_STIME_FORMAT ", diff %" GST_STIME_FORMAT
+                  ", next gop start: %" GST_STIME_FORMAT ", diff %" GST_STIME_FORMAT,
                   tmpctx, tmpctx->sinkpad, GST_STIME_ARGS (tmpctx->in_running_time),
                   GST_STIME_ARGS (next_gop_start), GST_STIME_ARGS (diff)));
           } else if (diff >= 500 * GST_MSECOND) { // Record error log for more than 500ms
               GST_ERROR_OBJECT (splitmux, "Context %p sink pad %" GST_PTR_FORMAT " running time %" GST_STIME_FORMAT
-                  ", next gop start: %" GST_STIME_FORMAT ", diff %" GST_STIME_FORMAT
+                  ", next gop start: %" GST_STIME_FORMAT ", diff %" GST_STIME_FORMAT,
                   tmpctx, tmpctx->sinkpad, GST_STIME_ARGS (tmpctx->in_running_time),
                   GST_STIME_ARGS (next_gop_start), GST_STIME_ARGS (diff));
           }
