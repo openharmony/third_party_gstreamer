@@ -2736,6 +2736,23 @@ check_completed_gop (GstSplitMuxSink * splitmux, MqStreamCtx * ctx)
 
         if (next_gop_start != GST_CLOCK_STIME_NONE &&
             tmpctx->in_running_time < next_gop_start && !tmpctx->in_eos) {
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0041
+// Prevent the gap between video pts and audio pts from being too large, which will lead to waiting all the time
+          GstClockTimeDiff diff = next_gop_start - tmpctx->in_running_time;
+          if (diff >= GST_SECOND) { // Error reported for more than 1s
+              GST_ELEMENT_ERROR (splitmux, STREAM, FAILED, ("Timestamping error on input streams"),
+                  ("Context %p sink pad %" GST_PTR_FORMAT " running time %" GST_STIME_FORMAT
+                  ", next gop start: %" GST_STIME_FORMAT ", diff %" GST_STIME_FORMAT
+                  tmpctx, tmpctx->sinkpad, GST_STIME_ARGS (tmpctx->in_running_time),
+                  GST_STIME_ARGS (next_gop_start), GST_STIME_ARGS (diff)));
+          } else if (diff >= 500 * GST_MSECOND) { // Record error log for more than 500ms
+              GST_ERROR_OBJECT (splitmux, "Context %p sink pad %" GST_PTR_FORMAT " running time %" GST_STIME_FORMAT
+                  ", next gop start: %" GST_STIME_FORMAT ", diff %" GST_STIME_FORMAT
+                  tmpctx, tmpctx->sinkpad, GST_STIME_ARGS (tmpctx->in_running_time),
+                  GST_STIME_ARGS (next_gop_start), GST_STIME_ARGS (diff));
+          }
+#endif
           GST_LOG_OBJECT (splitmux,
               "Context %p sink pad %" GST_PTR_FORMAT " not ready. We'll sleep",
               tmpctx, tmpctx->sinkpad);
