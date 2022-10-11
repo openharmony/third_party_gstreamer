@@ -2454,18 +2454,6 @@ gst_adaptive_demux_stop_tasks (GstAdaptiveDemux * demux, gboolean stop_updates)
       gst_task_stop (stream->download_task);
       g_cond_signal (&stream->fragment_download_cond);
       g_mutex_unlock (&stream->fragment_download_lock);
-#ifdef OHOS_OPT_COMPAT
-      /* ohos.opt.compat.0042
-       * Preroll_pending needs to reset when stream blocked cancelled.
-       */
-      GST_MANIFEST_UNLOCK (demux);
-      g_mutex_lock (&demux->priv->preroll_lock);
-      if (stream->do_block && demux->priv->preroll_pending > 0) {
-        demux->priv->preroll_pending--;
-      }
-      g_mutex_unlock (&demux->priv->preroll_lock);
-      GST_MANIFEST_LOCK (demux);
-#endif
     }
     list_to_process = demux->prepared_streams;
   }
