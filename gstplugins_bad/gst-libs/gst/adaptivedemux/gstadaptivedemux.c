@@ -4279,18 +4279,6 @@ gst_adaptive_demux_stream_download_loop (GstAdaptiveDemuxStream * stream)
 end_of_manifest:
   if (G_UNLIKELY (ret == GST_FLOW_EOS)) {
     if (GST_OBJECT_PARENT (stream->pad) != NULL) {
-#ifdef OHOS_OPT_COMPAT
-/* ohos.opt.compat.0027
-   In the variable resolution, if the changing path is still in the prepare stream state,
-   then if seek to duraion, the EOS message will be erroneously lost, resulting in the failed to failed state */
-      if ((demux->next_streams == NULL && demux->prepared_streams == NULL) || (stream->last_ret == GST_FLOW_EOS)) {
-        GST_DEBUG_OBJECT (stream->src, "Pushing EOS on pad");
-        gst_adaptive_demux_stream_push_event (stream, gst_event_new_eos ());
-      } else {
-        GST_DEBUG_OBJECT (stream->src,
-            "Stream is EOS, but we're switching fragments. Not sending.");
-      }
-#else
       if (demux->next_streams == NULL && demux->prepared_streams == NULL) {
         GST_DEBUG_OBJECT (stream->src, "Pushing EOS on pad");
         gst_adaptive_demux_stream_push_event (stream, gst_event_new_eos ());
@@ -4298,7 +4286,6 @@ end_of_manifest:
         GST_DEBUG_OBJECT (stream->src,
             "Stream is EOS, but we're switching fragments. Not sending.");
       }
-#endif
     } else {
       GST_ERROR_OBJECT (demux, "Can't push EOS on non-exposed pad");
       goto download_error;
