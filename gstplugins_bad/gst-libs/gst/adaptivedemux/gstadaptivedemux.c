@@ -2116,15 +2116,26 @@ gst_adaptive_demux_handle_seek_event (GstAdaptiveDemux * demux, GstPad * pad,
     GST_ADAPTIVE_DEMUX_SEGMENT_UNLOCK (demux);
 
 #ifdef OHOS_OPT_COMPAT
-/* ohos.opt.compat.0028
-   In the variable resolution, if the changing path is still in the prepare stream state,
-   if seek continues to play at a certain location, the cancel of the prepare stream in will be set to true.
-   When switching to the main thread of the prepare stream, it is determined that when cancel is true,
-   no data will be pulled from the server, the prepare stream will be released first*/
+    /* ohos.opt.compat.0028
+     * In the variable resolution, if the changing path is still in the prepare stream state,
+     * if seek continues to play at a certain location, the cancel of the prepare stream in will be set to true.
+     * When switching to the main thread of the prepare stream, it is determined that when cancel is true,
+     * no data will be pulled from the server, the prepare stream will be released first
+     */
     if (demux->streams && demux->prepared_streams) {
       g_list_free_full (demux->prepared_streams,
           (GDestroyNotify) gst_adaptive_demux_stream_free);
       demux->prepared_streams = NULL;
+      /* ohos.opt.compat.0043
+       * Preroll_pending needs to reset when prepared_streams are released. The reason is
+       * gst_adaptive_demux_stream_new() will increase the value, while after the streams were
+       * prepared and released the value is not changed.
+       */
+      GST_MANIFEST_UNLOCK (demux);
+      g_mutex_lock (&demux->priv->preroll_lock);
+      demux->priv->preroll_pending = 0;
+      g_mutex_unlock (&demux->priv->preroll_lock);
+      GST_MANIFEST_LOCK (demux);
     }
 #endif
 
