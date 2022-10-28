@@ -1773,8 +1773,7 @@ gst_curl_http_src_do_seek (GstBaseSrc * bsrc, GstSegment * segment)
    * Fix seek failed when request_position from gstqueue2 seek event is the same as read_position.
    * This case occurs when pulled position from demux jumps back and forth between the boundary of two ranges in gstqueue2,
    * which causes requested postion of seek event from gstqueue2 be the same as right boundary of the last range, namely
-   * current downloaded position(read_position). In this case, connection_status is set to GSTCURL_WANT_REMOVAL in
-   * gst_curl_http_src_unlock() and can not be reset to GSTCURL_CONNECTED in gst_curl_http_src_add_queue_item().
+   * current downloaded position(read_position). Thus, reset read position when occurred gst_curl_http_src_do_seek().
    */
   src->read_position = (guint64)-1;
 #endif
