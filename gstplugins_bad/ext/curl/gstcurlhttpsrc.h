@@ -174,10 +174,6 @@ struct _GstCurlHttpSrc
   gint64 request_position;     /* Seek to this position. */
 #endif
   gint64 stop_position;        /* Stop at this position. */
-#ifdef OHOS_OPT_COMPAT
-  /* ohos.opt.compat.0035 */
-  gboolean is_seek_to_current_pos;
-#endif
 
   /* Connection options */
   glong allow_3xx_redirect;     /* CURLOPT_FOLLOWLOCATION */
