@@ -1769,7 +1769,7 @@ gst_curl_http_src_do_seek (GstBaseSrc * bsrc, GstSegment * segment)
   src->stop_position = segment->stop;
 #ifdef OHOS_OPT_COMPAT
   /**
-   * ohos.opt.compat.0035
+   * ohos.opt.compat.0044
    * Fix seek failed when request_position from gstqueue2 seek event is the same as read_position.
    * This case occurs when pulled position from demux jumps back and forth between the boundary of two ranges in gstqueue2,
    * which causes requested postion of seek event from gstqueue2 be the same as right boundary of the last range, namely
@@ -2229,7 +2229,7 @@ gst_curl_http_src_update_position (GstCurlHttpSrc * src, guint64 bytes_read)
   }
 
 #ifdef OHOS_OPT_COMPAT
-  /* ohos.opt.compat.0035 */
+  /* ohos.opt.compat.0044 */
   new_position = (src->read_position == -1) ? bytes_read : (src->read_position + bytes_read);
 #else
   new_position = src->read_position + bytes_read;
