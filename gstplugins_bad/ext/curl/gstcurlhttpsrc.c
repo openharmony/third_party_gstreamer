@@ -1744,7 +1744,10 @@ gst_curl_http_src_do_seek (GstBaseSrc * bsrc, GstSegment * segment)
   }
   if (src->request_position == segment->start &&
       src->stop_position == segment->stop) {
+#ifdef OHOS_OPT_COMPAT
+    /* ohos.opt.compat.0044 */
     src->read_position = (guint64)-1;
+#endif
     GST_DEBUG_OBJECT (src, "Seek to current read/end position");
     goto done;
   }
