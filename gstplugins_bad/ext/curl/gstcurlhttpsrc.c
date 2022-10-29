@@ -1744,6 +1744,7 @@ gst_curl_http_src_do_seek (GstBaseSrc * bsrc, GstSegment * segment)
   }
   if (src->request_position == segment->start &&
       src->stop_position == segment->stop) {
+    src->read_position = (guint64)-1;
     GST_DEBUG_OBJECT (src, "Seek to current read/end position");
     goto done;
   }
