@@ -2683,8 +2683,8 @@ check_completed_gop (GstSplitMuxSink * splitmux, MqStreamCtx * ctx)
       gop = g_queue_peek_head (&splitmux->pending_input_gops);
       next_gop = g_queue_peek_nth (&splitmux->pending_input_gops, 1);
 
-#ifdef OHOS_OPT_STABLE
-      /* ohos.opt.stable.0003
+#ifdef OHOS_OPT_COMPAT
+      /* ohos.opt.stable.0045
        * When the plug-in does not switch to the playing state, there is no data passing by.
        * At this time, it receives the eos signal, and the gop and gops are null, resulting in an assertion error */
       if ((gop == NULL) && (next_gop == NULL)) {
