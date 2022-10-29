@@ -2691,7 +2691,7 @@ check_completed_gop (GstSplitMuxSink * splitmux, MqStreamCtx * ctx)
           GST_WARNING_OBJECT (splitmux, "No further GOPs finished collecting");
           break;
       }
-#else
+#endif
 
       /* If we have no GOP or no next GOP here then the reference context is
        * at EOS, otherwise use the start time of the next GOP if we're far
