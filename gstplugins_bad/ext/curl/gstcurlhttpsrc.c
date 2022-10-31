@@ -897,7 +897,7 @@ gst_curl_http_src_handle_seek (GstCurlHttpSrc * src)
   if (src->request_position == src->read_position) {
 #ifdef OHOS_OPT_COMPAT
     /* ohos.opt.compat.0044 */
-    GST_INFO_OBJECT (src, "request_position is equal to read_position, req = %" 
+    GST_INFO_OBJECT (src, "request_position is equal to read_position, req = %"
       G_GUINT64_FORMAT, src->request_position);
 #endif
     /* not seek, just return */
@@ -2232,9 +2232,9 @@ gst_curl_http_src_update_position (GstCurlHttpSrc * src, guint64 bytes_read)
   guint64 new_position;
 #ifdef OHOS_OPT_COMPAT
   /* ohos.opt.compat.0044 */
-  if ( src->read_position != (guint64)-1 && bytes_read > (G_MAXUINT64 - src->read_position)) {
+  if (src->read_position != (guint64)-1 && bytes_read > (G_MAXUINT64 - src->read_position)) {
 #else
-  if ( bytes_read > (G_MAXUINT64 - src->read_position)) {
+  if (bytes_read > (G_MAXUINT64 - src->read_position)) {
 #endif
     GST_WARNING_OBJECT (src, "bytes_read:%" G_GUINT64_FORMAT " abnormal, should check, read pos:%" G_GUINT64_FORMAT,
       bytes_read, src->read_position);
