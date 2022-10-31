@@ -895,6 +895,11 @@ gst_curl_http_src_handle_seek (GstCurlHttpSrc * src)
 
   g_mutex_lock (&src->buffer_mutex);
   if (src->request_position == src->read_position) {
+#ifdef OHOS_OPT_COMPAT
+    /* ohos.opt.compat */
+    GST_INFO_OBJECT (src, "request_position is equal to read_position, req = %" 
+      G_GUINT64_FORMAT, src->request_position);
+#endif
     /* not seek, just return */
     g_mutex_unlock (&src->buffer_mutex);
     return;
