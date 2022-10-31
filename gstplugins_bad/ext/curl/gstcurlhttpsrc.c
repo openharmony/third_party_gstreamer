@@ -2225,7 +2225,12 @@ static void
 gst_curl_http_src_update_position (GstCurlHttpSrc * src, guint64 bytes_read)
 {
   guint64 new_position;
-  if (bytes_read > (G_MAXUINT64 - src->read_position)) {
+#ifdef OHOS_OPT_COMPAT
+  /* ohos.opt.compat.0044 */
+  if ( src->read_position != (guint64)-1 && bytes_read > (G_MAXUINT64 - src->read_position)) {
+#else
+  if ( bytes_read > (G_MAXUINT64 - src->read_position)) {
+#endif
     GST_WARNING_OBJECT (src, "bytes_read:%" G_GUINT64_FORMAT " abnormal, should check, read pos:%" G_GUINT64_FORMAT,
       bytes_read, src->read_position);
     return;
@@ -2233,7 +2238,7 @@ gst_curl_http_src_update_position (GstCurlHttpSrc * src, guint64 bytes_read)
 
 #ifdef OHOS_OPT_COMPAT
   /* ohos.opt.compat.0044 */
-  new_position = (src->read_position == -1) ? bytes_read : (src->read_position + bytes_read);
+  new_position = (src->read_position == (guint64)-1) ? bytes_read : (src->read_position + bytes_read);
 #else
   new_position = src->read_position + bytes_read;
 #endif
