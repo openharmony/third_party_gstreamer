@@ -34,6 +34,7 @@ config("gst_player_config") {
         "-Wno-builtin-requires-header",
         "-Wno-implicit-function-declaration",
         "-DOHOS_EXT_FUNC",
+        "-DOHOS_OPT_CVE",
         "-DOHOS_OPT_STABLE"
     ]
 }
