@@ -3124,8 +3124,24 @@ gst_video_decoder_prepare_finish_frame (GstVideoDecoder *
     /* if we detected reordered output, then PTS are void,
      * however those were obtained; bogus input, subclass etc */
     if (priv->reordered_output && !seen_none) {
+#ifdef OHOS_OPT_COMPAT
+      /**
+       * ohos.ext.compat.0046
+       * Restore reordered_output to false to avoid pts persistent exceptions
+       */
+      if (GST_CLOCK_TIME_IS_VALID (frame->pts) && frame->pts >= priv->last_timestamp_out &&
+          (!(frame->duration != GST_CLOCK_TIME_NONE) || !(sync && frame->dts != GST_CLOCK_TIME_NONE))) {
+        GST_DEBUG_OBJECT (decoder, "pts %" GST_TIME_FORMAT "last_timestamp_out %" GST_TIME_FORMAT,
+          GST_TIME_ARGS (frame->pts), GST_TIME_ARGS (priv->last_timestamp_out));
+        priv->reordered_output = FALSE;
+      } else {
+        GST_DEBUG_OBJECT (decoder, "invalidating PTS");
+        frame->pts = GST_CLOCK_TIME_NONE;
+      }
+#else
       GST_DEBUG_OBJECT (decoder, "invalidating PTS");
       frame->pts = GST_CLOCK_TIME_NONE;
+#endif
     }
 
     if (!GST_CLOCK_TIME_IS_VALID (frame->pts) && !seen_none) {
