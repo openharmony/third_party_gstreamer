@@ -274,11 +274,6 @@ enum
 #define DEFAULT_EXPOSE_ALL_STREAMS  TRUE
 #define DEFAULT_CONNECTION_SPEED    0
 
-#ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0013
-#define DEFAULT_TIMEOUT              15
-#endif
-
 /* Properties */
 enum
 {
@@ -298,7 +293,6 @@ enum
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0013
   PROP_MQ_NUM_USE_BUFFRING,
-  PROP_TIMEOUT,
   PROP_STATE_CHANGE,
   PROP_EXIT_BLOCK,
 #endif
@@ -1047,11 +1041,6 @@ gst_decode_bin_class_init (GstDecodeBinClass * klass)
           "multiqueue number of use buffering", 0, 100,
           0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_klass, PROP_TIMEOUT,
-      g_param_spec_uint ("timeout", "timeout",
-          "Value in seconds to timeout a blocking I/O (0 = No timeout).", 0,
-          3600, DEFAULT_TIMEOUT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
   g_object_class_install_property (gobject_klass, PROP_STATE_CHANGE,
     g_param_spec_int ("state-change", "state-change from adaptive-demux",
         "state-change from adaptive-demux", 0, (gint) (G_MAXINT32), 0,
@@ -1369,12 +1358,7 @@ set_property_handle_to_element (GstDecodeBin *dbin, guint property_id, const voi
       continue;
     }
     GObjectClass *theclass = g_type_class_peek (gst_element_factory_get_element_type (fac));
-    if (property_id == PROP_TIMEOUT) {
-      const guint *timeout = (const guint *) property_value;
-      if ((theclass != NULL) && g_object_class_find_property (theclass, "timeout")) {
-        g_object_set (element, "timeout", *timeout, NULL);
-      }
-    } else if (property_id == PROP_STATE_CHANGE) {
+    if (property_id == PROP_STATE_CHANGE) {
       const gint *state = (const gint *) property_value;
       if ((theclass != NULL) && g_object_class_find_property (theclass, "state-change")) {
         g_object_set (element, "state-change", *state, NULL);
@@ -1452,11 +1436,6 @@ gst_decode_bin_set_property (GObject * object, guint prop_id,
       break;
 #ifdef OHOS_EXT_FUNC
     // ohos.ext.func.0013
-    case PROP_TIMEOUT: {
-      guint timeout = g_value_get_uint (value);
-      set_property_handle_to_element (dbin, prop_id, (void *)&timeout);
-      break;
-    }
     case PROP_STATE_CHANGE: {
       gint state = g_value_get_int (value);
       set_property_handle_to_element (dbin, prop_id, (void *)&state);

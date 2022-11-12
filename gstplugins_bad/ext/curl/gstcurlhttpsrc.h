@@ -109,6 +109,17 @@ typedef enum _GstCGstCurlHttpSrcSeekable
     GSTCURL_SEEKABLE_FALSE
 } GstCGstCurlHttpSrcSeekable;
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0033
+typedef enum
+{
+    GST_PLAYER_STATUS_IDLE,
+    GST_PLAYER_STATUS_BUFFERING,
+    GST_PLAYER_STATUS_PAUSED,
+    GST_PLAYER_STATUS_PLAYING,
+} GstCurlHttpSrcPlayerStatus;
+#endif
+
 struct _GstCurlHttpSrcMultiTaskContext
 {
   GstTask     *task;
@@ -174,6 +185,14 @@ struct _GstCurlHttpSrc
   gint64 request_position;     /* Seek to this position. */
 #endif
   gint64 stop_position;        /* Stop at this position. */
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0033
+  gint64      start_usecs;
+  gint64      end_usecs;
+  gint64      reconnection_timeout;
+  gint        player_state;
+#endif
 
   /* Connection options */
   glong allow_3xx_redirect;     /* CURLOPT_FOLLOWLOCATION */
