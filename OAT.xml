@@ -63,8 +63,6 @@ Note:If the text contains special characters, please escape them according to th
         </policylist>
         <filefilterlist>
             <filefilter name="defaultPolicyFilter" desc="Filters for files not used">
-                <filteritem type="filepath" name="LICENSE" desc="LICENSE, not used."/>
-                <filteritem type="filepath" name="CVE.md" desc="CVE MD, not used."/>
                 <filteritem type="filepath" name="README.OpenSource" desc="OpenSource README, not used."/>
             </filefilter>
             <filefilter name="binaryFileTypePolicyFilter" desc="Filters for binary file policies">
