@@ -62,6 +62,9 @@ Note:If the text contains special characters, please escape them according to th
             </policy>
         </policylist>
         <filefilterlist>
+            <filefilter name="binaryFileTypePolicyFilter" desc="Filters for binary file policies">
+                <filteritem type="filepath" name=".*" desc="Resource, config and certification binary."/>
+            </filefilter>
         </filefilterlist>
     </oatconfig>
 </configuration>
