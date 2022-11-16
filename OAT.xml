@@ -62,8 +62,17 @@ Note:If the text contains special characters, please escape them according to th
             </policy>
         </policylist>
         <filefilterlist>
+            <filefilter name="defaultPolicyFilter" desc="Filters for files not used">
+                <filteritem type="filepath" name="LICENSE" desc="LICENSE, not used."/>
+                <filteritem type="filepath" name="CVE.md" desc="CVE MD, not used."/>
+                <filteritem type="filepath" name="README.OpenSource" desc="OpenSource README, not used."/>
+            </filefilter>
             <filefilter name="binaryFileTypePolicyFilter" desc="Filters for binary file policies">
-                <filteritem type="filepath" name=".*" desc="Resource, config and certification binary."/>
+                <filteritem type="filepath" name="gst_libav/.*" desc="Binary file not compiled."/>
+                <filteritem type="filepath" name="gstplugins_bad/.*" desc="Binary file not compiled."/>
+                <filteritem type="filepath" name="gstplugins_base/.*" desc="Binary file not compiled."/>
+                <filteritem type="filepath" name="gstplugins_good/.*" desc="Binary file not compiled."/>
+                <filteritem type="filepath" name="gstreamer/.*" desc="Binary file not compiled."/>
             </filefilter>
         </filefilterlist>
     </oatconfig>
