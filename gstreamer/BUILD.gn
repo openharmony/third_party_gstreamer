@@ -202,6 +202,7 @@ config("gstbase_config") {
     "-Wno-undefined-internal",
     "-Wno-unused-function",
     "-DOHOS_EXT_FUNC",
+    "-DOHOS_OPT_CVE",
     "-DOHOS_OPT_COMPAT",
     "-DOHOS_OPT_PERFORMANCE",
     "-DOHOS_GLIB_COMPATIBLE",
