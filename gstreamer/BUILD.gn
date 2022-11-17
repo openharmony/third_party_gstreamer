@@ -203,6 +203,7 @@ config("gstbase_config") {
     "-Wno-unused-function",
     "-DOHOS_EXT_FUNC",
     "-DOHOS_OPT_COMPAT",
+    "-DOHOS_OPT_CVE",
     "-DOHOS_OPT_PERFORMANCE",
     "-DOHOS_GLIB_COMPATIBLE",
     "-DG_LOG_DOMAIN=\"GStreamer\"",
