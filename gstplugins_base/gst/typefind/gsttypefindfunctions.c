@@ -2769,7 +2769,13 @@ mpeg4_video_type_find (GstTypeFind * tf, gpointer unused)
     gst_type_find_suggest (tf, probability, MPEG4_VIDEO_CAPS);
   }
 }
-
+#ifdef OHOS_OPT_COMPAT
+/*
+ * ohos.opt.compat.0015
+ * mp3: mpeg audio stream is incorrectly identified as video:h263 or video:h264 or video:h265 video stream,
+ * which causes playback failure and lowers the score
+ */
+#else
 /*** video/x-h263 H263 video stream ***/
 static GstStaticCaps h263_video_caps =
 GST_STATIC_CAPS ("video/x-h263, variant=(string)itu");
@@ -2849,14 +2855,6 @@ h263_video_type_find (GstTypeFind * tf, gpointer unused)
 
   return;
 }
-
-#ifdef OHOS_OPT_COMPAT
-/*
- * ohos.opt.compat.0015
- * mp3: mpeg audio stream is incorrectly identified as video:h264 or video:h265 video stream,
- * which causes playback failure and lowers the score
- */
-#else
 /*** video/x-h264 H264 elementary video stream ***/
 
 static GstStaticCaps h264_video_caps =
@@ -6109,15 +6107,15 @@ GST_TYPE_FIND_REGISTER_DEFINE (mpeg_video_stream, "video/mpeg-elementary",
     MPEG_VIDEO_CAPS, NULL, NULL);
 GST_TYPE_FIND_REGISTER_DEFINE (mpeg4_video, "video/mpeg4", GST_RANK_PRIMARY,
     mpeg4_video_type_find, "m4v", MPEG_VIDEO_CAPS, NULL, NULL);
-GST_TYPE_FIND_REGISTER_DEFINE (h263_video, "video/x-h263", GST_RANK_SECONDARY,
-    h263_video_type_find, "h263,263", H263_VIDEO_CAPS, NULL, NULL);
 #ifdef OHOS_OPT_COMPAT
 /*
  * ohos.opt.compat.0015
- * mp3: mpeg audio stream is incorrectly identified as video:h264 or video:h265 video stream,
+ * mp3: mpeg audio stream is incorrectly identified as video:h263 or video:h264 or video:h265 video stream,
  * which causes playback failure and lowers the score
  */
 #else
+GST_TYPE_FIND_REGISTER_DEFINE (h263_video, "video/x-h263", GST_RANK_SECONDARY,
+    h263_video_type_find, "h263,263", H263_VIDEO_CAPS, NULL, NULL);
 GST_TYPE_FIND_REGISTER_DEFINE (h264_video, "video/x-h264", GST_RANK_PRIMARY,
     h264_video_type_find, "h264,x264,264", H264_VIDEO_CAPS, NULL, NULL);
 GST_TYPE_FIND_REGISTER_DEFINE (h265_video, "video/x-h265", GST_RANK_PRIMARY,
