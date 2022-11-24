@@ -1826,6 +1826,33 @@ gst_matroska_read_common_parse_index_pointentry (GstMatroskaReadCommon *
   return ret;
 }
 
+#ifdef OHOS_OPT_COMPAT
+/*
+ * ohos.opt.compat.0047
+ * If the position of 0 is not I-frame, force it to be
+ */
+void gst_matroska_read_common_add_first_key_frame(GstMatroskaReadCommon * common)
+{
+  gboolean has_zero_key_frame = FALSE;
+  for (gint i = 0; i < common->index->len; i++) {
+    GstMatroskaIndex *idx = &g_array_index (common->index, GstMatroskaIndex, i);
+    if (idx->track == 0) {
+      continue;
+    }
+
+    if (idx->time == 0) {
+      has_zero_key_frame = TRUE;
+      break;
+    }
+  }
+  if (!has_zero_key_frame) {
+    GstMatroskaIndex index = {0, 0, 1, 1};
+    g_array_prepend_val (common->index, index);
+    GST_WARNING_OBJECT (common->sinkpad, "the position of 0 is not I-frame, force it to be");
+  }
+}
+#endif
+
 gint
 gst_matroska_read_common_stream_from_num (GstMatroskaReadCommon * common,
     guint track_num)
@@ -1887,6 +1914,13 @@ gst_matroska_read_common_parse_index (GstMatroskaReadCommon * common,
 
   /* Sort index by time, smallest time first, for easier searching */
   g_array_sort (common->index, (GCompareFunc) gst_matroska_index_compare);
+#ifdef OHOS_OPT_COMPAT
+  /*
+   * ohos.opt.compat.0047
+   * If the position of 0 is not I-frame, force it to be
+   */
+  gst_matroska_read_common_add_first_key_frame(common);
+#endif
 
   /* Now sort the track specific index entries into their own arrays */
   for (i = 0; i < common->index->len; i++) {
