@@ -221,7 +221,7 @@ struct _GstBaseSinkClass {
    * This function will update the @reach_time.
    * Returns: an new reach_time
    */
-  GstClockTime (*update_reach_time)  (GstBaseSink *sink, GstClockTime reach_time);
+  GstClockTime (*update_reach_time)  (GstBaseSink *sink, GstClockTime reach_time, gboolean *need_drop_this_buffer);
   /* #endif */
 
   /*< private >*/
