@@ -657,8 +657,26 @@ gst_scaletempo_sink_event (GstBaseTransform * trans, GstEvent * event)
       GstClockTime gap_ts, gap_duration;
       gst_event_parse_gap (event, &gap_ts, &gap_duration);
       if (scaletempo->reverse) {
+#ifdef OHOS_OPT_COMPAT
+        /* ohos.opt.compat.0050
+        * gstscaletempo does not guarantee gap_ts in current segmetn. For example, when tsdemux is
+        * accurate seeking, tsdemux needs to pull data from the previous keyframe, if there's a big
+        * gap in pts, tsdemux will push a GST_EVENT_GAP event, but in this case gap_ts not in current
+        * segment.
+        */
+        if (gap_ts > scaletempo->in_segment.stop) {
+          GST_WARNING ("gap_ts > scaletempo->in_segment.stop, maybe in seeking");
+          return GST_BASE_TRANSFORM_CLASS (parent_class)->sink_event (trans, event);
+        }
+#endif
         gap_ts = scaletempo->in_segment.stop - gap_ts;
       } else {
+#ifdef OHOS_OPT_COMPAT
+        if (scaletempo->in_segment.start > gap_ts) {
+          GST_WARNING ("gap_ts > scaletempo->in_segment.stop, maybe in seeking");
+          return GST_BASE_TRANSFORM_CLASS (parent_class)->sink_event (trans, event);
+        }
+#endif
         gap_ts = gap_ts - scaletempo->in_segment.start;
       }
       gap_ts = gap_ts / scaletempo->scale + scaletempo->in_segment.start;
