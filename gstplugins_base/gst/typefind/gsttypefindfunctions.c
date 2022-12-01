@@ -980,14 +980,30 @@ apetag_type_find (GstTypeFind * tf, gpointer unused)
   /* APEv1/2 at start of file */
   data = gst_type_find_peek (tf, 0, 8);
   if (data && !memcmp (data, "APETAGEX", 8)) {
+#ifdef OHOS_OPT_COMPAT
+    /*
+     * ohos.opt.compat.0051
+     * wav audio stream recognition errors
+     */
+    gst_type_find_suggest (tf, GST_TYPE_FIND_NEARLY_CERTAIN, APETAG_CAPS);
+#else
     gst_type_find_suggest (tf, GST_TYPE_FIND_MAXIMUM, APETAG_CAPS);
+#endif
     return;
   }
 
   /* APEv1/2 at end of file */
   data = gst_type_find_peek (tf, -32, 8);
   if (data && !memcmp (data, "APETAGEX", 8)) {
+#ifdef OHOS_OPT_COMPAT
+    /*
+     * ohos.opt.compat.0051
+     * wav audio stream recognition errors
+     */
+    gst_type_find_suggest (tf, GST_TYPE_FIND_NEARLY_CERTAIN, APETAG_CAPS);
+#else
     gst_type_find_suggest (tf, GST_TYPE_FIND_MAXIMUM, APETAG_CAPS);
+#endif
     return;
   }
 }
