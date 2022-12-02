@@ -450,7 +450,7 @@ static gboolean gst_base_sink_is_too_late (GstBaseSink * basesink,
  * ohos.opt.performance.0002: update reach time for avsync
  */
 static GstClockTime gst_base_sink_default_update_reach_time (GstBaseSink * sink,
-    GstClockTime reach_time);
+    GstClockTime reach_time, gboolean *need_drop_this_buffer);
 /* #endif */
 
 static void
@@ -1708,7 +1708,7 @@ gst_base_sink_default_set_caps (GstBaseSink * sink, GstCaps * caps)
  * ohos.opt.performance.0002: update reach time for avsync
  */
 static GstClockTime
-gst_base_sink_default_update_reach_time (GstBaseSink * sink, GstClockTime reach_time)
+gst_base_sink_default_update_reach_time (GstBaseSink * sink, GstClockTime reach_time, gboolean *need_drop_this_buffer)
 {
   return reach_time;
 }
@@ -2838,11 +2838,20 @@ again:
     stime = priv->rc_next;
   }
 
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0004: drop buffer when it is too late
+  gboolean need_drop_this_buffer = FALSE;
+#endif
+
 /* #ifdef OHOS_OPT_PERFORMANCE: comment out this macro to avoid c file differences caused by macros
  * ohos.opt.performance.0002: update reach time for avsync */
   GstBaseSinkClass *bclass = GST_BASE_SINK_GET_CLASS (basesink);
   if (bclass != NULL && bclass->update_reach_time != NULL) {
-    stime = bclass->update_reach_time (basesink, stime);
+    stime = bclass->update_reach_time (basesink, stime, &need_drop_this_buffer);
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0004: drop buffer when it is too late
+    if (G_UNLIKELY (need_drop_this_buffer)) {
+      goto dropped;
+    }
+#endif
   }
 /* #endif */
 
@@ -2920,6 +2929,13 @@ preroll_failed:
     *step_end = FALSE;
     return ret;
   }
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0004: drop buffer when it is too late
+dropped:
+  {
+    GST_DEBUG_OBJECT (basesink, "drop this buffer to do sync");
+    return GST_FLOW_CUSTOM_ERROR;
+  }
+#endif
 }
 
 static gboolean
@@ -4050,6 +4066,12 @@ again:
    * immediately. */
   ret = gst_base_sink_do_sync (basesink, GST_MINI_OBJECT_CAST (sync_buf),
       &late, &step_end);
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0004: drop buffer when it is too late
+  if (G_UNLIKELY (ret == GST_FLOW_CUSTOM_ERROR)) {
+    ret = GST_FLOW_OK;
+    goto dropped;
+  }
+#endif
   if (G_UNLIKELY (ret != GST_FLOW_OK))
     goto sync_failed;
 
