@@ -2838,7 +2838,7 @@ again:
     stime = priv->rc_next;
   }
 
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0004: drop video buf when render fps is not enough
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0004: drop buffer when it is too late
   gboolean need_drop_this_buffer = FALSE;
 #endif
 
@@ -2847,7 +2847,7 @@ again:
   GstBaseSinkClass *bclass = GST_BASE_SINK_GET_CLASS (basesink);
   if (bclass != NULL && bclass->update_reach_time != NULL) {
     stime = bclass->update_reach_time (basesink, stime, &need_drop_this_buffer);
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0004: drop video buf when render fps is not enough
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0004: drop buffer when it is too late
     if (G_UNLIKELY (need_drop_this_buffer)) {
       goto dropped;
     }
@@ -2929,7 +2929,7 @@ preroll_failed:
     *step_end = FALSE;
     return ret;
   }
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0004: drop video buf when render fps is not enough
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0004: drop buffer when it is too late
 dropped:
   {
     GST_DEBUG_OBJECT (basesink, "drop this buffer to do sync");
@@ -4066,7 +4066,7 @@ again:
    * immediately. */
   ret = gst_base_sink_do_sync (basesink, GST_MINI_OBJECT_CAST (sync_buf),
       &late, &step_end);
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0004: drop video buf when render fps is not enough
+#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0004: drop buffer when it is too late
   if (G_UNLIKELY (ret == GST_FLOW_CUSTOM_ERROR)) {
     ret = GST_FLOW_OK;
     goto dropped;
