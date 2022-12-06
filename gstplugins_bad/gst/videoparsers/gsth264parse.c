@@ -1305,6 +1305,17 @@ gst_h264_parse_handle_frame_packetized (GstBaseParse * parse,
       parse_res == GST_H264_PARSER_BROKEN_DATA) {
 
     if (h264parse->split_packetized) {
+#ifdef OHOS_OPT_COMPAT
+      /**
+       * ohos.opt.compat.0052
+       * When parsing the header of AVC NAL unit fails, gstremaer will post error and playback will be stopped.
+       * Try to drop this frame and handle next frame.
+       */
+      if (frame->flags & GST_BASE_PARSE_FRAME_FLAG_DROP) {
+        GST_DEBUG_OBJECT (h264parse, "invalid AVC input data, just drop it");
+        return GST_FLOW_OK;
+      }
+#endif
       GST_ELEMENT_ERROR (h264parse, STREAM, FAILED, (NULL),
           ("invalid AVC input data"));
 
