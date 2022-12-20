@@ -108,7 +108,14 @@ plugin_init (GstPlugin * plugin)
   GST_TYPE_FIND_REGISTER (flx, plugin);
   GST_TYPE_FIND_REGISTER (id3v2, plugin);
   GST_TYPE_FIND_REGISTER (id3v1, plugin);
+#ifdef OHOS_OPT_COMPAT
+/*
+ * ohos.opt.compat.0051
+ * wav audio stream recognition errors
+ */
+#else
   GST_TYPE_FIND_REGISTER (apetag, plugin);
+#endif
   GST_TYPE_FIND_REGISTER (tta, plugin);
   GST_TYPE_FIND_REGISTER (mod, plugin);
   GST_TYPE_FIND_REGISTER (mp3, plugin);
