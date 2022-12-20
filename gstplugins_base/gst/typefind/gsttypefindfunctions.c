@@ -967,6 +967,12 @@ id3v1_type_find (GstTypeFind * tf, gpointer unused)
   }
 }
 
+#ifdef OHOS_OPT_COMPAT
+/*
+ * ohos.opt.compat.0051
+ * wav audio stream recognition errors
+ */
+#else
 /*** application/x-ape ***/
 
 static GstStaticCaps apetag_caps = GST_STATIC_CAPS ("application/x-apetag");
@@ -1007,7 +1013,7 @@ apetag_type_find (GstTypeFind * tf, gpointer unused)
     return;
   }
 }
-
+#endif
 /*** audio/x-ttafile ***/
 
 static GstStaticCaps tta_caps = GST_STATIC_CAPS ("audio/x-ttafile");
@@ -6094,9 +6100,16 @@ GST_TYPE_FIND_REGISTER_DEFINE (id3v2, "application/x-id3v2",
 GST_TYPE_FIND_REGISTER_DEFINE (id3v1, "application/x-id3v1",
     GST_RANK_PRIMARY + 101, id3v1_type_find, "mp3,mp2,mp1,mpga,ogg,flac,tta",
     ID3_CAPS, NULL, NULL);
+#ifdef OHOS_OPT_COMPAT
+/*
+ * ohos.opt.compat.0051
+ * wav audio stream recognition errors
+ */
+#else
 GST_TYPE_FIND_REGISTER_DEFINE (apetag, "application/x-apetag",
     GST_RANK_PRIMARY + 102, apetag_type_find, "mp3,ape,mpc,wv", APETAG_CAPS,
     NULL, NULL);
+#endif
 GST_TYPE_FIND_REGISTER_DEFINE (tta, "audio/x-ttafile", GST_RANK_PRIMARY,
     tta_type_find, "tta", TTA_CAPS, NULL, NULL);
 GST_TYPE_FIND_REGISTER_DEFINE (mod, "audio/x-mod", GST_RANK_SECONDARY,
