@@ -2848,7 +2848,7 @@ again:
   if (bclass != NULL && bclass->update_reach_time != NULL) {
     stime = bclass->update_reach_time (basesink, stime, &need_drop_this_buffer);
 #ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0004: drop buffer when it is too late
-    if (G_UNLIKELY (need_drop_this_buffer)) {
+    if (G_UNLIKELY (need_drop_this_buffer && basesink->priv->received_eos != TRUE)) {
       goto dropped;
     }
 #endif
