@@ -3807,7 +3807,16 @@ gst_base_sink_needs_preroll (GstBaseSink * basesink)
    *  1) we are blocking in the PREROLL_LOCK and thus are prerolled.
    *  2) we are syncing on the clock
    */
+#ifdef OHOS_OPT_COMPAT
+  /** ohos.opt.compat.0054
+   * Received stream group done, no more buffer to preroll in time.
+   * Thus, no need preroll for playing change to paused. Preroll when
+   * paused to playing.
+   */
+  is_prerolled = basesink->have_preroll || basesink->priv->received_eos || basesink->stream_group_done;
+#else
   is_prerolled = basesink->have_preroll || basesink->priv->received_eos;
+#endif
   res = !is_prerolled;
 
   GST_DEBUG_OBJECT (basesink, "have_preroll: %d, EOS: %d => needs preroll: %d",
@@ -4837,6 +4846,10 @@ gst_base_sink_set_flushing (GstBaseSink * basesink, GstPad * pad,
 
     /* we can't have EOS anymore now */
     basesink->eos = FALSE;
+#ifdef OHOS_OPT_COMPAT
+    /* ohos.opt.compat.0054 */
+    basesink->stream_group_done = FALSE;
+#endif
     basesink->priv->received_eos = FALSE;
     basesink->have_preroll = FALSE;
     basesink->priv->step_unlock = FALSE;
@@ -5844,6 +5857,10 @@ gst_base_sink_change_state (GstElement * element, GstStateChange transition)
       priv->eos_rtime = GST_CLOCK_TIME_NONE;
       priv->latency = 0;
       basesink->eos = FALSE;
+#ifdef OHOS_OPT_COMPAT
+      /* ohos.opt.compat.0054 */
+      basesink->stream_group_done = FALSE;
+#endif
       priv->received_eos = FALSE;
       gst_base_sink_reset_qos (basesink);
       priv->rc_next = -1;
