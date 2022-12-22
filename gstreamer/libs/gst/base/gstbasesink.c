@@ -3809,7 +3809,7 @@ gst_base_sink_needs_preroll (GstBaseSink * basesink)
    */
 #ifdef OHOS_OPT_COMPAT
   /** ohos.opt.compat.0054
-   * Received stream group done, no more buffer to preroll in time.
+   * Received stream group done, no more buffer to preroll for now.
    * Thus, no need preroll for playing change to paused. Preroll when
    * paused to playing.
    */
