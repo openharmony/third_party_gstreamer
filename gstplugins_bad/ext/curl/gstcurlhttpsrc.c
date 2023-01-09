@@ -1656,6 +1656,8 @@ gst_curl_http_src_change_state (GstElement * element, GstStateChange transition)
     case GST_STATE_CHANGE_PAUSED_TO_READY: {
       source->reconnection_timeout = DEFAULT_RECONNECTION_TIMEOUT;
       source->player_state = GST_PLAYER_STATUS_IDLE;
+      source->start_usecs = 0;
+      source->end_usecs = 0;
       break;
     }
 #endif
