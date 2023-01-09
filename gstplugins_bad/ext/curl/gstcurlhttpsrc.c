@@ -1653,6 +1653,11 @@ gst_curl_http_src_change_state (GstElement * element, GstStateChange transition)
           source->reconnection_timeout);
       break;
     }
+    case GST_STATE_CHANGE_PAUSED_TO_READY: {
+      source->reconnection_timeout = DEFAULT_RECONNECTION_TIMEOUT;
+      source->player_state = GST_PLAYER_STATUS_IDLE;
+      break;
+    }
 #endif
     case GST_STATE_CHANGE_READY_TO_NULL:
       GST_DEBUG_OBJECT (source, "Removing from multi_loop queue...");
