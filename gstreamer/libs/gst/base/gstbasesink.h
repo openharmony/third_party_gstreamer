@@ -83,6 +83,10 @@ struct _GstBaseSink {
   GMutex         preroll_lock;
   GCond          preroll_cond;
   gboolean       eos;
+#ifdef OHOS_OPT_COMPAT
+  /* ohos.opt.compat.0054 */
+  gboolean       stream_group_done;
+#endif
   gboolean       need_preroll;
   gboolean       have_preroll;
   gboolean       playing_async;
