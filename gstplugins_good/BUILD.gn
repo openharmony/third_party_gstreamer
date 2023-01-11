@@ -40,7 +40,6 @@ config("gst_plugins_config") {
     "//third_party/glib",
     "//third_party/glib/gmodule",
     "//third_party/zlib",
-    "//third_party/gettext/gettext-runtime/intl",
     "//third_party/bzip2",
   ]
 

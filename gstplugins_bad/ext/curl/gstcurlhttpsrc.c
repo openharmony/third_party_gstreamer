@@ -139,7 +139,6 @@ GST_DEBUG_CATEGORY_STATIC (gst_curl_loop_debug);
 #ifdef OHOS_EXT_FUNC
 // ohos.ext.func.0033
 #define DEFAULT_RECONNECTION_TIMEOUT 3000000 // 3s, if reconnecting to the network costs time > 3s, exit playing.
-#define RECONNECTION_TIMEOUT 15000000 // 15s
 #endif
 
 enum
@@ -170,6 +169,7 @@ enum
   PROP_IRADIO_MODE,
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0033
+  PROP_RECONNECTION_TIMEOUT,
   PROP_STATE_CHANGE,
 #endif
   PROP_MAX
@@ -486,6 +486,11 @@ gst_curl_http_src_class_init (GstCurlHttpSrcClass * klass)
 
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0033
+  g_object_class_install_property (gobject_klass, PROP_RECONNECTION_TIMEOUT,
+    g_param_spec_uint ("reconnection-timeout", "Reconnection-timeout",
+        "Value in seconds to timeout reconnection", 0, 3600,
+        DEFAULT_RECONNECTION_TIMEOUT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   g_object_class_install_property (gobject_class, PROP_STATE_CHANGE,
     g_param_spec_int ("state-change", "State-change from adaptive-demux",
         "State-change from adaptive-demux", 0, (gint) (G_MAXINT32), 0,
@@ -616,6 +621,9 @@ gst_curl_http_src_set_property (GObject * object, guint prop_id,
       break;
 #ifdef OHOS_EXT_FUNC
     // ohos.ext.func.0033
+    case PROP_RECONNECTION_TIMEOUT:
+      source->setted_reconnection_timeout = g_value_get_uint (value);
+      break;
     case PROP_STATE_CHANGE: {
       source->player_state = g_value_get_int (value);
       GST_DEBUG_OBJECT (source, "set player_state to %d", source->player_state);
@@ -705,6 +713,11 @@ gst_curl_http_src_get_property (GObject * object, guint prop_id,
     case PROP_HTTPVERSION:
       g_value_set_enum (value, source->preferred_http_version);
       break;
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0033
+      g_value_set_uint (value, source->reconnection_timeout);
+      break;
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -767,7 +780,8 @@ gst_curl_http_src_init (GstCurlHttpSrc * source)
   // ohos.ext.func.0033
   source->start_usecs = 0;
   source->end_usecs = 0;
-  source->reconnection_timeout = DEFAULT_RECONNECTION_TIMEOUT; // 3s
+  source->setted_reconnection_timeout = DEFAULT_RECONNECTION_TIMEOUT;
+  source->reconnection_timeout = DEFAULT_RECONNECTION_TIMEOUT;
   source->player_state = GST_PLAYER_STATUS_IDLE;
 #endif
 
@@ -1648,13 +1662,13 @@ gst_curl_http_src_change_state (GstElement * element, GstStateChange transition)
 #ifdef OHOS_EXT_FUNC
     // ohos.ext.func.0033
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING: {
-      source->reconnection_timeout = RECONNECTION_TIMEOUT;
-      GST_DEBUG_OBJECT (source, "set reconnection_timeout to %"G_GINT64_FORMAT "us",
-          source->reconnection_timeout);
+      source->reconnection_timeout = source->setted_reconnection_timeout;
+      GST_DEBUG_OBJECT (source, "set reconnection_timeout to %u us", source->reconnection_timeout);
       break;
     }
     case GST_STATE_CHANGE_PAUSED_TO_READY: {
       source->reconnection_timeout = DEFAULT_RECONNECTION_TIMEOUT;
+      source->setted_reconnection_timeout = DEFAULT_RECONNECTION_TIMEOUT;
       source->player_state = GST_PLAYER_STATUS_IDLE;
       source->start_usecs = 0;
       source->end_usecs = 0;
@@ -2532,7 +2546,7 @@ static gboolean gst_curl_http_src_reconnect_is_timeout (GstCurlHttpSrc *src)
   } else {
     src->end_usecs = g_get_monotonic_time ();
     gint64 time_diff_us = src->end_usecs - src->start_usecs;
-    if (time_diff_us > src->reconnection_timeout) {
+    if (time_diff_us > (gint64)src->reconnection_timeout) {
       GST_INFO_OBJECT (src, "Network has broken too long, exit!");
       return TRUE;
     }
