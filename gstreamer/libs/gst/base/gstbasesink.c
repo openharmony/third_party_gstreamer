@@ -3467,22 +3467,6 @@ gst_base_sink_default_event (GstBaseSink * basesink, GstEvent * event)
       gst_element_post_message (GST_ELEMENT_CAST (basesink), message);
       break;
     }
-#ifdef OHOS_OPT_COMPAT
-    case GST_EVENT_STREAM_GROUP_DONE:
-    {
-      /**
-       * ohos.opt.compat.0054
-       * Received STREAM_GROUP_DONE, no more buffer to preroll and commit
-       * state change. Thus, preroll STREAM_GROUP_DONE to complete it.
-       */
-      if (basesink->priv->async_enabled && !basesink->priv->committed) {
-        GST_DEBUG_OBJECT (basesink, "async start to change state, preroll"
-          "STREAM_GROUP_DONE to async done");
-        gst_base_sink_do_preroll (basesink, GST_MINI_OBJECT_CAST(event));
-      }
-      break;
-    }
-#endif
     case GST_EVENT_CAPS:
     {
       GstCaps *caps, *current_caps;
