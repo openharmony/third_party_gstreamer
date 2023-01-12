@@ -487,14 +487,14 @@ gst_curl_http_src_class_init (GstCurlHttpSrcClass * klass)
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0033
   g_object_class_install_property (gobject_class, PROP_RECONNECTION_TIMEOUT,
-    g_param_spec_uint ("reconnection-timeout", "Reconnection-timeout",
-        "Value in seconds to timeout reconnection", 0, 3600,
-        DEFAULT_RECONNECTION_TIMEOUT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+      g_param_spec_uint ("reconnection-timeout", "Reconnection-timeout",
+          "Value in seconds to timeout reconnection", 0, 3600000000, DEFAULT_RECONNECTION_TIMEOUT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_STATE_CHANGE,
-    g_param_spec_int ("state-change", "State-change from adaptive-demux",
-        "State-change from adaptive-demux", 0, (gint) (G_MAXINT32), 0,
-        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+      g_param_spec_int ("state-change", "State-change from adaptive-demux",
+          "State-change from adaptive-demux", 0, (gint) (G_MAXINT32), 0,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 #endif
 
   /* Add a debugging task so it's easier to debug in the Multi worker thread */
