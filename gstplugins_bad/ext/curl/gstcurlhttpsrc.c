@@ -486,7 +486,7 @@ gst_curl_http_src_class_init (GstCurlHttpSrcClass * klass)
 
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0033
-  g_object_class_install_property (gobject_klass, PROP_RECONNECTION_TIMEOUT,
+  g_object_class_install_property (gobject_class, PROP_RECONNECTION_TIMEOUT,
     g_param_spec_uint ("reconnection-timeout", "Reconnection-timeout",
         "Value in seconds to timeout reconnection", 0, 3600,
         DEFAULT_RECONNECTION_TIMEOUT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
@@ -621,9 +621,10 @@ gst_curl_http_src_set_property (GObject * object, guint prop_id,
       break;
 #ifdef OHOS_EXT_FUNC
     // ohos.ext.func.0033
-    case PROP_RECONNECTION_TIMEOUT:
+    case PROP_RECONNECTION_TIMEOUT: {
       source->setted_reconnection_timeout = g_value_get_uint (value);
       break;
+    }
     case PROP_STATE_CHANGE: {
       source->player_state = g_value_get_int (value);
       GST_DEBUG_OBJECT (source, "set player_state to %d", source->player_state);
@@ -714,7 +715,8 @@ gst_curl_http_src_get_property (GObject * object, guint prop_id,
       g_value_set_enum (value, source->preferred_http_version);
       break;
 #ifdef OHOS_EXT_FUNC
-      // ohos.ext.func.0033
+    // ohos.ext.func.0033
+    case PROP_RECONNECTION_TIMEOUT:
       g_value_set_uint (value, source->reconnection_timeout);
       break;
 #endif
