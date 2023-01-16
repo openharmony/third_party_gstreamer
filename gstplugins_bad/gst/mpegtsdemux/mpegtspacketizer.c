@@ -2494,9 +2494,20 @@ calculate_points:
       lastpcr, lastoffset);
 
   res = firstoffset;
+#ifdef OHOS_OPT_COMPAT
+  /* ohos.opt.compat.0048
+  * querypcr is seek target, when querypcr > duraton, pull_data will fail.
+  */
+  if (lastpcr != firstpcr) {
+    querypcr = querypcr > lastpcr ? lastpcr : querypcr;
+    res += gst_util_uint64_scale (querypcr - firstpcr,
+        lastoffset - firstoffset, lastpcr - firstpcr);
+  }
+#else
   if (lastpcr != firstpcr)
     res += gst_util_uint64_scale (querypcr - firstpcr,
         lastoffset - firstoffset, lastpcr - firstpcr);
+#endif
 
   GST_DEBUG ("Returning offset %" G_GUINT64_FORMAT " for ts %"
       GST_TIME_FORMAT, res, GST_TIME_ARGS (ts));
