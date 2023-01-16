@@ -354,6 +354,9 @@ struct _GstVideoDecoderPrivate
   gint max_errors;
   gint error_count;
   gboolean had_output_data;
+#ifdef OHOS_OPT_COMPAT
+  gboolean stream_had_output_data;
+#endif
   gboolean had_input_data;
 
   gboolean needs_format;
@@ -767,6 +770,9 @@ gst_video_decoder_init (GstVideoDecoder * decoder, GstVideoDecoderClass * klass)
   decoder->priv->output_adapter = gst_adapter_new ();
   decoder->priv->packetized = TRUE;
   decoder->priv->needs_format = FALSE;
+#ifdef OHOS_OPT_COMPAT
+  decoder->priv->stream_had_output_data = FALSE;
+#endif
 
   g_queue_init (&decoder->priv->frames);
   g_queue_init (&decoder->priv->timestamps);
@@ -1416,11 +1422,28 @@ gst_video_decoder_sink_event_default (GstVideoDecoder * decoder,
       ret = (flow_ret == GST_FLOW_OK);
 
       /* Error out even if EOS was ok when we had input, but no output */
+#ifdef OHOS_OPT_COMPAT
+      /* ohos.opt.compat.0049
+      * When we seek to a position where is no keyframe and the decoding fails,
+      * we don't think it's a mistake. For example, tsdemux does not guarantee that the
+      * stream pushed when seeking contains keyframes, or mkvdemux incorrectly treats
+      * non-keyframes as keyframes.
+      */
+      if (ret && priv->had_input_data) {
+        if (!priv->had_output_data)
+          GST_WARNING_OBJECT (decoder, "No valid frames decoded before end of stream");
+        else if (!priv->stream_had_output_data)
+          GST_ELEMENT_ERROR (decoder, STREAM, DECODE,
+            ("No valid frames decoded before end of stream"),
+            ("no valid frames found"));
+      }
+#else
       if (ret && priv->had_input_data && !priv->had_output_data) {
         GST_ELEMENT_ERROR (decoder, STREAM, DECODE,
             ("No valid frames decoded before end of stream"),
             ("no valid frames found"));
       }
+#endif
 
       /* Forward EOS immediately. This is required because no
        * buffer or serialized event will come after EOS and
@@ -3629,6 +3652,9 @@ gst_video_decoder_clip_and_push_buf (GstVideoDecoder * decoder, GstBuffer * buf)
 
   /* store that we have valid decoded data */
   priv->had_output_data = TRUE;
+#ifdef OHOS_OPT_COMPAT
+  priv->stream_had_output_data = TRUE;
+#endif
 
   stop = GST_CLOCK_TIME_NONE;
 
