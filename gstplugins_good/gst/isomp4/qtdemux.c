@@ -1188,8 +1188,7 @@ gst_qtdemux_adjust_seek (GstQTDemux * qtdemux, gint64 desired_time,
       /**
        * ohos.opt.compat.0055
        * when seeking take GST_SEEK_FLAG_SNAP_BEFORE within a range with no stss, it will
-       * lead seek done position has a huge gap with seek position. Thus,
-       * return a max index.
+       * lead seek done position has a huge gap with seek position. Thus, return a max index.
        */
       if (kindex != -1 && kindex > index) {
 #else
