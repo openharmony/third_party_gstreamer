@@ -1720,6 +1720,14 @@ gst_ffmpegviddec_video_frame (GstFFMpegVidDec * ffmpegdec,
 
   *ret = GST_FLOW_OK;
 
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0053
+  if (!gst_video_decoder_need_decode(GST_VIDEO_DECODER (ffmpegdec))) {
+    GST_INFO_OBJECT (ffmpegdec, "only need one frame!");
+    goto beach;
+  }
+#endif
+
   /* in case we skip frames */
   ffmpegdec->picture->pict_type = -1;
 
