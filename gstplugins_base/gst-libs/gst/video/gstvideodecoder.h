@@ -432,6 +432,12 @@ void     gst_video_decoder_set_needs_sync_point (GstVideoDecoder * dec,
 GST_VIDEO_API
 gboolean gst_video_decoder_get_needs_sync_point (GstVideoDecoder * dec);
 
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0053
+GST_VIDEO_API
+gboolean gst_video_decoder_need_decode (GstVideoDecoder * dec);
+#endif
+
 GST_VIDEO_API
 void     gst_video_decoder_set_latency (GstVideoDecoder *decoder,
 					GstClockTime min_latency,
