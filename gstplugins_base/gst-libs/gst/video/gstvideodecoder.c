@@ -324,6 +324,10 @@ enum
   PROP_DISCARD_CORRUPTED_FRAMES,
   PROP_AUTOMATIC_REQUEST_SYNC_POINTS,
   PROP_AUTOMATIC_REQUEST_SYNC_POINT_FLAGS,
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0053 In avmetadatahelper service, only need one frame.
+  PROP_ONLY_ONE_FRAME_REQUIRED,
+#endif
 };
 
 struct _GstVideoDecoderPrivate
@@ -469,6 +473,10 @@ struct _GstVideoDecoderPrivate
 #ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: first frame decoded cost time
   gboolean has_recv_first_key_frame;
   gboolean has_push_first_frame;
+#endif
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0053
+  gboolean only_one_frame_required;
 #endif
 };
 
@@ -722,6 +730,16 @@ gst_video_decoder_class_init (GstVideoDecoderClass * klass)
           GST_TYPE_VIDEO_DECODER_REQUEST_SYNC_POINT_FLAGS,
           DEFAULT_AUTOMATIC_REQUEST_SYNC_POINT_FLAGS,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0053
+  g_object_class_install_property (gobject_class,
+      PROP_ONLY_ONE_FRAME_REQUIRED,
+      g_param_spec_boolean ("only-one-frame-required",
+          "Only one frame required",
+          "Only one frame required for avmetadatahelper service",
+          FALSE,
+          G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+#endif
 
   meta_tag_video_quark = g_quark_from_static_string (GST_META_TAG_VIDEO_STR);
 }
@@ -788,6 +806,10 @@ gst_video_decoder_init (GstVideoDecoder * decoder, GstVideoDecoderClass * klass)
       DEFAULT_AUTOMATIC_REQUEST_SYNC_POINTS;
   decoder->priv->automatic_request_sync_point_flags =
       DEFAULT_AUTOMATIC_REQUEST_SYNC_POINT_FLAGS;
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0053
+  decoder->priv->only_one_frame_required = FALSE;
+#endif
 
   gst_video_decoder_reset (decoder, TRUE, TRUE);
 }
@@ -1037,6 +1059,12 @@ gst_video_decoder_set_property (GObject * object, guint property_id,
     case PROP_AUTOMATIC_REQUEST_SYNC_POINT_FLAGS:
       priv->automatic_request_sync_point_flags = g_value_get_flags (value);
       break;
+#ifdef OHOS_OPT_COMPAT
+    // ohos.opt.compat.0053
+    case PROP_ONLY_ONE_FRAME_REQUIRED:
+      priv->only_one_frame_required = g_value_get_boolean (value);
+      break;
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -4062,6 +4090,14 @@ gst_video_decoder_decode_frame (GstVideoDecoder * decoder,
     GST_WARNING_OBJECT (decoder, "KPI-TRACE: FIRST-VIDEO-FRAME videodecoder recv first key frame");
   }
 #endif
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0053
+  if (priv->has_push_first_frame && priv->only_one_frame_required) {
+    gst_video_decoder_release_frame(decoder, frame);
+    GST_DEBUG_OBJECT(decoder, "only need one frame, release!");
+    return GST_FLOW_EOS;
+  }
+#endif
   /* do something with frame */
   ret = decoder_class->handle_frame (decoder, frame);
   if (ret != GST_FLOW_OK)
@@ -5415,3 +5451,12 @@ gst_video_decoder_get_needs_sync_point (GstVideoDecoder * dec)
 
   return result;
 }
+
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0053
+gboolean
+gst_video_decoder_need_decode (GstVideoDecoder * dec)
+{
+  return !(dec->priv->has_push_first_frame && dec->priv->only_one_frame_required);
+}
+#endif
