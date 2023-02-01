@@ -1193,8 +1193,9 @@ gst_qtdemux_adjust_seek (GstQTDemux * qtdemux, gint64 desired_time,
 #ifdef OHOS_OPT_COMPAT
         /**
          * ohos.opt.compat.0055
-         * when seeking take GST_SEEK_FLAG_SNAP_BEFORE within a range with no stss, it will
-         * lead seek done position has a huge gap with seek position. Thus, return a nearly timestamp.
+         * when video stream and audio stream are different duration(edge. video duration is 01:50,
+         * audio duration is 0:35), it will lead seek done offset has a huge gap with seek offset.
+         * Thus, return a timestamp closest to the seek offset.
          */
         guint64 temp_time = QTSAMPLE_PTS_NO_CSLG (str, &str->samples[kindex]);
         if ((!next && max_time > temp_time) || (next && min_time < temp_time)) {
