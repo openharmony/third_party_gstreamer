@@ -1112,6 +1112,8 @@ gst_qtdemux_adjust_seek (GstQTDemux * qtdemux, gint64 desired_time,
     gboolean use_sparse, gboolean next, gint64 * key_time, gint64 * key_offset)
 {
   guint64 min_offset;
+  guint64 max_time = 0;
+  guint64 min_time = G_MAXUINT64;
   gint64 min_byte_offset = -1;
   guint i;
 
@@ -1184,15 +1186,19 @@ gst_qtdemux_adjust_seek (GstQTDemux * qtdemux, gint64 desired_time,
       /* Update the requested time whenever a keyframe was found, to make it
        * accurate and avoid having the first buffer fall outside of the segment
        */
-#ifdef OHOS_OPT_COMPAT
-      /**
-       * ohos.opt.compat.0055
-       * when seeking take GST_SEEK_FLAG_SNAP_BEFORE within a range with no stss, it will
-       * lead seek done position has a huge gap with seek position. Thus, return a max index.
-       */
-      if (kindex != -1 && ((kindex > index && !next) || (kindex < index && next))) {
-#else
       if (kindex != -1) {
+#ifdef OHOS_OPT_COMPAT
+        /**
+         * ohos.opt.compat.0055
+         * when seeking take GST_SEEK_FLAG_SNAP_BEFORE within a range with no stss, it will
+         * lead seek done position has a huge gap with seek position. Thus, return a nearly timestamp.
+         */
+        guint64 temp_time = QTSAMPLE_PTS_NO_CSLG (str, &str->samples[kindex]);
+        if ((!next && max_time > temp_time) || (next && min_time < temp)) {
+          continue;
+        }
+        max_time = temp_time;
+        min_time = temp_time;
 #endif
         index = kindex;
 
