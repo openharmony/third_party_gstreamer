@@ -1112,8 +1112,11 @@ gst_qtdemux_adjust_seek (GstQTDemux * qtdemux, gint64 desired_time,
     gboolean use_sparse, gboolean next, gint64 * key_time, gint64 * key_offset)
 {
   guint64 min_offset;
+#ifdef OHOS_OPT_COMPAT
+  /* ohos.opt.compat.0055 */
   guint64 max_time = 0;
   guint64 min_time = G_MAXUINT64;
+#endif
   gint64 min_byte_offset = -1;
   guint i;
 
