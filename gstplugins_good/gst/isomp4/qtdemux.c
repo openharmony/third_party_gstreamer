@@ -1197,7 +1197,7 @@ gst_qtdemux_adjust_seek (GstQTDemux * qtdemux, gint64 desired_time,
          * lead seek done position has a huge gap with seek position. Thus, return a nearly timestamp.
          */
         guint64 temp_time = QTSAMPLE_PTS_NO_CSLG (str, &str->samples[kindex]);
-        if ((!next && max_time > temp_time) || (next && min_time < temp)) {
+        if ((!next && max_time > temp_time) || (next && min_time < temp_time)) {
           continue;
         }
         max_time = temp_time;
