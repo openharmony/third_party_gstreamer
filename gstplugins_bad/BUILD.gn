@@ -258,7 +258,6 @@ ohos_source_set("codecparsers_source") {
   sources = [
     "gst-libs/gst/codecparsers/dboolhuff.c",
     "gst-libs/gst/codecparsers/gsth264parser.c",
-    "gst-libs/gst/codecparsers/gsth265parser.c",
     "gst-libs/gst/codecparsers/gstjpeg2000sampling.c",
     "gst-libs/gst/codecparsers/gstjpegparser.c",
     "gst-libs/gst/codecparsers/gstmpeg4parser.c",
