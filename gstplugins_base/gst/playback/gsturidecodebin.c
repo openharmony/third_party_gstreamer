@@ -207,6 +207,11 @@ enum
 #define DEFAULT_HIGH_PERCENT      99
 #endif
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0033
+#define DEFAULT_RECONNECTION_TIMEOUT 3000000
+#endif
+
 enum
 {
   PROP_0,
@@ -227,6 +232,10 @@ enum
   PROP_HIGH_PERCENT,
   PROP_STATE_CHANGE,
   PROP_EXIT_BLOCK,
+#endif
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0033
+  PROP_RECONNECTION_TIMEOUT,
 #endif
   PROP_RING_BUFFER_MAX_SIZE
 };
@@ -523,6 +532,14 @@ gst_uri_decode_bin_class_init (GstURIDecodeBinClass * klass)
       g_param_spec_int64 ("buffer-duration", "Buffer duration (ns)",
           "Buffer duration when buffering streams (-1 default value)",
           -1, G_MAXINT64, DEFAULT_BUFFER_DURATION,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#endif
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0033
+  g_object_class_install_property (gobject_class, PROP_RECONNECTION_TIMEOUT,
+      g_param_spec_uint ("reconnection-timeout", "Reconnection-timeout",
+          "Value in seconds to timeout reconnection", 0, 3600000000, DEFAULT_RECONNECTION_TIMEOUT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 #endif
 
@@ -894,7 +911,10 @@ set_property_to_decodebin (GstURIDecodeBin *dec, guint property_id, const void *
     }
     GObject *decodebin = G_OBJECT (walk->data);
 
-    if (property_id == PROP_STATE_CHANGE) {
+    if (property_id == PROP_RECONNECTION_TIMEOUT) { // ohos.ext.func.0033
+      const guint *timeout = (const guint *) property_value;
+      g_object_set (decodebin, "reconnection-timeout", *timeout, NULL);
+    } else if (property_id == PROP_STATE_CHANGE) {
       const gint *state = (const gint *) property_value;
       g_object_set (decodebin, "state-change", *state, NULL);
     } else if (property_id == PROP_EXIT_BLOCK) {
@@ -989,6 +1009,15 @@ gst_uri_decode_bin_set_property (GObject * object, guint prop_id,
       dec->high_percent = g_value_get_int (value);
       GST_INFO_OBJECT (dec, "gsturidecbin set property high_percent=%d", dec->high_percent);
       break;
+#endif
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0033
+    case PROP_RECONNECTION_TIMEOUT: {
+      guint timeout = g_value_get_uint (value);
+      g_object_set (dec->source, "reconnection-timeout", timeout, NULL);
+      set_property_to_decodebin(dec, prop_id, (void *)&timeout);
+      break;
+    }
 #endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);

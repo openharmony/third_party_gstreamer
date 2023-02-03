@@ -190,7 +190,6 @@ struct _GstCurlHttpSrc
   // ohos.ext.func.0033
   gint64      start_usecs;
   gint64      end_usecs;
-  guint       setted_reconnection_timeout;
   guint       reconnection_timeout;
   gint        player_state;
 #endif

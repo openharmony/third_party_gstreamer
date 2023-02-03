@@ -274,6 +274,11 @@ enum
 #define DEFAULT_EXPOSE_ALL_STREAMS  TRUE
 #define DEFAULT_CONNECTION_SPEED    0
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0033
+#define DEFAULT_RECONNECTION_TIMEOUT 3000000
+#endif
+
 /* Properties */
 enum
 {
@@ -295,6 +300,10 @@ enum
   PROP_MQ_NUM_USE_BUFFRING,
   PROP_STATE_CHANGE,
   PROP_EXIT_BLOCK,
+#endif
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0033
+  PROP_RECONNECTION_TIMEOUT,
 #endif
   PROP_CONNECTION_SPEED
 };
@@ -1052,6 +1061,14 @@ gst_decode_bin_class_init (GstDecodeBinClass * klass)
           G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
 #endif
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0033
+  g_object_class_install_property (gobject_klass, PROP_RECONNECTION_TIMEOUT,
+      g_param_spec_uint ("reconnection-timeout", "Reconnection-timeout",
+          "Value in seconds to timeout reconnection", 0, 3600000000, DEFAULT_RECONNECTION_TIMEOUT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#endif
+
   klass->autoplug_continue =
       GST_DEBUG_FUNCPTR (gst_decode_bin_autoplug_continue);
   klass->autoplug_factories =
@@ -1358,7 +1375,12 @@ set_property_handle_to_element (GstDecodeBin *dbin, guint property_id, const voi
       continue;
     }
     GObjectClass *theclass = g_type_class_peek (gst_element_factory_get_element_type (fac));
-    if (property_id == PROP_STATE_CHANGE) {
+    if (property_id == PROP_RECONNECTION_TIMEOUT) { // ohos.ext.func.0033
+      const guint *timeout = (const guint *) property_value;
+      if ((theclass != NULL) && g_object_class_find_property (theclass, "reconnection-timeout")) {
+        g_object_set (element, "reconnection-timeout", *timeout, NULL);
+      }
+    } else if (property_id == PROP_STATE_CHANGE) {
       const gint *state = (const gint *) property_value;
       if ((theclass != NULL) && g_object_class_find_property (theclass, "state-change")) {
         g_object_set (element, "state-change", *state, NULL);
@@ -1444,6 +1466,14 @@ gst_decode_bin_set_property (GObject * object, guint prop_id,
     case PROP_EXIT_BLOCK: {
       gint exit_block = g_value_get_int (value);
       set_property_handle_to_element (dbin, prop_id, (void *)&exit_block);
+      break;
+    }
+#endif
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0033
+    case PROP_RECONNECTION_TIMEOUT: {
+      guint timeout = g_value_get_uint (value);
+      set_property_handle_to_element(dbin, prop_id, (void *)&timeout);
       break;
     }
 #endif
