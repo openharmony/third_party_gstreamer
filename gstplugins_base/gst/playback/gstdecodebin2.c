@@ -1473,7 +1473,7 @@ gst_decode_bin_set_property (GObject * object, guint prop_id,
     // ohos.ext.func.0033
     case PROP_RECONNECTION_TIMEOUT: {
       guint timeout = g_value_get_uint (value);
-      set_property_handle_to_element(dbin, prop_id, (void *)&timeout);
+      set_property_handle_to_element (dbin, prop_id, (void *)&timeout);
       break;
     }
 #endif

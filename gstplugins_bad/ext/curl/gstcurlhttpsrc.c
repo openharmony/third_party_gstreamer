@@ -136,11 +136,6 @@ GST_DEBUG_CATEGORY_STATIC (gst_curl_loop_debug);
              "http-redirect-uri", G_TYPE_STRING, GST_STR_NULL ((src)->redirect_uri), NULL)); \
   } while(0)
 
-#ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0033
-#define DEFAULT_RECONNECTION_TIMEOUT 3000000 // 3s, if reconnecting to the network costs time > 3s, exit playing.
-#endif
-
 enum
 {
   PROP_0,
@@ -488,13 +483,16 @@ gst_curl_http_src_class_init (GstCurlHttpSrcClass * klass)
   // ohos.ext.func.0033
   g_object_class_install_property (gobject_class, PROP_RECONNECTION_TIMEOUT,
       g_param_spec_uint ("reconnection-timeout", "Reconnection-timeout",
-          "Value in seconds to timeout reconnection", 0, 3600000000, DEFAULT_RECONNECTION_TIMEOUT,
+          "Value in seconds to timeout reconnection",
+          GSTCURL_HANDLE_MIN_CURLOPT_RECONNECTION_TIMEOUT,
+          GSTCURL_HANDLE_MAX_CURLOPT_RECONNECTION_TIMEOUT,
+          GSTCURL_HANDLE_DEFAULT_CURLOPT_RECONNECTION_TIMEOUT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_STATE_CHANGE,
       g_param_spec_int ("state-change", "State-change from adaptive-demux",
           "State-change from adaptive-demux", 0, (gint) (G_MAXINT32), 0,
-          G_PARAM_WRITEABLE | G_PARAM_STATIC_STRINGS));
+          G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
 #endif
 
   /* Add a debugging task so it's easier to debug in the Multi worker thread */
@@ -782,7 +780,7 @@ gst_curl_http_src_init (GstCurlHttpSrc * source)
   // ohos.ext.func.0033
   source->start_usecs = 0;
   source->end_usecs = 0;
-  source->reconnection_timeout = DEFAULT_RECONNECTION_TIMEOUT;
+  source->reconnection_timeout = GSTCURL_HANDLE_DEFAULT_CURLOPT_RECONNECTION_TIMEOUT;
   source->player_state = GST_PLAYER_STATUS_IDLE;
 #endif
 
@@ -1427,7 +1425,7 @@ gst_curl_http_src_handle_response (GstCurlHttpSrc * src)
      * Support reconnection after disconnection in gstcurl.
      * When network brokes, try reconnecting until timeout.
      */
-    if (src->curl_result == CURLE_COULDNT_CONNECT || src->curl_result == CURLE_OPERATION_TIMEOUT) {
+    if (src->curl_result == CURLE_COULDNT_CONNECT || src->curl_result == CURLE_OPERATION_TIMEDOUT) {
       src->data_received = FALSE;
       if (src->buffer_len > 0) {
         return GST_FLOW_OK;
@@ -1663,7 +1661,7 @@ gst_curl_http_src_change_state (GstElement * element, GstStateChange transition)
 #ifdef OHOS_EXT_FUNC
     // ohos.ext.func.0033
     case GST_STATE_CHANGE_PAUSED_TO_READY: {
-      source->reconnection_timeout = DEFAULT_RECONNECTION_TIMEOUT;
+      source->reconnection_timeout = GSTCURL_HANDLE_DEFAULT_CURLOPT_RECONNECTION_TIMEOUT;
       GST_DEBUG_OBJECT (source, "state change from paused to ready, set reconnection_timeout to %u us",
           source->reconnection_timeout);
       source->player_state = GST_PLAYER_STATUS_IDLE;
