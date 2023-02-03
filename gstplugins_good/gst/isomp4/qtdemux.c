@@ -1107,11 +1107,36 @@ gst_qtdemux_move_stream (GstQTDemux * qtdemux, QtDemuxStream * str,
   str->discont = TRUE;
 }
 
+#ifdef OHOS_OPT_COMPAT
+/* ohos.opt.compat.0055 */
+static gboolean
+gst_qtdemux_is_audio_duration_less (GstQTDemux * qtdemux)
+{
+  gint i;
+  guint64 audio_duration = 0;
+  guint64 video_duration = 0;
+  for (i = 0; i < QTDEMUX_N_STREAMS (qtdemux); i++) {
+    QtDemuxStream *str = QTDEMUX_NTH_STREAM (qtdemux, i);
+    if (str->subtype == FOURCC_vide) {
+      video_duration = str->duration;
+    } else if (str->subtype == FOURCC_soun) {
+      audio_duration = str->duration;
+    }
+  }
+  return audio_duration < video_duration;
+}
+#endif
+
 static void
 gst_qtdemux_adjust_seek (GstQTDemux * qtdemux, gint64 desired_time,
     gboolean use_sparse, gboolean next, gint64 * key_time, gint64 * key_offset)
 {
   guint64 min_offset;
+#ifdef OHOS_OPT_COMPAT
+  /* ohos.opt.compat.0055 */
+  guint64 max_time = 0;
+  guint64 min_time = G_MAXUINT64;
+#endif
   gint64 min_byte_offset = -1;
   guint i;
 
@@ -1185,6 +1210,22 @@ gst_qtdemux_adjust_seek (GstQTDemux * qtdemux, gint64 desired_time,
        * accurate and avoid having the first buffer fall outside of the segment
        */
       if (kindex != -1) {
+#ifdef OHOS_OPT_COMPAT
+        /**
+         * ohos.opt.compat.0055
+         * when video stream and audio stream are different duration(edge. video duration is 01:50,
+         * audio duration is 0:35), it will lead seek done offset has a huge gap with seek offset.
+         * Thus, return a timestamp closest to the seek offset.
+         */
+        if (gst_qtdemux_is_audio_duration_less(qtdemux)) {
+          guint64 temp_time = QTSAMPLE_PTS_NO_CSLG (str, &str->samples[kindex]);
+          if ((!next && max_time > temp_time) || (next && min_time < temp_time)) {
+            continue;
+          }
+          max_time = temp_time;
+          min_time = temp_time;
+        }
+#endif
         index = kindex;
 
         /* get timestamp of keyframe */
