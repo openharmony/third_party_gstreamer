@@ -1658,18 +1658,6 @@ gst_curl_http_src_change_state (GstElement * element, GstStateChange transition)
         return GST_STATE_CHANGE_FAILURE;
       }
       break;
-#ifdef OHOS_EXT_FUNC
-    // ohos.ext.func.0033
-    case GST_STATE_CHANGE_PAUSED_TO_READY: {
-      source->reconnection_timeout = GSTCURL_HANDLE_DEFAULT_CURLOPT_RECONNECTION_TIMEOUT;
-      GST_DEBUG_OBJECT (source, "state change from paused to ready, set reconnection_timeout to %u us",
-          source->reconnection_timeout);
-      source->player_state = GST_PLAYER_STATUS_IDLE;
-      source->start_usecs = 0;
-      source->end_usecs = 0;
-      break;
-    }
-#endif
     case GST_STATE_CHANGE_READY_TO_NULL:
       GST_DEBUG_OBJECT (source, "Removing from multi_loop queue...");
       /* The pipeline has ended, so signal any running request to end

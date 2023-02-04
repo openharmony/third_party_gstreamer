@@ -3657,18 +3657,6 @@ gst_adaptive_demux_stream_download_uri (GstAdaptiveDemux * demux,
 
   /* Need to drop the fragment_download_lock to get the MANIFEST lock */
   GST_MANIFEST_LOCK (demux);
-#ifdef OHOS_EXT_FUNC
-  /**
-   * ohos.ext.func.0033
-   * Support reconnection after disconnection in gstcurl.
-   * Value of reconnection timeout will setted to default value when changing src element to ready,
-   * this is not removing element, so reset reconnection-timeout property here.
-   */
-  GObjectClass *gobject_class = G_OBJECT_GET_CLASS (stream->uri_handler);
-  if (g_object_class_find_property (gobject_class, "reconnection-timeout")) {
-    g_object_set (stream->uri_handler, "reconnection-timeout", demux->reconnection_timeout, NULL);
-  }
-#endif
   g_mutex_lock (&stream->fragment_download_lock);
   if (G_UNLIKELY (stream->cancelled)) {
     ret = stream->last_ret = GST_FLOW_FLUSHING;
