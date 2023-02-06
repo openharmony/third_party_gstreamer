@@ -472,7 +472,6 @@ gst_adaptive_demux_set_property (GObject * object, guint prop_id,
     // ohos.ext.func.0033
     case PROP_RECONNECTION_TIMEOUT: {
       guint timeout = g_value_get_uint (value);
-      demux->reconnection_timeout = timeout;
       set_property_to_src_and_download(demux, prop_id, (void *)&timeout);
       break;
     }
@@ -682,11 +681,6 @@ gst_adaptive_demux_init (GstAdaptiveDemux * demux,
   /* Properties */
   demux->bitrate_limit = DEFAULT_BITRATE_LIMIT;
   demux->connection_speed = DEFAULT_CONNECTION_SPEED;
-
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0033
-  demux->reconnection_timeout = DEFAULT_RECONNECTION_TIMEOUT;
-#endif
 
   gst_element_add_pad (GST_ELEMENT (demux), demux->sinkpad);
 }

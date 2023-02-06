@@ -1139,7 +1139,7 @@ retry:
         g_mutex_unlock (&src->buffer_mutex);
         gst_curl_http_src_wait_until_removed (src);
         gst_curl_http_src_unref_multi (src);
-        return GST_FLOW_CUSTOM_SUCCESS;
+        return GST_FLOW_RECONNECTION_TIMEOUT;
       }
 #endif
       g_mutex_unlock (&src->buffer_mutex);
@@ -1424,6 +1424,9 @@ gst_curl_http_src_handle_response (GstCurlHttpSrc * src)
      * ohos.ext.func.0033
      * Support reconnection after disconnection in gstcurl.
      * When network brokes, try reconnecting until timeout.
+     * Reconnection time counting will start after player state changing to buffering
+     * and receiving curl error message of "could not connect" or
+     * "operation timeout"(may cost some time after performing operation)
      */
     if (src->curl_result == CURLE_COULDNT_CONNECT || src->curl_result == CURLE_OPERATION_TIMEDOUT) {
       src->data_received = FALSE;
