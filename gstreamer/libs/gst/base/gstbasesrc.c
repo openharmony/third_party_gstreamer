@@ -2592,8 +2592,8 @@ again:
    * ohos.ext.func.0033
    * Support reconnection after disconnection in gstcurl.
    */
-  if (G_UNLIKELY (ret == GST_FLOW_CUSTOM_SUCCESS)) {
-    return GST_FLOW_CUSTOM_SUCCESS;
+  if (G_UNLIKELY (ret == GST_FLOW_RECONNECTION_TIMEOUT)) {
+    return GST_FLOW_RECONNECTION_TIMEOUT;
   }
 #endif
 
@@ -2924,7 +2924,7 @@ gst_base_src_loop (GstPad * pad)
    * ohos.ext.func.0033
    * Support reconnection after disconnection in gstcurl.
    */
-  if (G_UNLIKELY (ret == GST_FLOW_CUSTOM_SUCCESS)) {
+  if (G_UNLIKELY (ret == GST_FLOW_RECONNECTION_TIMEOUT)) {
     GST_LIVE_UNLOCK (src);
     goto timeout;
   }

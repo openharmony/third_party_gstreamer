@@ -242,10 +242,6 @@ struct _GstAdaptiveDemux
   /* Properties */
   gfloat bitrate_limit;         /* limit of the available bitrate to use */
   guint connection_speed;
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0033
-  guint reconnection_timeout;
-#endif
 
   gboolean have_group_id;
   guint group_id;
