@@ -2587,6 +2587,16 @@ again:
   ret = bclass->create (src, offset, length, &res_buf);
   GST_LIVE_LOCK (src);
 
+#ifdef OHOS_EXT_FUNC
+  /**
+   * ohos.ext.func.0033
+   * Support reconnection after disconnection in gstcurl.
+   */
+  if (G_UNLIKELY (ret == GST_FLOW_RECONNECTION_TIMEOUT)) {
+    return GST_FLOW_RECONNECTION_TIMEOUT;
+  }
+#endif
+
   /* As we released the LIVE_LOCK, the state may have changed */
   if (src->is_live) {
     if (G_UNLIKELY (!src->live_running)) {
@@ -2909,6 +2919,17 @@ gst_base_src_loop (GstPad * pad)
   }
 
   ret = gst_base_src_get_range (src, position, blocksize, &buf);
+#ifdef OHOS_EXT_FUNC
+  /**
+   * ohos.ext.func.0033
+   * Support reconnection after disconnection in gstcurl.
+   */
+  if (G_UNLIKELY (ret == GST_FLOW_RECONNECTION_TIMEOUT)) {
+    GST_LIVE_UNLOCK (src);
+    goto timeout;
+  }
+#endif
+
   if (G_UNLIKELY (ret != GST_FLOW_OK)) {
     GST_INFO_OBJECT (src, "pausing after gst_base_src_get_range() = %s",
         gst_flow_get_name (ret));
@@ -3141,6 +3162,20 @@ pause:
     }
     goto done;
   }
+#ifdef OHOS_EXT_FUNC
+  /**
+   * ohos.ext.func.0033
+   * Support reconnection after disconnection in gstcurl.
+   * Do not push eos when reconnection timeout.
+   */
+  timeout:
+  {
+    GST_DEBUG_OBJECT (src, "reconnection timeout, pausing task");
+    src->running = FALSE;
+    gst_pad_pause_task (pad);
+    goto done;
+  }
+#endif
 }
 
 static gboolean

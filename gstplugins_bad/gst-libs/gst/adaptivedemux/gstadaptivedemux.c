@@ -133,8 +133,8 @@ GST_DEBUG_CATEGORY (adaptivedemux_debug);
 #define NUM_LOOKBACK_FRAGMENTS 3
 
 #ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0013
-#define DEFAULT_TIMEOUT              15
+// ohos.ext.func.0033
+#define DEFAULT_RECONNECTION_TIMEOUT 3000000 // 3s
 #endif
 
 #define GST_MANIFEST_GET_LOCK(d) (&(GST_ADAPTIVE_DEMUX_CAST(d)->priv->manifest_lock))
@@ -163,10 +163,13 @@ enum
   PROP_CONNECTION_SPEED,
   PROP_BITRATE_LIMIT,
 #ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0013
+  // ohos.ext.func.0013
   PROP_STATE_CHANGE,
-  PROP_TIMEOUT,
   PROP_EXIT_BLOCK,
+#endif
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0033
+  PROP_RECONNECTION_TIMEOUT,
 #endif
   PROP_LAST
 };
@@ -454,11 +457,6 @@ gst_adaptive_demux_set_property (GObject * object, guint prop_id,
       break;
 #ifdef OHOS_EXT_FUNC
     // ohos.ext.func.0013
-    case PROP_TIMEOUT: {
-      guint timeout = g_value_get_uint (value);
-      set_property_to_src_and_download(demux, prop_id, (void *)&timeout);
-      break;
-    }
     case PROP_STATE_CHANGE: {
       gint state = g_value_get_int (value);
       set_property_to_src_and_download(demux, prop_id, (void *)&state);
@@ -467,6 +465,14 @@ gst_adaptive_demux_set_property (GObject * object, guint prop_id,
     case PROP_EXIT_BLOCK: {
       // ohos.ext.func.0029
       gst_adaptive_demux_set_exit_block(demux, value);
+      break;
+    }
+#endif
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0033
+    case PROP_RECONNECTION_TIMEOUT: {
+      guint timeout = g_value_get_uint (value);
+      set_property_to_src_and_download(demux, prop_id, (void *)&timeout);
       break;
     }
 #endif
@@ -558,11 +564,6 @@ gst_adaptive_demux_class_init (GstAdaptiveDemuxClass * klass)
 
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0013
-  g_object_class_install_property (gobject_class, PROP_TIMEOUT,
-      g_param_spec_uint ("timeout", "timeout",
-          "Value in seconds to timeout a blocking I/O (0 = No timeout).", 0,
-          3600, DEFAULT_TIMEOUT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
   g_object_class_install_property (gobject_class, PROP_STATE_CHANGE,
       g_param_spec_int ("state-change", "state-change from adaptive-demux",
           "state-change from adaptive-demux", 0, (gint) (G_MAXINT32), 0,
@@ -572,6 +573,14 @@ gst_adaptive_demux_class_init (GstAdaptiveDemuxClass * klass)
       g_param_spec_int ("exit-block", "EXIT BLOCK",
           "souphttpsrc exit block", 0, (gint) (G_MAXINT32), 0,
           G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+#endif
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0033
+  g_object_class_install_property (gobject_class, PROP_RECONNECTION_TIMEOUT,
+      g_param_spec_uint ("reconnection-timeout", "Reconnection-timeout",
+          "Value in seconds to timeout reconnection", 0, 3600000000, DEFAULT_RECONNECTION_TIMEOUT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 #endif
 
 #ifdef OHOS_EXT_FUNC
@@ -719,13 +728,13 @@ set_property_to_element (GstObject *elem, guint property_id, const void *propert
   if (property_id == PROP_STATE_CHANGE) {
     const gint *state_change = (const gint *) property_value;
     g_object_set (elem, "state-change", *state_change, NULL);
-  } else if (property_id == PROP_TIMEOUT) {
+  } else if (property_id == PROP_RECONNECTION_TIMEOUT) { // ohos.ext.func.0033
     const guint *timeout = (const guint *) property_value;
-    g_object_set (elem, "timeout", *timeout, NULL);
+    g_object_set (elem, "reconnection-timeout", *timeout, NULL);
   } else if (property_id == PROP_EXIT_BLOCK) {
     const gint *exit_block = (const gint *) property_value;
     g_object_set (elem, "exit-block", *exit_block, NULL);
-   }
+  }
 }
 
 static void
@@ -1146,6 +1155,11 @@ gst_adaptive_demux_handle_message (GstBin * bin, GstMessage * msg)
       GST_WARNING_OBJECT (GST_ADAPTIVE_DEMUX_STREAM_PAD (stream),
           "Source posted error: %d:%d %s (%s)", err->domain, err->code,
           err->message, debug);
+
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0033
+      stream->errcode = err->code;
+#endif
 
       if (debug)
         new_error = g_strdup_printf ("%s: %s\n", err->message, debug);
@@ -3821,6 +3835,16 @@ again:
   if (ret == GST_FLOW_OK)
     goto beach;
 
+#ifdef OHOS_EXT_FUNC
+  /**
+   * ohos.ext.func.0033
+   * Support reconnection after disconnection in gstcurl.
+   */
+  if (ret == GST_FLOW_CUSTOM_ERROR && stream->errcode == GST_RESOURCE_ERROR_TIME_OUT) {
+    return GST_FLOW_ERROR;
+  }
+#endif
+
   g_mutex_lock (&stream->fragment_download_lock);
   if (G_UNLIKELY (stream->cancelled)) {
     g_mutex_unlock (&stream->fragment_download_lock);
@@ -4142,6 +4166,19 @@ gst_adaptive_demux_stream_download_loop (GstAdaptiveDemuxStream * stream)
 
     next_download = gst_adaptive_demux_get_monotonic_time (demux);
     ret = gst_adaptive_demux_stream_download_fragment (stream);
+
+#ifdef OHOS_EXT_FUNC
+    /**
+     * ohos.ext.func.0033
+     * Support reconnection after disconnection in gstcurl.
+     * Stop download task when reconnection timeout.
+     */
+    if (ret == GST_FLOW_ERROR && stream->errcode == GST_RESOURCE_ERROR_TIME_OUT) {
+      GST_WARNING_OBJECT (stream->pad, "download failed since connect time out, stop download task");
+      gst_task_stop (stream->download_task);
+      goto end;
+    }
+#endif
 
     if (ret == GST_FLOW_FLUSHING) {
       g_mutex_lock (&stream->fragment_download_lock);
