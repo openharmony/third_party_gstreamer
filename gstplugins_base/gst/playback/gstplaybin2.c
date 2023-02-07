@@ -549,7 +549,11 @@ struct _GstPlayBinClass
 // ohos.ext.func.0012
 #define DEFAULT_LOW_PERCENT       10
 #define DEFAULT_HIGH_PERCENT      99
-#define DEFAULT_TIMEOUT           15
+#endif
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0033
+#define DEFAULT_RECONNECTION_TIMEOUT 3000000
 #endif
 
 enum
@@ -596,7 +600,10 @@ enum
   PROP_HIGH_PERCENT,
   PROP_STATE_CHANGE,
   PROP_EXIT_BLOCK,
-  PROP_TIMEOUT,
+#endif
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0033
+  PROP_RECONNECTION_TIMEOUT,
 #endif
   PROP_MULTIVIEW_FLAGS
 };
@@ -1107,14 +1114,17 @@ gst_play_bin_class_init (GstPlayBinClass * klass)
           "High threshold for buffering to finish", 0, 100,
           DEFAULT_HIGH_PERCENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_klass, PROP_TIMEOUT,
-      g_param_spec_uint ("timeout", "timeout",
-          "Value in seconds to timeout a blocking I/O (0 = No timeout).", 0,
-          3600, DEFAULT_TIMEOUT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
   g_object_class_install_property (gobject_klass, PROP_BUFFERING_FLAGS,
       g_param_spec_boolean ("buffering-flags", "Buffering Flags", "Flags to control behaviour",
       FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#endif
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0033
+  g_object_class_install_property (gobject_klass, PROP_RECONNECTION_TIMEOUT,
+      g_param_spec_uint ("reconnection-timeout", "Reconnection-timeout",
+          "Value in seconds to timeout reconnection", 0, 3600000000, DEFAULT_RECONNECTION_TIMEOUT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 #endif
 
   /**
@@ -2650,15 +2660,6 @@ gst_play_bin_set_property (GObject * object, guint prop_id,
         GST_SOURCE_GROUP_UNLOCK (playbin->curr_group);
       }
       break;
-    case PROP_TIMEOUT:
-      if (playbin->curr_group != NULL) {
-        GST_SOURCE_GROUP_LOCK (playbin->curr_group);
-        if (playbin->curr_group->uridecodebin) {
-          g_object_set (playbin->curr_group->uridecodebin, "timeout", g_value_get_uint (value), NULL);
-        }
-        GST_SOURCE_GROUP_UNLOCK (playbin->curr_group);
-      }
-      break;
     case PROP_LOW_PERCENT:
       playbin->low_percent = g_value_get_int (value);
       break;
@@ -2672,6 +2673,19 @@ gst_play_bin_set_property (GObject * object, guint prop_id,
         gst_play_bin_set_flags (playbin, flags);
       }
       break;
+#endif
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0033
+    case PROP_RECONNECTION_TIMEOUT: {
+      if (playbin->curr_group != NULL) {
+        GST_SOURCE_GROUP_LOCK (playbin->curr_group);
+        if (playbin->curr_group->uridecodebin) {
+          g_object_set (playbin->curr_group->uridecodebin, "reconnection-timeout", g_value_get_uint (value), NULL);
+        }
+        GST_SOURCE_GROUP_UNLOCK (playbin->curr_group);
+      }
+      break;
+    }
 #endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);

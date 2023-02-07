@@ -162,6 +162,11 @@ enum
   PROP_MAXCONCURRENT_GLOBAL,
   PROP_HTTPVERSION,
   PROP_IRADIO_MODE,
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0033
+  PROP_RECONNECTION_TIMEOUT,
+  PROP_STATE_CHANGE,
+#endif
   PROP_MAX
 };
 
@@ -225,6 +230,11 @@ static char *gst_curl_http_src_strcasestr (const char *haystack,
 #ifndef GST_DISABLE_GST_DEBUG
 static int gst_curl_http_src_get_debug (CURL * handle, curl_infotype type,
     char *data, size_t size, void *clientp);
+#endif
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0033
+static void gst_curl_http_src_deal_sockets_timeout (GstCurlHttpSrcMultiTaskContext *context);
+static gboolean gst_curl_http_src_reconnect_is_timeout (GstCurlHttpSrc *src);
 #endif
 
 static curl_version_info_data *gst_curl_http_src_curl_capabilities = NULL;
@@ -469,6 +479,22 @@ gst_curl_http_src_class_init (GstCurlHttpSrcClass * klass)
           GST_TYPE_CURL_HTTP_VERSION, pref_http_ver,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0033
+  g_object_class_install_property (gobject_class, PROP_RECONNECTION_TIMEOUT,
+      g_param_spec_uint ("reconnection-timeout", "Reconnection-timeout",
+          "Value in seconds to timeout reconnection",
+          GSTCURL_HANDLE_MIN_CURLOPT_RECONNECTION_TIMEOUT,
+          GSTCURL_HANDLE_MAX_CURLOPT_RECONNECTION_TIMEOUT,
+          GSTCURL_HANDLE_DEFAULT_CURLOPT_RECONNECTION_TIMEOUT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_STATE_CHANGE,
+      g_param_spec_int ("state-change", "State-change from adaptive-demux",
+          "State-change from adaptive-demux", 0, (gint) (G_MAXINT32), 0,
+          G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+#endif
+
   /* Add a debugging task so it's easier to debug in the Multi worker thread */
   GST_DEBUG_CATEGORY_INIT (gst_curl_loop_debug, "curl_multi_loop", 0,
       "libcURL loop thread debugging");
@@ -590,6 +616,19 @@ gst_curl_http_src_set_property (GObject * object, guint prop_id,
     case PROP_HTTPVERSION:
       source->preferred_http_version = g_value_get_enum (value);
       break;
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0033
+    case PROP_RECONNECTION_TIMEOUT: {
+      source->reconnection_timeout = g_value_get_uint (value);
+      GST_DEBUG_OBJECT (source, "set reconnection_timeout to %u us", source->reconnection_timeout);
+      break;
+    }
+    case PROP_STATE_CHANGE: {
+      source->player_state = g_value_get_int (value);
+      GST_DEBUG_OBJECT (source, "set player_state to %d", source->player_state);
+      break;
+    }
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -673,6 +712,12 @@ gst_curl_http_src_get_property (GObject * object, guint prop_id,
     case PROP_HTTPVERSION:
       g_value_set_enum (value, source->preferred_http_version);
       break;
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0033
+    case PROP_RECONNECTION_TIMEOUT:
+      g_value_set_uint (value, source->reconnection_timeout);
+      break;
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -730,6 +775,14 @@ gst_curl_http_src_init (GstCurlHttpSrc * source)
   source->read_position = 0;
 #endif
   source->stop_position = -1;
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0033
+  source->start_usecs = 0;
+  source->end_usecs = 0;
+  source->reconnection_timeout = GSTCURL_HANDLE_DEFAULT_CURLOPT_RECONNECTION_TIMEOUT;
+  source->player_state = GST_PLAYER_STATUS_IDLE;
+#endif
 
   gst_base_src_set_automatic_eos (GST_BASE_SRC (source), FALSE);
 
@@ -989,6 +1042,10 @@ retry:
     src->state = GSTCURL_OK;
     src->transfer_begun = TRUE;
     src->data_received = FALSE;
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0033
+    src->curl_result = CURLE_OK; // refresh the response state code
+#endif
 
     GST_DEBUG_OBJECT (src, "Submitted request for URI %s to curl", src->uri);
 
@@ -1024,6 +1081,16 @@ retry:
 
   ret = gst_curl_http_src_handle_response (src);
   switch (ret) {
+#ifdef OHOS_EXT_FUNC
+    /**
+     * ohos.ext.func.0033
+     * Support reconnection after disconnection in gstcurl.
+     * When reconnected, reset the timeout clock.
+     */
+    case GST_FLOW_OK:
+      src->start_usecs = 0;
+      break;
+#endif
     case GST_FLOW_ERROR:
       /* Don't attempt a retry, just bomb out */
       g_mutex_unlock (&src->buffer_mutex);
@@ -1061,6 +1128,20 @@ retry:
         GST_INFO_OBJECT (src, "NULL'd the headers");
       }
       gst_curl_http_src_destroy_easy_handle (src);
+#ifdef OHOS_EXT_FUNC
+      /**
+       * ohos.ext.func.0033
+       * Support reconnection after disconnection in gstcurl.
+       * When network brokes, try reconnecting until timeout.
+       */
+      if (gst_curl_http_src_reconnect_is_timeout(src)) {
+        CURL_HTTP_SRC_ERROR (src, RESOURCE, TIME_OUT, "reconnection timeout");
+        g_mutex_unlock (&src->buffer_mutex);
+        gst_curl_http_src_wait_until_removed (src);
+        gst_curl_http_src_unref_multi (src);
+        return GST_FLOW_RECONNECTION_TIMEOUT;
+      }
+#endif
       g_mutex_unlock (&src->buffer_mutex);
       goto retry;               /* Attempt a retry! */
     default:
@@ -1338,6 +1419,23 @@ gst_curl_http_src_handle_response (GstCurlHttpSrc * src)
     GST_WARNING_OBJECT (src, "Curl failed the transfer (%d): %s",
         src->curl_result, curl_easy_strerror (src->curl_result));
     GST_DEBUG_OBJECT (src, "Reason for curl failure: %s", src->curl_errbuf);
+#ifdef OHOS_EXT_FUNC
+    /**
+     * ohos.ext.func.0033
+     * Support reconnection after disconnection in gstcurl.
+     * When network brokes, try reconnecting until timeout.
+     * Reconnection time counting will start after player state changing to buffering
+     * and receiving curl error message of "could not connect" or
+     * "operation timeout"(may cost some time after performing operation)
+     */
+    if (src->curl_result == CURLE_COULDNT_CONNECT || src->curl_result == CURLE_OPERATION_TIMEDOUT) {
+      src->data_received = FALSE;
+      if (src->buffer_len > 0) {
+        return GST_FLOW_OK;
+      }
+      return GST_FLOW_CUSTOM_ERROR;
+    }
+#endif
     return GST_FLOW_ERROR;
   }
 
@@ -2030,6 +2128,20 @@ gst_curl_http_src_curl_multi_loop (gpointer thread_data)
         /* select error */
         break;
       case 0:
+#ifdef OHOS_EXT_FUNC
+        /**
+         * ohos.ext.func.0033
+         * Support reconnection after disconnection in gstcurl.
+         * When curl_timeo is -1, that means there's no timeout setted at all, the socket is abnormal.
+         */
+        if (curl_timeo == -1) {
+          GST_INFO ("sockets connect timeout.");
+          gst_curl_http_src_deal_sockets_timeout (context);
+          return;
+        }
+        curl_multi_perform (context->multi_handle, &still_running);
+        break;
+#endif
       default:
         /* timeout or readable/writable sockets */
         curl_multi_perform (context->multi_handle, &still_running);
@@ -2379,5 +2491,55 @@ gst_curl_http_src_get_debug (CURL * handle, curl_infotype type, char *data,
   }
   g_free (msg);
   return 0;
+}
+#endif
+
+#ifdef OHOS_EXT_FUNC
+/**
+ * ohos.ext.func.0033
+ * Support reconnection after disconnection in gstcurl.
+ */
+static void gst_curl_http_src_deal_sockets_timeout (GstCurlHttpSrcMultiTaskContext *context)
+{
+  GstCurlHttpSrcQueueElement *qnext = NULL;
+  GstCurlHttpSrcQueueElement *qelement = context->queue;
+  GstCurlHttpSrc *elt = NULL;
+  while (qelement != NULL) {
+    qnext = qelement->next;
+    elt = qelement->p;
+    g_mutex_lock (&elt->buffer_mutex);
+    elt->curl_result = CURLE_COULDNT_CONNECT;
+    curl_multi_remove_handle (context->multi_handle, elt->curl_handle);
+    elt->connection_status = GSTCURL_NOT_CONNECTED;
+    elt->data_received = FALSE;
+    gst_curl_http_src_remove_queue_item (&context->queue, qelement->p);
+    g_cond_signal (&elt->buffer_cond);
+    g_mutex_unlock (&elt->buffer_mutex);
+    qelement = qnext;
+  }
+}
+
+static gboolean gst_curl_http_src_reconnect_is_timeout (GstCurlHttpSrc *src)
+{
+  if (src->player_state == GST_PLAYER_STATUS_PAUSED || src->player_state == GST_PLAYER_STATUS_PLAYING) {
+    GST_INFO_OBJECT (src, "player_state is paused or playing, donot wait for reconnection");
+    return FALSE;
+  }
+
+  if (src->start_usecs == 0) {
+    src->start_usecs = g_get_monotonic_time ();
+    GST_INFO_OBJECT (src, "Wait for network reconnecting, timeout:0us");
+  } else {
+    src->end_usecs = g_get_monotonic_time ();
+    gint64 time_diff_us = src->end_usecs - src->start_usecs;
+    if (time_diff_us > (gint64)src->reconnection_timeout) {
+      GST_INFO_OBJECT (src, "Network has broken too long, exit! end_usecs:%"G_GINT64_FORMAT" us, "
+          "start_usecs:%"G_GINT64_FORMAT" us, reconnection_timeout:%u us",
+          src->end_usecs, src->start_usecs, src->reconnection_timeout);
+      return TRUE;
+    }
+    GST_INFO_OBJECT (src, "Wait for network reconnecting, timeout:%"G_GINT64_FORMAT"us", time_diff_us);
+  }
+  return FALSE;
 }
 #endif

@@ -204,6 +204,11 @@ struct _GstAdaptiveDemuxStream
   gboolean eos;
 
   gboolean do_block; /* TRUE if stream should block on preroll */
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0033
+  gint errcode;
+#endif
 };
 
 /**

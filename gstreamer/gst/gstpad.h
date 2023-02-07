@@ -175,6 +175,10 @@ typedef enum {
   GST_FLOW_NOT_NEGOTIATED = -4,
   GST_FLOW_ERROR	  = -5,
   GST_FLOW_NOT_SUPPORTED  = -6,
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0033
+  GST_FLOW_RECONNECTION_TIMEOUT = -7,
+#endif
 
   /* custom error starts here */
   GST_FLOW_CUSTOM_ERROR   = -100,
