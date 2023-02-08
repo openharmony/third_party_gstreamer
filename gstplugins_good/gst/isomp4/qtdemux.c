@@ -1107,7 +1107,7 @@ gst_qtdemux_move_stream (GstQTDemux * qtdemux, QtDemuxStream * str,
   str->discont = TRUE;
 }
 
-#ifdef OHOS_OPT_COMPAT
+#ifndef OHOS_OPT_COMPAT
 /* ohos.opt.compat.0055 */
 static gboolean
 gst_qtdemux_is_audio_duration_less (GstQTDemux * qtdemux)
@@ -1132,7 +1132,7 @@ gst_qtdemux_adjust_seek (GstQTDemux * qtdemux, gint64 desired_time,
     gboolean use_sparse, gboolean next, gint64 * key_time, gint64 * key_offset)
 {
   guint64 min_offset;
-#ifdef OHOS_OPT_COMPAT
+#ifndef OHOS_OPT_COMPAT
   /* ohos.opt.compat.0055 */
   guint64 max_time = 0;
   guint64 min_time = G_MAXUINT64;
@@ -1210,7 +1210,7 @@ gst_qtdemux_adjust_seek (GstQTDemux * qtdemux, gint64 desired_time,
        * accurate and avoid having the first buffer fall outside of the segment
        */
       if (kindex != -1) {
-#ifdef OHOS_OPT_COMPAT
+#ifndef OHOS_OPT_COMPAT
         /**
          * ohos.opt.compat.0055
          * when video stream and audio stream are different duration(edge. video duration is 01:50,
@@ -1219,7 +1219,8 @@ gst_qtdemux_adjust_seek (GstQTDemux * qtdemux, gint64 desired_time,
          */
         if (gst_qtdemux_is_audio_duration_less(qtdemux)) {
           guint64 temp_time = QTSAMPLE_PTS_NO_CSLG (str, &str->samples[kindex]);
-          if ((!next && max_time > temp_time) || (next && min_time < temp_time)) {
+          if ((!next && (max_time > temp_time || desired_time < temp_time)) ||
+            (next && (min_time < temp_time || desired_time > temp_time))) {
             continue;
           }
           max_time = temp_time;
