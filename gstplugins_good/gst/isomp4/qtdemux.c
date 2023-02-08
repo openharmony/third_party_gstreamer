@@ -1107,7 +1107,7 @@ gst_qtdemux_move_stream (GstQTDemux * qtdemux, QtDemuxStream * str,
   str->discont = TRUE;
 }
 
-#ifdef OHOS_OPT_COMPAT
+#ifndef OHOS_OPT_COMPAT
 /* ohos.opt.compat.0055 */
 static gboolean
 gst_qtdemux_is_audio_duration_less (GstQTDemux * qtdemux)
