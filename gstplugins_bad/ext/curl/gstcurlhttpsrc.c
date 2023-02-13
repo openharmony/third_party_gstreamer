@@ -956,7 +956,9 @@ retry:
 
 #ifdef OHOS_EXT_FUNC
   /* ohos.ext.func.0025 for seek */
+  g_mutex_lock (&src->cleanup_muxtex);
   gst_curl_http_src_handle_seek(src);
+  g_mutex_unlock (&src->cleanup_muxtex);
 #endif
 
   /* NOTE: when both the buffer_mutex and multi_task_context.mutex are
@@ -1564,12 +1566,23 @@ gst_curl_http_src_change_state (GstElement * element, GstStateChange transition)
       }
       break;
     case GST_STATE_CHANGE_READY_TO_NULL:
+#ifdef OHOS_EXT_FUNC
+      g_mutex_lock (&source->cleanup_muxtex);
+      GST_DEBUG_OBJECT (source, "Removing from multi_loop queue...");
+      /* The pipeline has ended, so signal any running request to end
+         and wait until the multi_loop has stopped using this element */
+      gst_curl_http_src_wait_until_removed (source);
+      gst_curl_http_src_unref_multi (source);
+      g_mutex_unlock (&source->cleanup_muxtex);
+      break;
+#else
       GST_DEBUG_OBJECT (source, "Removing from multi_loop queue...");
       /* The pipeline has ended, so signal any running request to end
          and wait until the multi_loop has stopped using this element */
       gst_curl_http_src_wait_until_removed (source);
       gst_curl_http_src_unref_multi (source);
       break;
+#endif
     default:
       break;
   }
