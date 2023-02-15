@@ -728,6 +728,7 @@ gst_curl_http_src_init (GstCurlHttpSrc * source)
   /* ohos.ext.func.0025 support https seek: */
   source->orig_request_pos = 0;
   source->read_position = 0;
+  g_mutex_init (&source->cleanup_mutex);
 #endif
   source->stop_position = -1;
 
@@ -956,9 +957,9 @@ retry:
 
 #ifdef OHOS_EXT_FUNC
   /* ohos.ext.func.0025 for seek */
-  g_mutex_lock (&src->cleanup_muxtex);
+  g_mutex_lock (&src->cleanup_mutex);
   gst_curl_http_src_handle_seek(src);
-  g_mutex_unlock (&src->cleanup_muxtex);
+  g_mutex_unlock (&src->cleanup_mutex);
 #endif
 
   /* NOTE: when both the buffer_mutex and multi_task_context.mutex are
@@ -1568,7 +1569,7 @@ gst_curl_http_src_change_state (GstElement * element, GstStateChange transition)
     case GST_STATE_CHANGE_READY_TO_NULL:
 #ifdef OHOS_EXT_FUNC
       /* ohos.ext.func.0025 for seek(gst_curl_http_src_handle_seek) prevent concurrency */
-      g_mutex_lock (&source->cleanup_muxtex);
+      g_mutex_lock (&source->cleanup_mutex);
 #endif
       GST_DEBUG_OBJECT (source, "Removing from multi_loop queue...");
       /* The pipeline has ended, so signal any running request to end
@@ -1577,7 +1578,7 @@ gst_curl_http_src_change_state (GstElement * element, GstStateChange transition)
       gst_curl_http_src_unref_multi (source);
 #ifdef OHOS_EXT_FUNC
       /* ohos.ext.func.0025 for seek(gst_curl_http_src_handle_seek) prevent concurrency */
-      g_mutex_unlock (&source->cleanup_muxtex);
+      g_mutex_unlock (&source->cleanup_mutex);
 #endif
       break;
     default:
@@ -1626,6 +1627,11 @@ gst_curl_http_src_cleanup_instance (GstCurlHttpSrc * src)
   src->user_agent = NULL;
 
   g_mutex_clear (&src->buffer_mutex);
+
+#ifdef OHOS_EXT_FUNC
+  /* ohos.ext.func.0025 support https seek: */
+  g_mutex_clear (&src->cleanup_mutex);
+#endif
 
   g_cond_clear (&src->buffer_cond);
 
