@@ -728,6 +728,9 @@ gst_curl_http_src_init (GstCurlHttpSrc * source)
   /* ohos.ext.func.0025 support https seek: */
   source->orig_request_pos = 0;
   source->read_position = 0;
+#endif
+#ifdef OHOS_OPT_STABLE
+  /* ohos.opt.stable.0003 for (curl_easy_cleanup/curl_multi_cleanup) prevent concurrency */
   g_mutex_init (&source->cleanup_mutex);
 #endif
   source->stop_position = -1;
@@ -857,14 +860,14 @@ gst_curl_http_src_unref_multi (GstCurlHttpSrc * src)
     gst_task_join (klass->multi_task_context.task);
     gst_object_unref (klass->multi_task_context.task);
     klass->multi_task_context.task = NULL;
-#ifdef OHOS_EXT_FUNC
-    /* ohos.ext.func.0025 for seek(curl_easy_cleanup) prevent concurrency */
+#ifdef OHOS_OPT_STABLE
+    /* ohos.opt.stable.0003 for seek(curl_easy_cleanup) prevent concurrency */
     g_mutex_lock (&src->cleanup_mutex);
 #endif
     curl_multi_cleanup (klass->multi_task_context.multi_handle);
     klass->multi_task_context.multi_handle = NULL;
-#ifdef OHOS_EXT_FUNC
-    /* ohos.ext.func.0025 for seek(curl_easy_cleanup) prevent concurrency */
+#ifdef OHOS_OPT_STABLE
+    /* ohos.opt.stable.0003 for seek(curl_easy_cleanup) prevent concurrency */
     g_mutex_unlock (&src->cleanup_mutex);
 #endif
     g_rec_mutex_clear (&klass->multi_task_context.task_rec_mutex);
@@ -1542,8 +1545,8 @@ gst_curl_http_src_negotiate_caps (GstCurlHttpSrc * src)
 static inline void
 gst_curl_http_src_destroy_easy_handle (GstCurlHttpSrc * src)
 {
-#ifdef OHOS_EXT_FUNC
-  /* ohos.ext.func.0025 for seek(curl_multi_cleanup) prevent concurrency */
+#ifdef OHOS_OPT_STABLE
+  /* ohos.opt.stable.0003 for unref(curl_multi_cleanup) prevent concurrency */
   g_mutex_lock (&src->cleanup_mutex);
 #endif
   /* Thank you Handles, and well done. Well done, mate. */
@@ -1551,8 +1554,8 @@ gst_curl_http_src_destroy_easy_handle (GstCurlHttpSrc * src)
     curl_easy_cleanup (src->curl_handle);
     src->curl_handle = NULL;
   }
-#ifdef OHOS_EXT_FUNC
-  /* ohos.ext.func.0025 for seek(curl_multi_cleanup) prevent concurrency */
+#ifdef OHOS_OPT_STABLE
+  /* ohos.opt.stable.0003 for unref(curl_multi_cleanup) prevent concurrency */
   g_mutex_unlock (&src->cleanup_mutex);
 #endif
 
@@ -1635,8 +1638,8 @@ gst_curl_http_src_cleanup_instance (GstCurlHttpSrc * src)
 
   g_mutex_clear (&src->buffer_mutex);
 
-#ifdef OHOS_EXT_FUNC
-  /* ohos.ext.func.0025 support https seek: */
+#ifdef OHOS_OPT_STABLE
+  /* ohos.opt.stable.0003 for (curl_easy_cleanup/curl_multi_cleanup) prevent concurrency */
   g_mutex_clear (&src->cleanup_mutex);
 #endif
 
