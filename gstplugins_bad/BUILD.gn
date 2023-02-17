@@ -119,6 +119,7 @@ config("gst_plugins_config") {
     "-DOHOS_EXT_FUNC",
     "-DOHOS_GLIB_COMPATIBLE",
     "-DOHOS_OPT_COMPAT",
+    "-DOHOS_OPT_STABLE",
     "-DGST_USE_UNSTABLE_API",
     "-DG_LOG_DOMAIN=\"GStreamer\"",
   ]
