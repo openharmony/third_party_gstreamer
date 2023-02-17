@@ -857,8 +857,16 @@ gst_curl_http_src_unref_multi (GstCurlHttpSrc * src)
     gst_task_join (klass->multi_task_context.task);
     gst_object_unref (klass->multi_task_context.task);
     klass->multi_task_context.task = NULL;
+#ifdef OHOS_EXT_FUNC
+    /* ohos.ext.func.0025 for seek(curl_easy_cleanup) prevent concurrency */
+    g_mutex_lock (&src->cleanup_mutex);
+#endif
     curl_multi_cleanup (klass->multi_task_context.multi_handle);
     klass->multi_task_context.multi_handle = NULL;
+#ifdef OHOS_EXT_FUNC
+    /* ohos.ext.func.0025 for seek(curl_easy_cleanup) prevent concurrency */
+    g_mutex_unlock (&src->cleanup_mutex);
+#endif
     g_rec_mutex_clear (&klass->multi_task_context.task_rec_mutex);
     GST_DEBUG_OBJECT (src, "multi_task_context cleanup complete");
   } else {
@@ -957,9 +965,7 @@ retry:
 
 #ifdef OHOS_EXT_FUNC
   /* ohos.ext.func.0025 for seek */
-  g_mutex_lock (&src->cleanup_mutex);
   gst_curl_http_src_handle_seek(src);
-  g_mutex_unlock (&src->cleanup_mutex);
 #endif
 
   /* NOTE: when both the buffer_mutex and multi_task_context.mutex are
@@ -1536,11 +1542,20 @@ gst_curl_http_src_negotiate_caps (GstCurlHttpSrc * src)
 static inline void
 gst_curl_http_src_destroy_easy_handle (GstCurlHttpSrc * src)
 {
+#ifdef OHOS_EXT_FUNC
+  /* ohos.ext.func.0025 for seek(curl_multi_cleanup) prevent concurrency */
+  g_mutex_lock (&src->cleanup_mutex);
+#endif
   /* Thank you Handles, and well done. Well done, mate. */
   if (src->curl_handle != NULL) {
     curl_easy_cleanup (src->curl_handle);
     src->curl_handle = NULL;
   }
+#ifdef OHOS_EXT_FUNC
+  /* ohos.ext.func.0025 for seek(curl_multi_cleanup) prevent concurrency */
+  g_mutex_unlock (&src->cleanup_mutex);
+#endif
+
   /* In addition, clean up the curl header slist if it was used. */
   if (src->slist != NULL) {
     curl_slist_free_all (src->slist);
@@ -1567,19 +1582,11 @@ gst_curl_http_src_change_state (GstElement * element, GstStateChange transition)
       }
       break;
     case GST_STATE_CHANGE_READY_TO_NULL:
-#ifdef OHOS_EXT_FUNC
-      /* ohos.ext.func.0025 for seek(gst_curl_http_src_handle_seek) prevent concurrency */
-      g_mutex_lock (&source->cleanup_mutex);
-#endif
       GST_DEBUG_OBJECT (source, "Removing from multi_loop queue...");
       /* The pipeline has ended, so signal any running request to end
          and wait until the multi_loop has stopped using this element */
       gst_curl_http_src_wait_until_removed (source);
       gst_curl_http_src_unref_multi (source);
-#ifdef OHOS_EXT_FUNC
-      /* ohos.ext.func.0025 for seek(gst_curl_http_src_handle_seek) prevent concurrency */
-      g_mutex_unlock (&source->cleanup_mutex);
-#endif
       break;
     default:
       break;
