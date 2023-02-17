@@ -1222,9 +1222,13 @@ gst_qtdemux_adjust_seek (GstQTDemux * qtdemux, gint64 desired_time,
          */
         GST_DEBUG_OBJECT (qtdemux,
           "min_duration %" GST_TIME_FORMAT " desired_time %" GST_TIME_FORMAT " next %d max_time %" GST_TIME_FORMAT "",
-          GST_TIME_ARGS (min_duration), GST_TIME_ARGS (desired_time), next, GST_TIME_ARGS (max_time));
-        if ((min_duration < desired_time) &&
-          (!next && (max_time > media_time))) { // forward seek, find all tracks the biggest key frames time
+          GST_TIME_ARGS (QTSTREAMTIME_TO_GSTTIME(str, min_duration)),
+          GST_TIME_ARGS (desired_time), next, GST_TIME_ARGS (max_time));
+        /**
+         * diffent: compared with the original logic, forward seek may miss video key frames
+         * forward seek, find all tracks the biggest key frames time
+         */
+        if ((min_duration < desired_time) && (!next && (max_time > media_time))) {
           continue;
         }
         max_time = media_time;
