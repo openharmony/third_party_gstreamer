@@ -178,6 +178,8 @@ enum
 // ohos.ext.func.0028
 enum {
   SIGNAL_BITRATE_PARSE_COMPLETE,
+// ohos.ext.func.0034
+  SIGNAL_IS_LIVE_SCENE,
   LAST_SIGNALS
 };
 
@@ -589,6 +591,13 @@ gst_adaptive_demux_class_init (GstAdaptiveDemuxClass * klass)
         g_signal_new("bitrate-parse-complete",
             G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST,
             0, NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 2, G_TYPE_POINTER, G_TYPE_UINT);
+#endif
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0034
+  g_gst_adaptive_demux_signals[SIGNAL_IS_LIVE_SCENE] =
+        g_signal_new("is-live-scene", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST,
+            0, NULL, NULL, g_cclosure_marshal_generic, G_TYPE_NONE, 1, G_TYPE_BOOLEAN);
 #endif
 
   gstelement_class->change_state = gst_adaptive_demux_change_state;
@@ -2428,6 +2437,10 @@ gst_adaptive_demux_start_manifest_update_task (GstAdaptiveDemux * demux)
   GstAdaptiveDemuxClass *demux_class = GST_ADAPTIVE_DEMUX_GET_CLASS (demux);
 
   if (gst_adaptive_demux_is_live (demux)) {
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0034
+    g_signal_emit (GST_ELEMENT(demux), g_gst_adaptive_demux_signals[SIGNAL_IS_LIVE_SCENE], 0, TRUE);
+#endif
     gst_uri_downloader_reset (demux->downloader);
     g_mutex_lock (&demux->priv->updates_timed_lock);
     demux->priv->stop_updates_task = FALSE;
