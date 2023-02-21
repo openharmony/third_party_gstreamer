@@ -3085,6 +3085,12 @@ negotiate_failed:
   {
     GST_DEBUG_OBJECT (src, "Not negotiated");
     ret = GST_FLOW_NOT_NEGOTIATED;
+/*
+ * ohos.ext.func.0003: Errors need to be reported when negotiation fails.
+ */
+#ifdef OHOS_EXT_FUNC
+      GST_ELEMENT_FLOW_ERROR (src, ret);
+#endif
     goto pause;
   }
 flushing:
