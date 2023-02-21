@@ -2686,10 +2686,12 @@ check_completed_gop (GstSplitMuxSink * splitmux, MqStreamCtx * ctx)
 #ifdef OHOS_OPT_COMPAT
       /* ohos.opt.stable.0045
        * When the plug-in does not switch to the playing state, there is no data passing by.
-       * At this time, it receives the eos signal, and the gop and gops are null, resulting in an assertion error */
+       * At this time, it receives the eos signal, and the gop and gops are null, resulting in an assertion error.
+       * Set input_state to COLLECTING_GOP_START, put non-reference data source into sleep and stop receiving data */
       if ((gop == NULL) && (next_gop == NULL)) {
-          GST_WARNING_OBJECT (splitmux, "No further GOPs finished collecting");
-          break;
+          GST_WARNING_OBJECT (splitmux, "Received eos signal. No further GOPs finished collecting");
+          splitmux->input_state = SPLITMUX_INPUT_STATE_COLLECTING_GOP_START;
+          return;
       }
 #endif
 
