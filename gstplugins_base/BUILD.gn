@@ -547,9 +547,6 @@ ohos_shared_library("gstvideoscale") {
 
 ohos_source_set("app_source") {
   sources = [
-    "gst-libs/gst/app/app-enumtypes.c",
-    "gst-libs/gst/app/gstappsink.c",
-    "gst-libs/gst/app/gstappsrc.c",
     "gst/app/gstapp.c",
     "gst/app/gstappsink.c",
     "gst/app/gstappsrc.c",
@@ -561,6 +558,7 @@ ohos_source_set("app_source") {
 ohos_shared_library("gstapp") {
   deps = [
     ":app_source",
+    ":gstapp_plugin",
     "//third_party/glib:glib",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstreamer:gstbase",
@@ -568,6 +566,29 @@ ohos_shared_library("gstapp") {
   ]
 
   relative_install_dir = "media/plugins"
+  part_name = "multimedia_player_framework"
+  subsystem_name = "multimedia"
+}
+
+ohos_source_set("app_source_plugin") {
+  sources = [
+    "gst-libs/gst/app/app-enumtypes.c",
+    "gst-libs/gst/app/gstappsink.c",
+    "gst-libs/gst/app/gstappsrc.c",
+  ]
+
+  configs = [ ":gst_plugins_config" ]
+}
+
+ohos_shared_library("gstapp_plugin") {
+  deps = [
+    ":app_source_plugin",
+    "//third_party/glib:glib",
+    "//third_party/glib:gobject",
+    "//third_party/gstreamer/gstreamer:gstbase",
+    "//third_party/gstreamer/gstreamer:gstreamer",
+  ]
+
   part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"
 }
