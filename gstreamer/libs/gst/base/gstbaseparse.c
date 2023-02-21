@@ -220,6 +220,13 @@ struct _GstBaseParsePrivate
 
   guint min_frame_size;
   gboolean disable_passthrough;
+#ifdef OHOS_OPT_COMPAT
+/**
+ * ohos.opt.compat.0056
+ * Solve the problem that the picture is too large to cause buffer exhausted, in datasrc case.
+ */
+  guint datasrc_bufferpool_size;
+#endif
   gboolean passthrough;
   gboolean pts_interpolate;
   gboolean infer_ts;
@@ -359,6 +366,10 @@ enum
 {
   PROP_0,
   PROP_DISABLE_PASSTHROUGH,
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0056
+  PROP_DATASRC_BUFFERPOOL_SIZE,
+#endif
   PROP_LAST
 };
 
@@ -564,6 +575,13 @@ gst_base_parse_class_init (GstBaseParseClass * klass)
           "Force processing (disables passthrough)",
           DEFAULT_DISABLE_PASSTHROUGH,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0056
+  g_object_class_install_property (gobject_class, PROP_DATASRC_BUFFERPOOL_SIZE,
+      g_param_spec_uint ("bufferpool-size", "Bufferpool size",
+          "size of the datasrc bufferpool", 0, G_MAXUINT, 0,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#endif
 
   gstelement_class = (GstElementClass *) klass;
   gstelement_class->change_state =
@@ -643,6 +661,10 @@ gst_base_parse_init (GstBaseParse * parse, GstBaseParseClass * bclass)
   parse->priv->parser_tags = NULL;
   parse->priv->parser_tags_merge_mode = GST_TAG_MERGE_APPEND;
   parse->priv->disable_passthrough = DEFAULT_DISABLE_PASSTHROUGH;
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0056
+  parse->priv->datasrc_bufferpool_size = 0;
+#endif
 }
 
 static void
@@ -655,6 +677,13 @@ gst_base_parse_set_property (GObject * object, guint prop_id,
     case PROP_DISABLE_PASSTHROUGH:
       parse->priv->disable_passthrough = g_value_get_boolean (value);
       break;
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0056
+    case PROP_DATASRC_BUFFERPOOL_SIZE:
+      parse->priv->datasrc_bufferpool_size = g_value_get_uint (value);
+      GST_DEBUG_OBJECT (parse, "set bufferpool size : %u", parse->priv->datasrc_bufferpool_size);
+      break;
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -671,6 +700,12 @@ gst_base_parse_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_DISABLE_PASSTHROUGH:
       g_value_set_boolean (value, parse->priv->disable_passthrough);
       break;
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0056
+    case PROP_DATASRC_BUFFERPOOL_SIZE:
+      g_value_set_uint (value, parse->priv->disable_passthrough);
+      break;
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -3231,7 +3266,17 @@ gst_base_parse_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
         parse->priv->discont = TRUE;
       }
     }
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0056
+    if (parse->priv->datasrc_bufferpool_size == 0 || parse->priv->min_frame_size <= parse->priv->datasrc_bufferpool_size) {
+      gst_adapter_push (parse->priv->adapter, buffer);
+    } else {
+      gst_adapter_push (parse->priv->adapter, gst_buffer_copy(buffer));
+      gst_buffer_unref(buffer);
+    }
+#else
     gst_adapter_push (parse->priv->adapter, buffer);
+#endif
   }
 
   /* Parse and push as many frames as possible */
