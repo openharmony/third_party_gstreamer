@@ -1107,23 +1107,18 @@ gst_qtdemux_move_stream (GstQTDemux * qtdemux, QtDemuxStream * str,
   str->discont = TRUE;
 }
 
-#ifndef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_COMPAT
 /* ohos.opt.compat.0055 */
-static gboolean
-gst_qtdemux_is_audio_duration_less (GstQTDemux * qtdemux)
+static gint64 gst_qtdemux_get_all_tracks_minimum_duration(GstQTDemux * qtdemux)
 {
-  gint i;
-  guint64 audio_duration = 0;
-  guint64 video_duration = 0;
-  for (i = 0; i < QTDEMUX_N_STREAMS (qtdemux); i++) {
+  guint64 min_duration = G_MAXUINT64;
+  for (guint i = 0; i < QTDEMUX_N_STREAMS (qtdemux); i++) {
     QtDemuxStream *str = QTDEMUX_NTH_STREAM (qtdemux, i);
-    if (str->subtype == FOURCC_vide) {
-      video_duration = str->duration;
-    } else if (str->subtype == FOURCC_soun) {
-      audio_duration = str->duration;
+    if (str->duration < min_duration) {
+      min_duration = str->duration;
     }
   }
-  return audio_duration < video_duration;
+  return min_duration;
 }
 #endif
 
@@ -1132,10 +1127,10 @@ gst_qtdemux_adjust_seek (GstQTDemux * qtdemux, gint64 desired_time,
     gboolean use_sparse, gboolean next, gint64 * key_time, gint64 * key_offset)
 {
   guint64 min_offset;
-#ifndef OHOS_OPT_COMPAT
+#ifdef OHOS_OPT_COMPAT
   /* ohos.opt.compat.0055 */
   guint64 max_time = 0;
-  guint64 min_time = G_MAXUINT64;
+  guint64 min_duration = gst_qtdemux_get_all_tracks_minimum_duration(qtdemux);
 #endif
   gint64 min_byte_offset = -1;
   guint i;
@@ -1210,23 +1205,6 @@ gst_qtdemux_adjust_seek (GstQTDemux * qtdemux, gint64 desired_time,
        * accurate and avoid having the first buffer fall outside of the segment
        */
       if (kindex != -1) {
-#ifndef OHOS_OPT_COMPAT
-        /**
-         * ohos.opt.compat.0055
-         * when video stream and audio stream are different duration(edge. video duration is 01:50,
-         * audio duration is 0:35), it will lead seek done offset has a huge gap with seek offset.
-         * Thus, return a timestamp closest to the seek offset.
-         */
-        if (gst_qtdemux_is_audio_duration_less(qtdemux)) {
-          guint64 temp_time = QTSAMPLE_PTS_NO_CSLG (str, &str->samples[kindex]);
-          if ((!next && (max_time > temp_time || desired_time < temp_time)) ||
-            (next && (min_time < temp_time || desired_time > temp_time))) {
-            continue;
-          }
-          max_time = temp_time;
-          min_time = temp_time;
-        }
-#endif
         index = kindex;
 
         /* get timestamp of keyframe */
@@ -1235,7 +1213,26 @@ gst_qtdemux_adjust_seek (GstQTDemux * qtdemux, gint64 desired_time,
             "keyframe at %u with time %" GST_TIME_FORMAT " at offset %"
             G_GUINT64_FORMAT, kindex, GST_TIME_ARGS (media_time),
             str->samples[kindex].offset);
-
+#ifdef OHOS_OPT_COMPAT
+        /**
+         * ohos.opt.compat.0055
+         * when video stream and audio stream are different duration(edge. video duration is 01:50,
+         * audio duration is 0:35), it will lead seek done offset has a huge gap with seek offset.
+         * Thus, return a timestamp closest to the seek offset.
+         */
+        GST_DEBUG_OBJECT (qtdemux,
+          "min_duration %" GST_TIME_FORMAT " desired_time %" GST_TIME_FORMAT " next %d max_time %" GST_TIME_FORMAT "",
+          GST_TIME_ARGS (QTSTREAMTIME_TO_GSTTIME(str, min_duration)),
+          GST_TIME_ARGS (desired_time), next, GST_TIME_ARGS (max_time));
+        /**
+         * diffent: compared with the original logic, forward seek may miss video key frames
+         * forward seek, find all tracks the biggest key frames time
+         */
+        if ((min_duration < desired_time) && (!next && (max_time > media_time))) {
+          continue;
+        }
+        max_time = media_time;
+#endif
         /* keyframes in the segment get a chance to change the
          * desired_offset. keyframes out of the segment are
          * ignored. */
