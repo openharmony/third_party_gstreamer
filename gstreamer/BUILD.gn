@@ -50,6 +50,7 @@ config("gst_config") {
     "-Wno-builtin-requires-header",
     "-Wno-unused-variable",
     "-Wno-unused-function",
+    "-Wno-unused-but-set-variable",
   ]
 }
 
