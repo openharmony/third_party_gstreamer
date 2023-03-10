@@ -775,8 +775,8 @@ gst_curl_http_src_init (GstCurlHttpSrc * source)
   source->read_position = 0;
 #endif
 #ifdef OHOS_OPT_STABLE
-  /* ohos.opt.stable.0003 for (curl_easy_cleanup/curl_multi_cleanup) prevent concurrency */
-  g_mutex_init (&source->cleanup_mutex);
+  /* ohos.opt.stable.0003 for multiple instances ref/unref mutex */
+  g_mutex_init (&source->multiple_mutex);
 #endif
   source->stop_position = -1;
 
@@ -913,16 +913,8 @@ gst_curl_http_src_unref_multi (GstCurlHttpSrc * src)
     gst_task_join (klass->multi_task_context.task);
     gst_object_unref (klass->multi_task_context.task);
     klass->multi_task_context.task = NULL;
-#ifdef OHOS_OPT_STABLE
-    /* ohos.opt.stable.0003 for seek(curl_easy_cleanup) prevent concurrency */
-    g_mutex_lock (&src->cleanup_mutex);
-#endif
     curl_multi_cleanup (klass->multi_task_context.multi_handle);
     klass->multi_task_context.multi_handle = NULL;
-#ifdef OHOS_OPT_STABLE
-    /* ohos.opt.stable.0003 for seek(curl_easy_cleanup) prevent concurrency */
-    g_mutex_unlock (&src->cleanup_mutex);
-#endif
     g_rec_mutex_clear (&klass->multi_task_context.task_rec_mutex);
     GST_DEBUG_OBJECT (src, "multi_task_context cleanup complete");
   } else {
@@ -1149,8 +1141,6 @@ retry:
       if (gst_curl_http_src_reconnect_is_timeout(src)) {
         CURL_HTTP_SRC_ERROR (src, RESOURCE, TIME_OUT, "reconnection timeout");
         g_mutex_unlock (&src->buffer_mutex);
-        gst_curl_http_src_wait_until_removed (src);
-        gst_curl_http_src_unref_multi (src);
         return GST_FLOW_RECONNECTION_TIMEOUT;
       }
 #endif
@@ -1643,19 +1633,11 @@ gst_curl_http_src_negotiate_caps (GstCurlHttpSrc * src)
 static inline void
 gst_curl_http_src_destroy_easy_handle (GstCurlHttpSrc * src)
 {
-#ifdef OHOS_OPT_STABLE
-  /* ohos.opt.stable.0003 for unref(curl_multi_cleanup) prevent concurrency */
-  g_mutex_lock (&src->cleanup_mutex);
-#endif
   /* Thank you Handles, and well done. Well done, mate. */
   if (src->curl_handle != NULL) {
     curl_easy_cleanup (src->curl_handle);
     src->curl_handle = NULL;
   }
-#ifdef OHOS_OPT_STABLE
-  /* ohos.opt.stable.0003 for unref(curl_multi_cleanup) prevent concurrency */
-  g_mutex_unlock (&src->cleanup_mutex);
-#endif
 
   /* In addition, clean up the curl header slist if it was used. */
   if (src->slist != NULL) {
@@ -1673,7 +1655,15 @@ gst_curl_http_src_change_state (GstElement * element, GstStateChange transition)
 
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
+#ifdef OHOS_OPT_STABLE
+      /* ohos.opt.stable.0003 for multiple instances unref mutex */
+      g_mutex_lock (&source->multiple_mutex);
+#endif
       gst_curl_http_src_ref_multi (source);
+#ifdef OHOS_OPT_STABLE
+      /* ohos.opt.stable.0003 for multiple instances unref mutex */
+      g_mutex_unlock (&source->multiple_mutex);
+#endif
       break;
     case GST_STATE_CHANGE_READY_TO_PAUSED:
       if (source->uri == NULL) {
@@ -1686,8 +1676,16 @@ gst_curl_http_src_change_state (GstElement * element, GstStateChange transition)
       GST_DEBUG_OBJECT (source, "Removing from multi_loop queue...");
       /* The pipeline has ended, so signal any running request to end
          and wait until the multi_loop has stopped using this element */
+#ifdef OHOS_OPT_STABLE
+      /* ohos.opt.stable.0003 for multiple instances ref mutex */
+      g_mutex_lock (&source->multiple_mutex);
+#endif
       gst_curl_http_src_wait_until_removed (source);
       gst_curl_http_src_unref_multi (source);
+#ifdef OHOS_OPT_STABLE
+      /* ohos.opt.stable.0003 for multiple instances ref mutex */
+      g_mutex_unlock (&source->multiple_mutex);
+#endif
       break;
     default:
       break;
@@ -1737,8 +1735,8 @@ gst_curl_http_src_cleanup_instance (GstCurlHttpSrc * src)
   g_mutex_clear (&src->buffer_mutex);
 
 #ifdef OHOS_OPT_STABLE
-  /* ohos.opt.stable.0003 for (curl_easy_cleanup/curl_multi_cleanup) prevent concurrency */
-  g_mutex_clear (&src->cleanup_mutex);
+  /* ohos.opt.stable.0003 for multiple instances ref/unref mutex */
+  g_mutex_clear (&src->multiple_mutex);
 #endif
 
   g_cond_clear (&src->buffer_cond);

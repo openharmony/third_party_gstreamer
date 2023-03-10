@@ -181,7 +181,7 @@ struct _GstCurlHttpSrc
   guint64 request_position;     /* Seek to this position. */
   guint64 orig_request_pos;     /* Original request position. */
   guint64 read_position;        /* Current position. */
-  GMutex cleanup_mutex;         /* Easy cleanup and multi cleanup mutex. */
+  GMutex multiple_mutex;        /* multiple ref/unref mutex. */
 #else
   gint64 request_position;     /* Seek to this position. */
 #endif
