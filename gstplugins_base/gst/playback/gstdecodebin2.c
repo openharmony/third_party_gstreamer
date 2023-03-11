@@ -3629,19 +3629,8 @@ gst_decode_chain_free_internal (GstDecodeChain * chain, gboolean hide)
       }
     }
 
-#ifdef OHOS_OPT_COMPAT
-    /* ohos.opt.compat.0024
-      When changing the codec, the hardware plug-in is removed but does not stop,
-      which will cause the newly created hardware plug-in to report that there is still a buffer outside
-      when negotiating the pool with the surfacesink, resulting in the failure of the negotiation pool */
-    if (GST_OBJECT_PARENT (element) == GST_OBJECT_CAST (chain->dbin)) {
-      gst_element_set_state (element, GST_STATE_NULL);
-      gst_bin_remove (GST_BIN_CAST (chain->dbin), element);
-    }
-#else
     if (GST_OBJECT_PARENT (element) == GST_OBJECT_CAST (chain->dbin))
       gst_bin_remove (GST_BIN_CAST (chain->dbin), element);
-#endif
 
     if (!hide) {
       set_to_null = g_list_append (set_to_null, gst_object_ref (element));
@@ -4294,6 +4283,18 @@ flush_chain (GstDecodeChain * chain, gboolean flushing)
     g_list_free (chain->next_groups);
     chain->next_groups = NULL;
   }
+#ifdef OHOS_OPT_COMPAT
+  /**
+   * ohos.opt.compat.0024
+   * When changing the codec, the hardware plug-in is removed but does not stop,
+   * which will cause the newly created hardware plug-in to report that there is still a buffer outside
+   * when negotiating the pool with the surfacesink, resulting in the failure of the negotiation pool
+   */
+  if (flushing == FALSE && chain->old_groups) {
+    GST_DEBUG_OBJECT(dbin, "Free old groups");
+    gst_decode_chain_start_free_hidden_groups_thread (chain);
+  }
+#endif
   /* Mark all groups as flushing */
   if (chain->active_group)
     flush_group (chain->active_group, flushing);
