@@ -509,6 +509,10 @@ gst_curl_http_src_class_init (GstCurlHttpSrcClass * klass)
   klass->multi_task_context.state = GSTCURL_MULTI_LOOP_STATE_STOP;
   klass->multi_task_context.multi_handle = NULL;
   g_mutex_init (&klass->multi_task_context.mutex);
+#ifdef OHOS_OPT_STABLE
+  /* ohos.opt.stable.0003 for multiple instances ref/unref mutex */
+  g_mutex_init (&klass->multi_task_context.multiple_mutex);
+#endif
   g_cond_init (&klass->multi_task_context.signal);
 
   gst_element_class_set_static_metadata (gstelement_class,
@@ -774,10 +778,6 @@ gst_curl_http_src_init (GstCurlHttpSrc * source)
   source->orig_request_pos = 0;
   source->read_position = 0;
 #endif
-#ifdef OHOS_OPT_STABLE
-  /* ohos.opt.stable.0003 for (curl_easy_cleanup/curl_multi_cleanup) prevent concurrency */
-  g_mutex_init (&source->cleanup_mutex);
-#endif
   source->stop_position = -1;
 
 #ifdef OHOS_EXT_FUNC
@@ -831,6 +831,11 @@ gst_curl_http_src_ref_multi (GstCurlHttpSrc * src)
   klass = G_TYPE_INSTANCE_GET_CLASS (src, GST_TYPE_CURL_HTTP_SRC,
       GstCurlHttpSrcClass);
 
+#ifdef OHOS_OPT_STABLE
+  /* ohos.opt.stable.0003 for multiple instances unref mutex */
+  g_mutex_lock (&klass->multi_task_context.multiple_mutex);
+#endif
+
   g_mutex_lock (&klass->multi_task_context.mutex);
   if (klass->multi_task_context.refcount == 0) {
     /* Set up various in-task properties */
@@ -869,6 +874,11 @@ gst_curl_http_src_ref_multi (GstCurlHttpSrc * src)
   klass->multi_task_context.refcount++;
   g_mutex_unlock (&klass->multi_task_context.mutex);
 
+#ifdef OHOS_OPT_STABLE
+  /* ohos.opt.stable.0003 for multiple instances unref mutex */
+  g_mutex_unlock (&klass->multi_task_context.multiple_mutex);
+#endif
+
   GSTCURL_FUNCTION_EXIT (src);
 }
 
@@ -888,6 +898,11 @@ gst_curl_http_src_unref_multi (GstCurlHttpSrc * src)
 
   klass = G_TYPE_INSTANCE_GET_CLASS (src, GST_TYPE_CURL_HTTP_SRC,
       GstCurlHttpSrcClass);
+
+#ifdef OHOS_OPT_STABLE
+  /* ohos.opt.stable.0003 for multiple instances ref mutex */
+  g_mutex_lock (&klass->multi_task_context.multiple_mutex);
+#endif
 
   g_mutex_lock (&klass->multi_task_context.mutex);
 #ifdef OHOS_EXT_FUNC
@@ -913,21 +928,18 @@ gst_curl_http_src_unref_multi (GstCurlHttpSrc * src)
     gst_task_join (klass->multi_task_context.task);
     gst_object_unref (klass->multi_task_context.task);
     klass->multi_task_context.task = NULL;
-#ifdef OHOS_OPT_STABLE
-    /* ohos.opt.stable.0003 for seek(curl_easy_cleanup) prevent concurrency */
-    g_mutex_lock (&src->cleanup_mutex);
-#endif
     curl_multi_cleanup (klass->multi_task_context.multi_handle);
     klass->multi_task_context.multi_handle = NULL;
-#ifdef OHOS_OPT_STABLE
-    /* ohos.opt.stable.0003 for seek(curl_easy_cleanup) prevent concurrency */
-    g_mutex_unlock (&src->cleanup_mutex);
-#endif
     g_rec_mutex_clear (&klass->multi_task_context.task_rec_mutex);
     GST_DEBUG_OBJECT (src, "multi_task_context cleanup complete");
   } else {
     g_mutex_unlock (&klass->multi_task_context.mutex);
   }
+
+#ifdef OHOS_OPT_STABLE
+  /* ohos.opt.stable.0003 for multiple instances ref mutex */
+  g_mutex_unlock (&klass->multi_task_context.multiple_mutex);
+#endif
 
   GSTCURL_FUNCTION_EXIT (src);
 }
@@ -1149,8 +1161,6 @@ retry:
       if (gst_curl_http_src_reconnect_is_timeout(src)) {
         CURL_HTTP_SRC_ERROR (src, RESOURCE, TIME_OUT, "reconnection timeout");
         g_mutex_unlock (&src->buffer_mutex);
-        gst_curl_http_src_wait_until_removed (src);
-        gst_curl_http_src_unref_multi (src);
         return GST_FLOW_RECONNECTION_TIMEOUT;
       }
 #endif
@@ -1643,19 +1653,11 @@ gst_curl_http_src_negotiate_caps (GstCurlHttpSrc * src)
 static inline void
 gst_curl_http_src_destroy_easy_handle (GstCurlHttpSrc * src)
 {
-#ifdef OHOS_OPT_STABLE
-  /* ohos.opt.stable.0003 for unref(curl_multi_cleanup) prevent concurrency */
-  g_mutex_lock (&src->cleanup_mutex);
-#endif
   /* Thank you Handles, and well done. Well done, mate. */
   if (src->curl_handle != NULL) {
     curl_easy_cleanup (src->curl_handle);
     src->curl_handle = NULL;
   }
-#ifdef OHOS_OPT_STABLE
-  /* ohos.opt.stable.0003 for unref(curl_multi_cleanup) prevent concurrency */
-  g_mutex_unlock (&src->cleanup_mutex);
-#endif
 
   /* In addition, clean up the curl header slist if it was used. */
   if (src->slist != NULL) {
@@ -1735,11 +1737,6 @@ gst_curl_http_src_cleanup_instance (GstCurlHttpSrc * src)
   src->user_agent = NULL;
 
   g_mutex_clear (&src->buffer_mutex);
-
-#ifdef OHOS_OPT_STABLE
-  /* ohos.opt.stable.0003 for (curl_easy_cleanup/curl_multi_cleanup) prevent concurrency */
-  g_mutex_clear (&src->cleanup_mutex);
-#endif
 
   g_cond_clear (&src->buffer_cond);
 
