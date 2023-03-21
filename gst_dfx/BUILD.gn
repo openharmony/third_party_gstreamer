@@ -14,11 +14,9 @@
 import("//build/ohos.gni")
 
 ohos_static_library("gst_trace") {
-  sources = ["gst_trace.cpp"]
+  sources = [ "gst_trace.cpp" ]
 
-  external_deps = [
-    "hitrace_native:hitrace_meter",
-  ]
+  external_deps = [ "hitrace_native:hitrace_meter" ]
 
   subsystem_name = "multimedia"
   part_name = "multimedia_player_framework"
