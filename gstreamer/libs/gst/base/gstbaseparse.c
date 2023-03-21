@@ -187,6 +187,8 @@
 #include "gstindex.c"
 #include "gstmemindex.c"
 #ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
 #include "gst_trace.h"
 #endif
 #define GST_BASE_PARSE_FRAME_PRIVATE_FLAG_NOALLOC  (1 << 0)
@@ -459,6 +461,8 @@ static gboolean gst_base_parse_sink_query (GstPad * pad, GstObject * parent,
     GstQuery * query);
 
 #ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
 static GstFlowReturn gst_base_parse_chain_trace (GstPad * pad, GstObject * parent,
     GstBuffer * buffer);
 #endif
@@ -627,6 +631,8 @@ gst_base_parse_init (GstBaseParse * parse, GstBaseParseClass * bclass)
   gst_pad_set_query_function (parse->sinkpad,
       GST_DEBUG_FUNCPTR (gst_base_parse_sink_query));
 #ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
   gst_pad_set_chain_function (parse->sinkpad,
       GST_DEBUG_FUNCPTR (gst_base_parse_chain_trace));
 #else
@@ -3117,6 +3123,8 @@ notfound:
 }
 
 #ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
 static GstFlowReturn
 gst_base_parse_chain_trace (GstPad * pad, GstObject * parent, GstBuffer * buffer)
 {
