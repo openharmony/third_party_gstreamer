@@ -83,6 +83,8 @@
 #endif
 
 #ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
 #include "gst_trace.h"
 #endif
 /* max. size considered 'sane' for non-mdat atoms */
@@ -6008,6 +6010,8 @@ gst_qtdemux_push_buffer (GstQTDemux * qtdemux, QtDemuxStream * stream,
   kpi_log_demux_push_first_frame (qtdemux, stream);
 #endif
 #ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
   {
     GstStartTrace("Qtdemux:pad_push");
     ret = gst_pad_push (stream->pad, buf);
@@ -6212,6 +6216,8 @@ gst_qtdemux_decorate_and_push_buffer (GstQTDemux * qtdemux,
     if (stream->alignment > 1)
       buffer = gst_qtdemux_align_buffer (qtdemux, buffer, stream->alignment);
 #ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
   {
     GstStartTrace("Qtdemux:pad_push");
     gst_pad_push (stream->pad, buffer);
@@ -6275,6 +6281,8 @@ gst_qtdemux_decorate_and_push_buffer (GstQTDemux * qtdemux,
 #endif
 
 #ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
   {
     GstStartTrace("Qtdemux:split_push");
     ret = gst_qtdemux_split_and_push_buffer (qtdemux, stream, buf);
@@ -6748,6 +6756,8 @@ gst_qtdemux_loop (GstPad * pad)
     case QTDEMUX_STATE_INITIAL:
     case QTDEMUX_STATE_HEADER:
 #ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
       {
         GstStartTrace("Qtdemux:state_header");
         ret = gst_qtdemux_loop_state_header (qtdemux);

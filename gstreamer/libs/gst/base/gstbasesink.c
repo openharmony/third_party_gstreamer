@@ -149,6 +149,8 @@
 #include "gstbasesink.h"
 #include <gst/gst-i18n-lib.h>
 #ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
 #include "gst_trace.h"
 #endif
 
@@ -4302,6 +4304,8 @@ gst_base_sink_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   basesink = GST_BASE_SINK (parent);
 
 #ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
   GstStartTrace("Sink:chain_main");
   GstFlowReturn ret = gst_base_sink_chain_main (basesink, pad, buf, FALSE);
   GstFinishTrace();
@@ -4324,6 +4328,8 @@ gst_base_sink_chain_list (GstPad * pad, GstObject * parent,
 
   if (G_LIKELY (bclass->render_list)) {
 #ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
     GstStartTrace("Sink:chain_main");
     result = gst_base_sink_chain_main (basesink, pad, list, TRUE);
     GstFinishTrace();
@@ -4342,6 +4348,8 @@ gst_base_sink_chain_list (GstPad * pad, GstObject * parent,
     for (i = 0; i < len; i++) {
       buffer = gst_buffer_list_get (list, i);
 #ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
       GstStartTrace("Sink:chain_main");
       result = gst_base_sink_chain_main (basesink, pad,
           gst_buffer_ref (buffer), FALSE);
