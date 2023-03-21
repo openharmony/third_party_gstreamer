@@ -492,6 +492,9 @@ gst_scaletempo_transform (GstBaseTransform * trans,
    * If pout is null, it will crash.
    */
   if (pout == NULL) {
+    if (tmpbuf) {
+      gst_buffer_unref (tmpbuf);
+    }
     GST_ERROR_OBJECT(trans, "omap data is NULL, return flow error");
     return GST_FLOW_ERROR;
   }
