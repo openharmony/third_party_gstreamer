@@ -486,6 +486,16 @@ gst_scaletempo_transform (GstBaseTransform * trans,
 
   gst_buffer_map (outbuf, &omap, GST_MAP_WRITE);
   pout = (gint8 *) omap.data;
+#ifdef OHOS_OPT_COMPAT
+  /**
+   * ohos.opt.compat.0057
+   * If pout is null, it will crash.
+   */
+  if (pout == NULL) {
+    GST_ERROR_OBJECT(trans, "omap data is NULL, return flow error");
+    return GST_FLOW_ERROR;
+  }
+#endif
   bytes_out = omap.size;
 
   offset_in = fill_queue (st, tmpbuf ? tmpbuf : inbuf, 0);
