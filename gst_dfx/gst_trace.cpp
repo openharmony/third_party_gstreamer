@@ -18,10 +18,10 @@
 
 void GstStartTrace(char *name)
 {
-  StartTrace(HITRACE_TAG_ZMEDIA, std::string(name));
+    StartTrace(HITRACE_TAG_ZMEDIA, std::string(name));
 }
 
 void GstFinishTrace()
 {
-  FinishTrace(HITRACE_TAG_ZMEDIA);
+    FinishTrace(HITRACE_TAG_ZMEDIA);
 }
