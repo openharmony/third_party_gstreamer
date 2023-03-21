@@ -100,6 +100,11 @@
 
 #include "gstmultiqueue.h"
 #include "gstcoreelementselements.h"
+#ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
+#include "gst_trace.h"
+#endif
 
 /* GstSingleQueue:
  * @sinkpad: associated sink #GstPad
@@ -2361,7 +2366,17 @@ next:
   GST_MULTI_QUEUE_MUTEX_UNLOCK (mq);
 
   /* Try to push out the new object */
+#ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
+  {
+    GstStartTrace("Multiqueue:push_one_buffer");
+    result = gst_single_queue_push_one (mq, sq, object, &dropping);
+    GstFinishTrace();
+  }
+#else
   result = gst_single_queue_push_one (mq, sq, object, &dropping);
+#endif
   object = NULL;
 
   /* Check if we pushed something already and if this is

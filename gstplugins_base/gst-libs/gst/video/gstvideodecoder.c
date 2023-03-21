@@ -299,6 +299,12 @@
 #include <gst/video/gstvideometa.h>
 #include <string.h>
 
+#ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
+#include "gst_trace.h"
+#endif
+
 GST_DEBUG_CATEGORY (videodecoder_debug);
 #define GST_CAT_DEFAULT videodecoder_debug
 
@@ -503,6 +509,12 @@ static gboolean gst_video_decoder_sink_event (GstPad * pad, GstObject * parent,
     GstEvent * event);
 static gboolean gst_video_decoder_src_event (GstPad * pad, GstObject * parent,
     GstEvent * event);
+#ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
+static GstFlowReturn gst_video_decoder_chain_trace (GstPad * pad, GstObject * parent,
+    GstBuffer * buf);
+#endif
 static GstFlowReturn gst_video_decoder_chain (GstPad * pad, GstObject * parent,
     GstBuffer * buf);
 static gboolean gst_video_decoder_sink_query (GstPad * pad, GstObject * parent,
@@ -760,7 +772,13 @@ gst_video_decoder_init (GstVideoDecoder * decoder, GstVideoDecoderClass * klass)
 
   decoder->sinkpad = pad = gst_pad_new_from_template (pad_template, "sink");
 
+#ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
+  gst_pad_set_chain_function (pad, GST_DEBUG_FUNCPTR (gst_video_decoder_chain_trace));
+#else
   gst_pad_set_chain_function (pad, GST_DEBUG_FUNCPTR (gst_video_decoder_chain));
+#endif
   gst_pad_set_event_function (pad,
       GST_DEBUG_FUNCPTR (gst_video_decoder_sink_event));
   gst_pad_set_query_function (pad,
@@ -2844,6 +2862,18 @@ gst_video_decoder_chain_reverse (GstVideoDecoder * dec, GstBuffer * buf)
   return result;
 }
 
+#ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
+static GstFlowReturn
+gst_video_decoder_chain_trace (GstPad * pad, GstObject * parent, GstBuffer * buf)
+{
+  GstStartTrace("Decoder:chain");
+  GstFlowReturn ret = gst_video_decoder_chain (pad, parent, buf);
+  GstFinishTrace();
+  return ret;
+}
+#endif
 static GstFlowReturn
 gst_video_decoder_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {

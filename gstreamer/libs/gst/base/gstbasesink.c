@@ -148,6 +148,11 @@
 
 #include "gstbasesink.h"
 #include <gst/gst-i18n-lib.h>
+#ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
+#include "gst_trace.h"
+#endif
 
 GST_DEBUG_CATEGORY_STATIC (gst_base_sink_debug);
 #define GST_CAT_DEFAULT gst_base_sink_debug
@@ -4298,7 +4303,16 @@ gst_base_sink_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   basesink = GST_BASE_SINK (parent);
 
+#ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
+  GstStartTrace("Sink:chain_main");
+  GstFlowReturn ret = gst_base_sink_chain_main (basesink, pad, buf, FALSE);
+  GstFinishTrace();
+  return ret;
+#else
   return gst_base_sink_chain_main (basesink, pad, buf, FALSE);
+#endif
 }
 
 static GstFlowReturn
@@ -4313,7 +4327,15 @@ gst_base_sink_chain_list (GstPad * pad, GstObject * parent,
   bclass = GST_BASE_SINK_GET_CLASS (basesink);
 
   if (G_LIKELY (bclass->render_list)) {
+#ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
+    GstStartTrace("Sink:chain_main");
     result = gst_base_sink_chain_main (basesink, pad, list, TRUE);
+    GstFinishTrace();
+#else
+    result = gst_base_sink_chain_main (basesink, pad, list, TRUE);
+#endif
   } else {
     guint i, len;
     GstBuffer *buffer;
@@ -4325,8 +4347,17 @@ gst_base_sink_chain_list (GstPad * pad, GstObject * parent,
     result = GST_FLOW_OK;
     for (i = 0; i < len; i++) {
       buffer = gst_buffer_list_get (list, i);
+#ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
+      GstStartTrace("Sink:chain_main");
       result = gst_base_sink_chain_main (basesink, pad,
           gst_buffer_ref (buffer), FALSE);
+      GstFinishTrace();
+#else
+      result = gst_base_sink_chain_main (basesink, pad,
+          gst_buffer_ref (buffer), FALSE);
+#endif
       if (result != GST_FLOW_OK)
         break;
     }

@@ -153,6 +153,11 @@
 
 #include "gstbasesrc.h"
 #include <gst/gst-i18n-lib.h>
+#ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
+#include "gst_trace.h"
+#endif
 
 GST_DEBUG_CATEGORY_STATIC (gst_base_src_debug);
 #define GST_CAT_DEFAULT gst_base_src_debug
@@ -2795,7 +2800,17 @@ gst_base_src_getrange (GstPad * pad, GstObject * parent, guint64 offset,
   if (G_UNLIKELY (src->priv->flushing))
     goto flushing;
 
+#ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
+  {
+    GstStartTrace("Src:get_range");
+    res = gst_base_src_get_range (src, offset, length, buf);
+    GstFinishTrace();
+  }
+#else
   res = gst_base_src_get_range (src, offset, length, buf);
+#endif
 
 done:
   GST_LIVE_UNLOCK (src);
@@ -2918,7 +2933,17 @@ gst_base_src_loop (GstPad * pad)
     src->priv->pending_bufferlist = NULL;
   }
 
+#ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
+  {
+    GstStartTrace("Src:get_range");
+    ret = gst_base_src_get_range (src, position, blocksize, &buf);
+    GstFinishTrace();
+  }
+#else
   ret = gst_base_src_get_range (src, position, blocksize, &buf);
+#endif
 #ifdef OHOS_EXT_FUNC
   /**
    * ohos.ext.func.0033
