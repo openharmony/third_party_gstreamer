@@ -6749,7 +6749,7 @@ gst_qtdemux_loop (GstPad * pad)
     case QTDEMUX_STATE_HEADER:
 #ifdef OHOS_OPT_PERFORMANCE
       {
-        GstStartTrace("Qtdemux:state_movie");
+        GstStartTrace("Qtdemux:state_header");
         ret = gst_qtdemux_loop_state_header (qtdemux);
         GstFinishTrace();
       }
