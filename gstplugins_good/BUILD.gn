@@ -170,8 +170,8 @@ ohos_source_set("isomp4_source") {
 
 ohos_shared_library("gstisomp4") {
   deps = [
-    "../gst_dfx:gst_trace",
     ":isomp4_source",
+    "../gst_dfx:gst_trace",
     "//third_party/glib:glib",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_base:gstaudio",
