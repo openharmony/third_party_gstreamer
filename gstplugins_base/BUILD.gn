@@ -234,11 +234,11 @@ ohos_source_set("gstvideo_source") {
 ohos_shared_library("gstvideo") {
   deps = [
     ":gstvideo_source",
+    "../gst_dfx:gst_trace",
     "//third_party/glib:glib",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
-    "../gst_dfx:gst_trace",
   ]
   part_name = "multimedia_player_framework"
   subsystem_name = "multimedia"

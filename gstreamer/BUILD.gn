@@ -236,9 +236,9 @@ ohos_source_set("gstbase_source") {
 
 ohos_shared_library("gstbase") {
   deps = [
-    "../gst_dfx:gst_trace",
     ":gstbase_source",
     ":gstreamer",
+    "../gst_dfx:gst_trace",
     "//third_party/glib:glib",
     "//third_party/glib:gobject",
   ]
