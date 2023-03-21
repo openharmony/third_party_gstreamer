@@ -32,6 +32,7 @@ config("gst_plugins_config") {
     "./gst-libs",
     "./gst/isomp4",
     "./gst/audiofx",
+    "../gst_dfx",
     "//third_party/gstreamer/gstreamer",
     "//third_party/gstreamer/gstreamer/libs",
     "//third_party/gstreamer/gstplugins_base",
@@ -169,6 +170,7 @@ ohos_source_set("isomp4_source") {
 
 ohos_shared_library("gstisomp4") {
   deps = [
+    "../gst_dfx:gst_trace",
     ":isomp4_source",
     "//third_party/glib:glib",
     "//third_party/glib:gobject",
