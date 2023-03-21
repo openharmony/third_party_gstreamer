@@ -189,6 +189,7 @@ config("gstbase_config") {
     ".",
     "./libs",
     "./libs/gst/base",
+    "../gst_dfx",
     "//third_party/glib/glib",
     "//third_party/glib",
     "//third_party/glib/gmodule",
@@ -235,6 +236,7 @@ ohos_source_set("gstbase_source") {
 
 ohos_shared_library("gstbase") {
   deps = [
+    "../gst_dfx:gst_trace",
     ":gstbase_source",
     ":gstreamer",
     "//third_party/glib:glib",
@@ -249,6 +251,7 @@ config("gstcoreelements_config") {
     ".",
     "./libs",
     "./plugins/elements",
+    "../gst_dfx",
     "//third_party/glib/glib",
     "//third_party/glib",
     "//third_party/glib/gmodule",
@@ -264,6 +267,7 @@ config("gstcoreelements_config") {
     "-DOHOS_OPT_COMPAT",
     "-DOHOS_OPT_STABLE",
     "-DOHOS_EXT_FUNC",
+    "-DOHOS_OPT_PERFORMANCE",
     "-DG_LOG_DOMAIN=\"GStreamer\"",
   ]
 }
@@ -294,6 +298,7 @@ ohos_shared_library("gstcoreelements") {
     ":gstbase",
     ":gstcoreelements_source",
     ":gstreamer",
+    "../gst_dfx:gst_trace",
     "//third_party/glib:glib",
     "//third_party/glib:gobject",
   ]

@@ -186,7 +186,9 @@
 #include "gstindex.h"
 #include "gstindex.c"
 #include "gstmemindex.c"
-
+#ifdef OHOS_OPT_PERFORMANCE
+#include "gst_trace.h"
+#endif
 #define GST_BASE_PARSE_FRAME_PRIVATE_FLAG_NOALLOC  (1 << 0)
 
 #define MIN_FRAMES_TO_POST_BITRATE 10
@@ -456,6 +458,10 @@ static gboolean gst_base_parse_sink_event (GstPad * pad, GstObject * parent,
 static gboolean gst_base_parse_sink_query (GstPad * pad, GstObject * parent,
     GstQuery * query);
 
+#ifdef OHOS_OPT_PERFORMANCE
+static GstFlowReturn gst_base_parse_chain_trace (GstPad * pad, GstObject * parent,
+    GstBuffer * buffer);
+#endif
 static GstFlowReturn gst_base_parse_chain (GstPad * pad, GstObject * parent,
     GstBuffer * buffer);
 static void gst_base_parse_loop (GstPad * pad);
@@ -620,8 +626,13 @@ gst_base_parse_init (GstBaseParse * parse, GstBaseParseClass * bclass)
       GST_DEBUG_FUNCPTR (gst_base_parse_sink_event));
   gst_pad_set_query_function (parse->sinkpad,
       GST_DEBUG_FUNCPTR (gst_base_parse_sink_query));
+#ifdef OHOS_OPT_PERFORMANCE
+  gst_pad_set_chain_function (parse->sinkpad,
+      GST_DEBUG_FUNCPTR (gst_base_parse_chain_trace));
+#else
   gst_pad_set_chain_function (parse->sinkpad,
       GST_DEBUG_FUNCPTR (gst_base_parse_chain));
+#endif
   gst_pad_set_activate_function (parse->sinkpad,
       GST_DEBUG_FUNCPTR (gst_base_parse_sink_activate));
   gst_pad_set_activatemode_function (parse->sinkpad,
@@ -3105,6 +3116,16 @@ notfound:
   }
 }
 
+#ifdef OHOS_OPT_PERFORMANCE
+static GstFlowReturn
+gst_base_parse_chain_trace (GstPad * pad, GstObject * parent, GstBuffer * buffer)
+{
+  GstStartTrace("Parse:chain");
+  GstFlowReturn ret = gst_base_parse_chain (pad, parent, buffer);
+  GstFinishTrace();
+  return ret;
+}
+#endif
 static GstFlowReturn
 gst_base_parse_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
 {

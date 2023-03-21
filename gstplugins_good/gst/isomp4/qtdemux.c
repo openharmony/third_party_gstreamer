@@ -82,6 +82,9 @@
 # include <zlib.h>
 #endif
 
+#ifdef OHOS_OPT_PERFORMANCE
+#include "gst_trace.h"
+#endif
 /* max. size considered 'sane' for non-mdat atoms */
 #define QTDEMUX_MAX_ATOM_SIZE (32*1024*1024)
 
@@ -6004,7 +6007,15 @@ gst_qtdemux_push_buffer (GstQTDemux * qtdemux, QtDemuxStream * stream,
 #ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: add log for kpi
   kpi_log_demux_push_first_frame (qtdemux, stream);
 #endif
+#ifdef OHOS_OPT_PERFORMANCE
+  {
+    GstStartTrace("Qtdemux:pad_push");
+    ret = gst_pad_push (stream->pad, buf);
+    GstFinishTrace();
+  }
+#else
   ret = gst_pad_push (stream->pad, buf);
+#endif
 
   if (GST_CLOCK_TIME_IS_VALID (pts) && GST_CLOCK_TIME_IS_VALID (duration)) {
     /* mark position in stream, we'll need this to know when to send GAP event */
@@ -6200,7 +6211,15 @@ gst_qtdemux_decorate_and_push_buffer (GstQTDemux * qtdemux,
 
     if (stream->alignment > 1)
       buffer = gst_qtdemux_align_buffer (qtdemux, buffer, stream->alignment);
+#ifdef OHOS_OPT_PERFORMANCE
+  {
+    GstStartTrace("Qtdemux:pad_push");
     gst_pad_push (stream->pad, buffer);
+    GstFinishTrace();
+  }
+#else
+    gst_pad_push (stream->pad, buffer);
+#endif
 
     stream->buffers = g_slist_delete_link (stream->buffers, stream->buffers);
   }
@@ -6255,7 +6274,15 @@ gst_qtdemux_decorate_and_push_buffer (GstQTDemux * qtdemux,
   }
 #endif
 
+#ifdef OHOS_OPT_PERFORMANCE
+  {
+    GstStartTrace("Qtdemux:split_push");
+    ret = gst_qtdemux_split_and_push_buffer (qtdemux, stream, buf);
+    GstFinishTrace();
+  }
+#else
   ret = gst_qtdemux_split_and_push_buffer (qtdemux, stream, buf);
+#endif
 
 exit:
   return ret;
@@ -6720,7 +6747,15 @@ gst_qtdemux_loop (GstPad * pad)
   switch (qtdemux->state) {
     case QTDEMUX_STATE_INITIAL:
     case QTDEMUX_STATE_HEADER:
+#ifdef OHOS_OPT_PERFORMANCE
+      {
+        GstStartTrace("Qtdemux:state_movie");
+        ret = gst_qtdemux_loop_state_header (qtdemux);
+        GstFinishTrace();
+      }
+#else
       ret = gst_qtdemux_loop_state_header (qtdemux);
+#endif
       break;
     case QTDEMUX_STATE_MOVIE:
       ret = gst_qtdemux_loop_state_movie (qtdemux);
