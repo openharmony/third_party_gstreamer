@@ -497,7 +497,7 @@ gst_scaletempo_transform (GstBaseTransform * trans,
     }
     gst_buffer_unmap (outbuf, &omap);
     GST_ERROR_OBJECT(trans, "omap data is NULL, return flow error");
-    return GST_FLOW_ERROR;
+    return GST_FLOW_OK;
   }
 #endif
   bytes_out = omap.size;
