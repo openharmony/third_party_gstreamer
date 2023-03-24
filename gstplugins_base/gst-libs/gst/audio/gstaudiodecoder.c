@@ -2505,6 +2505,15 @@ gst_audio_decoder_sink_eventfunc (GstAudioDecoder * dec, GstEvent * event)
         GST_ELEMENT_ERROR (dec, STREAM, DECODE,
             ("No valid frames decoded before end of stream"),
             ("no valid frames found"));
+#ifdef OHOS_OPT_COMPAT
+        /**
+        * ohos.opt.compat.0058
+        * If push eos event to downstream, at the same time the engine is destroying process,
+        * deadlock may occur.
+        */
+        ret = TRUE;
+        break;
+#endif
       }
 
       /* Forward EOS because no buffer or serialized event will come after
