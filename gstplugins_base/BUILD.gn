@@ -94,8 +94,8 @@ ohos_shared_library("gstplayback") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("gstpbutils_source") {
@@ -128,8 +128,8 @@ ohos_shared_library("gstpbutils") {
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("gsttag_source") {
@@ -159,8 +159,8 @@ ohos_shared_library("gsttag") {
     "//third_party/gstreamer/gstreamer:gstreamer",
     "//third_party/zlib:libz",
   ]
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("gstfft_source") {
@@ -188,8 +188,8 @@ ohos_shared_library("gstfft") {
     ":gstfft_source",
     "//third_party/glib:glib",
   ]
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("gstvideo_source") {
@@ -238,8 +238,8 @@ ohos_shared_library("gstvideo") {
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("gstaudio_source") {
@@ -275,8 +275,8 @@ ohos_shared_library("gstaudio") {
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("audioconvert_source") {
@@ -299,8 +299,8 @@ ohos_shared_library("gstaudioconvert") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("typefind_source") {
@@ -323,8 +323,8 @@ ohos_shared_library("gsttypefindfunctions") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("subparse_source") {
@@ -352,8 +352,8 @@ ohos_shared_library("gstsubparse") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("audioresample_source") {
@@ -373,8 +373,8 @@ ohos_shared_library("gstaudioresample") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("audiorate_source") {
@@ -393,8 +393,8 @@ ohos_shared_library("gstaudiorate") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("audiomixer_source") {
@@ -419,8 +419,8 @@ ohos_shared_library("gstaudiomixer") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("rawparse_source") {
@@ -448,8 +448,8 @@ ohos_shared_library("gstrawparse") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("riff_source") {
@@ -471,8 +471,8 @@ ohos_shared_library("gstriff") {
     "//third_party/gstreamer/gstplugins_base:gsttag",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("rtp_source") {
@@ -499,8 +499,8 @@ ohos_shared_library("gstrtp") {
     "//third_party/gstreamer/gstreamer:gstbase",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("videoconvert_source") {
@@ -520,8 +520,8 @@ ohos_shared_library("gstvideoconvert") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("videoscale_source") {
@@ -541,8 +541,8 @@ ohos_shared_library("gstvideoscale") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("app_source") {
@@ -566,8 +566,8 @@ ohos_shared_library("gstapp") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("app_source_plugin") {
@@ -589,6 +589,6 @@ ohos_shared_library("gstapp_plugin") {
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
 
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
