@@ -114,6 +114,10 @@ struct _GstCurlHttpSrcMultiTaskContext
   GstTask     *task;
   GRecMutex   task_rec_mutex;
   GMutex      mutex;
+#ifdef OHOS_OPT_STABLE
+  /* ohos.opt.stable.0003 for multiple instances ref/unref mutex */
+  GMutex      multiple_mutex;
+#endif
   guint       refcount;
   GCond       signal;
 
