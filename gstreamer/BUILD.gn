@@ -181,8 +181,8 @@ ohos_shared_library("gstreamer") {
     "//third_party/glib:gobject",
   ]
 
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 config("gstbase_config") {
@@ -243,8 +243,8 @@ ohos_shared_library("gstbase") {
     "//third_party/glib:glib",
     "//third_party/glib:gobject",
   ]
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 config("gstcoreelements_config") {
@@ -305,8 +305,8 @@ ohos_shared_library("gstcoreelements") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 config("gstcoretracers_config") {
@@ -355,8 +355,8 @@ ohos_shared_library("gstcoretracers") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 config("gsttools_config") {
@@ -393,8 +393,8 @@ ohos_executable("gst-inspect") {
     "//third_party/glib:glib",
     "//third_party/glib:gobject",
   ]
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("gst_launch_source") {
@@ -410,6 +410,6 @@ ohos_executable("gst-launch") {
     "//third_party/glib:glib",
     "//third_party/glib:gobject",
   ]
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
