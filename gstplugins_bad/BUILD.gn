@@ -86,8 +86,8 @@ ohos_shared_library("gstplayer") {
     "//third_party/gstreamer/gstplugins_base:gstvideo",
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 config("gst_plugins_config") {
@@ -151,8 +151,8 @@ ohos_shared_library("gsthls") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("adaptivedemux_source") {
@@ -171,8 +171,8 @@ ohos_shared_library("gstadaptivedemux") {
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
 
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("uridownloader_source") {
@@ -193,8 +193,8 @@ ohos_shared_library("gsturidownloader") {
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
 
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("mpegtsdemux_source") {
@@ -225,8 +225,8 @@ ohos_shared_library("gstmpegtsdemux") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("mpegts_source") {
@@ -251,8 +251,8 @@ ohos_shared_library("gstmpegts") {
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
 
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("codecparsers_source") {
@@ -285,8 +285,8 @@ ohos_shared_library("gstcodecparsers") {
     "//third_party/gstreamer/gstreamer:gstreamer",
   ]
 
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("parse_source") {
@@ -343,8 +343,8 @@ ohos_shared_library("gstvideoparsersbad") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 config("curlhttp_source_config") {
@@ -379,6 +379,6 @@ ohos_shared_library("gstcurl") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }

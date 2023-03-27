@@ -88,8 +88,8 @@ ohos_shared_library("gstaudioparsers") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("autodetect_source") {
@@ -117,8 +117,8 @@ ohos_shared_library("gstautodetect") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("id3demux_source") {
@@ -141,8 +141,8 @@ ohos_shared_library("gstid3demux") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("isomp4_source") {
@@ -185,8 +185,8 @@ ohos_shared_library("gstisomp4") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("wavparse_source") {
@@ -207,8 +207,8 @@ ohos_shared_library("gstwavparse") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("multifile_source") {
@@ -231,8 +231,8 @@ ohos_shared_library("gstmultifile") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("audiofx_source") {
@@ -255,8 +255,8 @@ ohos_shared_library("gstaudiofx") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("matroska_source") {
@@ -290,6 +290,6 @@ ohos_shared_library("gstmatroska") {
   ]
 
   relative_install_dir = "media/plugins"
-  part_name = "multimedia_player_framework"
-  subsystem_name = "multimedia"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
