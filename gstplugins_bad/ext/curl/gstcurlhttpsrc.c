@@ -483,6 +483,10 @@ gst_curl_http_src_class_init (GstCurlHttpSrcClass * klass)
   klass->multi_task_context.state = GSTCURL_MULTI_LOOP_STATE_STOP;
   klass->multi_task_context.multi_handle = NULL;
   g_mutex_init (&klass->multi_task_context.mutex);
+#ifdef OHOS_OPT_STABLE
+  /* ohos.opt.stable.0003 for multiple instances ref/unref mutex */
+  g_mutex_init (&klass->multi_task_context.multiple_mutex);
+#endif
   g_cond_init (&klass->multi_task_context.signal);
 
   gst_element_class_set_static_metadata (gstelement_class,
@@ -774,6 +778,11 @@ gst_curl_http_src_ref_multi (GstCurlHttpSrc * src)
   klass = G_TYPE_INSTANCE_GET_CLASS (src, GST_TYPE_CURL_HTTP_SRC,
       GstCurlHttpSrcClass);
 
+#ifdef OHOS_OPT_STABLE
+  /* ohos.opt.stable.0003 for multiple instances unref mutex */
+  g_mutex_lock (&klass->multi_task_context.multiple_mutex);
+#endif
+
   g_mutex_lock (&klass->multi_task_context.mutex);
   if (klass->multi_task_context.refcount == 0) {
     /* Set up various in-task properties */
@@ -812,6 +821,11 @@ gst_curl_http_src_ref_multi (GstCurlHttpSrc * src)
   klass->multi_task_context.refcount++;
   g_mutex_unlock (&klass->multi_task_context.mutex);
 
+#ifdef OHOS_OPT_STABLE
+  /* ohos.opt.stable.0003 for multiple instances unref mutex */
+  g_mutex_unlock (&klass->multi_task_context.multiple_mutex);
+#endif
+
   GSTCURL_FUNCTION_EXIT (src);
 }
 
@@ -831,6 +845,11 @@ gst_curl_http_src_unref_multi (GstCurlHttpSrc * src)
 
   klass = G_TYPE_INSTANCE_GET_CLASS (src, GST_TYPE_CURL_HTTP_SRC,
       GstCurlHttpSrcClass);
+
+#ifdef OHOS_OPT_STABLE
+  /* ohos.opt.stable.0003 for multiple instances ref mutex */
+  g_mutex_lock (&klass->multi_task_context.multiple_mutex);
+#endif
 
   g_mutex_lock (&klass->multi_task_context.mutex);
 #ifdef OHOS_EXT_FUNC
@@ -863,6 +882,11 @@ gst_curl_http_src_unref_multi (GstCurlHttpSrc * src)
   } else {
     g_mutex_unlock (&klass->multi_task_context.mutex);
   }
+
+#ifdef OHOS_OPT_STABLE
+  /* ohos.opt.stable.0003 for multiple instances ref mutex */
+  g_mutex_unlock (&klass->multi_task_context.multiple_mutex);
+#endif
 
   GSTCURL_FUNCTION_EXIT (src);
 }
