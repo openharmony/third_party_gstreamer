@@ -2213,7 +2213,14 @@ gst_matroska_demux_search_cluster (GstMatroskaDemux * demux, gint64 * pos,
         GST_DEBUG_OBJECT (demux, "need more data -> continue");
         goto next;
       }
+#ifdef OHOS_OPT_COMPAT
+      /* ohos.opt.compat.0057 */
+      if (id != GST_MATROSKA_ID_CLUSTER) {
+        GST_WARNING_OBJECT (demux, "peek id:%d not equal GST_MATROSKA_ID_CLUSTER", id);
+      }
+#else
       g_assert (id == GST_MATROSKA_ID_CLUSTER);
+#endif
       GST_DEBUG_OBJECT (demux, "cluster size %" G_GUINT64_FORMAT ", prefix %d",
           length, needed);
       /* ok if undefined length or first cluster */
