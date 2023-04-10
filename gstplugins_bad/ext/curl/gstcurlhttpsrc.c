@@ -1551,7 +1551,16 @@ gst_curl_http_src_handle_response (GstCurlHttpSrc * src)
     if (curl_info_offt == -1) {
       GST_WARNING_OBJECT (src,
           "No Content-Length was specified in the response.");
+#ifdef OHOS_OPT_COMPAT
+    /**
+     * ohos.opt.compat.0059
+     * DASH stream's seek need obtaining content length, and HLS stream does not need it.
+     * If dash cannot obtain content length, it is necessary to set seekable to false.
+     * Currently, DASH is not supported, so disable this setting to avoid affecting HLS.
+     */
+#else
       src->seekable = GSTCURL_SEEKABLE_FALSE;
+#endif
     } else {
       /* Note that in the case of a range get, Content-Length is the number
          of bytes requested, not the total size of the resource */
