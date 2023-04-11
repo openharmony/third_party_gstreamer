@@ -1603,6 +1603,14 @@ gst_app_src_create (GstBaseSrc * bsrc, guint64 offset, guint size,
 
       /* do the seek */
       res = gst_app_src_emit_seek (appsrc, offset);
+#ifdef OHOS_OPT_COMPAT
+/**
+ * ohos.opt.compat.0060
+ * Flush data after seek to avoid push old data.
+ */
+      GST_DEBUG_OBJECT(appsrc, "appsrc do seek, begin, flush");
+      gst_app_src_flush_queued (appsrc, FALSE);
+#endif
 
       if (G_UNLIKELY (!res))
         /* failing to seek is fatal */
