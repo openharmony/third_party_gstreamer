@@ -476,7 +476,8 @@ struct _GstVideoDecoderPrivate
    * from flush to first output */
   GstClockTime last_reset_time;
 #endif
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: first frame decoded cost time
+#ifdef OHOS_OPT_PERFORMANCE
+  // ohos.opt.performance.0006: the PTS segment of the first frame is calibrated to improve the performance.
   gboolean has_recv_first_key_frame;
   gboolean has_push_first_frame;
 #endif
@@ -2403,6 +2404,11 @@ gst_video_decoder_reset (GstVideoDecoder * decoder, gboolean full,
     gst_segment_init (&decoder->output_segment, GST_FORMAT_UNDEFINED);
     gst_video_decoder_clear_queues (decoder);
     decoder->priv->in_out_segment_sync = TRUE;
+#ifdef OHOS_OPT_PERFORMANCE
+    // ohos.opt.performance.0006: the PTS segment of the first frame is calibrated to improve the performance.
+    priv->has_recv_first_key_frame = FALSE;
+    priv->has_push_first_frame = FALSE;
+#endif
 
     if (priv->current_frame) {
       gst_video_codec_frame_unref (priv->current_frame);
@@ -2495,10 +2501,6 @@ gst_video_decoder_reset (GstVideoDecoder * decoder, gboolean full,
   priv->last_reset_time = gst_util_get_timestamp ();
 #endif
 
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: first frame decoded cost time
-  priv->has_recv_first_key_frame = FALSE;
-  priv->has_push_first_frame = FALSE;
-#endif
   GST_VIDEO_DECODER_STREAM_UNLOCK (decoder);
 }
 
@@ -3832,10 +3834,17 @@ gst_video_decoder_clip_and_push_buf (GstVideoDecoder * decoder, GstBuffer * buf)
   }
 #endif
 
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: first frame decoded cost time
-  if (!priv->has_push_first_frame) {
+#ifdef OHOS_OPT_PERFORMANCE
+  // ohos.opt.performance.0006: the PTS segment of the first frame is calibrated to improve the performance.
+  if (!priv->has_push_first_frame && GST_BUFFER_PTS (buf) != GST_CLOCK_TIME_NONE) {
     priv->has_push_first_frame = TRUE;
-    GST_WARNING_OBJECT (decoder, "KPI-TRACE: FIRST-VIDEO-FRAME videodecoder push first frame");
+    GST_WARNING_OBJECT (decoder, "videodecoder push first frame");
+  
+    decoder->output_segment.start = GST_BUFFER_PTS (buf);
+    GstEvent *event = gst_event_new_segment (&decoder->output_segment);
+    if (event) {
+      ret = gst_pad_push_event (decoder->srcpad, event);
+    }
   }
 #endif
   /* release STREAM_LOCK not to block upstream 
@@ -4117,7 +4126,7 @@ gst_video_decoder_decode_frame (GstVideoDecoder * decoder,
 #ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: first frame decoded cost time
   if (!priv->has_recv_first_key_frame) {
     priv->has_recv_first_key_frame = TRUE;
-    GST_WARNING_OBJECT (decoder, "KPI-TRACE: FIRST-VIDEO-FRAME videodecoder recv first key frame");
+    GST_WARNING_OBJECT (decoder, "videodecoder recv first key frame");
   }
 #endif
 #ifdef OHOS_OPT_COMPAT

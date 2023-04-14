@@ -272,7 +272,8 @@ struct _GstAudioDecoderPrivate
 
   /* flags */
   gboolean use_default_pad_acceptcaps;
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: first frame decoded cost time
+#ifdef OHOS_OPT_PERFORMANCE
+  // ohos.opt.performance.0006: the PTS segment of the first frame is calibrated to improve the performance.
   gboolean has_recv_first_frame;
   gboolean has_push_first_frame;
 #endif
@@ -542,6 +543,11 @@ gst_audio_decoder_reset (GstAudioDecoder * dec, gboolean full)
     gst_segment_init (&dec->input_segment, GST_FORMAT_TIME);
     gst_segment_init (&dec->output_segment, GST_FORMAT_TIME);
     dec->priv->in_out_segment_sync = TRUE;
+#ifdef OHOS_OPT_PERFORMANCE
+    // ohos.opt.performance.0006: the PTS segment of the first frame is calibrated to improve the performance.
+    dec->priv->has_recv_first_frame = FALSE;
+    dec->priv->has_push_first_frame = FALSE;
+#endif
 
     g_list_foreach (dec->priv->pending_events, (GFunc) gst_event_unref, NULL);
     g_list_free (dec->priv->pending_events);
@@ -1041,10 +1047,17 @@ gst_audio_decoder_push_forward (GstAudioDecoder * dec, GstBuffer * buf)
       GST_TIME_ARGS (GST_BUFFER_PTS (buf)),
       GST_TIME_ARGS (GST_BUFFER_DURATION (buf)));
 
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: first frame decoded cost time
-  if (!priv->has_push_first_frame) {
+#ifdef OHOS_OPT_PERFORMANCE
+  // ohos.opt.performance.0006: the PTS segment of the first frame is calibrated to improve the performance.
+  if (!priv->has_push_first_frame && GST_BUFFER_PTS (buf) != GST_CLOCK_TIME_NONE) {
     priv->has_push_first_frame = TRUE;
-    GST_WARNING_OBJECT (dec, "KPI-TRACE: audiodecoder push first frame");
+    GST_WARNING_OBJECT (dec, "audiodecoder push first frame");
+  }
+
+  dec->output_segment.start = GST_BUFFER_PTS (buf);
+  GstEvent *event = gst_event_new_segment (&dec->output_segment);
+  if (event) {
+    ret = gst_pad_push_event (dec->srcpad, event);
   }
 #endif
   ret = gst_pad_push (dec->srcpad, buf);
@@ -1644,10 +1657,11 @@ gst_audio_decoder_handle_frame (GstAudioDecoder * dec,
     GST_LOG_OBJECT (dec, "providing subclass with NULL frame");
   }
 
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0001: first frame decoded cost time
+#ifdef OHOS_OPT_PERFORMANCE
+  // ohos.opt.performance.0006: the PTS segment of the first frame is calibrated to improve the performance.
   if (!dec->priv->has_recv_first_frame) {
     dec->priv->has_recv_first_frame = TRUE;
-    GST_WARNING_OBJECT (dec, "KPI-TRACE: audiodecoder recv first frame");
+    GST_WARNING_OBJECT (dec, "audiodecoder recv first frame");
   }
 #endif
 
@@ -1833,6 +1847,11 @@ gst_audio_decoder_flush (GstAudioDecoder * dec, gboolean hard)
     gst_segment_init (&dec->input_segment, GST_FORMAT_TIME);
     gst_segment_init (&dec->output_segment, GST_FORMAT_TIME);
     dec->priv->error_count = 0;
+#ifdef OHOS_OPT_PERFORMANCE
+    // ohos.opt.performance.0006: the PTS segment of the first frame is calibrated to improve the performance.
+    dec->priv->has_recv_first_frame = FALSE;
+    dec->priv->has_push_first_frame = FALSE;
+#endif
   }
   /* only bother subclass with flushing if known it is already alive
    * and kicking out stuff */
