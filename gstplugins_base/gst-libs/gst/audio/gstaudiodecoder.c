@@ -1052,12 +1052,12 @@ gst_audio_decoder_push_forward (GstAudioDecoder * dec, GstBuffer * buf)
   if (!priv->has_push_first_frame && GST_BUFFER_PTS (buf) != GST_CLOCK_TIME_NONE) {
     priv->has_push_first_frame = TRUE;
     GST_WARNING_OBJECT (dec, "audiodecoder push first frame");
-  }
 
-  dec->output_segment.start = GST_BUFFER_PTS (buf);
-  GstEvent *event = gst_event_new_segment (&dec->output_segment);
-  if (event) {
-    ret = gst_pad_push_event (dec->srcpad, event);
+    dec->output_segment.start = GST_BUFFER_PTS (buf);
+    GstEvent *event = gst_event_new_segment (&dec->output_segment);
+    if (event) {
+      ret = gst_pad_push_event (dec->srcpad, event);
+    }
   }
 #endif
   ret = gst_pad_push (dec->srcpad, buf);
