@@ -2268,9 +2268,8 @@ type_found (GstElement * typefind, guint probability,
 #ifdef OHOS_EXT_FUNC
       // ohos.ext.func.0012
       /*
-       * modify for http buffering, queue2 setting buffer is false by default
+       * modify for http buffering, gstmultique set default values
        */
-      g_object_set (queue, "use-buffering", FALSE, NULL);
 #else
       g_object_set (queue, "use-buffering", TRUE, NULL);
 #endif
