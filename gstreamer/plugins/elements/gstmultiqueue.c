@@ -903,6 +903,7 @@ gst_multi_queue_init (GstMultiQueue * mqueue)
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0012
   mqueue->buffering_time = 0;
+  mqueue->last_buffering_time = 0;
   mqueue->buffering_time_changed = FALSE;
 
   mqueue->mq_num_id = 0;
@@ -1532,6 +1533,22 @@ update_buffering (GstMultiQueue * mq, GstSingleQueue * sq)
 
   buffering_level = get_buffering_level (mq, sq);
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0035
+  // Select a queue (audio or video) with slow buffering as the buffering level
+  // if single queue buffering_level is over high water level
+  if (mq->buffering && buffering_level >= mq->high_watermark) {
+    GList *single_q;
+    for (single_q = mq->queues; single_q; single_q = g_list_next (single_q)) {
+      GstSingleQueue *q = (GstSingleQueue *) single_q->data;
+      gint single_level = get_buffering_level (mq, q);
+      if (single_level < buffering_level) {
+        buffering_level = single_level;
+      }
+    }
+  }
+#endif
+
   /* scale so that if buffering_level equals the high watermark,
    * the percentage is 100% */
   percent = gst_util_uint64_scale (buffering_level, 100, mq->high_watermark);
@@ -1548,6 +1565,14 @@ update_buffering (GstMultiQueue * mq, GstSingleQueue * sq)
 
     SET_PERCENT (mq, percent);
   } else {
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0035
+  // Buffering is triggered as long as one queue (audio or video) of data is below the watermark
+  if (buffering_level < mq->low_watermark) {
+    mq->buffering = TRUE;
+    SET_PERCENT (mq, percent);
+  }
+#else
     GList *iter;
     gboolean is_buffering = TRUE;
 
@@ -1561,13 +1586,6 @@ update_buffering (GstMultiQueue * mq, GstSingleQueue * sq)
       }
     }
 
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0012
-    if (is_buffering && (buffering_level < mq->low_watermark || mq->buffering_percent == 0)) {
-      mq->buffering = TRUE;
-      SET_PERCENT (mq, percent);
-    }
-#else
     if (is_buffering && buffering_level < mq->low_watermark) {
       mq->buffering = TRUE;
       SET_PERCENT (mq, percent);
@@ -1593,7 +1611,12 @@ gst_multi_queue_post_buffering (GstMultiQueue * mq)
 
     mq->buffering_percent_changed = FALSE;
 
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0035
+    GST_INFO_OBJECT (mq, "Going to post buffering: %d%%", percent);
+#else
     GST_DEBUG_OBJECT (mq, "Going to post buffering: %d%%", percent);
+#endif
     msg = gst_message_new_buffering (GST_OBJECT_CAST (mq), percent);
   }
 
@@ -1603,7 +1626,12 @@ gst_multi_queue_post_buffering (GstMultiQueue * mq)
   if (mq->buffering_time_changed) {
     gint64 buffering_time = mq->buffering_time;
     mq->buffering_time_changed = FALSE;
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0035
+    GST_INFO_OBJECT (mq, "Going to post buffering time: %" G_GUINT64_FORMAT, buffering_time);
+#else
     GST_DEBUG_OBJECT (mq, "Going to post buffering time: %" G_GUINT64_FORMAT, buffering_time);
+#endif
     msg_buffering_time = gst_message_new_buffering_time (GST_OBJECT_CAST (mq), buffering_time, mq->mq_num_id);
   }
 #endif
@@ -1863,8 +1891,17 @@ apply_segment (GstMultiQueue * mq, GstSingleQueue * sq, GstEvent * event,
   GST_DEBUG_OBJECT (mq,
       "queue %d, configured SEGMENT %" GST_SEGMENT_FORMAT, sq->id, segment);
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0035
+  // apply_segment can not update the time level of the queue, only buffering percent 0%
+  if (mq->use_buffering && !mq->buffering) {
+    mq->buffering = TRUE;
+    SET_PERCENT (mq, 0);
+  }
+#else
   /* segment can update the time level of the queue */
   update_time_level (mq, sq);
+#endif
 
   GST_MULTI_QUEUE_MUTEX_UNLOCK (mq);
   gst_multi_queue_post_buffering (mq);
