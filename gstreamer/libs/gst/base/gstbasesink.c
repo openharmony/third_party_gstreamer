@@ -2860,10 +2860,17 @@ again:
   }
 /* #endif */
 
+#ifdef OHOS_EXT_FUNC // ohos.opt.performance.0006: delay Log
+  /* preroll done, we can sync since we are in PLAYING now. */
+  GST_INFO_OBJECT (basesink, "possibly waiting for clock to reach %"
+      GST_TIME_FORMAT ", adjusted %" GST_TIME_FORMAT,
+      GST_TIME_ARGS (rstart), GST_TIME_ARGS (stime));
+#else
   /* preroll done, we can sync since we are in PLAYING now. */
   GST_DEBUG_OBJECT (basesink, "possibly waiting for clock to reach %"
       GST_TIME_FORMAT ", adjusted %" GST_TIME_FORMAT,
       GST_TIME_ARGS (rstart), GST_TIME_ARGS (stime));
+#endif
 
   /* This function will return immediately if start == -1, no clock
    * or sync is disabled with GST_CLOCK_BADTIME. */
@@ -3528,9 +3535,15 @@ gst_base_sink_default_event (GstBaseSink * basesink, GstEvent * event)
 
       gst_event_copy_segment (event, &new_segment);
 
+#ifdef OHOS_EXT_FUNC // ohos.opt.performance.0006: delay Log
+      GST_INFO_OBJECT (basesink,
+          "received upstream segment %u %" GST_SEGMENT_FORMAT, seqnum,
+          &new_segment);
+#else
       GST_DEBUG_OBJECT (basesink,
           "received upstream segment %u %" GST_SEGMENT_FORMAT, seqnum,
           &new_segment);
+#endif
 
       /* Make sure that the position stays between start and stop */
       new_segment.position =
