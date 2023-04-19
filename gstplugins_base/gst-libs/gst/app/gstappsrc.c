@@ -190,6 +190,10 @@ struct _GstAppSrcPrivate
   GstAppLeakyType leaky_type;
 
   Callbacks *callbacks;
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0060
+  gboolean datasrc_mode;
+#endif
 };
 
 GST_DEBUG_CATEGORY_STATIC (app_src_debug);
@@ -252,6 +256,10 @@ enum
   PROP_DURATION,
   PROP_HANDLE_SEGMENT_CHANGE,
   PROP_LEAKY_TYPE,
+#ifdef OHOS_OPT_COMPAT
+  // ohos.opt.compat.0060
+  PROP_DATASRC_MODE,
+#endif
   PROP_LAST
 };
 
@@ -570,6 +578,13 @@ gst_app_src_class_init (GstAppSrcClass * klass)
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0060
+  g_object_class_install_property (gobject_class, PROP_DATASRC_MODE,
+      g_param_spec_boolean ("datasrc-mode", "Datasrc-Mode", "Datasrc Mode",
+      FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#endif
+
   /**
    * GstAppSrc::need-data:
    * @appsrc: the appsrc element that emitted the signal
@@ -754,6 +769,7 @@ gst_app_src_init (GstAppSrc * appsrc)
   priv->max_latency = DEFAULT_PROP_MAX_LATENCY;
   priv->emit_signals = DEFAULT_PROP_EMIT_SIGNALS;
   priv->min_percent = DEFAULT_PROP_MIN_PERCENT;
+  priv->datasrc_mode = FALSE;
   priv->handle_segment_change = DEFAULT_PROP_HANDLE_SEGMENT_CHANGE;
   priv->leaky_type = DEFAULT_PROP_LEAKY_TYPE;
 
@@ -920,6 +936,11 @@ gst_app_src_set_property (GObject * object, guint prop_id,
     case PROP_LEAKY_TYPE:
       priv->leaky_type = g_value_get_enum (value);
       break;
+#ifdef OHOS_OPT_COMPAT
+// ohos.opt.compat.0060
+    case PROP_DATASRC_MODE:
+      priv->datasrc_mode = g_value_get_boolean (value);
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1607,9 +1628,11 @@ gst_app_src_create (GstBaseSrc * bsrc, guint64 offset, guint size,
 /**
  * ohos.opt.compat.0060
  * Flush data after seek to avoid push old data.
- */
-      GST_DEBUG_OBJECT(appsrc, "appsrc do seek, begin, flush");
-      gst_app_src_flush_queued (appsrc, FALSE);
+ */   
+      if (priv->datasrc_mode) {
+        GST_DEBUG_OBJECT(appsrc, "appsrc do seek, begin, flush");
+        gst_app_src_flush_queued (appsrc, FALSE);
+      }
 #endif
 
       if (G_UNLIKELY (!res))
