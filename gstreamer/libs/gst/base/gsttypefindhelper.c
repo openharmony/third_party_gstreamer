@@ -122,7 +122,15 @@ helper_find_peek (gpointer data, gint64 offset, guint size)
        * at this point we save the current position and stop searching if
        * we're after the searched end offset */
       if (buf_offset <= offset) {
+#ifdef OHOS_OPT_COMPAT
+/**
+ * ohos.opt.compat.0061
+ * offset + size == buf_offset + buf_size also meet the conditions
+ */
+        if ((offset + size) <= (buf_offset + buf_size)) {
+#else
         if ((offset + size) < (buf_offset + buf_size)) {
+#endif
           /* must already have been mapped before */
           return (guint8 *) bmp->map.data + (offset - buf_offset);
         }
