@@ -249,6 +249,25 @@ helper_find_get_length (gpointer data)
   return helper->size;
 }
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0035
+static gboolean
+helper_find_is_mask_sub (gpointer data)
+{
+  gboolean is_subtitle = TRUE;
+  GstTypeFindHelper *helper = (GstTypeFindHelper *)data;
+  if ((helper == NULL) || (helper->obj == NULL)) {
+    goto EXIT;
+  }
+
+  g_object_get ((GObject *) helper->obj, "isSubtitle", &is_subtitle, NULL);
+  GST_INFO_OBJECT ((GstObject *) helper->obj, "typefind is_subtitle = %d", is_subtitle);
+
+EXIT:
+  return !is_subtitle;
+}
+#endif
+
 static GList *
 prioritize_extension (GstObject * obj, GList * type_list,
     const gchar * extension)
@@ -405,6 +424,10 @@ gst_type_find_helper_get_range_full (GstObject * obj, GstObject * parent,
 #ifdef OHOS_OPT_COMPAT
   // ohos.opt.compat.0004
   find.need_typefind_again = FALSE;
+#endif
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0035
+  find.is_mask_sub = helper_find_is_mask_sub;
 #endif
 
   if (size == 0 || size == (guint64) - 1) {
@@ -575,6 +598,24 @@ buf_helper_find_suggest (gpointer data, guint probability, GstCaps * caps)
   }
 }
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0035
+static gboolean
+buf_helper_find_is_mask_sub (gpointer data)
+{
+  gboolean is_subtitle = TRUE;
+  GstTypeFindBufHelper *helper = (GstTypeFindBufHelper *) data;
+  if ((helper == NULL) || (helper->obj == NULL)) {
+    goto EXIT;
+  }
+  g_object_get ((GObject *) helper->obj, "isSubtitle", &is_subtitle, NULL);
+  GST_INFO_OBJECT ((GstObject *) helper->obj, "typefind is_subtitle = %d", is_subtitle);
+
+EXIT:
+  return !is_subtitle;
+}
+#endif
+
 /**
  * gst_type_find_helper_for_data:
  * @obj: (allow-none): object doing the typefinding, or %NULL (used for logging)
@@ -710,6 +751,10 @@ gst_type_find_helper_for_data_with_extension (GstObject * obj,
 #ifdef OHOS_OPT_COMPAT
   // ohos.opt.compat.0004
   find.need_typefind_again = FALSE;
+#endif
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0035
+  find.is_mask_sub = buf_helper_find_is_mask_sub;
 #endif
 
 #ifdef OHOS_OPT_COMPAT
