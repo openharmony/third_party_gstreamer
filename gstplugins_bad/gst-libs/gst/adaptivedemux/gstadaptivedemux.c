@@ -2613,23 +2613,16 @@ static guint64
 gst_adaptive_demux_stream_update_current_bitrate (GstAdaptiveDemux * demux,
     GstAdaptiveDemuxStream * stream)
 {
-/* ohos.opt.compat.0059
- * don't switch bitrate unless specified by the user.
- */
-#ifndef OHOS_OPT_COMPAT
   guint64 average_bitrate;
   guint64 fragment_bitrate;
-#endif
+
   if (demux->connection_speed) {
     GST_LOG_OBJECT (demux, "Connection-speed is set to %u kbps, using it",
         demux->connection_speed / 1000);
     stream->current_download_rate = demux->connection_speed;
     return demux->connection_speed;
   }
-/* ohos.opt.compat.0059
- * don't switch bitrate unless specified by the user.
- */
-#ifndef OHOS_OPT_COMPAT
+
   fragment_bitrate = stream->last_bitrate;
   GST_DEBUG_OBJECT (demux, "Download bitrate is : %" G_GUINT64_FORMAT " bps",
       fragment_bitrate);
@@ -2648,7 +2641,7 @@ gst_adaptive_demux_stream_update_current_bitrate (GstAdaptiveDemux * demux,
   stream->current_download_rate *= demux->bitrate_limit;
   GST_DEBUG_OBJECT (demux, "Bitrate after bitrate limit (%0.2f): %"
       G_GUINT64_FORMAT, demux->bitrate_limit, stream->current_download_rate);
-#endif
+
 #if 0
   /* Debugging code, modulate the bitrate every few fragments */
   {
