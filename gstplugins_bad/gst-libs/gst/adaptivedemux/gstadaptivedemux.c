@@ -233,6 +233,10 @@ struct _GstAdaptiveDemuxPrivate
   GMutex segment_lock;
 
   GstClockTime qos_earliest_time;
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0036
+  gboolean set_auto_bitrate_first;
+#endif
 };
 
 typedef struct _GstAdaptiveDemuxTimer
@@ -692,7 +696,7 @@ gst_adaptive_demux_init (GstAdaptiveDemux * demux,
   demux->connection_speed = DEFAULT_CONNECTION_SPEED;
 #ifdef OHOS_EXT_FUNC
 // ohos.ext.func.0036
-  demux->set_auto_bitrate_first = FALSE;
+  demux->priv->set_auto_bitrate_first = FALSE;
 #endif
 
   gst_element_add_pad (GST_ELEMENT (demux), demux->sinkpad);
@@ -2445,9 +2449,9 @@ gst_adaptive_demux_start_manifest_update_task (GstAdaptiveDemux * demux)
 // ohos.ext.func.0034
     g_signal_emit (GST_ELEMENT(demux), g_gst_adaptive_demux_signals[SIGNAL_IS_LIVE_SCENE], 0, TRUE);
 // ohos.ext.func.0036
-    if (demux->set_auto_bitrate_first == FALSE) {
+    if (demux->priv->set_auto_bitrate_first == FALSE) {
       demux->connection_speed = 0;
-      demux->set_auto_bitrate_first = TRUE;
+      demux->priv->set_auto_bitrate_first = TRUE;
     }
 
 #endif

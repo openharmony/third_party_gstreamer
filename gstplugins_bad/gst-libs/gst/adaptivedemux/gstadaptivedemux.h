@@ -129,10 +129,6 @@ struct _GstAdaptiveDemuxStreamFragment
   guint bitrate;
 
   gboolean finished;
-#ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0036
-  gboolean set_auto_bitrate_first;
-#endif
 };
 
 struct _GstAdaptiveDemuxStream
