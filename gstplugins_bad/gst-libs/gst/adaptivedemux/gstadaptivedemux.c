@@ -690,6 +690,10 @@ gst_adaptive_demux_init (GstAdaptiveDemux * demux,
   /* Properties */
   demux->bitrate_limit = DEFAULT_BITRATE_LIMIT;
   demux->connection_speed = DEFAULT_CONNECTION_SPEED;
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0036
+  demux->set_auto_bitrate_first = FALSE;
+#endif
 
   gst_element_add_pad (GST_ELEMENT (demux), demux->sinkpad);
 }
@@ -2440,6 +2444,12 @@ gst_adaptive_demux_start_manifest_update_task (GstAdaptiveDemux * demux)
 #ifdef OHOS_EXT_FUNC
 // ohos.ext.func.0034
     g_signal_emit (GST_ELEMENT(demux), g_gst_adaptive_demux_signals[SIGNAL_IS_LIVE_SCENE], 0, TRUE);
+// ohos.ext.func.0036
+    if (demux->set_auto_bitrate_first == FALSE) {
+      demux->connection_speed = 0;
+      demux->set_auto_bitrate_first = TRUE;
+    }
+
 #endif
     gst_uri_downloader_reset (demux->downloader);
     g_mutex_lock (&demux->priv->updates_timed_lock);
