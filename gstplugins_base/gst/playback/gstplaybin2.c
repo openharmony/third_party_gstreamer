@@ -364,7 +364,26 @@ struct _GstSourceGroup
   // ohos.ext.func.0028
   gulong bitrate_parse_complete_id;
 #endif
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0035
+  GSList *suburidecodebin_list;
+#endif
 };
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0035
+typedef struct {
+  GstElement *suburidecodebin;
+  gboolean send_message_flag;
+  gulong sub_pad_added_id;
+  gulong sub_pad_removed_id;
+  gulong sub_no_more_pads_id;
+  gulong sub_autoplug_continue_id;
+  gulong sub_autoplug_query_id;
+  gchar *uri;
+} GstSuburidecodeInfo;
+#endif
 
 #define GST_PLAY_BIN_GET_LOCK(bin) (&((GstPlayBin*)(bin))->lock)
 #define GST_PLAY_BIN_LOCK(bin) (g_rec_mutex_lock (GST_PLAY_BIN_GET_LOCK(bin)))
@@ -605,6 +624,10 @@ enum
   // ohos.ext.func.0033
   PROP_RECONNECTION_TIMEOUT,
 #endif
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0035
+  PROP_ADD_SUBURI,
+#endif
   PROP_MULTIVIEW_FLAGS
 };
 
@@ -630,6 +653,10 @@ enum
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0028
   SIGNAL_BITRATE_PARSE_COMPLETE,
+#endif
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0035
+  SIGNAL_FIND_TEXT_PAD,
 #endif
   LAST_SIGNAL
 };
@@ -677,11 +704,23 @@ static void no_more_pads_cb (GstElement * decodebin, GstSourceGroup * group);
 static void pad_removed_cb (GstElement * decodebin, GstPad * pad,
     GstSourceGroup * group);
 
+#ifndef OHOS_EXT_FUNC
+// ohos.ext.func.0035
 static void gst_play_bin_suburidecodebin_block (GstSourceGroup * group,
     GstElement * suburidecodebin, gboolean block);
 static void gst_play_bin_suburidecodebin_seek_to_start (GstSourceGroup * group);
+#endif
 static void
 gst_play_bin_update_context (GstPlayBin * playbin, GstContext * context);
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0035
+static GstSourceGroup *get_group (GstPlayBin * playbin);
+static void pad_added_cb (GstElement * decodebin, GstPad * pad, GstSourceGroup * group);
+static gboolean autoplug_continue_cb (GstElement * element, GstPad * pad, GstCaps * caps, GstSourceGroup * group);
+static gboolean autoplug_query_cb (GstElement * uridecodebin, GstPad * pad,
+    GstElement * element, GstQuery * query, GstSourceGroup * group);
+#endif
 
 static GstElementClass *parent_class;
 
@@ -1127,6 +1166,13 @@ gst_play_bin_class_init (GstPlayBinClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 #endif
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0035
+  g_object_class_install_property (gobject_klass, PROP_ADD_SUBURI,
+      g_param_spec_string ("add-suburi", "Add-suburi", "Add subtitle uri",
+          NULL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#endif
+
   /**
    * GstPlayBin::about-to-finish
    * @playbin: a #GstPlayBin
@@ -1419,6 +1465,15 @@ gst_play_bin_class_init (GstPlayBinClass * klass)
         g_cclosure_marshal_generic, G_TYPE_NONE, 2, G_TYPE_POINTER, G_TYPE_UINT);
 #endif
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0035
+  gst_play_bin_signals[SIGNAL_FIND_TEXT_PAD] =
+      g_signal_new("find_text_pad", G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_LAST,
+      0, NULL, NULL,
+      g_cclosure_marshal_generic, G_TYPE_NONE, 1, G_TYPE_POINTER);
+#endif
+
   klass->get_video_tags = gst_play_bin_get_video_tags;
   klass->get_audio_tags = gst_play_bin_get_audio_tags;
   klass->get_text_tags = gst_play_bin_get_text_tags;
@@ -1513,6 +1568,10 @@ init_group (GstPlayBin * playbin, GstSourceGroup * group)
       gst_subtitle_overlay_create_factory_caps;
   group->combiner[PLAYBIN_STREAM_TEXT].type = GST_PLAY_SINK_TYPE_TEXT;
   group->combiner[PLAYBIN_STREAM_TEXT].channels = group->text_channels;
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0035
+  group->suburidecodebin_list = g_slist_alloc ();
+#endif
 }
 
 static void
@@ -1548,6 +1607,14 @@ free_group (GstPlayBin * playbin, GstSourceGroup * group)
   if (group->pending_buffering_msg)
     gst_message_unref (group->pending_buffering_msg);
   group->pending_buffering_msg = NULL;
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0035
+  if (group->suburidecodebin_list != NULL) {
+    g_slist_free (group->suburidecodebin_list);
+    group->suburidecodebin_list = NULL;
+  }
+#endif
 }
 
 static void
@@ -1840,6 +1907,165 @@ gst_play_bin_set_suburi (GstPlayBin * playbin, const gchar * suburi)
 
   GST_PLAY_BIN_UNLOCK (playbin);
 }
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0035
+static void
+delete_suburidecodebin (const GstSourceGroup * group, const GstElement * suburidecodebin)
+{
+  GSList *suburidecodebin_list = NULL;
+  GstSuburidecodeInfo *suburidecodeinfo = NULL;
+  GstPlayBin *playbin = group->playbin;
+  g_return_if_fail (group != NULL && suburidecodeinfo != NULL && playbin != NULL);
+
+  if (group->suburidecodebin_list != NULL) {
+    suburidecodebin_list = group->suburidecodebin_list;
+    while (suburidecodebin_list != NULL) {
+      suburidecodeinfo = (GstSuburidecodeInfo *) suburidecodebin_list->data;
+      if ((suburidecodeinfo != NULL) && (suburidecodeinfo->suburidecodebin == suburidecodebin)) {
+        REMOVE_SIGNAL (suburidecodeinfo->suburidecodebin, suburidecodeinfo->sub_pad_added_id);
+        REMOVE_SIGNAL (suburidecodeinfo->suburidecodebin, suburidecodeinfo->sub_pad_removed_id);
+        REMOVE_SIGNAL (suburidecodeinfo->suburidecodebin, suburidecodeinfo->sub_no_more_pads_id);
+        REMOVE_SIGNAL (suburidecodeinfo->suburidecodebin, suburidecodeinfo->sub_autoplug_continue_id);
+        REMOVE_SIGNAL (suburidecodeinfo->suburidecodebin, suburidecodeinfo->sub_autoplug_query_id);
+      }
+      if (suburidecodeinfo->uri != NULL) {
+        g_free (suburidecodeinfo->uri);
+        suburidecodeinfo->uri = NULL;
+      }
+      if (suburidecodeinfo->suburidecodebin != NULL) {
+        gst_object_unref (suburidecodeinfo->suburidecodebin);
+      }
+      gst_element_set_state (suburidecodeinfo->suburidecodebin, GST_STATE_NULL);
+      /* Might already be removed because of errors */
+      if (GST_OBJECT_PARENT (suburidecodeinfo->suburidecodebin) == GST_OBJECT_CAST (playbin)) {
+        (void) gst_bin_remove (GST_BIN_CAST (playbin), suburidecodeinfo->suburidecodebin);
+      }
+      g_free (suburidecodeinfo);
+      suburidecodeinfo = NULL;
+      (void) g_slist_delete_link (group->suburidecodebin_list, suburidecodebin_list);
+      break;
+    }
+    suburidecodebin_list = suburidecodebin_list->next;
+  }
+}
+
+static GstSuburidecodeInfo *
+gst_play_bin_new_suburidecodeinfo (const GstSourceGroup * group)
+{
+  GstSuburidecodeInfo *suburidecodeinfo = NULL;
+  g_return_val_if_fail (group, NULL);
+  suburidecodeinfo = (GstSuburidecodeInfo *) g_malloc (sizeof (GstSuburidecodeInfo));
+  if (suburidecodeinfo != NULL) {
+    suburidecodeinfo->sub_pad_added_id = group->sub_pad_added_id;
+    suburidecodeinfo->sub_pad_removed_id = group->sub_pad_removed_id;
+    suburidecodeinfo->sub_no_more_pads_id = group->sub_no_more_pads_id;
+    suburidecodeinfo->sub_autoplug_continue_id = group->sub_autoplug_continue_id;
+    suburidecodeinfo->sub_autoplug_query_id = group->sub_autoplug_query_id;
+    suburidecodeinfo->send_message_flag = TRUE;
+  } else {
+    GST_WARNING ("suburidecodeinfo malloc failed");
+  }
+  return suburidecodeinfo;
+}
+
+static gboolean
+gst_play_bin_init_suburidecodebin (GstSourceGroup * group, GstElement * suburidecodebin, const gchar * suburi)
+{
+  GstSuburidecodeInfo *suburidecodeinfo = NULL;
+  group->pending = 1;
+  group->sub_pending = TRUE;
+  suburidecodeinfo = gst_play_bin_new_suburidecodeinfo (group);
+  if (suburidecodeinfo != NULL) {
+    suburidecodeinfo->uri = g_strdup (suburi);
+    suburidecodeinfo->suburidecodebin = gst_object_ref (suburidecodebin);
+    group->suburidecodebin_list = g_slist_append (group->suburidecodebin_list, suburidecodeinfo);
+    if (group->suburidecodebin_list == NULL) {
+      g_free (suburidecodeinfo);
+      suburidecodeinfo = NULL;
+      gst_object_unref (suburidecodebin);
+      GST_WARNING ("suburidecodebin_list append failed");
+      return FALSE;
+    }
+  }
+
+  if (gst_element_set_state (suburidecodebin, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
+    if (group->sub_pending) {
+      group->pending--;
+      group->sub_pending = FALSE;
+      delete_suburidecodebin (group, suburidecodebin);
+    }
+    return FALSE;
+  }
+  return TRUE;
+}
+
+static gboolean
+gst_play_bin_have_same_suburi (const GstSourceGroup * group, const gchar * suburi)
+{
+  GSList *suburidecodebininfo_list = NULL;
+  GstSuburidecodeInfo *suburidecodeinfo = NULL;
+  suburidecodebininfo_list = group->suburidecodebin_list;
+  while (suburidecodebininfo_list != NULL) {
+    suburidecodeinfo = (GstSuburidecodeInfo *) suburidecodebininfo_list->data;
+    if ((suburidecodeinfo != NULL) && (suburidecodeinfo->uri != NULL) &&
+        (strncmp (suburi, suburidecodeinfo->uri, strlen (suburidecodeinfo->uri)) == 0)) {
+          return TRUE;
+    }
+    suburidecodebininfo_list = g_slist_next (suburidecodebininfo_list);
+  }
+  return FALSE;
+}
+
+static gboolean
+gst_play_bin_create_suburidecodebin (GstPlayBin * playbin, const gchar * suburi)
+{
+  GstSourceGroup *group = NULL;
+  GstElement *suburidecodebin = NULL;
+
+  group = get_group (playbin);
+  if (gst_play_bin_have_same_suburi (group, suburi)) {
+    GST_WARNING_OBJECT (playbin, "have the same suburi");
+    return FALSE;
+  }
+
+  GST_DEBUG_OBJECT (playbin, "making new suburidecodebin, suburi %s", suburi);
+  suburidecodebin = gst_element_factory_make ("uridecodebin", NULL);
+  (void) gst_bin_add (GST_BIN_CAST (playbin), suburidecodebin);
+
+  if (suburidecodebin != NULL) {
+    g_object_set (suburidecodebin, "connection-speed", playbin->connection_speed,
+        "uri", suburi, NULL);
+    group->sub_pad_added_id = g_signal_connect (suburidecodebin,
+        "pad-added", G_CALLBACK (pad_added_cb), group);
+    group->sub_pad_removed_id = g_signal_connect (suburidecodebin,
+        "pad-removed", G_CALLBACK (pad_removed_cb), group);
+    group->sub_no_more_pads_id = g_signal_connect (suburidecodebin,
+        "no-more-pads", G_CALLBACK (no_more_pads_cb), group);
+    group->sub_autoplug_continue_id = g_signal_connect (suburidecodebin,
+        "autoplug-continue", G_CALLBACK (autoplug_continue_cb), group);
+    group->sub_autoplug_query_id = g_signal_connect (suburidecodebin,
+        "autoplug-query", G_CALLBACK (autoplug_query_cb), group);
+  }
+  return gst_play_bin_init_suburidecodebin (group, suburidecodebin, suburi);
+}
+
+static void
+gst_play_bin_add_suburi (GstPlayBin * playbin, const gchar * suburi)
+{
+  if (suburi == NULL) {
+    GST_WARNING ("cannot set NULL suburi");
+    return;
+  }
+
+  GST_INFO ("gst_play_bin_add_suburi in, suburi %s", suburi);
+  GST_PLAY_BIN_LOCK (playbin);
+  if (!gst_play_bin_create_suburidecodebin (playbin, suburi)) {
+    GST_WARNING ("create suburidecodebin fail");
+  }
+  GST_PLAY_BIN_UNLOCK (playbin);
+}
+#endif
 
 static void
 gst_play_bin_set_flags (GstPlayBin * playbin, GstPlayFlags flags)
@@ -2687,6 +2913,13 @@ gst_play_bin_set_property (GObject * object, guint prop_id,
       break;
     }
 #endif
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0035
+    case PROP_ADD_SUBURI: {
+      gst_play_bin_add_suburi (playbin, g_value_get_string (value));
+      break;
+    }
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -2728,6 +2961,28 @@ gst_play_bin_get_current_stream_combiner (GstPlayBin * playbin,
 
   return combiner;
 }
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0035
+static void
+get_add_suburi (const GSList * suburidecodebin_list, GValue * value)
+{
+  if ((suburidecodebin_list == NULL) || (value == NULL)) {
+    GST_WARNING ("get add-suburi fail");
+    return;
+  }
+  GstSuburidecodeInfo *suburidecodebin_info = (GstSuburidecodeInfo *) suburidecodebin_list->data;
+  if (suburidecodebin_info == NULL) {
+    return;
+  }
+  gchar *suburi = suburidecodebin_info->uri;
+  if (suburi == NULL) {
+    return;
+  }
+  g_value_set_string (value, (const gchar *)suburi);
+  GST_INFO ("get add-suburi %s success", suburi);
+}
+#endif
 
 static void
 gst_play_bin_get_property (GObject * object, guint prop_id, GValue * value,
@@ -2957,6 +3212,19 @@ gst_play_bin_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_HIGH_PERCENT:
       g_value_set_int (value, playbin->high_percent);
       break;
+#endif
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0035
+    case PROP_ADD_SUBURI: {
+      GstSourceGroup *group = NULL;
+      GSList *suburidecodebin_list = NULL;
+      group = get_group (playbin);
+      if ((group != NULL) && group->suburidecodebin_list) {
+        suburidecodebin_list = g_slist_last (group->suburidecodebin_list);
+        get_add_suburi (suburidecodebin_list, value);
+      }
+      break;
+    }
 #endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -4731,6 +4999,32 @@ done:
   return ret;
 }
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0035
+static gboolean
+element_has_suburidecodebin_ancestor (const GstSourceGroup * group, GstElement * element)
+{
+  gboolean has = FALSE;
+  GSList *suburidecodebin_list = NULL;
+  GstSuburidecodeInfo *suburidecodebin_info = NULL;
+  g_return_val_if_fail (group != NULL && element != NULL, FALSE);
+
+  if (group->suburidecodebin_list != NULL) {
+    suburidecodebin_list = group->suburidecodebin_list;
+    while (suburidecodebin_list != NULL) {
+      suburidecodebin_info = (GstSuburidecodeInfo *) suburidecodebin_list->data;
+      if (suburidecodebin_info && gst_object_has_as_ancestor (GST_OBJECT_CAST (element),
+          GST_OBJECT_CAST (suburidecodebin_info->suburidecodebin))) {
+            has = TRUE;
+            break;
+      }
+      suburidecodebin_list = suburidecodebin_list->next;
+    }
+  }
+  return has;
+}
+#endif
+
 /* autoplug-continue decides, if a pad has raw caps that can be exposed
  * directly or if further decoding is necessary. We use this to expose
  * supported subtitles directly */
@@ -4745,6 +5039,11 @@ autoplug_continue_cb (GstElement * element, GstPad * pad, GstCaps * caps,
   gboolean ret = TRUE;
   GstPad *sinkpad = NULL;
   gboolean activated_sink;
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0035
+  gchar *str_caps = NULL;
+  GstPlayBin *playbin = group->playbin;
+#endif
 
   GST_SOURCE_GROUP_LOCK (group);
 
@@ -4763,9 +5062,21 @@ autoplug_continue_cb (GstElement * element, GstPad * pad, GstCaps * caps,
     if (activated_sink)
       gst_element_set_state (group->text_sink, GST_STATE_NULL);
   } else {
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0035
+    str_caps = gst_caps_to_string (caps);
+    if ((str_caps != NULL) && (strstr (str_caps, "subtitle") != NULL)) {
+      g_signal_emit (playbin, gst_play_bin_signals[SIGNAL_FIND_TEXT_PAD], 0, &ret);
+    }
+    if (str_caps != NULL) {
+      g_free (str_caps);
+      str_caps = NULL;
+    }
+#else
     GstCaps *subcaps = gst_subtitle_overlay_create_factory_caps ();
     ret = !gst_caps_is_subset (caps, subcaps);
     gst_caps_unref (subcaps);
+#endif
   }
   /* If autoplugging can stop don't do additional checks */
   if (!ret)
@@ -4773,9 +5084,14 @@ autoplug_continue_cb (GstElement * element, GstPad * pad, GstCaps * caps,
 
   /* If this is from the subtitle uridecodebin we don't need to
    * check the audio and video sink */
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0035
+  if (element_has_suburidecodebin_ancestor (group, element))
+#else
   if (group->suburidecodebin
       && gst_object_has_as_ancestor (GST_OBJECT_CAST (element),
           GST_OBJECT_CAST (group->suburidecodebin)))
+#endif
     goto done;
 
   if (group->audio_sink &&
@@ -5499,6 +5815,150 @@ bitrate_parse_complete_cb (GstElement * uridecodebin, gpointer input, guint num,
 }
 #endif
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0035
+static void
+active_suburidecodebins (GstSourceGroup * group)
+{
+  GSList *suburidecodebin_list = NULL;
+  GstElement *suburidecodebin = NULL;
+  GstSuburidecodeInfo *suburidecodebin_info = NULL;
+  GstPlayBin *playbin = group->playbin;
+  g_return_if_fail (group != NULL && playbin != NULL);
+
+  if (group->suburidecodebin_list != NULL) {
+    suburidecodebin_list = group->suburidecodebin_list;
+    while (suburidecodebin_list != NULL) {
+      suburidecodebin_info = (GstSuburidecodeInfo *) suburidecodebin_list->data;
+      if (suburidecodebin_info != NULL) {
+        suburidecodebin = suburidecodebin_info->suburidecodebin;
+        (void) gst_bin_add (GST_BIN_CAST (playbin), suburidecodebin);
+        suburidecodebin_info->sub_pad_added_id = g_signal_connect (suburidecodebin,
+            "pad-added", G_CALLBACK (pad_added_cb), group);
+        suburidecodebin_info->sub_pad_removed_id = g_signal_connect (suburidecodebin,
+            "pad-removed", G_CALLBACK (pad_removed_cb), group);
+        suburidecodebin_info->sub_no_more_pads_id = g_signal_connect (suburidecodebin,
+            "no-more-pads", G_CALLBACK (no_more_pads_cb), group);
+        suburidecodebin_info->sub_autoplug_continue_id =
+            g_signal_connect (suburidecodebin, "autoplug-continue",
+            G_CALLBACK (autoplug_continue_cb), group);
+        suburidecodebin_info->sub_autoplug_query_id =
+            g_signal_connect (suburidecodebin, "autoplug-query",
+            G_CALLBACK (autoplug_query_cb), group);
+      }
+      suburidecodebin_list = suburidecodebin_list->next;
+    }
+  }
+}
+
+static void
+deactive_suburidecodebins (const GstSourceGroup * group)
+{
+  GSList *suburidecodebin_list = NULL;
+  GstSuburidecodeInfo *suburidecodeinfo = NULL;
+  GstPlayBin *playbin = group->playbin;
+  g_return_if_fail (group != NULL && playbin != NULL);
+
+  if ((suburidecodebin_list = group->suburidecodebin_list)) {
+    while (suburidecodebin_list != NULL) {
+      suburidecodeinfo = (GstSuburidecodeInfo *) suburidecodebin_list->data;
+      if (suburidecodeinfo != NULL) {
+        REMOVE_SIGNAL (suburidecodeinfo->suburidecodebin, suburidecodeinfo->sub_pad_added_id);
+        REMOVE_SIGNAL (suburidecodeinfo->suburidecodebin, suburidecodeinfo->sub_pad_removed_id);
+        REMOVE_SIGNAL (suburidecodeinfo->suburidecodebin, suburidecodeinfo->sub_no_more_pads_id);
+        REMOVE_SIGNAL (suburidecodeinfo->suburidecodebin, suburidecodeinfo->sub_autoplug_continue_id);
+        REMOVE_SIGNAL (suburidecodeinfo->suburidecodebin, suburidecodeinfo->sub_autoplug_query_id);
+
+        /* Might already be removed because of errors */
+        if (GST_OBJECT_PARENT (suburidecodeinfo->suburidecodebin) == GST_OBJECT_CAST (playbin)) {
+          (void) gst_bin_remove (GST_BIN_CAST (playbin), suburidecodeinfo->suburidecodebin);
+        }
+      }
+      suburidecodebin_list = suburidecodebin_list->next;
+    }
+  }
+}
+
+static GstElement *
+get_suburidecodebin_by_uri (const GstSourceGroup * group, const gchar * uri)
+{
+  GSList *suburidecodebin_list = NULL;
+  GstSuburidecodeInfo *suburidecodebin_info = NULL;
+  GstElement *ret = NULL;
+  g_return_val_if_fail (group != NULL && uri != NULL, NULL);
+
+  if (group->suburidecodebin_list != NULL) {
+    suburidecodebin_list = group->suburidecodebin_list;
+    while (suburidecodebin_list != NULL) {
+      suburidecodebin_info = (GstSuburidecodeInfo *) suburidecodebin_list->data;
+      if ((suburidecodebin_info != NULL) && suburidecodebin_info->uri &&
+          (strcmp (uri, suburidecodebin_info->uri) == 0)) {
+        ret = suburidecodebin_info->suburidecodebin;
+        break;
+      }
+      suburidecodebin_list = suburidecodebin_list->next;
+    }
+  }
+  return ret;
+}
+
+static GstElement *
+get_suburidecodebin (GstPlayBin * playbin, GstSourceGroup * group)
+{
+  GstElement *suburidecodebin = get_suburidecodebin_by_uri (group, group->suburi);
+  if (suburidecodebin) {
+    GST_DEBUG_OBJECT (playbin, "reusing existing suburidecodebin");
+    (void) gst_element_set_state (suburidecodebin, GST_STATE_READY);
+    /*
+     * no need to take extra ref, we already have one
+     * and the bin will add one since it is no longer floating,
+     * as it was at least added once before (below)
+     */
+    (void) gst_bin_add (GST_BIN_CAST (playbin), suburidecodebin);
+  } else {
+    GstSuburidecodeInfo *suburidecodeinfo = NULL;
+    GST_DEBUG_OBJECT (playbin, "making new suburidecodebin");
+    suburidecodebin = gst_element_factory_make ("uridecodebin", NULL);
+    if (suburidecodebin == NULL) {
+      return NULL;
+    }
+    (void) gst_bin_add (GST_BIN_CAST (playbin), suburidecodebin);
+
+    g_object_set (suburidecodebin,
+        /* configure connection speed */
+        "connection-speed", playbin->connection_speed,
+        /* configure uri */
+        "uri", group->suburi, NULL);
+    /* connect pads and other things */
+    group->sub_pad_added_id = g_signal_connect (suburidecodebin,
+        "pad-added", G_CALLBACK (pad_added_cb), group);
+    group->sub_pad_removed_id = g_signal_connect (suburidecodebin,
+        "pad-removed", G_CALLBACK (pad_removed_cb), group);
+    group->sub_no_more_pads_id = g_signal_connect (suburidecodebin,
+        "no-more-pads", G_CALLBACK (no_more_pads_cb), group);
+    group->sub_autoplug_continue_id =
+        g_signal_connect (suburidecodebin, "autoplug-continue",
+        G_CALLBACK (autoplug_continue_cb), group);
+    group->sub_autoplug_query_id =
+        g_signal_connect (suburidecodebin, "autoplug-query",
+        G_CALLBACK (autoplug_query_cb), group);
+    suburidecodeinfo = gst_play_bin_new_suburidecodeinfo (group);
+    if (suburidecodeinfo != NULL) {
+      suburidecodeinfo->uri = g_strdup (group->suburi);
+      suburidecodeinfo->suburidecodebin = gst_object_ref (suburidecodebin);
+      group->suburidecodebin_list = g_slist_append (group->suburidecodebin_list, suburidecodeinfo);
+      if (group->suburidecodebin_list == NULL) {
+        g_free (suburidecodeinfo);
+        suburidecodeinfo = NULL;
+        GST_WARNING_OBJECT (playbin, "append list fail");
+      }
+    }
+    GST_INFO_OBJECT (playbin, "add suburidecodeInfo to suburidecodebin_list");
+  }
+  return suburidecodebin;
+}
+#endif
+
 /* must be called with PLAY_BIN_LOCK */
 static GstStateChangeReturn
 activate_group (GstPlayBin * playbin, GstSourceGroup * group, GstState target)
@@ -5655,9 +6115,20 @@ activate_group (GstPlayBin * playbin, GstSourceGroup * group, GstState target)
   group->autoplug_query_id =
       g_signal_connect (uridecodebin, "autoplug-query",
       G_CALLBACK (autoplug_query_cb), group);
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0035
+  active_suburidecodebins (group);
+#endif
 
   if (group->suburi) {
     /* subtitles */
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0035
+    suburidecodebin = get_suburidecodebin (playbin, group);
+    if (suburidecodebin == NULL) {
+      goto no_decodebin;
+    }
+#else
     if (group->suburidecodebin) {
       GST_DEBUG_OBJECT (playbin, "reusing existing suburidecodebin");
       suburidecodebin = group->suburidecodebin;
@@ -5675,6 +6146,7 @@ activate_group (GstPlayBin * playbin, GstSourceGroup * group, GstState target)
       gst_bin_add (GST_BIN_CAST (playbin), suburidecodebin);
       group->suburidecodebin = gst_object_ref (suburidecodebin);
     }
+#endif
 
     g_object_set (suburidecodebin,
         /* configure connection speed */
@@ -5717,11 +6189,20 @@ activate_group (GstPlayBin * playbin, GstSourceGroup * group, GstState target)
           "failed state change of subtitle uridecodebin");
       GST_SOURCE_GROUP_LOCK (group);
 
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0035
+      REMOVE_SIGNAL (suburidecodebin, group->sub_pad_added_id);
+      REMOVE_SIGNAL (suburidecodebin, group->sub_pad_removed_id);
+      REMOVE_SIGNAL (suburidecodebin, group->sub_no_more_pads_id);
+      REMOVE_SIGNAL (suburidecodebin, group->sub_autoplug_continue_id);
+      REMOVE_SIGNAL (suburidecodebin, group->sub_autoplug_query_id);
+#else
       REMOVE_SIGNAL (group->suburidecodebin, group->sub_pad_added_id);
       REMOVE_SIGNAL (group->suburidecodebin, group->sub_pad_removed_id);
       REMOVE_SIGNAL (group->suburidecodebin, group->sub_no_more_pads_id);
       REMOVE_SIGNAL (group->suburidecodebin, group->sub_autoplug_continue_id);
       REMOVE_SIGNAL (group->suburidecodebin, group->sub_autoplug_query_id);
+#endif
 
       /* Might already be removed because of an error message */
       if (GST_OBJECT_PARENT (suburidecodebin) == GST_OBJECT_CAST (playbin))
@@ -5917,6 +6398,10 @@ deactivate_group (GstPlayBin * playbin, GstSourceGroup * group)
     gst_bin_remove (GST_BIN_CAST (playbin), group->uridecodebin);
   }
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0035
+  deactive_suburidecodebins (group);
+#else
   if (group->suburidecodebin) {
     REMOVE_SIGNAL (group->suburidecodebin, group->sub_pad_added_id);
     REMOVE_SIGNAL (group->suburidecodebin, group->sub_pad_removed_id);
@@ -5928,6 +6413,7 @@ deactivate_group (GstPlayBin * playbin, GstSourceGroup * group)
     if (GST_OBJECT_PARENT (group->suburidecodebin) == GST_OBJECT_CAST (playbin))
       gst_bin_remove (GST_BIN_CAST (playbin), group->suburidecodebin);
   }
+#endif
 
   group->have_group_id = FALSE;
 
@@ -6119,6 +6605,11 @@ gst_play_bin_change_state (GstElement * element, GstStateChange transition)
     {
       guint i;
       GList *l;
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0035
+      GSList *suburidecodebin_list = NULL;
+      GstSuburidecodeInfo *suburidecodeinfo = NULL;
+#endif
 
       /* also do missed state change down to READY */
       if (do_save)
@@ -6139,12 +6630,35 @@ gst_play_bin_change_state (GstElement * element, GstStateChange transition)
           playbin->groups[i].uridecodebin = NULL;
         }
 
+#ifdef OHOS_EXT_FUNC
+        // ohos.ext.func.0035
+        if (playbin->groups[i].suburidecodebin_list) {
+          suburidecodebin_list = playbin->groups[i].suburidecodebin_list;
+          while (suburidecodebin_list != NULL) {
+            suburidecodeinfo = (GstSuburidecodeInfo *) suburidecodebin_list->data;
+            if ((suburidecodeinfo != NULL) && suburidecodeinfo->suburidecodebin) {
+              (void) gst_element_set_state (suburidecodeinfo->suburidecodebin, GST_STATE_NULL);
+              gst_object_unref (suburidecodeinfo->suburidecodebin);
+              if (suburidecodeinfo->uri != NULL) {
+                g_free (suburidecodeinfo->uri);
+                suburidecodeinfo->uri = NULL;
+              }
+              suburidecodeinfo->suburidecodebin = NULL;
+              g_free (suburidecodeinfo);
+              suburidecodeinfo = NULL;
+              suburidecodebin_list->data = NULL;
+            }
+            suburidecodebin_list = suburidecodebin_list->next;
+          }
+        }
+#else
         if (playbin->groups[i].suburidecodebin) {
           gst_element_set_state (playbin->groups[i].suburidecodebin,
               GST_STATE_NULL);
           gst_object_unref (playbin->groups[i].suburidecodebin);
           playbin->groups[i].suburidecodebin = NULL;
         }
+#endif
       }
 
       /* Set our sinks back to NULL, they might not be child of playbin */
