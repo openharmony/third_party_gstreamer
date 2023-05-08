@@ -158,6 +158,10 @@ typedef enum {
   GST_SEEK_FLAG_TRICKMODE_NO_AUDIO  = (1 << 8),
   GST_SEEK_FLAG_TRICKMODE_FORWARD_PREDICTED = (1 << 9),
   GST_SEEK_FLAG_INSTANT_RATE_CHANGE = (1 << 10),
+#ifdef OHOS_OPT_PERFORMANCE
+  // ohos.opt.performance.0006: the pts segment of the first frame is calibrated to improve the performance
+  GST_SEEK_FLAG_FIRST_FRAME = (1 << 11),
+#endif
 } GstSeekFlags;
 
 /**
@@ -190,7 +194,11 @@ typedef enum { /*< flags >*/
   GST_SEGMENT_FLAG_SEGMENT         = GST_SEEK_FLAG_SEGMENT,
   GST_SEGMENT_FLAG_TRICKMODE_KEY_UNITS = GST_SEEK_FLAG_TRICKMODE_KEY_UNITS,
   GST_SEGMENT_FLAG_TRICKMODE_FORWARD_PREDICTED = GST_SEEK_FLAG_TRICKMODE_FORWARD_PREDICTED,
-  GST_SEGMENT_FLAG_TRICKMODE_NO_AUDIO      = GST_SEEK_FLAG_TRICKMODE_NO_AUDIO
+  GST_SEGMENT_FLAG_TRICKMODE_NO_AUDIO      = GST_SEEK_FLAG_TRICKMODE_NO_AUDIO,
+#ifdef OHOS_OPT_PERFORMANCE
+  // ohos.opt.performance.0006: the pts segment of the first frame is calibrated to improve the performance
+  GST_SEGMENT_FLAG_FIRST_FRAME = GST_SEEK_FLAG_FIRST_FRAME,
+#endif
 } GstSegmentFlags;
 
 /* Flags that are reflected for instant-rate-change seeks */
