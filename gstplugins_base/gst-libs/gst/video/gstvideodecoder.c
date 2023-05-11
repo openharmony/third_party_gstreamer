@@ -3840,7 +3840,6 @@ gst_video_decoder_clip_and_push_buf (GstVideoDecoder * decoder, GstBuffer * buf)
     priv->has_push_first_frame = TRUE;
     GST_WARNING_OBJECT (decoder, "videodecoder push first frame");
   
-    decoder->output_segment.flags |= GST_SEGMENT_FLAG_FIRST_FRAME;
     decoder->output_segment.start = GST_BUFFER_PTS (buf);
     GstEvent *event = gst_event_new_segment (&decoder->output_segment);
     if (event) {

@@ -3427,15 +3427,6 @@ gst_base_sink_default_event (GstBaseSink * basesink, GstEvent * event)
     {
       GST_DEBUG_OBJECT (basesink, "flush-start %p", event);
       gst_base_sink_flush_start (basesink, basesink->sinkpad);
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0007: First frame after basesink refresh
-      GST_OBJECT_LOCK(basesink);
-      GstBaseSinkPrivate *priv = basesink->priv;
-      if (priv) {
-        priv->has_render_first_frame = FALSE;
-        priv->has_recv_first_frame = FALSE;
-      }
-      GST_OBJECT_UNLOCK(basesink);
-#endif
       break;
     }
     case GST_EVENT_FLUSH_STOP:
@@ -3544,20 +3535,10 @@ gst_base_sink_default_event (GstBaseSink * basesink, GstEvent * event)
 
       gst_event_copy_segment (event, &new_segment);
 
-#ifdef OHOS_OPT_PERFORMANCE // ohos.opt.performance.0006: delay Log
+#ifdef OHOS_EXT_FUNC // ohos.opt.performance.0006: delay Log
       GST_INFO_OBJECT (basesink,
           "received upstream segment %u %" GST_SEGMENT_FORMAT, seqnum,
           &new_segment);
-      // the pts segment of the first frame is calibrated to improve the performance
-      if (new_segment.flags && GST_SEGMENT_FLAG_FIRST_FRAME) {
-        if (basesink->priv->has_recv_first_frame) {
-          GST_WARNING_OBJECT (basesink, "invalid segment, later than recv first frame");
-          GST_OBJECT_UNLOCK(basesink);
-          break;
-        } else {
-          GST_INFO_OBJECT (basesink, "received first frame segment");
-        }
-      }
 #else
       GST_DEBUG_OBJECT (basesink,
           "received upstream segment %u %" GST_SEGMENT_FORMAT, seqnum,
