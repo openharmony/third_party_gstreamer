@@ -1195,10 +1195,25 @@ gst_adaptive_demux_handle_message (GstBin * bin, GstMessage * msg)
       gst_adaptive_demux_stream_fragment_download_finish (stream,
           GST_FLOW_CUSTOM_ERROR, err);
 
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0037 timeout need notify parent_class
+      gboolean need_msg = FALSE;
+      if (err->domain == GST_RESOURCE_ERROR && err->code == GST_RESOURCE_ERROR_TIME_OUT) {
+        need_msg = TRUE;
+      }
+#endif
+
       g_error_free (err);
       g_free (debug);
 
       GST_MANIFEST_UNLOCK (demux);
+
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0037 timeout need notify parent_class
+      if (need_msg) {
+        break;
+      }
+#endif
 
       gst_message_unref (msg);
       msg = NULL;

@@ -500,6 +500,10 @@ static const GEnumValue values[] = {
     { C_ENUM(GST_RESOURCE_ERROR_NO_SPACE_LEFT), "GST_RESOURCE_ERROR_NO_SPACE_LEFT", "no-space-left" },
     { C_ENUM(GST_RESOURCE_ERROR_NOT_AUTHORIZED), "GST_RESOURCE_ERROR_NOT_AUTHORIZED", "not-authorized" },
     { C_ENUM(GST_RESOURCE_ERROR_NUM_ERRORS), "GST_RESOURCE_ERROR_NUM_ERRORS", "num-errors" },
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0012
+    { C_ENUM(GST_RESOURCE_ERROR_TIME_OUT), "GST_RESOURCE_ERROR_TIME_OUT", "time-out" },
+#endif
 { 0, NULL, NULL }
         };
         if (g_once_init_enter (&gtype_id)) {
