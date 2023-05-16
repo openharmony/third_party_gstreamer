@@ -18,6 +18,6 @@ ohos_static_library("gst_trace") {
 
   external_deps = [ "hitrace_native:hitrace_meter" ]
 
-  subsystem_name = "multimedia"
-  part_name = "multimedia_player_framework"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
