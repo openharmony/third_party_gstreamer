@@ -3549,7 +3549,7 @@ gst_base_sink_default_event (GstBaseSink * basesink, GstEvent * event)
           "received upstream segment %u %" GST_SEGMENT_FORMAT, seqnum,
           &new_segment);
       // the pts segment of the first frame is calibrated to improve the performance
-      if (new_segment.flags && GST_SEGMENT_FLAG_FIRST_FRAME) {
+      if (new_segment.flags & GST_SEGMENT_FLAG_FIRST_FRAME) {
         if (basesink->priv->has_recv_first_frame) {
           GST_WARNING_OBJECT (basesink, "invalid segment, later than recv first frame");
           GST_OBJECT_UNLOCK(basesink);
