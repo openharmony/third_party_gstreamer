@@ -2477,8 +2477,11 @@ gen_text_chain (GstPlaySink * playsink)
           gst_play_sink_find_property_sinks (playsink, chain->sink, "async",
           G_TYPE_BOOLEAN);
       if (elem) {
+#ifndef OHOS_EXT_FUNC
+        // ohos.ext.func.0035
         /* make sure the sparse subtitles don't participate in the preroll */
         g_object_set (elem, "async", FALSE, NULL);
+#endif
         GST_DEBUG_OBJECT (playsink, "adding custom text sink");
         gst_bin_add (bin, chain->sink);
         /* NOTE streamsynchronizer needs streams decoupled */
@@ -3847,6 +3850,8 @@ gst_play_sink_do_reconfigure (GstPlaySink * playsink)
       gst_pad_link_full (playsink->text_srcpad_stream_synchronizer,
           playsink->textchain->textsinkpad, GST_PAD_LINK_CHECK_NOTHING);
 
+#ifndef OHOS_EXT_FUNC
+      // ohos.ext.func.0035
       if (need_vis || need_video) {
         if (need_vis) {
           GstPad *srcpad;
@@ -3873,6 +3878,7 @@ gst_play_sink_do_reconfigure (GstPlaySink * playsink)
         gst_pad_link_full (playsink->textchain->srcpad,
             playsink->videochain->sinkpad, GST_PAD_LINK_CHECK_NOTHING);
       }
+#endif
 
       activate_chain (GST_PLAY_CHAIN (playsink->textchain), TRUE);
     }
