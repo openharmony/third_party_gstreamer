@@ -148,6 +148,14 @@ struct _GstSelectorPad
   GstPad parent;
 
   gboolean pushed;              /* when buffer was pushed downstream since activation */
+#ifdef OHOS_EXT_FUNC
+  /* ohos.opt.compat.0038
+   * Track selection function.
+   * Seek stuck after switching tracks. The flush event cannot be transmitted downstream,
+   * causing the gst_multi_queue_loop thread to fail to end.
+   */
+  gboolean pushing;              /* Set when pad is pushing data downstream */
+#endif
   guint group_id;               /* Group ID from the last stream-start */
   gboolean group_done;          /* when Stream Group Done has been
                                    received */
@@ -336,6 +344,10 @@ gst_selector_pad_reset (GstSelectorPad * pad)
 {
   GST_OBJECT_LOCK (pad);
   pad->pushed = FALSE;
+#ifdef OHOS_EXT_FUNC
+  // ohos.opt.compat.0038
+  pad->pushing = FALSE;
+#endif
   pad->group_done = FALSE;
   pad->eos = FALSE;
   pad->eos_sent = FALSE;
@@ -559,6 +571,12 @@ gst_selector_pad_event (GstPad * pad, GstObject * parent, GstEvent * event)
       sel->eos = FALSE;
       selpad->group_done = FALSE;
       GST_INPUT_SELECTOR_BROADCAST (sel);
+#ifdef OHOS_EXT_FUNC
+      // ohos.opt.compat.0038
+      if (selpad->pushing && !forward) {
+        forward = TRUE;
+      }
+#endif
       break;
     case GST_EVENT_FLUSH_STOP:
       gst_selector_pad_reset (selpad);
@@ -989,6 +1007,11 @@ gst_selector_pad_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GstPad *active_sinkpad;
   GstPad *prev_active_sinkpad = NULL;
   GstSelectorPad *selpad;
+#ifdef OHOS_EXT_FUNC
+  // ohos.opt.compat.0038
+  GstCaps *inputCaps = NULL;
+  GstCaps *outputCaps = NULL;
+#endif
 
   sel = GST_INPUT_SELECTOR (parent);
   selpad = GST_SELECTOR_PAD_CAST (pad);
@@ -1091,6 +1114,10 @@ gst_selector_pad_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   if (sel->sync_streams)
     GST_INPUT_SELECTOR_BROADCAST (sel);
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.opt.compat.0038
+  selpad->pushing = TRUE;
+#endif
   GST_INPUT_SELECTOR_UNLOCK (sel);
 
   if (prev_active_sinkpad != active_sinkpad) {
@@ -1107,6 +1134,25 @@ gst_selector_pad_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         sel);
     selpad->events_pending = FALSE;
   }
+
+#ifdef OHOS_EXT_FUNC
+  /* ohos.opt.compat.0038
+   * Track selection function.
+   * After switching tracks, it may be necessary to resend caps to ensure the correct link configuration.
+   */
+  inputCaps = gst_pad_get_current_caps (selpad);
+  outputCaps = gst_pad_get_current_caps (sel->srcpad);
+  if (!selpad->pushed && !gst_caps_is_equal (inputCaps, outputCaps)) {
+    res = gst_pad_set_caps (sel->srcpad, inputCaps);
+    GST_DEBUG_OBJECT (sel, "Set src caps %" GST_PTR_FORMAT ", ret %d", inputCaps, res);
+  }
+  if (inputCaps) {
+    gst_caps_unref (inputCaps);
+  }
+  if (outputCaps) {
+    gst_caps_unref (outputCaps);
+  }
+#endif
 
   if (prev_active_sinkpad) {
     gst_object_unref (prev_active_sinkpad);
@@ -1132,6 +1178,10 @@ gst_selector_pad_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GST_LOG_OBJECT (pad, "Buffer %p forwarded result=%d", buf, res);
 
   GST_INPUT_SELECTOR_LOCK (sel);
+#ifdef OHOS_EXT_FUNC
+  // ohos.opt.compat.0038
+  selpad->pushing = FALSE;
+#endif
 
   if (sel->sync_streams && sel->cache_buffers) {
     /* Might have changed while pushing */

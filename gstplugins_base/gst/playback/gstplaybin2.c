@@ -3357,6 +3357,12 @@ combiner_active_pad_changed (GObject * combiner, GParamSpec * pspec,
       playbin->current_audio = get_current_stream_number (playbin,
           combine, group->audio_channels);
 
+#ifdef OHOS_EXT_FUNC
+      // ohos.opt.compat.0038
+      g_signal_emit (G_OBJECT (playbin), gst_play_bin_signals[SIGNAL_AUDIO_CHANGED], 0, NULL);
+      GST_DEBUG_OBJECT (playbin, "audio active pad changed %d", playbin->current_audio);
+#endif
+
       if (playbin->audio_pending_flush_finish) {
         playbin->audio_pending_flush_finish = FALSE;
         GST_PLAY_BIN_UNLOCK (playbin);
@@ -3369,6 +3375,11 @@ combiner_active_pad_changed (GObject * combiner, GParamSpec * pspec,
       property = "current-text";
       playbin->current_text = get_current_stream_number (playbin,
           combine, group->text_channels);
+#ifdef OHOS_EXT_FUNC
+      // ohos.opt.compat.0038
+      g_signal_emit (G_OBJECT (playbin), gst_play_bin_signals[SIGNAL_TEXT_CHANGED], 0, NULL);
+      GST_DEBUG_OBJECT (playbin, "text active pad changed %d", playbin->current_text);
+#endif
 
       if (playbin->text_pending_flush_finish) {
         playbin->text_pending_flush_finish = FALSE;
