@@ -4555,12 +4555,12 @@ no_more_pads_cb (GstElement * decodebin, GstSourceGroup * group)
     GST_SOURCE_GROUP_UNLOCK (group);
 #ifdef OHOS_EXT_FUNC
     // ohos.ext.func.0035
-    if (decodebin && !is_suburidecodebin) {
-      gst_play_sink_reconfigure (playbin->playsink);
+    if (is_suburidecodebin) {
+      GST_DEBUG_OBJECT (playbin, "adding new subtitle for playsink pipeline");
+      g_object_set (playbin->playsink, "add-new-subtitle", TRUE, NULL);
     }
-#else
-    gst_play_sink_reconfigure (playbin->playsink);
 #endif
+    gst_play_sink_reconfigure (playbin->playsink);
   }
 
   GST_PLAY_BIN_SHUTDOWN_UNLOCK (playbin);
