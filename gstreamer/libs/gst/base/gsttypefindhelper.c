@@ -600,6 +600,17 @@ buf_helper_find_suggest (gpointer data, guint probability, GstCaps * caps)
 
 #ifdef OHOS_EXT_FUNC
 // ohos.ext.func.0035
+static guint64
+buf_helper_find_get_length (gpointer data)
+{
+  GstTypeFindBufHelper *helper = (GstTypeFindBufHelper *) data;
+
+  GST_LOG_OBJECT (helper->obj, "'%s' called get_length, returning %"
+      G_GUINT64_FORMAT, GST_OBJECT_NAME (helper->factory), helper->size);
+
+  return helper->size;
+}
+
 static gboolean
 buf_helper_find_is_mask_sub (gpointer data)
 {
@@ -747,14 +758,16 @@ gst_type_find_helper_for_data_with_extension (GstObject * obj,
   find.data = &helper;
   find.peek = buf_helper_find_peek;
   find.suggest = buf_helper_find_suggest;
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0035
+  find.get_length = buf_helper_find_get_length;
+  find.is_mask_sub = buf_helper_find_is_mask_sub;
+#else
   find.get_length = NULL;
+#endif
 #ifdef OHOS_OPT_COMPAT
   // ohos.opt.compat.0004
   find.need_typefind_again = FALSE;
-#endif
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
-  find.is_mask_sub = buf_helper_find_is_mask_sub;
 #endif
 
 #ifdef OHOS_OPT_COMPAT
