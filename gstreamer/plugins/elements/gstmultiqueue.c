@@ -1618,6 +1618,11 @@ gst_multi_queue_post_buffering (GstMultiQueue * mq)
     GST_DEBUG_OBJECT (mq, "Going to post buffering: %d%%", percent);
 #endif
     msg = gst_message_new_buffering (GST_OBJECT_CAST (mq), percent);
+#ifdef OHOS_OPT_PERFORMANCE
+    // ohos.opt.performance.0005
+    // add trace
+    GstCounterTrace("buffer_percent", percent);
+#endif
   }
 
 #ifdef OHOS_EXT_FUNC
@@ -1644,6 +1649,11 @@ gst_multi_queue_post_buffering (GstMultiQueue * mq)
   // ohos.ext.func.0012
   if (msg_buffering_time != NULL) {
     gst_element_post_message (GST_ELEMENT_CAST (mq), msg_buffering_time);
+#ifdef OHOS_OPT_PERFORMANCE
+    // ohos.opt.performance.0005
+    // add trace
+    GstCounterTrace("buffer_duration", msg_buffering_time);
+#endif
   }
 #endif
   g_mutex_unlock (&mq->buffering_post_lock);
