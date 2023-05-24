@@ -51,6 +51,11 @@
 #include <gst/video/video-color.h>
 
 #include <math.h>
+#ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
+#include "gst_trace.h"
+#endif
 
 #define _gst_log2(x) (log(x)/log(2))
 
@@ -3541,7 +3546,14 @@ gst_ts_demux_push_pending_data (GstTSDemux * demux, TSDemuxStream * stream,
   }
 
   if (buffer) {
+#ifdef OHOS_OPT_PERFORMANCE
+    // ohos.opt.performance.0005
+    GstStartTraceExt("TSDemux:push buffer", GST_PAD_NAME (stream->pad));
+#endif
     res = gst_pad_push (stream->pad, buffer);
+#ifdef OHOS_OPT_PERFORMANCE
+    GstFinishTrace();
+#endif
     /* Record that a buffer was pushed */
     stream->nb_out_buffers += 1;
   } else {
