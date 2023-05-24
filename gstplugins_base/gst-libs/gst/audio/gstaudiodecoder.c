@@ -128,6 +128,11 @@
 #include <gst/pbutils/descriptions.h>
 
 #include <string.h>
+#ifdef OHOS_OPT_PERFORMANCE
+// ohos.opt.performance.0005
+// add trace
+#include "gst_trace.h"
+#endif
 
 GST_DEBUG_CATEGORY (audiodecoder_debug);
 #define GST_CAT_DEFAULT audiodecoder_debug
@@ -643,7 +648,12 @@ gst_audio_decoder_push_event (GstAudioDecoder * dec, GstEvent * event)
       GST_AUDIO_DECODER_STREAM_LOCK (dec);
       gst_event_copy_segment (event, &seg);
 
+#ifdef OHOS_OPT_PERFORMANCE
+      // ohos.opt.performance.0006: add segment info
+      GST_INFO_OBJECT (dec, "starting segment %" GST_SEGMENT_FORMAT, &seg);
+#else
       GST_DEBUG_OBJECT (dec, "starting segment %" GST_SEGMENT_FORMAT, &seg);
+#endif
 
       dec->output_segment = seg;
       dec->priv->in_out_segment_sync =
@@ -1060,7 +1070,16 @@ gst_audio_decoder_push_forward (GstAudioDecoder * dec, GstBuffer * buf)
     }
   }
 #endif
+
+#ifdef OHOS_OPT_PERFORMANCE
+  // ohos.opt.performance.0005
+  // add trace
+  GstStartTrace("AudioDecoder:push buffer to sink");
+#endif
   ret = gst_pad_push (dec->srcpad, buf);
+#ifdef OHOS_OPT_PERFORMANCE
+  GstFinishTrace();
+#endif
 
 exit:
   return ret;
@@ -1137,7 +1156,15 @@ again:
 
   if (G_LIKELY (buf)) {
     if (dec->output_segment.rate > 0.0) {
+#ifdef OHOS_OPT_PERFORMANCE
+      // ohos.opt.performance.0005
+      // add trace
+      GstStartTrace("AudioDecoder:push buffer");
+#endif
       ret = gst_audio_decoder_push_forward (dec, buf);
+#ifdef OHOS_OPT_PERFORMANCE
+      GstFinishTrace();
+#endif
       GST_LOG_OBJECT (dec, "buffer pushed: %s", gst_flow_get_name (ret));
     } else {
       ret = GST_FLOW_OK;
@@ -1763,7 +1790,15 @@ gst_audio_decoder_push_buffers (GstAudioDecoder * dec, gboolean force)
       priv->force = TRUE;
     }
 
+#ifdef OHOS_OPT_PERFORMANCE
+      // ohos.opt.performance.0005
+      // add trace
+      GstStartTrace("AudioDecoder:HandleFrame");
+#endif
     ret = gst_audio_decoder_handle_frame (dec, klass, buffer);
+#ifdef OHOS_OPT_PERFORMANCE
+      GstFinishTrace();
+#endif
 
     /* do not keep pushing it ... */
     if (G_UNLIKELY (!av)) {

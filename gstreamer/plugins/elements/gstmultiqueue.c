@@ -2407,7 +2407,7 @@ next:
 // ohos.opt.performance.0005
 // add trace
   {
-    GstStartTrace("Multiqueue:push_one_buffer");
+    GstStartTraceExt("Multiqueue:push_one_buffer", GST_PAD_NAME (srcpad));
     result = gst_single_queue_push_one (mq, sq, object, &dropping);
     GstFinishTrace();
   }
