@@ -1638,6 +1638,11 @@ gst_multi_queue_post_buffering (GstMultiQueue * mq)
     GST_DEBUG_OBJECT (mq, "Going to post buffering time: %" G_GUINT64_FORMAT, buffering_time);
 #endif
     msg_buffering_time = gst_message_new_buffering_time (GST_OBJECT_CAST (mq), buffering_time, mq->mq_num_id);
+#ifdef OHOS_OPT_PERFORMANCE
+    // ohos.opt.performance.0005
+    // add trace
+    GstCounterTrace("buffer_duration", (int)buffering_time);
+#endif
   }
 #endif
   GST_MULTI_QUEUE_MUTEX_UNLOCK (mq);
@@ -1649,11 +1654,6 @@ gst_multi_queue_post_buffering (GstMultiQueue * mq)
   // ohos.ext.func.0012
   if (msg_buffering_time != NULL) {
     gst_element_post_message (GST_ELEMENT_CAST (mq), msg_buffering_time);
-#ifdef OHOS_OPT_PERFORMANCE
-    // ohos.opt.performance.0005
-    // add trace
-    GstCounterTrace("buffer_duration", msg_buffering_time);
-#endif
   }
 #endif
   g_mutex_unlock (&mq->buffering_post_lock);
