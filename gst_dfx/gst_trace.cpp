@@ -32,3 +32,8 @@ void GstFinishTrace()
 {
     FinishTrace(HITRACE_TAG_ZMEDIA);
 }
+
+void GstCounterTrace(char *name, int count)
+{
+    CountTrace(HITRACE_TAG_ZMEDIA, std::string(name), count);
+}
