@@ -424,7 +424,7 @@ _priv_gst_tag_initialize (void)
       GST_TYPE_SAMPLE,
       _("private-data"), _("Private data"), gst_tag_merge_use_first);
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
+  // ohos.ext.func.0039
   gst_tag_register_static (GST_TAG_SUBTITLE_FORMAT, GST_TAG_FLAG_META,
       G_TYPE_STRING,
       _("subtitle format"),

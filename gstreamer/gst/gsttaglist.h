@@ -1135,7 +1135,7 @@ gboolean  gst_tag_list_take    (GstTagList ** old_taglist,
 #define GST_TAG_PRIVATE_DATA                         "private-data"
 
 #ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0035
+// ohos.ext.func.0039
 #define GST_TAG_SUBTITLE_TYPE                     "subtitle-type"
 #define GST_TAG_SUBTITLE_FORMAT                   "subtitle-format"
 #define GST_TAG_SUBTITLE_STREAM_ACTIVITY_FLAG     "subtitle-stream-activity-flag"
