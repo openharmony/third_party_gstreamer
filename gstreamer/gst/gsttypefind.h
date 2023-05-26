@@ -174,8 +174,8 @@ struct _GstTypeFind {
 
 #ifdef OHOS_EXT_FUNC
   /**
-   * ohos.ext.func.0035
-   * Disable do sub typefind.
+   * ohos.ext.func.0039
+   * Disable do subtitle typefind.
    * Return TRUE not do sub typefind, FALSE do sub typefind.
    */
   gboolean        (* is_mask_sub) (gpointer data);
@@ -219,7 +219,7 @@ GST_API
 guint64   gst_type_find_get_length (GstTypeFind   * find);
 
 #ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0035
+// ohos.ext.func.0039
 GST_API
 gboolean  gst_type_find_is_mask_sub (const GstTypeFind *find);
 #endif

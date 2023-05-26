@@ -250,7 +250,7 @@ helper_find_get_length (gpointer data)
 }
 
 #ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0035
+// ohos.ext.func.0039
 static gboolean
 helper_find_is_mask_sub (gpointer data)
 {
@@ -426,7 +426,10 @@ gst_type_find_helper_get_range_full (GstObject * obj, GstObject * parent,
   find.need_typefind_again = FALSE;
 #endif
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
+  /**
+   * ohos.ext.func.0039
+   * Enable is_mask_sub() in pull mode.
+   */
   find.is_mask_sub = helper_find_is_mask_sub;
 #endif
 
@@ -599,7 +602,7 @@ buf_helper_find_suggest (gpointer data, guint probability, GstCaps * caps)
 }
 
 #ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0035
+// ohos.ext.func.0039
 static guint64
 buf_helper_find_get_length (gpointer data)
 {
@@ -759,7 +762,10 @@ gst_type_find_helper_for_data_with_extension (GstObject * obj,
   find.peek = buf_helper_find_peek;
   find.suggest = buf_helper_find_suggest;
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
+  /**
+   * ohos.ext.func.0039
+   * Enable get_length() and is_mask_sub() in push mode.
+   */
   find.get_length = buf_helper_find_get_length;
   find.is_mask_sub = buf_helper_find_is_mask_sub;
 #else
