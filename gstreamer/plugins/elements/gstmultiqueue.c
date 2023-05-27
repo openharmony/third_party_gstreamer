@@ -1641,10 +1641,10 @@ gst_multi_queue_post_buffering (GstMultiQueue * mq)
 #ifdef OHOS_OPT_PERFORMANCE
     // ohos.opt.performance.0005
     // add trace
-    GstCounterTrace("buffer_duration", (int)buffering_time);
+    GstCounterTrace("buffer_duration", (int) (buffering_time / 1000000)); // buffering_time / 1000000 = xx ms
 #endif
   }
-#endif
+#endif 
   GST_MULTI_QUEUE_MUTEX_UNLOCK (mq);
 
   if (msg != NULL)
