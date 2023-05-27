@@ -21,7 +21,19 @@ void GstStartTrace(char *name)
     StartTrace(HITRACE_TAG_ZMEDIA, std::string(name));
 }
 
+void GstStartTraceExt(char *name, char* ext_name)
+{
+    std::string trace_name = name;
+    trace_name = trace_name + "_" + ext_name;
+    StartTrace(HITRACE_TAG_ZMEDIA, trace_name);
+}
+
 void GstFinishTrace()
 {
     FinishTrace(HITRACE_TAG_ZMEDIA);
+}
+
+void GstCounterTrace(char *name, int count)
+{
+    CountTrace(HITRACE_TAG_ZMEDIA, std::string(name), count);
 }
