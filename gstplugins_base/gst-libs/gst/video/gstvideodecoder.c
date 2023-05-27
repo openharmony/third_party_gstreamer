@@ -3757,7 +3757,7 @@ gst_video_decoder_clip_and_push_buf (GstVideoDecoder * decoder, GstBuffer * buf)
 #ifdef OHOS_OPT_PERFORMANCE
     // ohos.opt.performance.0005
     // add trace
-    GST_LOG_OBJECT (decoder,
+    GST_INFO_OBJECT (decoder,
         "dropping buffer outside segment: %" GST_TIME_FORMAT
         " %" GST_TIME_FORMAT
         " seg %" GST_TIME_FORMAT " to %" GST_TIME_FORMAT
