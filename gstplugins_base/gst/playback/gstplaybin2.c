@@ -366,13 +366,13 @@ struct _GstSourceGroup
 #endif
 
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
+  // ohos.ext.func.0039
   GSList *suburidecodebin_list;
 #endif
 };
 
 #ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0035
+// ohos.ext.func.0039
 typedef struct {
   GstElement *suburidecodebin;
   gboolean send_message_flag;
@@ -625,7 +625,7 @@ enum
   PROP_RECONNECTION_TIMEOUT,
 #endif
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
+  // ohos.ext.func.0039
   PROP_ADD_SUBURI,
 #endif
   PROP_MULTIVIEW_FLAGS
@@ -655,7 +655,7 @@ enum
   SIGNAL_BITRATE_PARSE_COMPLETE,
 #endif
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
+  // ohos.ext.func.0039
   SIGNAL_FIND_TEXT_PAD,
 #endif
   LAST_SIGNAL
@@ -705,7 +705,7 @@ static void pad_removed_cb (GstElement * decodebin, GstPad * pad,
     GstSourceGroup * group);
 
 #ifndef OHOS_EXT_FUNC
-// ohos.ext.func.0035
+// ohos.ext.func.0039
 static void gst_play_bin_suburidecodebin_block (GstSourceGroup * group,
     GstElement * suburidecodebin, gboolean block);
 static void gst_play_bin_suburidecodebin_seek_to_start (GstSourceGroup * group);
@@ -714,7 +714,7 @@ static void
 gst_play_bin_update_context (GstPlayBin * playbin, GstContext * context);
 
 #ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0035
+// ohos.ext.func.0039
 static GstSourceGroup *get_group (GstPlayBin * playbin);
 static void pad_added_cb (GstElement * decodebin, GstPad * pad, GstSourceGroup * group);
 static gboolean autoplug_continue_cb (GstElement * element, GstPad * pad, GstCaps * caps, GstSourceGroup * group);
@@ -1167,7 +1167,7 @@ gst_play_bin_class_init (GstPlayBinClass * klass)
 #endif
 
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
+  // ohos.ext.func.0039
   g_object_class_install_property (gobject_klass, PROP_ADD_SUBURI,
       g_param_spec_string ("add-suburi", "Add-suburi", "Add subtitle uri",
           NULL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
@@ -1466,7 +1466,7 @@ gst_play_bin_class_init (GstPlayBinClass * klass)
 #endif
 
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
+  // ohos.ext.func.0039
   gst_play_bin_signals[SIGNAL_FIND_TEXT_PAD] =
       g_signal_new("find_text_pad", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST,
@@ -1569,7 +1569,7 @@ init_group (GstPlayBin * playbin, GstSourceGroup * group)
   group->combiner[PLAYBIN_STREAM_TEXT].type = GST_PLAY_SINK_TYPE_TEXT;
   group->combiner[PLAYBIN_STREAM_TEXT].channels = group->text_channels;
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
+  // ohos.ext.func.0039
   group->suburidecodebin_list = g_slist_alloc ();
 #endif
 }
@@ -1609,7 +1609,7 @@ free_group (GstPlayBin * playbin, GstSourceGroup * group)
   group->pending_buffering_msg = NULL;
 
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
+  // ohos.ext.func.0039
   if (group->suburidecodebin_list != NULL) {
     g_slist_free (group->suburidecodebin_list);
     group->suburidecodebin_list = NULL;
@@ -1909,7 +1909,10 @@ gst_play_bin_set_suburi (GstPlayBin * playbin, const gchar * suburi)
 }
 
 #ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0035
+/**
+ * ohos.ext.func.0039
+ * Create new uridecodebin for subtitle.
+ */
 static void
 delete_suburidecodebin (const GstSourceGroup * group, const GstElement * suburidecodebin)
 {
@@ -2001,38 +2004,16 @@ gst_play_bin_init_suburidecodebin (GstSourceGroup * group, GstElement * suburide
 }
 
 static gboolean
-gst_play_bin_have_same_suburi (const GstSourceGroup * group, const gchar * suburi)
-{
-  GSList *suburidecodebininfo_list = NULL;
-  GstSuburidecodeInfo *suburidecodeinfo = NULL;
-  suburidecodebininfo_list = group->suburidecodebin_list;
-  while (suburidecodebininfo_list != NULL) {
-    suburidecodeinfo = (GstSuburidecodeInfo *) suburidecodebininfo_list->data;
-    if ((suburidecodeinfo != NULL) && (suburidecodeinfo->uri != NULL) &&
-        (strncmp (suburi, suburidecodeinfo->uri, strlen (suburidecodeinfo->uri)) == 0)) {
-          return TRUE;
-    }
-    suburidecodebininfo_list = g_slist_next (suburidecodebininfo_list);
-  }
-  return FALSE;
-}
-
-static gboolean
 gst_play_bin_create_suburidecodebin (GstPlayBin * playbin, const gchar * suburi)
 {
   GstSourceGroup *group = NULL;
   GstElement *suburidecodebin = NULL;
 
-  group = get_group (playbin);
-  if (gst_play_bin_have_same_suburi (group, suburi)) {
-    GST_WARNING_OBJECT (playbin, "have the same suburi");
-    return FALSE;
-  }
-
   GST_DEBUG_OBJECT (playbin, "making new suburidecodebin, suburi %s", suburi);
   suburidecodebin = gst_element_factory_make ("uridecodebin", NULL);
   (void) gst_bin_add (GST_BIN_CAST (playbin), suburidecodebin);
 
+  group = get_group (playbin);
   if (suburidecodebin != NULL) {
     g_object_set (suburidecodebin, "connection-speed", playbin->connection_speed,
         "uri", suburi, NULL);
@@ -2554,7 +2535,7 @@ gst_play_bin_suburidecodebin_block (GstSourceGroup * group,
 }
 
 #ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0035
+// ohos.ext.func.0039
 static gboolean
 is_subtitle_decodebin (const GstSourceGroup * group, const GstElement * decodebin)
 {
@@ -2940,7 +2921,7 @@ gst_play_bin_set_property (GObject * object, guint prop_id,
     }
 #endif
 #ifdef OHOS_EXT_FUNC
-    // ohos.ext.func.0035
+    // ohos.ext.func.0039
     case PROP_ADD_SUBURI: {
       gst_play_bin_add_suburi (playbin, g_value_get_string (value));
       break;
@@ -2989,7 +2970,7 @@ gst_play_bin_get_current_stream_combiner (GstPlayBin * playbin,
 }
 
 #ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0035
+// ohos.ext.func.0039
 static void
 get_add_suburi (const GSList * suburidecodebin_list, GValue * value)
 {
@@ -3240,7 +3221,7 @@ gst_play_bin_get_property (GObject * object, guint prop_id, GValue * value,
       break;
 #endif
 #ifdef OHOS_EXT_FUNC
-    // ohos.ext.func.0035
+    // ohos.ext.func.0039
     case PROP_ADD_SUBURI: {
       GstSourceGroup *group = NULL;
       GSList *suburidecodebin_list = NULL;
@@ -3367,7 +3348,7 @@ static const gchar *blacklisted_mimes[] = {
 };
 
 #ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0035
+// ohos.ext.func.0039
 static GstSuburidecodeInfo *
 get_suburidecodebininfo_according_to_msg (const GstSourceGroup * group, const GstMessage * msg)
 {
@@ -3534,7 +3515,7 @@ gst_play_bin_handle_message (GstBin * bin, GstMessage * msg)
      * see bug #602000. */
     group = playbin->curr_group;
 #ifdef OHOS_EXT_FUNC
-    // ohos.ext.func.0035
+    // ohos.ext.func.0039
     if (src && group &&
         ((is_subtitle_decodebin (group, GST_ELEMENT_CAST (src)) && src == GST_OBJECT_CAST (group->uridecodebin))
             || (group->suburidecodebin
@@ -3594,7 +3575,7 @@ gst_play_bin_handle_message (GstBin * bin, GstMessage * msg)
     /* If we get an error of the subtitle uridecodebin transform
      * them into warnings and disable the subtitles */
 #ifdef OHOS_EXT_FUNC
-    // ohos.ext.func.0035
+    // ohos.ext.func.0039
     msg = handle_message_error (playbin, bin, msg);
 #else
     group = playbin->curr_group;
@@ -3887,7 +3868,7 @@ _uridecodebin_event_probe (GstPad * pad, GstPadProbeInfo * info, gpointer udata)
   GstSourceGroup *group = udata;
   GstEvent *event = GST_PAD_PROBE_INFO_DATA (info);
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
+  // ohos.ext.func.0039
   gboolean suburidecodebin = is_subtitle_decodebin (group, GST_PAD_PARENT (pad));
 #else
   gboolean suburidecodebin = (GST_PAD_PARENT (pad) == group->suburidecodebin);
@@ -4123,7 +4104,7 @@ pad_added_cb (GstElement * decodebin, GstPad * pad, GstSourceGroup * group)
         /* sync-mode=1, use clock */
         if (combine->type == GST_PLAY_SINK_TYPE_TEXT)
 #ifdef OHOS_EXT_FUNC
-          // ohos.ext.func.0035
+          // ohos.ext.func.0039
           g_object_set (combine->combiner, "sync-streams", FALSE,
               "sync-mode", 1, "cache-buffers", TRUE, NULL);
 #else
@@ -4264,7 +4245,7 @@ pad_added_cb (GstElement * decodebin, GstPad * pad, GstSourceGroup * group)
        * it will most likely stop. */
       if (combine->has_always_ok) {
 #ifdef OHOS_EXT_FUNC
-        // ohos.ext.func.0035
+        // ohos.ext.func.0039
         gboolean always_ok = is_subtitle_decodebin (group, decodebin);
 #else
         gboolean always_ok = (decodebin == group->suburidecodebin);
@@ -4432,7 +4413,7 @@ no_more_pads_cb (GstElement * decodebin, GstSourceGroup * group)
   gint i;
   gboolean configure;
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
+  // ohos.ext.func.0039
   gboolean is_suburidecodebin = is_subtitle_decodebin (group, decodebin);
 #endif
 
@@ -4458,7 +4439,7 @@ no_more_pads_cb (GstElement * decodebin, GstSourceGroup * group)
     } else if (combine->srcpad && combine->sinkpad) {
       GST_DEBUG_OBJECT (playbin, "refreshing new sink pad %d", combine->type);
 #ifdef OHOS_EXT_FUNC
-      // ohos.ext.func.0035
+      // ohos.ext.func.0039
       if (!is_suburidecodebin) {
         gst_play_sink_refresh_pad (playbin->playsink, combine->sinkpad,
             combine->type);
@@ -4492,7 +4473,7 @@ no_more_pads_cb (GstElement * decodebin, GstSourceGroup * group)
     group->pending--;
 
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
+  // ohos.ext.func.0039
   if (is_suburidecodebin)
 #else
   if (group->suburidecodebin == decodebin)
@@ -4554,7 +4535,10 @@ no_more_pads_cb (GstElement * decodebin, GstSourceGroup * group)
     }
     GST_SOURCE_GROUP_UNLOCK (group);
 #ifdef OHOS_EXT_FUNC
-    // ohos.ext.func.0035
+    /**
+     * ohos.ext.func.0039
+     * Tell playsink just reconfigure text chain when constructing new subtitle pipeline.
+     */
     if (is_suburidecodebin) {
       GST_DEBUG_OBJECT (playbin, "adding new subtitle for playsink pipeline");
       g_object_set (playbin->playsink, "add-new-subtitle", TRUE, NULL);
@@ -5218,7 +5202,7 @@ done:
 }
 
 #ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0035
+// ohos.ext.func.0039
 static gboolean
 element_has_suburidecodebin_ancestor (const GstSourceGroup * group, GstElement * element)
 {
@@ -5258,7 +5242,7 @@ autoplug_continue_cb (GstElement * element, GstPad * pad, GstCaps * caps,
   GstPad *sinkpad = NULL;
   gboolean activated_sink;
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
+  // ohos.ext.func.0039
   gchar *str_caps = NULL;
   GstPlayBin *playbin = group->playbin;
 #endif
@@ -5281,7 +5265,7 @@ autoplug_continue_cb (GstElement * element, GstPad * pad, GstCaps * caps,
       gst_element_set_state (group->text_sink, GST_STATE_NULL);
   } else {
 #ifdef OHOS_EXT_FUNC
-    // ohos.ext.func.0035
+    // ohos.ext.func.0039
     str_caps = gst_caps_to_string (caps);
     if ((str_caps != NULL) && (strstr (str_caps, "subtitle") != NULL)) {
       g_signal_emit (playbin, gst_play_bin_signals[SIGNAL_FIND_TEXT_PAD], 0, &ret);
@@ -5303,7 +5287,7 @@ autoplug_continue_cb (GstElement * element, GstPad * pad, GstCaps * caps,
   /* If this is from the subtitle uridecodebin we don't need to
    * check the audio and video sink */
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
+  // ohos.ext.func.0039
   if (element_has_suburidecodebin_ancestor (group, element))
 #else
   if (group->suburidecodebin
@@ -6034,7 +6018,7 @@ bitrate_parse_complete_cb (GstElement * uridecodebin, gpointer input, guint num,
 #endif
 
 #ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0035
+// ohos.ext.func.0039
 static void
 active_suburidecodebins (GstSourceGroup * group)
 {
@@ -6334,14 +6318,14 @@ activate_group (GstPlayBin * playbin, GstSourceGroup * group, GstState target)
       g_signal_connect (uridecodebin, "autoplug-query",
       G_CALLBACK (autoplug_query_cb), group);
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
+  // ohos.ext.func.0039
   active_suburidecodebins (group);
 #endif
 
   if (group->suburi) {
     /* subtitles */
 #ifdef OHOS_EXT_FUNC
-    // ohos.ext.func.0035
+    // ohos.ext.func.0039
     suburidecodebin = get_suburidecodebin (playbin, group);
     if (suburidecodebin == NULL) {
       goto no_decodebin;
@@ -6408,7 +6392,7 @@ activate_group (GstPlayBin * playbin, GstSourceGroup * group, GstState target)
       GST_SOURCE_GROUP_LOCK (group);
 
 #ifdef OHOS_EXT_FUNC
-      // ohos.ext.func.0035
+      // ohos.ext.func.0039
       REMOVE_SIGNAL (suburidecodebin, group->sub_pad_added_id);
       REMOVE_SIGNAL (suburidecodebin, group->sub_pad_removed_id);
       REMOVE_SIGNAL (suburidecodebin, group->sub_no_more_pads_id);
@@ -6617,7 +6601,7 @@ deactivate_group (GstPlayBin * playbin, GstSourceGroup * group)
   }
 
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
+  // ohos.ext.func.0039
   deactive_suburidecodebins (group);
 #else
   if (group->suburidecodebin) {
@@ -6824,7 +6808,7 @@ gst_play_bin_change_state (GstElement * element, GstStateChange transition)
       guint i;
       GList *l;
 #ifdef OHOS_EXT_FUNC
-      // ohos.ext.func.0035
+      // ohos.ext.func.0039
       GSList *suburidecodebin_list = NULL;
       GstSuburidecodeInfo *suburidecodeinfo = NULL;
 #endif
@@ -6849,7 +6833,7 @@ gst_play_bin_change_state (GstElement * element, GstStateChange transition)
         }
 
 #ifdef OHOS_EXT_FUNC
-        // ohos.ext.func.0035
+        // ohos.ext.func.0039
         if (playbin->groups[i].suburidecodebin_list) {
           suburidecodebin_list = playbin->groups[i].suburidecodebin_list;
           while (suburidecodebin_list != NULL) {

@@ -261,7 +261,7 @@ struct _GstPlaySink
   GstPlaySinkSendEventMode send_event_mode;
   gboolean force_aspect_ratio;
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
+  // ohos.ext.func.0039
   gboolean add_new_subtitle;
 #endif
 
@@ -354,7 +354,7 @@ enum
   PROP_SEND_EVENT_MODE,
   PROP_FORCE_ASPECT_RATIO,
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
+  // ohos.ext.func.0039
   PROP_ADD_NEW_SUBTITLE,
 #endif
   PROP_VIDEO_FILTER,
@@ -632,7 +632,7 @@ gst_play_sink_class_init (GstPlaySinkClass * klass)
 
 #ifdef OHOS_EXT_FUNC
   /**
-   * ohos.ext.func.0035
+   * ohos.ext.func.0039
    * GstPlaySink::add-new-subtitle
    *
    * Adds text chain and do not reconfigure video and audio chain.
@@ -718,7 +718,7 @@ gst_play_sink_init (GstPlaySink * playsink)
   playsink->send_event_mode = MODE_DEFAULT;
   playsink->force_aspect_ratio = TRUE;
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
+  // ohos.ext.func.0039
   playsink->add_new_subtitle = FALSE;
 #endif
 
@@ -2503,7 +2503,7 @@ gen_text_chain (GstPlaySink * playsink)
           G_TYPE_BOOLEAN);
       if (elem) {
 #ifndef OHOS_EXT_FUNC
-        // ohos.ext.func.0035
+        // ohos.ext.func.0039
         /* make sure the sparse subtitles don't participate in the preroll */
         g_object_set (elem, "async", FALSE, NULL);
 #endif
@@ -3263,7 +3263,11 @@ gst_play_sink_do_reconfigure (GstPlaySink * playsink)
   }
 
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
+  /**
+   * ohos.ext.func.0039
+   * When adding new external subtitle, there is no need to reconfigure video chain and audio chain again,
+   * only reconfigure text chain.
+   */
   if (need_text && playsink->add_new_subtitle) {
     GST_INFO_OBJECT (playsink, "adding new subtitle, only reconfigure text chain");
     goto RECONFIGURE_TEXT;
@@ -3848,7 +3852,7 @@ gst_play_sink_do_reconfigure (GstPlaySink * playsink)
   }
 
 #ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0035
+// ohos.ext.func.0039
 RECONFIGURE_TEXT:
 #endif
   if (need_text) {
@@ -3888,7 +3892,10 @@ RECONFIGURE_TEXT:
           playsink->textchain->textsinkpad, GST_PAD_LINK_CHECK_NOTHING);
 
 #ifndef OHOS_EXT_FUNC
-      // ohos.ext.func.0035
+      /**
+       * ohos.ext.func.0039
+       * Do not link text chain with video chain
+       */
       if (need_vis || need_video) {
         if (need_vis) {
           GstPad *srcpad;
@@ -3919,7 +3926,7 @@ RECONFIGURE_TEXT:
 
       activate_chain (GST_PLAY_CHAIN (playsink->textchain), TRUE);
 #ifdef OHOS_EXT_FUNC
-      // ohos.ext.func.0035
+      // ohos.ext.func.0039
       if (playsink->add_new_subtitle) {
         GST_DEBUG_OBJECT (playsink, "adding text chain end, set add_new_subtitle to false");
         playsink->add_new_subtitle = FALSE;
@@ -5317,7 +5324,7 @@ gst_play_sink_set_property (GObject * object, guint prop_id,
       break;
     }
 #ifdef OHOS_EXT_FUNC
-    // ohos.ext.func.0035
+    // ohos.ext.func.0039
     case PROP_ADD_NEW_SUBTITLE: {
       playsink->add_new_subtitle = g_value_get_boolean (value);
       break;
@@ -5390,7 +5397,7 @@ gst_play_sink_get_property (GObject * object, guint prop_id,
       g_value_set_boolean (value, playsink->force_aspect_ratio);
       break;
 #ifdef OHOS_EXT_FUNC
-    // ohos.ext.func.0035
+    // ohos.ext.func.0039
     case PROP_ADD_NEW_SUBTITLE: {
       g_value_set_boolean (value, playsink->add_new_subtitle);
       break;
