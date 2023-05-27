@@ -609,7 +609,7 @@ buf_helper_find_get_length (gpointer data)
   GstTypeFindBufHelper *helper = (GstTypeFindBufHelper *) data;
 
   GST_LOG_OBJECT (helper->obj, "'%s' called get_length, returning %"
-      G_GUINT64_FORMAT, GST_OBJECT_NAME (helper->factory), helper->size);
+      G_GSIZE_FORMAT, GST_OBJECT_NAME (helper->factory), helper->size);
 
   return helper->size;
 }
