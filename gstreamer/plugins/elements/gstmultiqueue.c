@@ -1618,6 +1618,11 @@ gst_multi_queue_post_buffering (GstMultiQueue * mq)
     GST_DEBUG_OBJECT (mq, "Going to post buffering: %d%%", percent);
 #endif
     msg = gst_message_new_buffering (GST_OBJECT_CAST (mq), percent);
+#ifdef OHOS_OPT_PERFORMANCE
+    // ohos.opt.performance.0005
+    // add trace
+    GstCounterTrace("buffer_percent", percent);
+#endif
   }
 
 #ifdef OHOS_EXT_FUNC
@@ -1633,8 +1638,13 @@ gst_multi_queue_post_buffering (GstMultiQueue * mq)
     GST_DEBUG_OBJECT (mq, "Going to post buffering time: %" G_GUINT64_FORMAT, buffering_time);
 #endif
     msg_buffering_time = gst_message_new_buffering_time (GST_OBJECT_CAST (mq), buffering_time, mq->mq_num_id);
-  }
+#ifdef OHOS_OPT_PERFORMANCE
+    // ohos.opt.performance.0005
+    // add trace
+    GstCounterTrace("buffer_duration", (int) (buffering_time / 1000000)); // buffering_time / 1000000 = xx ms
 #endif
+  }
+#endif 
   GST_MULTI_QUEUE_MUTEX_UNLOCK (mq);
 
   if (msg != NULL)
@@ -2407,7 +2417,7 @@ next:
 // ohos.opt.performance.0005
 // add trace
   {
-    GstStartTrace("Multiqueue:push_one_buffer");
+    GstStartTraceExt("Multiqueue:push_one_buffer", GST_PAD_NAME (srcpad));
     result = gst_single_queue_push_one (mq, sq, object, &dropping);
     GstFinishTrace();
   }

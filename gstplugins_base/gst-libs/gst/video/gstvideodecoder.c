@@ -1150,7 +1150,11 @@ gst_video_decoder_push_event (GstVideoDecoder * decoder, GstEvent * event)
 
       gst_event_copy_segment (event, &segment);
 
+#ifdef OHOS_OPT_PERFORMANCE
+      GST_INFO_OBJECT (decoder, "segment %" GST_SEGMENT_FORMAT, &segment);
+#else
       GST_DEBUG_OBJECT (decoder, "segment %" GST_SEGMENT_FORMAT, &segment);
+#endif
 
       if (segment.format != GST_FORMAT_TIME) {
         GST_DEBUG_OBJECT (decoder, "received non TIME newsegment");
@@ -3750,6 +3754,18 @@ gst_video_decoder_clip_and_push_buf (GstVideoDecoder * decoder, GstBuffer * buf)
         GST_TIME_ARGS (segment->start), GST_TIME_ARGS (segment->stop),
         GST_TIME_ARGS (segment->time));
   } else {
+#ifdef OHOS_OPT_PERFORMANCE
+    // ohos.opt.performance.0005
+    // add trace
+    GST_INFO_OBJECT (decoder,
+        "dropping buffer outside segment: %" GST_TIME_FORMAT
+        " %" GST_TIME_FORMAT
+        " seg %" GST_TIME_FORMAT " to %" GST_TIME_FORMAT
+        " time %" GST_TIME_FORMAT,
+        GST_TIME_ARGS (start), GST_TIME_ARGS (stop),
+        GST_TIME_ARGS (segment->start),
+        GST_TIME_ARGS (segment->stop), GST_TIME_ARGS (segment->time));
+#else
     GST_LOG_OBJECT (decoder,
         "dropping buffer outside segment: %" GST_TIME_FORMAT
         " %" GST_TIME_FORMAT
@@ -3758,6 +3774,7 @@ gst_video_decoder_clip_and_push_buf (GstVideoDecoder * decoder, GstBuffer * buf)
         GST_TIME_ARGS (start), GST_TIME_ARGS (stop),
         GST_TIME_ARGS (segment->start),
         GST_TIME_ARGS (segment->stop), GST_TIME_ARGS (segment->time));
+#endif
     /* only check and return EOS if upstream still
      * in the same segment and interested as such */
     if (decoder->priv->in_out_segment_sync) {
@@ -3851,7 +3868,14 @@ gst_video_decoder_clip_and_push_buf (GstVideoDecoder * decoder, GstBuffer * buf)
   /* release STREAM_LOCK not to block upstream 
    * while pushing buffer downstream */
   GST_VIDEO_DECODER_STREAM_UNLOCK (decoder);
+#ifdef OHOS_OPT_PERFORMANCE
+  // ohos.opt.performance.0005
+  GstStartTrace("Decoder:push buffer to sink");
+#endif
   ret = gst_pad_push (decoder->srcpad, buf);
+#ifdef OHOS_OPT_PERFORMANCE
+  GstFinishTrace();
+#endif
   GST_VIDEO_DECODER_STREAM_LOCK (decoder);
 
 done:
