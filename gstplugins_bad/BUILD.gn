@@ -217,6 +217,7 @@ ohos_source_set("mpegtsdemux_source") {
 ohos_shared_library("gstmpegtsdemux") {
   deps = [
     ":mpegtsdemux_source",
+    "../gst_dfx:gst_trace",
     "//third_party/glib:glib",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_bad:gstcodecparsers",
