@@ -20,7 +20,7 @@ extern "C" {
 #endif
 
 void __attribute__((visibility("default"))) GstStartTrace(char *name);
-void __attribute__((visibility("default"))) GstStartTraceExt(char *name, char* sub_name);
+void __attribute__((visibility("default"))) GstStartTraceExt(char *name, char *sub_name);
 void __attribute__((visibility("default"))) GstFinishTrace();
 void __attribute__((visibility("default"))) GstCounterTrace(char *name, int count);
 

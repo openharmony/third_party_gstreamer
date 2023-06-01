@@ -98,6 +98,7 @@ config("gst_plugins_config") {
   include_dirs = [
     ".",
     "./gst-libs",
+    "../gst_dfx/",
     "//third_party/gstreamer/gstreamer",
     "//third_party/gstreamer/gstreamer/libs",
     "//third_party/gstreamer/gstplugins_base",
@@ -119,6 +120,7 @@ config("gst_plugins_config") {
     "-Wno-implicit-function-declaration",
     "-Wno-unused-function",
     "-DOHOS_EXT_FUNC",
+    "-DOHOS_OPT_PERFORMANCE",
     "-DOHOS_GLIB_COMPATIBLE",
     "-DOHOS_OPT_COMPAT",
     "-DOHOS_OPT_STABLE",
@@ -215,6 +217,7 @@ ohos_source_set("mpegtsdemux_source") {
 ohos_shared_library("gstmpegtsdemux") {
   deps = [
     ":mpegtsdemux_source",
+    "../gst_dfx:gst_trace",
     "//third_party/glib:glib",
     "//third_party/glib:gobject",
     "//third_party/gstreamer/gstplugins_bad:gstcodecparsers",
@@ -324,6 +327,7 @@ ohos_source_set("parse_source") {
     "-DGST_DISABLE_DEPRECATED",
     "-DHAVE_CONFIG_H",
     "-DOHOS_EXT_FUNC",
+    "-DOHOS_OPT_PERFORMANCE",
     "-DOHOS_GLIB_COMPATIBLE",
     "-DOHOS_OPT_COMPAT",
     "-DGST_USE_UNSTABLE_API",

@@ -1000,8 +1000,16 @@ gst_ts_demux_do_seek (MpegTSBase * base, GstEvent * event)
     for (tmp = demux->program->stream_list; tmp; tmp = tmp->next) {
       TSDemuxStream *stream = tmp->data;
 
+#ifdef OHOS_OPT_PERFORMANCE
+      // ohos.opt.performance.0007
+      // ts accurate seek can't find keyframe
+      // segment is the same as accurate seek. the decoder will drop frame until accurate seek timestamp
+      if (flags & GST_SEEK_FLAG_ACCURATE)
+        stream->needs_keyframe = FALSE;
+#else
       if (flags & GST_SEEK_FLAG_ACCURATE)
         stream->needs_keyframe = TRUE;
+#endif
 
       stream->seeked_pts = GST_CLOCK_TIME_NONE;
       stream->seeked_dts = GST_CLOCK_TIME_NONE;
