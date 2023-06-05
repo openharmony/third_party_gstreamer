@@ -476,6 +476,10 @@ struct _GstPlayBin
   gint high_percent;
 #endif
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.opt.compat.0038
+  gint currentAudio;
+#endif
   GList *contexts;
 
   gboolean is_live;
@@ -1705,6 +1709,10 @@ gst_play_bin_init (GstPlayBin * playbin)
   playbin->high_percent = DEFAULT_HIGH_PERCENT;
 #endif
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.opt.compat.0038
+  playbin->currentAudio = -1;
+#endif
 }
 
 static void
@@ -2541,7 +2549,14 @@ gst_play_bin_set_property (GObject * object, guint prop_id,
       gst_play_bin_set_current_video_stream (playbin, g_value_get_int (value));
       break;
     case PROP_CURRENT_AUDIO:
+#ifdef OHOS_EXT_FUNC
+      // ohos.opt.compat.0038
+    if (gst_play_bin_set_current_audio_stream (playbin, g_value_get_int (value))) {
+      playbin->currentAudio = g_value_get_int (value);
+    }
+#else
       gst_play_bin_set_current_audio_stream (playbin, g_value_get_int (value));
+#endif
       break;
     case PROP_CURRENT_TEXT:
       gst_play_bin_set_current_text_stream (playbin, g_value_get_int (value));
@@ -4049,6 +4064,15 @@ no_more_pads_cb (GstElement * decodebin, GstSourceGroup * group)
             ("Failed to link combiner to sink. Error %d", res));
       }
     }
+
+#ifdef OHOS_EXT_FUNC
+    // ohos.opt.compat.0038
+    if ((i == PLAYBIN_STREAM_AUDIO) && (playbin->currentAudio >= 0)) {
+      GST_DEBUG_OBJECT (playbin, "Audio track configuration recovery %d", playbin->currentAudio);
+      gst_play_bin_set_current_audio_stream (playbin, playbin->currentAudio);
+    }
+#endif
+
   }
   GST_DEBUG_OBJECT (playbin, "pending %d > %d", group->pending,
       group->pending - 1);
