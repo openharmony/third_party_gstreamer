@@ -4033,6 +4033,15 @@ gst_base_sink_chain_unlocked (GstBaseSink * basesink, GstPad * pad,
     if (GST_CLOCK_TIME_IS_VALID (end))
       pts_end = pts + (end - start);
 
+#ifdef OHOS_EXT_FUNC
+    /**
+     * ohos.ext.func.0041
+     * subtitle drop buffer logic
+     */
+    if (bclass->need_drop_buffer && bclass->need_drop_buffer(segment, pts, pts_end)) {
+      goto out_of_segment;
+    }
+#endif
     if (G_UNLIKELY (!gst_segment_clip (segment,
                 GST_FORMAT_TIME, pts, pts_end, NULL, NULL)
             && priv->drop_out_of_segment))
