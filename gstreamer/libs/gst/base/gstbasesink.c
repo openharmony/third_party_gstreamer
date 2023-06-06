@@ -4038,14 +4038,20 @@ gst_base_sink_chain_unlocked (GstBaseSink * basesink, GstPad * pad,
      * ohos.ext.func.0041
      * subtitle drop buffer logic
      */
-    if (bclass->need_drop_buffer && bclass->need_drop_buffer(segment, pts, pts_end)) {
-      goto out_of_segment;
+    if (bclass->need_drop_buffer) {
+      if (bclass->need_drop_buffer(segment, pts, pts_end)) {
+        goto out_of_segment;
+      }
+    } else if (G_UNLIKELY (!gst_segment_clip (segment, GST_FORMAT_TIME, pts, pts_end, NULL, NULL)
+      && priv->drop_out_of_segment)) {
+        goto out_of_segment;
     }
-#endif
+#else
     if (G_UNLIKELY (!gst_segment_clip (segment,
                 GST_FORMAT_TIME, pts, pts_end, NULL, NULL)
             && priv->drop_out_of_segment))
       goto out_of_segment;
+#endif
   }
 
   if (bclass->prepare || bclass->prepare_list) {
