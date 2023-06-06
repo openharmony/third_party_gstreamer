@@ -4039,7 +4039,7 @@ gst_base_sink_chain_unlocked (GstBaseSink * basesink, GstPad * pad,
      * subtitle drop buffer logic
      */
     if (bclass->need_drop_buffer) {
-      if (bclass->need_drop_buffer(segment, pts, pts_end)) {
+      if (bclass->need_drop_buffer(basesink, segment, pts, pts_end)) {
         goto out_of_segment;
       }
     } else if (G_UNLIKELY (!gst_segment_clip (segment, GST_FORMAT_TIME, pts, pts_end, NULL, NULL)
