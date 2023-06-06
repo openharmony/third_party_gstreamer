@@ -229,7 +229,7 @@ struct _GstBaseSinkClass {
   /* #endif */
 
 #ifdef OHOS_EXT_FUNC
-  gboolean      (*need_drop_buffer)        (GstSegment *segment, guint64 pts, guint64 pts_end);
+  gboolean      (*need_drop_buffer)        (GstBaseSink *basesink, GstSegment *segment, guint64 pts, guint64 pts_end);
 #endif
   /*< private >*/
   gpointer       _gst_reserved[GST_PADDING_LARGE];
