@@ -246,3 +246,15 @@ gst_type_find_get_length (GstTypeFind * find)
 
   return find->get_length (find->data);
 }
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0039
+gboolean
+gst_type_find_is_mask_sub (const GstTypeFind *find)
+{
+  g_return_val_if_fail (find != NULL, FALSE);
+  g_return_val_if_fail (find->is_mask_sub != NULL, FALSE);
+
+  return find->is_mask_sub (find->data);
+}
+#endif

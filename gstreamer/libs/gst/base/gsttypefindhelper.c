@@ -257,6 +257,25 @@ helper_find_get_length (gpointer data)
   return helper->size;
 }
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0039
+static gboolean
+helper_find_is_mask_sub (gpointer data)
+{
+  gboolean is_subtitle = TRUE;
+  GstTypeFindHelper *helper = (GstTypeFindHelper *)data;
+  if ((helper == NULL) || (helper->obj == NULL)) {
+    goto EXIT;
+  }
+
+  g_object_get ((GObject *) helper->obj, "isSubtitle", &is_subtitle, NULL);
+  GST_INFO_OBJECT ((GstObject *) helper->obj, "typefind is_subtitle = %d", is_subtitle);
+
+EXIT:
+  return !is_subtitle;
+}
+#endif
+
 static GList *
 prioritize_extension (GstObject * obj, GList * type_list,
     const gchar * extension)
@@ -413,6 +432,13 @@ gst_type_find_helper_get_range_full (GstObject * obj, GstObject * parent,
 #ifdef OHOS_OPT_COMPAT
   // ohos.opt.compat.0004
   find.need_typefind_again = FALSE;
+#endif
+#ifdef OHOS_EXT_FUNC
+  /**
+   * ohos.ext.func.0039
+   * Enable is_mask_sub() in pull mode.
+   */
+  find.is_mask_sub = helper_find_is_mask_sub;
 #endif
 
   if (size == 0 || size == (guint64) - 1) {
@@ -583,6 +609,35 @@ buf_helper_find_suggest (gpointer data, guint probability, GstCaps * caps)
   }
 }
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0039
+static guint64
+buf_helper_find_get_length (gpointer data)
+{
+  GstTypeFindBufHelper *helper = (GstTypeFindBufHelper *) data;
+
+  GST_LOG_OBJECT (helper->obj, "'%s' called get_length, returning %"
+      G_GSIZE_FORMAT, GST_OBJECT_NAME (helper->factory), helper->size);
+
+  return helper->size;
+}
+
+static gboolean
+buf_helper_find_is_mask_sub (gpointer data)
+{
+  gboolean is_subtitle = TRUE;
+  GstTypeFindBufHelper *helper = (GstTypeFindBufHelper *) data;
+  if ((helper == NULL) || (helper->obj == NULL)) {
+    goto EXIT;
+  }
+  g_object_get ((GObject *) helper->obj, "isSubtitle", &is_subtitle, NULL);
+  GST_INFO_OBJECT ((GstObject *) helper->obj, "typefind is_subtitle = %d", is_subtitle);
+
+EXIT:
+  return !is_subtitle;
+}
+#endif
+
 /**
  * gst_type_find_helper_for_data:
  * @obj: (allow-none): object doing the typefinding, or %NULL (used for logging)
@@ -714,7 +769,16 @@ gst_type_find_helper_for_data_with_extension (GstObject * obj,
   find.data = &helper;
   find.peek = buf_helper_find_peek;
   find.suggest = buf_helper_find_suggest;
+#ifdef OHOS_EXT_FUNC
+  /**
+   * ohos.ext.func.0039
+   * Enable get_length() and is_mask_sub() in push mode.
+   */
+  find.get_length = buf_helper_find_get_length;
+  find.is_mask_sub = buf_helper_find_is_mask_sub;
+#else
   find.get_length = NULL;
+#endif
 #ifdef OHOS_OPT_COMPAT
   // ohos.opt.compat.0004
   find.need_typefind_again = FALSE;
