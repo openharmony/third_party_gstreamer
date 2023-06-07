@@ -423,7 +423,17 @@ _priv_gst_tag_initialize (void)
   gst_tag_register_static (GST_TAG_PRIVATE_DATA, GST_TAG_FLAG_META,
       GST_TYPE_SAMPLE,
       _("private-data"), _("Private data"), gst_tag_merge_use_first);
-
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0039
+  gst_tag_register_static (GST_TAG_SUBTITLE_FORMAT, GST_TAG_FLAG_META,
+      G_TYPE_STRING,
+      _("subtitle format"),
+      _("Information about subtitle format"), NULL);
+  gst_tag_register_static (GST_TAG_SUBTITLE_STREAM_ACTIVITY_FLAG, GST_TAG_FLAG_META,
+      G_TYPE_INT,
+      _("subtitle stream activity flag"),
+      _("Information about which subtitle stream is activity"), NULL);
+#endif
 }
 
 /**
