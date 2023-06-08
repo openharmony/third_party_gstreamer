@@ -515,7 +515,7 @@ struct _GstPlayBinClass
   /* notify app that number of audio/video/text streams changed */
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0038 report selectBitrateDone
-  void (*video_changed) (GstPlayBin * playbin, gboolean add_pad);
+  void (*video_changed) (GstPlayBin * playbin, const gchar *stream_id);
 #else
   void (*video_changed) (GstPlayBin * playbin);
 #endif
@@ -1216,7 +1216,7 @@ gst_play_bin_class_init (GstPlayBinClass * klass)
       G_STRUCT_OFFSET (GstPlayBinClass, video_changed), NULL, NULL, NULL,
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0038 report selectBitrateDone
-      G_TYPE_NONE, 1, G_TYPE_BOOLEAN);
+      G_TYPE_NONE, 1, G_TYPE_STRING);
 #else
       G_TYPE_NONE, 0, G_TYPE_NONE);
 #endif
@@ -4291,7 +4291,10 @@ pad_added_cb (GstElement * decodebin, GstPad * pad, GstSourceGroup * group)
 #ifdef OHOS_EXT_FUNC
       // ohos.ext.func.0038 report selectBitrateDone
       if (signal == SIGNAL_VIDEO_CHANGED) {
-        g_signal_emit (G_OBJECT (playbin), gst_play_bin_signals[signal], 0, TRUE);
+        gchar *stream_id = gst_pad_get_stream_id(pad);
+        GST_DEBUG_OBJECT (playbin, "stream_id is %s", stream_id);
+        g_signal_emit (G_OBJECT (playbin), gst_play_bin_signals[signal], 0, stream_id);
+        g_free (stream_id);
       } else {
         g_signal_emit (G_OBJECT (playbin), gst_play_bin_signals[signal], 0, NULL);
       }
@@ -4431,7 +4434,7 @@ exit:
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0038 report selectBitrateDone
   if (signal == SIGNAL_VIDEO_CHANGED) {
-    g_signal_emit (G_OBJECT (playbin), gst_play_bin_signals[signal], 0, FALSE);
+    g_signal_emit (G_OBJECT (playbin), gst_play_bin_signals[signal], 0, "");
   } else if (signal >= 0) {
     g_signal_emit (G_OBJECT (playbin), gst_play_bin_signals[signal], 0, NULL);
   }

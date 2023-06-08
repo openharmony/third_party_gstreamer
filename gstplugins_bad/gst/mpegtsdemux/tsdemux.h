@@ -110,6 +110,11 @@ struct _GstTSDemux
 
   /* This is to protect demux->segment_event */
   GMutex lock;
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0038 report selectBitrateDone
+  gint bandwidth;
+#endif
 };
 
 struct _GstTSDemuxClass
