@@ -221,6 +221,11 @@ struct _MpegTSBaseClass {
   /* Notifies subclasses input buffer has been handled */
   GstFlowReturn (*input_done) (MpegTSBase *base);
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0038 report selectBitrateDone
+  void (*parse_bandwidth) (MpegTSBase * base, GstEvent * event);
+#endif
+
   /* signals */
   void (*pat_info) (GstStructure *pat);
   void (*pmt_info) (GstStructure *pmt);

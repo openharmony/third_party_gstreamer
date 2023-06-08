@@ -352,6 +352,11 @@ static void gst_ts_demux_check_and_sync_streams (GstTSDemux * demux,
     GstClockTime time);
 static void handle_psi (MpegTSBase * base, GstMpegtsSection * section);
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0038 report selectBitrateDone
+static void gst_ts_demux_parse_bandwidth (MpegTSBase * base, GstEvent * event);
+#endif
+
 static void
 _extra_init (void)
 {
@@ -472,6 +477,10 @@ gst_ts_demux_class_init (GstTSDemuxClass * klass)
   ts_class->seek = GST_DEBUG_FUNCPTR (gst_ts_demux_do_seek);
   ts_class->flush = GST_DEBUG_FUNCPTR (gst_ts_demux_flush);
   ts_class->drain = GST_DEBUG_FUNCPTR (gst_ts_demux_drain);
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0038 report selectBitrateDone
+  ts_class->parse_bandwidth = GST_DEBUG_FUNCPTR (gst_ts_demux_parse_bandwidth);
+#endif
 }
 
 static void
@@ -501,6 +510,11 @@ gst_ts_demux_reset (MpegTSBase * base)
   demux->program_generation = 0;
 
   demux->mpeg_pts_offset = 0;
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0038 report selectBitrateDone
+  demux->bandwidth = 0;
+#endif
 }
 
 static void
@@ -1957,6 +1971,17 @@ done:
           bstream->pid);
       gst_stream_set_stream_type (bstream->stream_object,
           GST_STREAM_TYPE_VIDEO);
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0038 report selectBitrateDone
+      caps = gst_caps_make_writable(caps);
+      GValue val = { 0 };
+      g_value_init (&val, G_TYPE_INT);
+      g_value_set_int(&val, demux->bandwidth);
+      gst_structure_set_value (gst_caps_get_structure (caps, 0), "bandwidth", &val);
+      g_value_unset(&val);
+      gst_pad_set_caps(pad, caps);
+      GST_DEBUG_OBJECT (demux, "set bandwidth %d", demux->bandwidth);
+#endif
     } else if (is_private) {
       template = gst_static_pad_template_get (&private_template);
       name =
@@ -3721,4 +3746,15 @@ gst_ts_demux_push (MpegTSBase * base, MpegTSPacketizerPacket * packet,
     }
   }
   return res;
+}
+
+static void
+gst_ts_demux_parse_bandwidth (MpegTSBase * base, GstEvent * event)
+{
+  GstTSDemux *demux = (GstTSDemux *) base;
+  GstCaps *caps;
+  gst_event_parse_caps (event, &caps);
+  const GValue *val = gst_structure_get_value(gst_caps_get_structure(caps, 0), "bandwidth");
+  demux->bandwidth = g_value_get_int(val);
+  GST_DEBUG_OBJECT (demux, "parse bandwidth %d", demux->bandwidth);
 }

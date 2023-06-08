@@ -128,6 +128,10 @@ static void gst_hls_demux_set_current_variant (GstHLSDemux * hlsdemux,
 static gboolean gst_hls_demux_get_bitrate_info(GstAdaptiveDemux * demux,
     GstAdaptiveDemuxBitrateInfo * bitrate_info);
 #endif
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0038 report selectBitrateDone
+static gint gst_hls_demux_get_current_bandwidth (GstAdaptiveDemuxStream * stream);
+#endif
 
 #define gst_hls_demux_parent_class parent_class
 G_DEFINE_TYPE (GstHLSDemux, gst_hls_demux, GST_TYPE_ADAPTIVE_DEMUX);
@@ -199,6 +203,10 @@ gst_hls_demux_class_init (GstHLSDemuxClass * klass)
 #ifdef OHOS_EXT_FUNC
 // ohos.ext.func.0028
   adaptivedemux_class->get_bitrate_info = gst_hls_demux_get_bitrate_info;
+#endif
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0038 report selectBitrateDone
+  adaptivedemux_class->get_current_bandwidth = gst_hls_demux_get_current_bandwidth;
 #endif
 
   GST_DEBUG_CATEGORY_INIT (gst_hls_demux_debug, "hlsdemux", 0,
@@ -1224,6 +1232,16 @@ static gboolean gst_hls_demux_get_bitrate_info(GstAdaptiveDemux * demux,
   }
 
   return TRUE;
+}
+#endif
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0038 report selectBitrateDone
+static gint
+gst_hls_demux_get_current_bandwidth (GstAdaptiveDemuxStream * stream)
+{
+  GstHLSDemux *hlsdemux = GST_HLS_DEMUX_CAST (stream->demux);
+  return hlsdemux->current_variant->bandwidth;
 }
 #endif
 

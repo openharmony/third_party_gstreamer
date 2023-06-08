@@ -1299,6 +1299,21 @@ gst_adaptive_demux_expose_stream (GstAdaptiveDemux * demux,
 
   GST_DEBUG_OBJECT (demux, "Exposing srcpad %s:%s with caps %" GST_PTR_FORMAT,
       GST_DEBUG_PAD_NAME (pad), caps);
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0038 report selectBitrateDone
+  GstAdaptiveDemuxClass *klass = GST_ADAPTIVE_DEMUX_GET_CLASS (demux);
+  if (klass->get_current_bandwidth) {
+    caps = gst_caps_make_writable(caps);
+    gint bandwidth = klass->get_current_bandwidth(stream);
+    GST_DEBUG_OBJECT (demux, "bandwidth is %d", bandwidth);
+    GValue val = { 0 };
+    g_value_init (&val, G_TYPE_INT);
+    g_value_set_int(&val, bandwidth);
+    gst_structure_set_value (gst_caps_get_structure (caps, 0), "bandwidth", &val);
+    g_value_unset(&val);
+    gst_pad_set_caps(pad, caps);
+#endif
+  }
   if (caps)
     gst_caps_unref (caps);
 
