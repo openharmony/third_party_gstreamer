@@ -411,6 +411,11 @@ struct _GstAdaptiveDemuxClass
    */
   gint64        (*stream_get_fragment_waiting_time) (GstAdaptiveDemuxStream * stream);
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0038 report selectBitrateDone
+  gint          (*get_current_bandwidth) (GstAdaptiveDemuxStream * stream);
+#endif
+
   /**
    * start_fragment:
    * @demux: #GstAdaptiveDemux
