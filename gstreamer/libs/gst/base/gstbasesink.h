@@ -228,9 +228,12 @@ struct _GstBaseSinkClass {
   GstClockTime (*update_reach_time)  (GstBaseSink *sink, GstClockTime reach_time, gboolean *need_drop_this_buffer);
   /* #endif */
 
-#ifdef OHOS_EXT_FUNC
+  /** #ifdef OHOS_EXT_FUNC
+   * ohos.ext.func.0041
+   * subtitle drop buffer logic
+   */
   gboolean      (*need_drop_buffer)        (GstBaseSink *basesink, GstSegment *segment, guint64 pts, guint64 pts_end);
-#endif
+  /* #endif */
   /*< private >*/
   gpointer       _gst_reserved[GST_PADDING_LARGE];
 };
