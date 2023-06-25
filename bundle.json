@@ -28,7 +28,7 @@
                 "glib",
                 "ffmpeg",
                 "zlib",
-                "bzip2",
+                "bzip2"
             ]
         },
         "build": {
