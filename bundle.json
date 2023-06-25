@@ -14,16 +14,23 @@
         "en": "gstreamer/README"
     },
     "component": {
-        "name": "thirdparty_gstreamer",
-        "subsystem": "",
+        "name": "gstreamer",
+        "subsystem": "thirdparty",
         "syscap": [],
         "features": [],
-        "adapted_system_type": [],
+        "adapted_system_type": [ "standard" ],
         "rom": "",
         "ram": "",
         "deps": {
             "components": [],
-            "third_party": []
+            "third_party": [
+                "curl",
+                "glib",
+                "ffmpeg",
+                "zlib",
+                "bzip2",
+                "hitrace_native"
+            ]
         },
         "build": {
             "sub_component": [],
