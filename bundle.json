@@ -22,14 +22,13 @@
         "rom": "",
         "ram": "",
         "deps": {
-            "components": [],
+            "components": [ "hitrace_native" ],
             "third_party": [
                 "curl",
                 "glib",
                 "ffmpeg",
                 "zlib",
                 "bzip2",
-                "hitrace_native"
             ]
         },
         "build": {
