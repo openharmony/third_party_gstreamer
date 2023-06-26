@@ -1565,14 +1565,6 @@ update_buffering (GstMultiQueue * mq, GstSingleQueue * sq)
 
     SET_PERCENT (mq, percent);
   } else {
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0035
-  // Buffering is triggered as long as one queue (audio or video) of data is below the watermark
-  if (buffering_level < mq->low_watermark) {
-    mq->buffering = TRUE;
-    SET_PERCENT (mq, percent);
-  }
-#else
     GList *iter;
     gboolean is_buffering = TRUE;
 
@@ -1590,7 +1582,6 @@ update_buffering (GstMultiQueue * mq, GstSingleQueue * sq)
       mq->buffering = TRUE;
       SET_PERCENT (mq, percent);
     }
-#endif
   }
 
 #ifdef OHOS_EXT_FUNC
