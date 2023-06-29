@@ -2477,6 +2477,12 @@ gst_base_transform_activate (GstBaseTransform * trans, gboolean active)
   } else {
     /* We must make sure streaming has finished before resetting things
      * and calling the ::stop vfunc */
+#ifdef OHOS_OPT_COMPAT
+  /** ohos.opt.compat.0062
+   * fix STREAM_LOCK failed when the buffer wait buffer available
+   */
+  gst_buffer_pool_set_flushing(priv->pool, TRUE);
+#endif
     GST_PAD_STREAM_LOCK (trans->sinkpad);
     GST_PAD_STREAM_UNLOCK (trans->sinkpad);
 
