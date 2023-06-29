@@ -16,7 +16,7 @@ import("//build/ohos.gni")
 ohos_static_library("gst_trace") {
   sources = [ "gst_trace.cpp" ]
 
-  external_deps = [ "hitrace_native:hitrace_meter" ]
+  external_deps = [ "hitrace:hitrace_meter" ]
 
   part_name = "gstreamer"
   subsystem_name = "thirdparty"
