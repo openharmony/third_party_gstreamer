@@ -22,7 +22,7 @@
         "rom": "",
         "ram": "",
         "deps": {
-            "components": [ "hitrace_native" ],
+            "components": [ "hitrace" ],
             "third_party": [
                 "curl",
                 "glib",
