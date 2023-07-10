@@ -2431,6 +2431,8 @@ no_channels:
   }
 }
 
+#ifndef OHOS_EXT_FUNC
+// ohos.ext.func.0040
 static void
 gst_play_bin_suburidecodebin_seek_to_start (GstSourceGroup * group)
 {
@@ -2478,6 +2480,7 @@ gst_play_bin_suburidecodebin_seek_to_start (GstSourceGroup * group)
   if (it)
     gst_iterator_free (it);
 }
+#endif
 
 static void
 source_combine_remove_pads (GstPlayBin * playbin, GstSourceCombine * combine)
@@ -2509,6 +2512,8 @@ block_serialized_data_cb (GstPad * pad, GstPadProbeInfo * info,
   return GST_PAD_PROBE_OK;
 }
 
+#ifndef OHOS_EXT_FUNC
+// ohos.ext.func.0040
 static void
 gst_play_bin_suburidecodebin_block (GstSourceGroup * group,
     GstElement * suburidecodebin, gboolean block)
@@ -2551,6 +2556,7 @@ gst_play_bin_suburidecodebin_block (GstSourceGroup * group,
   g_value_unset (&item);
   gst_iterator_free (it);
 }
+#endif
 
 #ifdef OHOS_EXT_FUNC
 // ohos.ext.func.0039
@@ -2578,6 +2584,222 @@ is_subtitle_decodebin (const GstSourceGroup * group, const GstElement * decodebi
 }
 #endif
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0040
+static gboolean
+gst_play_bin_substream_is_internal (GstPlayBin * playbin, gint stream)
+{
+  g_return_val_if_fail (playbin != NULL, FALSE);
+
+  GstTagList *tag_list = NULL;
+  guint32 subtitle_internal_flag = -1;
+  gboolean ret = FALSE;
+
+  tag_list = gst_play_bin_get_text_tags (playbin, stream);
+  if (tag_list && gst_tag_list_get_uint (tag_list, GST_TAG_SUBTITLE_TYPE, &subtitle_internal_flag)) {
+    if (subtitle_internal_flag == 1) {
+      ret = TRUE;
+    } else if (subtitle_internal_flag == 0) {
+      ret = FALSE;
+    }
+  } else {
+    GST_WARNING_OBJECT (playbin, "get text tags failed");
+  }
+  return ret;
+}
+
+static void
+select_stream (GstObject * combiner, GstPad * sinkpad, gboolean internal)
+{
+  GstStructure *structure = NULL;
+  /* activate the selected pad */
+  if (internal) {
+    g_object_set (combiner, "active-pad", sinkpad, NULL);
+  }
+  structure = gst_structure_new_id (g_quark_from_string ("select-stream"),
+      g_quark_from_string ("activity"), G_TYPE_BOOLEAN, TRUE, NULL);
+  if (structure != NULL) {
+    GstEvent *event = gst_event_new_custom (GST_EVENT_CUSTOM_UPSTREAM, structure);
+    if (event != NULL) {
+      gst_pad_push_event (sinkpad, event);
+    } else {
+      GST_WARNING ("new event failed");
+      gst_structure_free (structure);
+      structure = NULL;
+    }
+  }
+  if (!internal) {
+    g_object_set (combiner, "active-pad", sinkpad, NULL);
+  }
+}
+
+static gint64
+gst_play_bin_get_current_position (GstPlayBin * playbin)
+{
+  GstFormat fmt = GST_FORMAT_TIME;
+  gint64 position = 0;
+  GstQuery *query = gst_query_new_position (GST_FORMAT_TIME);
+  if (query == NULL) {
+    GST_DEBUG_OBJECT (playbin, "query position failed");
+    return 0;
+  }
+  gboolean ret = gst_element_query (GST_ELEMENT_CAST(playbin), query);
+  if (ret) {
+    gst_query_parse_position (query, &fmt, &position);
+  } else {
+    gst_query_unref (query);
+    return 0;
+  }
+  gst_query_unref (query);
+  return position;
+}
+
+static void
+gst_play_bin_suburidecodebin_seek_to_current_pos (GstPlayBin * playbin, GstPad * srcpad)
+{
+  g_return_if_fail ((playbin != NULL) && (srcpad != NULL));
+
+  gint64 position = 0;
+  GstEvent *event = NULL;
+
+  position = gst_play_bin_get_current_position (playbin);
+  if (position) {
+    GST_INFO_OBJECT (playbin, "get the current position %" GST_TIME_FORMAT, GST_TIME_ARGS (position));
+  } else {
+    GST_WARNING_OBJECT (playbin, "get the current position failed");
+  }
+  event = gst_event_new_seek (1.0, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH, GST_SEEK_TYPE_SET,
+      position, GST_SEEK_TYPE_NONE, -1);
+  if (!gst_pad_send_event (srcpad, event)) {
+    GST_WARNING_OBJECT (srcpad, "Seeking to the beginning failed!");
+  }
+}
+
+static void
+check_seek_suburidecodebin (GstPlayBin * playbin, GstObject * combiner, GstPad * sinkpad, gboolean internal)
+{
+  gboolean need_seek = FALSE;
+  GstPad *peer = gst_pad_get_peer (sinkpad);
+  GstElement *parent_element = NULL;
+  GstSourceGroup *group = get_group (playbin);
+  /*
+   * Now check if we need to seek the suburidecodebin to the beginning
+   * or if we need to block all suburidecodebin sinkpads or if we need
+   * to unblock all suburidecodebin sinkpads
+   */
+  if (peer != NULL) {
+    parent_element = gst_pad_get_parent_element (peer);
+  }
+  need_seek = is_subtitle_decodebin (group, parent_element);
+  gst_object_unref (parent_element);
+  if (gst_play_bin_send_custom_event (combiner, "playsink-custom-subtitle-flush")) {
+    playbin->text_pending_flush_finish = TRUE;
+  }
+
+  select_stream (combiner, sinkpad, internal);
+  if (need_seek && !internal) {
+    gst_play_bin_suburidecodebin_seek_to_current_pos (playbin, peer);
+  }
+  gst_object_unref (peer);
+}
+
+static gboolean
+gst_play_bin_set_current_text_stream (GstPlayBin * playbin, gint stream)
+{
+  g_return_val_if_fail (playbin != NULL, FALSE);
+
+  GstSourceGroup *group = NULL;
+  GPtrArray *channels = NULL;
+  GstPad *sinkpad = NULL;
+  gboolean internal = FALSE;
+
+  GST_PLAY_BIN_LOCK (playbin);
+  GST_DEBUG_OBJECT (playbin, "Changing current text stream %d -> %d", playbin->current_text, stream);
+  group = get_group (playbin);
+  if ((group == NULL) || (!group->combiner[PLAYBIN_STREAM_TEXT].has_active_pad)) {
+    goto no_active_pad;
+  }
+  channels = group->text_channels;
+  if (!channels) {
+    goto no_channels;
+  }
+  if ((stream == -1) || (channels->len <= stream)) {
+    sinkpad = NULL;
+  } else {
+    sinkpad = g_ptr_array_index (channels, stream);
+    internal = gst_play_bin_substream_is_internal (playbin, stream);
+  }
+  GST_PLAY_BIN_UNLOCK (playbin);
+  if (sinkpad != NULL) {
+    GstObject *combiner = gst_pad_get_parent (sinkpad);
+    if (combiner) {
+      check_seek_suburidecodebin (playbin, combiner, sinkpad, internal);
+      gst_object_unref (combiner);
+    }
+  }
+  return TRUE;
+
+no_active_pad:
+  GST_PLAY_BIN_UNLOCK (playbin);
+  GST_WARNING_OBJECT (playbin,
+      "can't switch text, the stream combiner's sink pads don't have the \"active-pad\" property");
+  return FALSE;
+no_channels:
+  GST_PLAY_BIN_UNLOCK (playbin);
+  return FALSE;
+}
+
+/* get the index value of the current active subtitle stream */
+static gint
+get_active_text_stream_index (GstPlayBin * playbin)
+{
+  g_return_val_if_fail (playbin != NULL, -1);
+
+  gint active = 0;
+  GstTagList *taglist = NULL;
+  GstSourceGroup *group = get_group (playbin);
+  GPtrArray *channels = group->text_channels;
+
+  for (guint index = 0; index < channels->len; index++) {
+    taglist = gst_play_bin_get_text_tags (playbin, index);
+    if (gst_tag_list_get_int (taglist, GST_TAG_SUBTITLE_STREAM_ACTIVITY_FLAG, &active) && (active == 1)) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+/* set the current playing subtitle stream */
+static void
+set_current_text_stream_without_seek (GstPlayBin * playbin, gint index)
+{
+  g_return_if_fail (playbin != NULL);
+
+  GPtrArray *channels = NULL;
+  GstPad *sinkpad = NULL;
+  GstPad *oldpad = NULL;
+  GstSourceGroup *group = get_group (playbin);
+  g_return_if_fail ((group != NULL) && (group->text_channels != NULL));
+
+  channels = group->text_channels;
+  if (index < 0 || index >= channels->len) {
+    GST_WARNING_OBJECT (playbin, "index %d is out of array range", index);
+    return;
+  }
+  sinkpad = g_ptr_array_index (channels, index);
+  if (sinkpad == NULL) {
+    GST_WARNING_OBJECT (playbin, "can get sinkpad index %d from text_channels", index);
+    return;
+  }
+  GstSourceCombine combiner = group->combiner[PLAYBIN_STREAM_TEXT];
+  g_object_get (combiner.combiner, "active-pad", &oldpad, NULL);
+  if (sinkpad != oldpad) {
+    GST_DEBUG_OBJECT (playbin, "set current text stream %d", index);
+    g_object_set (combiner.combiner, "active-pad", sinkpad, NULL);
+  }
+}
+
+#else
 static gboolean
 gst_play_bin_set_current_text_stream (GstPlayBin * playbin, gint stream)
 {
@@ -2692,6 +2914,7 @@ no_channels:
     return FALSE;
   }
 }
+#endif
 
 static void
 gst_play_bin_set_sink (GstPlayBin * playbin, GstPlaySinkType type,
@@ -4556,6 +4779,17 @@ no_more_pads_cb (GstElement * decodebin, GstSourceGroup * group)
     configure = FALSE;
   }
   GST_SOURCE_GROUP_UNLOCK (group);
+
+#ifdef OHOS_EXT_FUNC
+  /**
+   * ohos.ext.func.0040
+   * Set the current playing subtitle stream based on the information provided by taglist.
+   */
+  if (is_suburidecodebin) {
+    gint index = get_active_text_stream_index (playbin);
+    set_current_text_stream_without_seek (playbin, index);
+  }
+#endif
 
   if (configure) {
     /* if we have custom sinks, configure them now */
