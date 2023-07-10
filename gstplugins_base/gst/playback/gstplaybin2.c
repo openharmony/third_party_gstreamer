@@ -2733,11 +2733,8 @@ gst_play_bin_set_current_text_stream (GstPlayBin * playbin, gint stream)
   if (sinkpad != NULL) {
     GstObject *combiner = gst_pad_get_parent (sinkpad);
     if (combiner) {
-      GstPad *old_sinkpad = NULL;
-      g_object_get (combiner, "active-pad", &old_sinkpad, NULL);
       check_seek_suburidecodebin (playbin, combiner, sinkpad, internal);
       gst_object_unref (combiner);
-      gst_object_unref (old_sinkpad);
     }
   }
   return TRUE;
