@@ -69,13 +69,6 @@ Note:If the text contains special characters, please escape them according to th
                 <policyitem type="compatibility" name="MIT" path=".*" rule="may" group="defaultGroup" desc="The files involved in compilation are the MIT protocol.They are used in dynamic link mode."/>
                 <policyitem type="compatibility" name="Apache-2.0" path=".*" rule="may" group="defaultGroup" desc="The files involved in compilation are the Apache-2.0 protocol.They are used in dynamic link mode."/>
                 <policyitem type="compatibility" name="MPL-1.1" path=".*" rule="may" group="defaultGroup" desc="The files involved in compilation are the MPL-1.1 protocol.They are used in dynamic link mode."/>
-                <policyitem type="copyright" name="*" path=".*" rule="may" group="defaultGroup" filefilter="copyrightPolicyFilter" desc="Copyright Header Invalid"/>
-                <policyitem type="license" name="*" path="gst_libav/.*" rule="may" group="defaultGroup" filefilter="defaultPolicyFilter" desc="License Header Invalid"/>
-                <policyitem type="license" name="*" path="gstplugins_bad/.*" rule="may" group="defaultGroup" filefilter="defaultPolicyFilter" desc="License Header Invalid"/>
-                <policyitem type="license" name="*" path="gstplugins_base/.*" rule="may" group="defaultGroup" filefilter="defaultPolicyFilter" desc="License Header Invalid"/>
-                <policyitem type="license" name="*" path="gstplugins_good/.*" rule="may" group="defaultGroup" filefilter="defaultPolicyFilter" desc="License Header Invalid"/>
-                <policyitem type="license" name="*" path="gstreamer/.*" rule="may" group="defaultGroup" filefilter="defaultPolicyFilter" desc="License Header Invalid"/>
-                <policyitem type="license" name="LGPL-2.0-or-later" path="LICENSE" rule="may" group="defaultGroup" filefilter="defaultPolicyFilter" desc="License Header Invalid"/>
             </policy>
         </policylist>
         <filefilterlist>
