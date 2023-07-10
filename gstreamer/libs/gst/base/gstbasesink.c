@@ -5686,6 +5686,15 @@ default_element_query (GstElement * element, GstQuery * query)
   switch (GST_QUERY_TYPE (query)) {
     case GST_QUERY_POSITION:
     {
+#ifdef OHOS_EXT_FUNC
+      /**
+       * ohos.ext.func.0040
+       * Ignore subtitle sink when quering position.
+       */
+      if (basesink->priv->sink_type == SINK_TYPE_UNKNOWN) {
+        return FALSE;
+      }
+#endif
       gint64 cur = 0;
       GstFormat format;
       gboolean upstream = FALSE;
