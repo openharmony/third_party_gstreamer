@@ -3221,6 +3221,8 @@ gst_video_decoder_prepare_finish_frame (GstVideoDecoder *
         GST_DEBUG_OBJECT (decoder, "pts %" GST_TIME_FORMAT "last_timestamp_out %" GST_TIME_FORMAT,
           GST_TIME_ARGS (frame->pts), GST_TIME_ARGS (priv->last_timestamp_out));
         priv->reordered_output = FALSE;
+      } else if (GST_CLOCK_TIME_IS_VALID(frame->pts) && !GST_CLOCK_TIME_IS_VALID(priv->last_timestamp_out)) {
+        priv->last_timestamp_out = frame->pts;
       } else {
         GST_DEBUG_OBJECT (decoder, "invalidating PTS");
         frame->pts = GST_CLOCK_TIME_NONE;
