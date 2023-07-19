@@ -1109,6 +1109,9 @@ gst_flac_parse_handle_picture (GstFlacParse * flacparse, GstBuffer * buffer)
   GstMapInfo map;
   guint32 img_len = 0, img_type = 0;
   guint32 img_mimetype_len = 0, img_description_len = 0;
+#ifdef OHOS_OPT_CVE
+  const guint8 *img_data;
+#endif
 
   gst_buffer_map (buffer, &map, GST_MAP_READ);
   gst_byte_reader_init (&reader, map.data, map.size);
@@ -1135,7 +1138,11 @@ gst_flac_parse_handle_picture (GstFlacParse * flacparse, GstBuffer * buffer)
   if (!gst_byte_reader_get_uint32_be (&reader, &img_len))
     goto error;
 
+#ifdef OHOS_OPT_CVE
+  if (!gst_byte_reader_get_data (&reader, img_len, &img_data))
+#else
   if (gst_byte_reader_get_pos (&reader) + img_len > map.size)
+#endif
     goto error;
 
   GST_INFO_OBJECT (flacparse, "Got image of %d bytes", img_len);
@@ -1144,8 +1151,12 @@ gst_flac_parse_handle_picture (GstFlacParse * flacparse, GstBuffer * buffer)
     if (flacparse->tags == NULL)
       flacparse->tags = gst_tag_list_new_empty ();
 
+#ifdef OHOS_OPT_CVE
+    gst_tag_list_add_id3_image (flacparse->tags, img_data, img_len, img_type);
+#else
     gst_tag_list_add_id3_image (flacparse->tags,
         map.data + gst_byte_reader_get_pos (&reader), img_len, img_type);
+#endif
   }
 
   gst_buffer_unmap (buffer, &map);
