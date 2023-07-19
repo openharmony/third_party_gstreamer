@@ -778,7 +778,11 @@ subrip_fix_up_markup (gchar ** p_txt, gconstpointer allowed_tags_ptr)
     }
 
     if (*next_tag == '<' && *(next_tag + 1) == '/') {
+#ifdef OHOS_OPT_CVE
+      end_tag = strchr (next_tag, '>');
+#else
       end_tag = strchr (cur, '>');
+#endif
       if (end_tag) {
         const gchar *last = NULL;
         if (num_open_tags > 0)
@@ -793,6 +797,10 @@ subrip_fix_up_markup (gchar ** p_txt, gconstpointer allowed_tags_ptr)
         } else {
           --num_open_tags;
           g_ptr_array_remove_index (open_tags, num_open_tags);
+#ifdef OHOS_OPT_CVE
+          cur = end_tag + 1;
+          continue;
+#endif
         }
       }
     }
