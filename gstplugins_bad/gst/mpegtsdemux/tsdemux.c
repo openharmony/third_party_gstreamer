@@ -352,11 +352,6 @@ static void gst_ts_demux_check_and_sync_streams (GstTSDemux * demux,
     GstClockTime time);
 static void handle_psi (MpegTSBase * base, GstMpegtsSection * section);
 
-#ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0038 report selectBitrateDone
-static void gst_ts_demux_parse_bandwidth (MpegTSBase * base, GstEvent * event);
-#endif
-
 static void
 _extra_init (void)
 {
@@ -395,6 +390,10 @@ gst_ts_demux_finalize (GObject * object)
   GstTSDemux *demux = GST_TS_DEMUX_CAST (object);
 
   gst_event_replace (&demux->segment_event, NULL);
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+  gst_event_replace (&demux->tag_event, NULL);
+#endif
   g_mutex_clear (&demux->lock);
 
   GST_CALL_PARENT (G_OBJECT_CLASS, finalize, (object));
@@ -477,10 +476,6 @@ gst_ts_demux_class_init (GstTSDemuxClass * klass)
   ts_class->seek = GST_DEBUG_FUNCPTR (gst_ts_demux_do_seek);
   ts_class->flush = GST_DEBUG_FUNCPTR (gst_ts_demux_flush);
   ts_class->drain = GST_DEBUG_FUNCPTR (gst_ts_demux_drain);
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0038 report selectBitrateDone
-  ts_class->parse_bandwidth = GST_DEBUG_FUNCPTR (gst_ts_demux_parse_bandwidth);
-#endif
 }
 
 static void
@@ -491,6 +486,10 @@ gst_ts_demux_reset (MpegTSBase * base)
   demux->rate = 1.0;
   g_mutex_lock (&demux->lock);
   gst_event_replace (&demux->segment_event, NULL);
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+  gst_event_replace (&demux->tag_event, NULL);
+#endif
   g_mutex_unlock (&demux->lock);
 
   if (demux->global_tags) {
@@ -510,11 +509,6 @@ gst_ts_demux_reset (MpegTSBase * base)
   demux->program_generation = 0;
 
   demux->mpeg_pts_offset = 0;
-
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0038 report selectBitrateDone
-  demux->bandwidth = 0;
-#endif
 }
 
 static void
@@ -1130,10 +1124,21 @@ push_event (MpegTSBase * base, GstEvent * event)
     early_ret = TRUE;
   }
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+  if (G_UNLIKELY (demux->program == NULL) && GST_EVENT_TYPE (event) == GST_EVENT_TAG) {
+    gst_event_take(&demux->tag_event, event);
+    return early_ret;
+  } else if (G_UNLIKELY (demux->program == NULL)) {
+    gst_event_unref (event);
+    return early_ret;
+  }
+#else
   if (G_UNLIKELY (demux->program == NULL)) {
     gst_event_unref (event);
     return early_ret;
   }
+#endif
 
   for (tmp = demux->program->stream_list; tmp; tmp = tmp->next) {
     TSDemuxStream *stream = (TSDemuxStream *) tmp->data;
@@ -1971,17 +1976,6 @@ done:
           bstream->pid);
       gst_stream_set_stream_type (bstream->stream_object,
           GST_STREAM_TYPE_VIDEO);
-#ifdef OHOS_EXT_FUNC
-      // ohos.ext.func.0038 report selectBitrateDone
-      caps = gst_caps_make_writable(caps);
-      GValue val = { 0 };
-      g_value_init (&val, G_TYPE_INT);
-      g_value_set_int(&val, demux->bandwidth);
-      gst_structure_set_value (gst_caps_get_structure (caps, 0), "bandwidth", &val);
-      g_value_unset(&val);
-      gst_pad_set_caps(pad, caps);
-      GST_DEBUG_OBJECT (demux, "set bandwidth %d", demux->bandwidth);
-#endif
     } else if (is_private) {
       template = gst_static_pad_template_get (&private_template);
       name =
@@ -2356,6 +2350,18 @@ gst_ts_demux_program_started (MpegTSBase * base, MpegTSBaseProgram * program)
         gst_pad_push_event (stream->pad, gst_event_new_gap (0, 0));
       }
     }
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+    for (tmp = demux->program->stream_list; tmp; tmp = tmp->next) {
+      TSDemuxStream *stream = (TSDemuxStream *) tmp->data;
+      if (stream->pad && demux->tag_event) {
+        GstEvent *evt = gst_event_ref (demux->tag_event);
+        GST_DEBUG_OBJECT (stream->pad, "Pushing tag event");
+        gst_pad_push_event (stream->pad, evt);
+      }
+    }
+    gst_event_replace (&demux->tag_event, NULL);
+#endif
 
     gst_element_no_more_pads ((GstElement *) demux);
   }
@@ -3746,15 +3752,4 @@ gst_ts_demux_push (MpegTSBase * base, MpegTSPacketizerPacket * packet,
     }
   }
   return res;
-}
-
-static void
-gst_ts_demux_parse_bandwidth (MpegTSBase * base, GstEvent * event)
-{
-  GstTSDemux *demux = (GstTSDemux *) base;
-  GstCaps *caps;
-  gst_event_parse_caps (event, &caps);
-  const GValue *val = gst_structure_get_value(gst_caps_get_structure(caps, 0), "bandwidth");
-  demux->bandwidth = g_value_get_int(val);
-  GST_DEBUG_OBJECT (demux, "parse bandwidth %d", demux->bandwidth);
 }
