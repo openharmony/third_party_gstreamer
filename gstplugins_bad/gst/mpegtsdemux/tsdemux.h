@@ -88,6 +88,10 @@ struct _GstTSDemux
   /* segments to be sent */
   GstEvent *segment_event;
   gboolean reset_segment;
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+  GstEvent *tag_event;
+#endif
 
   /* global taglist */
   GstTagList *global_tags;
@@ -110,11 +114,6 @@ struct _GstTSDemux
 
   /* This is to protect demux->segment_event */
   GMutex lock;
-
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0038 report selectBitrateDone
-  gint bandwidth;
-#endif
 };
 
 struct _GstTSDemuxClass

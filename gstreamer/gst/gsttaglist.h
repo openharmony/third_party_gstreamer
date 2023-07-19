@@ -1115,6 +1115,11 @@ gboolean  gst_tag_list_take    (GstTagList ** old_taglist,
  */
 #define GST_TAG_AUTHOR                            "author"
 #endif
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0042 // ohos.ext.func.0043
+#define GST_TAG_BANDWIDTH                         "bandwidth"
+#define GST_TAG_SLICE_POSITION                    "slice-position"
+#endif
 
 /**
  * GST_TAG_PRIVATE_DATA:
