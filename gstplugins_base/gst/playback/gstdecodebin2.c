@@ -300,6 +300,11 @@ enum
   PROP_MQ_NUM_USE_BUFFRING,
   PROP_STATE_CHANGE,
   PROP_EXIT_BLOCK,
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+  PROP_ALLOW_BITRATE,
+  PROP_SLICE_POSITION,
+#endif
 #endif
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0033
@@ -558,6 +563,16 @@ static GstPad *gst_decode_group_control_demuxer_pad (GstDecodeGroup * group,
     GstPad * pad);
 static gboolean gst_decode_group_is_drained (GstDecodeGroup * group);
 static gboolean gst_decode_group_reset_buffering (GstDecodeGroup * group);
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+static void gst_decode_bin_set_bandwidth (GstDecodeBin * dbin, gint bandwidth);
+static gboolean gst_decode_chain_set_bandwidth (GstDecodeChain * chain, gint bandwidth);
+static gboolean gst_decode_group_set_bandwidth (GstDecodeGroup * group, gint bandwidth);
+
+static void gst_decode_bin_get_position (GstDecodeBin * dbin, guint64 *position);
+static gboolean gst_decode_chain_get_position (GstDecodeChain * chain, guint64 *position);
+static gboolean gst_decode_group_get_position (GstDecodeGroup * group, guint64 *position);
+#endif
 
 static gboolean gst_decode_bin_expose (GstDecodeBin * dbin);
 static void gst_decode_bin_reset_buffering (GstDecodeBin * dbin);
@@ -1069,6 +1084,13 @@ gst_decode_bin_class_init (GstDecodeBinClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 #endif
 
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+  g_object_class_install_property (gobject_klass, PROP_ALLOW_BITRATE,
+      g_param_spec_int ("allow-bitrate", "Allow Bitrate", "Allow Bitrate",
+        0, G_MAXINT, -1, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#endif
+
   klass->autoplug_continue =
       GST_DEBUG_FUNCPTR (gst_decode_bin_autoplug_continue);
   klass->autoplug_factories =
@@ -1395,6 +1417,43 @@ set_property_handle_to_element (GstDecodeBin *dbin, guint property_id, const voi
       if ((theclass != NULL) && g_object_class_find_property (theclass, "connection-speed")) {
         g_object_set (element, "connection-speed", *con_speed, NULL);
       }
+    } else if (property_id == PROP_SLICE_POSITION) {
+      const guint64 *position = (const guint64 *) property_value;
+      GST_WARNING_OBJECT (dbin, "slice-position set to %" G_GUINT64_FORMAT, *position);
+      if ((theclass != NULL) && g_object_class_find_property (theclass, "slice_position")) {
+        g_object_set (element, "slice-position", *position, NULL);
+      }
+    }
+  }
+  return;
+}
+#endif
+
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+static void
+get_property_handle_to_element (GstDecodeBin *dbin, gboolean *start)
+{
+  GList *walk = NULL;
+  GstBin *bin = (GstBin *) dbin;
+
+  for (walk = bin->children; walk != NULL; walk = g_list_next (walk)) {
+    GObject *element = G_OBJECT (walk->data);
+    if ((element == NULL) || !GST_IS_ELEMENT (element)) {
+      continue;
+    }
+
+    GstElementFactory *fac = gst_element_get_factory ((GstElement *)element);
+    if (fac == NULL) {
+      continue;
+    }
+    gboolean is_demux = gst_element_factory_list_is_type (fac, GST_ELEMENT_FACTORY_TYPE_DEMUXER);
+    if (!is_demux) {
+      continue;
+    }
+    GObjectClass *theclass = g_type_class_peek (gst_element_factory_get_element_type (fac));
+    if ((theclass != NULL) && g_object_class_find_property (theclass, "slice_position")) {
+      g_object_get (element, "download-loop-start", start, NULL);
     }
   }
   return;
@@ -1451,9 +1510,17 @@ gst_decode_bin_set_property (GObject * object, guint prop_id,
       dbin->connection_speed = g_value_get_uint64 (value) * 1000;
       GST_OBJECT_UNLOCK (dbin);
 #ifdef OHOS_EXT_FUNC
-    // ohos.ext.func.0028
+    // ohos.ext.func.0028 ohos.ext.func.0043
       guint64 con_speed = g_value_get_uint64 (value);
-      set_property_handle_to_element (dbin, prop_id, (void *)&con_speed);
+      gboolean start;
+      get_property_handle_to_element(dbin, &start);
+      set_property_handle_to_element(dbin, prop_id, (void *)&con_speed);
+      if (start) {
+        guint64 position;
+        gst_decode_bin_get_position(dbin, &position);
+        set_property_handle_to_element(dbin, PROP_SLICE_POSITION, (void *)&position);
+        gst_decode_bin_set_bandwidth(dbin, con_speed);
+      }
 #endif
       break;
 #ifdef OHOS_EXT_FUNC
@@ -3467,6 +3534,93 @@ gst_decode_bin_reset_buffering (GstDecodeBin * dbin)
     CHAIN_MUTEX_UNLOCK (dbin->decode_chain);
   }
 }
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+static void
+gst_decode_bin_set_bandwidth (GstDecodeBin * dbin, gint bandwidth)
+{
+  GST_DEBUG_OBJECT (dbin, "set bandwidth");
+  if (dbin->decode_chain) {
+    CHAIN_MUTEX_LOCK (dbin->decode_chain);
+    gst_decode_chain_set_bandwidth (dbin->decode_chain, bandwidth);
+    CHAIN_MUTEX_UNLOCK (dbin->decode_chain);
+  }
+}
+
+static gboolean
+gst_decode_chain_set_bandwidth (GstDecodeChain * chain, gint bandwidth)
+{
+  GstDecodeGroup *group;
+  group = chain->active_group;
+  GST_DEBUG_OBJECT (chain->dbin, "Resetting chain %p buffering, active group: %p", chain, group);
+  if (group) {
+    return gst_decode_group_set_bandwidth (group, bandwidth);
+  }
+  return FALSE;
+}
+
+static gboolean
+gst_decode_group_set_bandwidth (GstDecodeGroup * group, gint bandwidth)
+{
+  GList *l;
+  gboolean ret;
+  GST_DEBUG_OBJECT (group->dbin, "Group set bandwidth %p %s", group,
+    GST_ELEMENT_NAME (group->multiqueue));
+  for (l = group->children; l; l = l->next) {
+    GstDecodeChain *chain = l->data;
+    CHAIN_MUTEX_LOCK (chain);
+    ret = gst_decode_chain_set_bandwidth (chain, bandwidth);
+    CHAIN_MUTEX_UNLOCK (chain);
+  }
+  if (!ret) {
+    g_object_set(group->multiqueue, "allow-bitrate", bandwidth, NULL);
+  }
+  return TRUE;
+}
+
+static void
+gst_decode_bin_get_position (GstDecodeBin *dbin, guint64 *position)
+{
+  GST_DEBUG_OBJECT (dbin, "get position");
+  if (dbin->decode_chain) {
+    CHAIN_MUTEX_LOCK (dbin->decode_chain);
+    gst_decode_chain_get_position (dbin->decode_chain, position);
+    CHAIN_MUTEX_UNLOCK (dbin->decode_chain);
+  }
+}
+
+static gboolean
+gst_decode_chain_get_position (GstDecodeChain * chain, guint64 *position)
+{
+  GstDecodeGroup *group;
+  group = chain->active_group;
+  GST_DEBUG_OBJECT (chain->dbin, "Resetting chain %p buffering, active group: %p", chain, group);
+  if (group) {
+    return gst_decode_group_get_position (group, position);
+  }
+  return FALSE;
+}
+
+static gboolean
+gst_decode_group_get_position (GstDecodeGroup * group, guint64 *position)
+{
+  GList *l;
+  gboolean ret;
+  GST_DEBUG_OBJECT (group->dbin, "Group get position %p %s", group,
+    GST_ELEMENT_NAME (group->multiqueue));
+  for (l = group->children; l; l = l->next) {
+    GstDecodeChain *chain = l->data;
+    CHAIN_MUTEX_LOCK (chain);
+    ret = gst_decode_chain_get_position (chain, position);
+    CHAIN_MUTEX_UNLOCK (chain);
+  }
+  if (!ret) {
+    g_object_get(group->multiqueue, "slice-position", position, NULL);
+    GST_DEBUG_OBJECT (group->dbin, "position is %" G_GUINT64_FORMAT, *position);
+  }
+  return TRUE;
+}
+#endif
 
 /****
  * GstDecodeChain functions
