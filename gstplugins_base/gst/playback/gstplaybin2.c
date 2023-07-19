@@ -513,12 +513,7 @@ struct _GstPlayBinClass
   void (*about_to_finish) (GstPlayBin * playbin);
 
   /* notify app that number of audio/video/text streams changed */
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0038 report selectBitrateDone
-  void (*video_changed) (GstPlayBin * playbin, const gchar *stream_id);
-#else
   void (*video_changed) (GstPlayBin * playbin);
-#endif
   void (*audio_changed) (GstPlayBin * playbin);
   void (*text_changed) (GstPlayBin * playbin);
 
@@ -1214,12 +1209,7 @@ gst_play_bin_class_init (GstPlayBinClass * klass)
       g_signal_new ("video-changed", G_TYPE_FROM_CLASS (klass),
       G_SIGNAL_RUN_LAST,
       G_STRUCT_OFFSET (GstPlayBinClass, video_changed), NULL, NULL, NULL,
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0038 report selectBitrateDone
-      G_TYPE_NONE, 1, G_TYPE_STRING);
-#else
       G_TYPE_NONE, 0, G_TYPE_NONE);
-#endif
   /**
    * GstPlayBin::audio-changed
    * @playbin: a #GstPlayBin
@@ -4288,19 +4278,7 @@ pad_added_cb (GstElement * decodebin, GstPad * pad, GstSourceGroup * group)
 #endif
         g_object_set (sinkpad, "always-ok", always_ok, NULL);
       }
-#ifdef OHOS_EXT_FUNC
-      // ohos.ext.func.0038 report selectBitrateDone
-      if (signal == SIGNAL_VIDEO_CHANGED) {
-        gchar *stream_id = gst_pad_get_stream_id(pad);
-        GST_DEBUG_OBJECT (playbin, "stream_id is %s", stream_id);
-        g_signal_emit (G_OBJECT (playbin), gst_play_bin_signals[signal], 0, stream_id);
-        g_free (stream_id);
-      } else {
-        g_signal_emit (G_OBJECT (playbin), gst_play_bin_signals[signal], 0, NULL);
-      }
-#else
       g_signal_emit (G_OBJECT (playbin), gst_play_bin_signals[signal], 0, NULL);
-#endif
     }
   }
 
@@ -4431,17 +4409,8 @@ pad_removed_cb (GstElement * decodebin, GstPad * pad, GstSourceGroup * group)
 exit:
   GST_SOURCE_GROUP_UNLOCK (group);
 
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0038 report selectBitrateDone
-  if (signal == SIGNAL_VIDEO_CHANGED) {
-    g_signal_emit (G_OBJECT (playbin), gst_play_bin_signals[signal], 0, "");
-  } else if (signal >= 0) {
-    g_signal_emit (G_OBJECT (playbin), gst_play_bin_signals[signal], 0, NULL);
-  }
-#else
   if (signal >= 0)
     g_signal_emit (G_OBJECT (playbin), gst_play_bin_signals[signal], 0, NULL);
-#endif
 
   return;
 

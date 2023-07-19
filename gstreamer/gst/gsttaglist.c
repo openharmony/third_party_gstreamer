@@ -420,6 +420,20 @@ _priv_gst_tag_initialize (void)
       _("author"),
       _("Author about the people who write the lyrics"), gst_tag_merge_strings_with_comma);
 #endif
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0042
+  gst_tag_register_static (GST_TAG_BANDWIDTH, GST_TAG_FLAG_META,
+    G_TYPE_UINT,
+    _("bandwidth"),
+    _("bandwidth"), gst_tag_merge_strings_with_comma);
+#endif
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+  gst_tag_register_static (GST_TAG_SLICE_POSITION, GST_TAG_FLAG_META,
+    G_TYPE_UINT64,
+    _("slice-position"),
+    _("slice-position"), gst_tag_merge_strings_with_comma);
+#endif
   gst_tag_register_static (GST_TAG_PRIVATE_DATA, GST_TAG_FLAG_META,
       GST_TYPE_SAMPLE,
       _("private-data"), _("Private data"), gst_tag_merge_use_first);
