@@ -593,6 +593,11 @@ parse_set_object_data (GstDVDSpu * dvdspu, guint8 type, guint8 * payload,
     obj->rle_data_size = GST_READ_UINT24_BE (payload);
     payload += 3;
 
+#ifdef OHOS_OPT_CVE
+    if (end - payload > obj->rle_data_size)
+      return 0;
+#endif
+
     PGS_DUMP ("%d bytes of RLE data, of %d bytes total.\n",
         (int) (end - payload), obj->rle_data_size);
 
@@ -603,8 +608,14 @@ parse_set_object_data (GstDVDSpu * dvdspu, guint8 type, guint8 * payload,
   } else {
     PGS_DUMP ("%d bytes of additional RLE data\n", (int) (end - payload));
     /* Check that the data chunk is for this object version, and fits in the buffer */
+#ifdef OHOS_OPT_CVE
+    if (obj->rle_data_ver == obj_ver &&
+        end - payload <= obj->rle_data_size &&
+        obj->rle_data_used <= obj->rle_data_size - (end - payload)) {
+#else
     if (obj->rle_data_ver == obj_ver &&
         obj->rle_data_used + end - payload <= obj->rle_data_size) {
+#endif
 
       memcpy (obj->rle_data + obj->rle_data_used, payload, end - payload);
       obj->rle_data_used += end - payload;
