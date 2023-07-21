@@ -242,6 +242,10 @@ struct _GstAdaptiveDemux
   /* Properties */
   gfloat bitrate_limit;         /* limit of the available bitrate to use */
   guint connection_speed;
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+  GstClockTime slice_position;
+#endif
 
   gboolean have_group_id;
   guint group_id;
@@ -412,7 +416,7 @@ struct _GstAdaptiveDemuxClass
   gint64        (*stream_get_fragment_waiting_time) (GstAdaptiveDemuxStream * stream);
 
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0038 report selectBitrateDone
+  // ohos.ext.func.0042 report selectBitrateDone
   gint          (*get_current_bandwidth) (GstAdaptiveDemuxStream * stream);
 #endif
 

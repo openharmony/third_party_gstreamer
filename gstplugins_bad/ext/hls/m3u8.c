@@ -1012,6 +1012,68 @@ m3u8_alternate_advance (GstM3U8 * m3u8, gboolean forward)
   m3u8->current_file_duration = GST_M3U8_MEDIA_FILE (tmp->data)->duration;
 }
 
+#ifdef OHOS_EXT_FUNC
+// ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+void gst_m3u8_advance_fragment_by_position(GstM3U8 * m3u8, GstClockTime position, gboolean forward)
+{
+  g_return_if_fail (m3u8 != NULL);
+  g_return_if_fail (m3u8->current_file != NULL);
+
+  GST_M3U8_LOCK (m3u8);
+
+  GstM3U8MediaFile *file = GST_M3U8_MEDIA_FILE (m3u8->current_file->data);
+  GST_DEBUG ("Sequence position was %" GST_TIME_FORMAT,
+    GST_TIME_ARGS (m3u8->sequence_position));
+  GST_DEBUG ("Sequence sequence was %" G_GINT64_FORMAT, m3u8->sequence);
+  GST_DEBUG ("Sequence position set to %" GST_TIME_FORMAT, GST_TIME_ARGS (position));
+  gboolean flag = m3u8->sequence_position < position;
+  while (m3u8->sequence_position != position) {
+    if (flag) {
+      m3u8->sequence_position += m3u8->current_file_duration;
+      m3u8->current_file = m3u8->current_file->next;
+    } else {
+      m3u8->current_file = m3u8->current_file->prev;
+    }
+    if (m3u8->current_file) {
+      m3u8->sequence = GST_M3U8_MEDIA_FILE (m3u8->current_file->data)->sequence;
+      m3u8->current_file_duration = GST_M3U8_MEDIA_FILE (m3u8->current_file->data)->duration;
+      if (!flag) {
+        m3u8->sequence_position -= m3u8->current_file_duration;
+      }
+    } else {
+      return;
+    }
+  }
+  if (forward) {
+    m3u8->sequence_position += m3u8->current_file_duration;
+    m3u8->current_file = m3u8->current_file->next;
+    if (m3u8->current_file) {
+      m3u8->sequence = GST_M3U8_MEDIA_FILE (m3u8->current_file->data)->sequence;
+    } else {
+      m3u8->sequence = file->sequence + 1;
+    }
+  } else {
+    m3u8->current_file = m3u8->current_file->prev;
+    if (m3u8->current_file) {
+      m3u8->sequence = GST_M3U8_MEDIA_FILE (m3u8->current_file->data)->sequence;
+    } else {
+      m3u8->sequence = file->sequence - 1;
+    }
+  }
+  if (m3u8->current_file) {
+    m3u8->current_file_duration =
+      GST_M3U8_MEDIA_FILE (m3u8->current_file->data)->duration;
+  }
+  if (!forward) {
+    m3u8->sequence_position -= m3u8->current_file_duration;
+  }
+  GST_DEBUG ("current Sequence position %" GST_TIME_FORMAT, GST_TIME_ARGS (m3u8->sequence_position));
+  GST_DEBUG ("current Sequence %" G_GINT64_FORMAT, m3u8->sequence);
+  GST_DEBUG ("current_file_duration %" GST_TIME_FORMAT, GST_TIME_ARGS (m3u8->current_file_duration));
+  GST_M3U8_UNLOCK (m3u8);
+}
+#endif
+
 void
 gst_m3u8_advance_fragment (GstM3U8 * m3u8, gboolean forward)
 {

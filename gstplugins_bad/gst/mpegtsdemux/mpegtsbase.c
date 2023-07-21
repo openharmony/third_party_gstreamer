@@ -1463,10 +1463,6 @@ mpegts_base_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       break;
     case GST_EVENT_CAPS:
       /* FIXME, do something */
-#ifdef OHOS_EXT_FUNC
-      // ohos.ext.func.0038 report selectBitrateDone
-      GST_MPEGTS_BASE_GET_CLASS (base)->parse_bandwidth (base, event);
-#endif
       gst_event_unref (event);
       break;
     case GST_EVENT_FLUSH_STOP:
