@@ -96,6 +96,13 @@ struct _GstMultiQueue {
   // ohos.ext.func.0013
   guint mq_num_id;
 #endif
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+  gint prev_allow_bitrate;
+  gint allow_bitrate;
+  guint64 prev_position;
+  guint64 position;
+#endif
 };
 
 struct _GstMultiQueueClass {

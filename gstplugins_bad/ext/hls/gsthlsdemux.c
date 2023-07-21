@@ -129,7 +129,7 @@ static gboolean gst_hls_demux_get_bitrate_info(GstAdaptiveDemux * demux,
     GstAdaptiveDemuxBitrateInfo * bitrate_info);
 #endif
 #ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0038 report selectBitrateDone
+// ohos.ext.func.0042 report selectBitrateDone
 static gint gst_hls_demux_get_current_bandwidth (GstAdaptiveDemuxStream * stream);
 #endif
 
@@ -205,7 +205,7 @@ gst_hls_demux_class_init (GstHLSDemuxClass * klass)
   adaptivedemux_class->get_bitrate_info = gst_hls_demux_get_bitrate_info;
 #endif
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0038 report selectBitrateDone
+  // ohos.ext.func.0042 report selectBitrateDone
   adaptivedemux_class->get_current_bandwidth = gst_hls_demux_get_current_bandwidth;
 #endif
 
@@ -484,6 +484,12 @@ gst_hls_demux_stream_seek (GstAdaptiveDemuxStream * stream, gboolean forward,
   hls_stream->playlist->sequence = current_sequence;
   hls_stream->playlist->current_file = walk;
   hls_stream->playlist->sequence_position = current_pos;
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+  if (GST_CLOCK_TIME_IS_VALID(stream->demux->slice_position)) {
+    stream->demux->slice_position = GST_CLOCK_TIME_NONE;
+  }
+#endif
   GST_M3U8_CLIENT_UNLOCK (hlsdemux->client);
 
   /* Play from the end of the current selected segment */
@@ -1236,12 +1242,16 @@ static gboolean gst_hls_demux_get_bitrate_info(GstAdaptiveDemux * demux,
 #endif
 
 #ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0038 report selectBitrateDone
+// ohos.ext.func.0042 report selectBitrateDone
 static gint
 gst_hls_demux_get_current_bandwidth (GstAdaptiveDemuxStream * stream)
 {
   GstHLSDemux *hlsdemux = GST_HLS_DEMUX_CAST (stream->demux);
-  return hlsdemux->current_variant->bandwidth;
+  if (hlsdemux->current_variant->raw_bandwidth) {
+    return hlsdemux->current_variant->raw_bandwidth;
+  } else {
+    return hlsdemux->current_variant->bandwidth;
+  }
 }
 #endif
 
@@ -1303,8 +1313,17 @@ gst_hls_demux_advance_fragment (GstAdaptiveDemuxStream * stream)
   GstM3U8 *m3u8;
 
   m3u8 = gst_hls_demux_stream_get_m3u8 (hlsdemux_stream);
-
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+  if (GST_CLOCK_TIME_IS_VALID(stream->demux->slice_position)) {
+    gst_m3u8_advance_fragment_by_position (m3u8, stream->demux->slice_position, stream->demux->segment.rate > 0);
+    stream->demux->slice_position = GST_CLOCK_TIME_NONE;
+  } else {
+    gst_m3u8_advance_fragment (m3u8, stream->demux->segment.rate > 0);
+  }
+#else
   gst_m3u8_advance_fragment (m3u8, stream->demux->segment.rate > 0);
+#endif
   hlsdemux_stream->reset_pts = FALSE;
 
   return GST_FLOW_OK;
@@ -1403,9 +1422,18 @@ gst_hls_demux_select_bitrate (GstAdaptiveDemuxStream * stream, guint64 bitrate)
 
   gst_hls_demux_change_playlist (hlsdemux, bitrate / MAX (1.0,
           ABS (demux->segment.rate)), &changed);
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0042 when change bitrate, ongly change playlist, don't add new src and new pipeline
+  if (changed) {
+    hls_stream->playlist = hlsdemux->current_variant->m3u8;
+  }
+  hlsdemux->current_variant->raw_bandwidth = bitrate;
+  return FALSE;
+#else
   if (changed)
     gst_hls_demux_setup_streams (GST_ADAPTIVE_DEMUX_CAST (hlsdemux));
   return changed;
+#endif
 }
 
 static void
@@ -1789,9 +1817,14 @@ retry:
 
     /* Valid because hlsdemux only has a single output */
     if (GST_ADAPTIVE_DEMUX_CAST (demux)->streams) {
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+      target_pos = m3u8->sequence_position;
+#else
       GstAdaptiveDemuxStream *stream =
           GST_ADAPTIVE_DEMUX_CAST (demux)->streams->data;
       target_pos = stream->segment.position;
+#endif   
     } else {
       target_pos = 0;
     }
