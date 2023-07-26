@@ -1458,6 +1458,10 @@ gst_bin_deep_element_added_func (GstBin * bin, GstBin * sub_bin,
       "%" GST_PTR_FORMAT " which has just been added to %" GST_PTR_FORMAT,
       child, sub_bin);
 
+#ifdef OHOS_OPT_STABLE
+  /* ohos.opt.stable.0004 for asan read mem out range*/
+  GST_INFO_OBJECT (parent_bin, "gst_bin_signals DEEP_ELEMENT_ADDED");
+#endif
   g_signal_emit (parent_bin, gst_bin_signals[DEEP_ELEMENT_ADDED], 0, sub_bin,
       child);
 
@@ -1481,6 +1485,10 @@ gst_bin_deep_element_removed_func (GstBin * bin, GstBin * sub_bin,
       "%" GST_PTR_FORMAT " which has just been removed from %" GST_PTR_FORMAT,
       child, sub_bin);
 
+#ifdef OHOS_OPT_STABLE
+  /* ohos.opt.stable.0004 for asan read mem out range*/
+  GST_INFO_OBJECT (parent_bin, "gst_bin_signals DEEP_ELEMENT_REMOVED");
+#endif
   g_signal_emit (parent_bin, gst_bin_signals[DEEP_ELEMENT_REMOVED], 0, sub_bin,
       child);
 
