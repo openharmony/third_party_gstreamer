@@ -171,6 +171,11 @@ enum
   // ohos.ext.func.0033
   PROP_RECONNECTION_TIMEOUT,
 #endif
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+  PROP_SLICE_POSITION,
+  PROP_DOWNLOAD_LOOP_START,
+#endif
   PROP_LAST
 };
 
@@ -462,6 +467,13 @@ gst_adaptive_demux_set_property (GObject * object, guint prop_id,
       demux->bitrate_limit = g_value_get_float (value);
       break;
 #ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+    case PROP_SLICE_POSITION:
+      demux->slice_position = g_value_get_uint64 (value);
+      GST_DEBUG_OBJECT (demux, "slice_position set to %" G_GUINT64_FORMAT, demux->slice_position);
+      break;
+#endif
+#ifdef OHOS_EXT_FUNC
     // ohos.ext.func.0013
     case PROP_STATE_CHANGE: {
       gint state = g_value_get_int (value);
@@ -507,6 +519,10 @@ gst_adaptive_demux_get_property (GObject * object, guint prop_id,
 
   GST_MANIFEST_LOCK (demux);
 
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+  gboolean start = FALSE;
+#endif
   switch (prop_id) {
     case PROP_CONNECTION_SPEED:
       g_value_set_uint (value, demux->connection_speed / 1000);
@@ -514,6 +530,20 @@ gst_adaptive_demux_get_property (GObject * object, guint prop_id,
     case PROP_BITRATE_LIMIT:
       g_value_set_float (value, demux->bitrate_limit);
       break;
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+    case PROP_DOWNLOAD_LOOP_START:
+      for (GList *iter = demux->streams; iter; iter = g_list_next (iter)) {
+        GstAdaptiveDemuxStream *stream = iter->data;
+        if (GST_TASK_STATE (stream->download_task) == GST_TASK_STARTED) {
+          start = TRUE;
+          break;
+        }
+      }
+      GST_DEBUG_OBJECT (demux, "download loop is %d", start);
+      g_value_set_boolean(value, start);
+      break;
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -557,6 +587,19 @@ gst_adaptive_demux_class_init (GstAdaptiveDemuxClass * klass)
       g_param_spec_uint ("connection-speed", "Connection Speed",
           "Network connection speed in kbps (0 = calculate from downloaded"
           " fragments)", 0, G_MAXUINT / 1000, DEFAULT_CONNECTION_SPEED,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#endif
+
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+  g_object_class_install_property (gobject_class, PROP_SLICE_POSITION,
+      g_param_spec_uint64 ("slice-position", "slice-position",
+          "slice-position", 0, G_MAXUINT64, 0,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_DOWNLOAD_LOOP_START,
+      g_param_spec_boolean ("download-loop-start", "download-loop-start",
+          "download-loop-start", FALSE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 #endif
 
@@ -694,6 +737,10 @@ gst_adaptive_demux_init (GstAdaptiveDemux * demux,
   /* Properties */
   demux->bitrate_limit = DEFAULT_BITRATE_LIMIT;
   demux->connection_speed = DEFAULT_CONNECTION_SPEED;
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+  demux->slice_position = GST_CLOCK_TIME_NONE;
+#endif
 #ifdef OHOS_EXT_FUNC
 // ohos.ext.func.0036
   demux->priv->set_auto_bitrate_first = FALSE;
@@ -1299,21 +1346,6 @@ gst_adaptive_demux_expose_stream (GstAdaptiveDemux * demux,
 
   GST_DEBUG_OBJECT (demux, "Exposing srcpad %s:%s with caps %" GST_PTR_FORMAT,
       GST_DEBUG_PAD_NAME (pad), caps);
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0038 report selectBitrateDone
-  GstAdaptiveDemuxClass *klass = GST_ADAPTIVE_DEMUX_GET_CLASS (demux);
-  if (klass->get_current_bandwidth) {
-    caps = gst_caps_make_writable(caps);
-    gint bandwidth = klass->get_current_bandwidth(stream);
-    GST_DEBUG_OBJECT (demux, "bandwidth is %d", bandwidth);
-    GValue val = { 0 };
-    g_value_init (&val, G_TYPE_INT);
-    g_value_set_int(&val, bandwidth);
-    gst_structure_set_value (gst_caps_get_structure (caps, 0), "bandwidth", &val);
-    g_value_unset(&val);
-    gst_pad_set_caps(pad, caps);
-#endif
-  }
   if (caps)
     gst_caps_unref (caps);
 
@@ -2440,6 +2472,12 @@ gst_adaptive_demux_start_tasks (GstAdaptiveDemux * demux,
 
   for (; iter; iter = g_list_next (iter)) {
     GstAdaptiveDemuxStream *stream = iter->data;
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+    GstAdaptiveDemuxClass *klass = GST_ADAPTIVE_DEMUX_GET_CLASS (demux);
+    if (klass->stream_select_bitrate)
+      klass->stream_select_bitrate (stream, demux->connection_speed);
+#endif
 
     if (!start_preroll_streams) {
       g_mutex_lock (&stream->fragment_download_lock);
@@ -2865,8 +2903,20 @@ gst_adaptive_demux_stream_push_buffer (GstAdaptiveDemuxStream * stream,
       else
         tags = gst_tag_list_new_empty ();
 
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0042 when change bitrate, ongly change playlist, don't add new src and new pipeline
+      GST_DEBUG_OBJECT (demux, "set bandwidth");
+      gint bandwidth = 0;
+      GstAdaptiveDemuxClass *klass = GST_ADAPTIVE_DEMUX_GET_CLASS (demux);
+      if (klass->get_current_bandwidth) {
+        bandwidth = klass->get_current_bandwidth(stream);
+      }
+      gst_tag_list_add (tags, GST_TAG_MERGE_KEEP,
+          GST_TAG_NOMINAL_BITRATE, stream->fragment.bitrate, GST_TAG_BANDWIDTH, bandwidth, GST_TAG_SLICE_POSITION, stream->segment.position, NULL);
+#else
       gst_tag_list_add (tags, GST_TAG_MERGE_KEEP,
           GST_TAG_NOMINAL_BITRATE, stream->fragment.bitrate, NULL);
+#endif
     }
     if (tags)
       pending_tags = gst_event_new_tag (tags);
@@ -2884,6 +2934,19 @@ gst_adaptive_demux_stream_push_buffer (GstAdaptiveDemuxStream * stream,
         pending_caps);
     gst_pad_push_event (stream->pad, pending_caps);
   }
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+  if (G_UNLIKELY (pending_tags)) {
+    GST_DEBUG_OBJECT (stream->pad, "Sending pending tags: %" GST_PTR_FORMAT,
+        pending_tags);
+    gst_pad_push_event (stream->pad, pending_tags);
+  }
+  if (G_UNLIKELY (pending_segment)) {
+    GST_DEBUG_OBJECT (stream->pad, "Sending pending seg: %" GST_PTR_FORMAT,
+        pending_segment);
+    gst_pad_push_event (stream->pad, pending_segment);
+  }
+#else
   if (G_UNLIKELY (pending_segment)) {
     GST_DEBUG_OBJECT (stream->pad, "Sending pending seg: %" GST_PTR_FORMAT,
         pending_segment);
@@ -2894,6 +2957,7 @@ gst_adaptive_demux_stream_push_buffer (GstAdaptiveDemuxStream * stream,
         pending_tags);
     gst_pad_push_event (stream->pad, pending_tags);
   }
+#endif
   while (pending_events != NULL) {
     GstEvent *event = pending_events->data;
 
