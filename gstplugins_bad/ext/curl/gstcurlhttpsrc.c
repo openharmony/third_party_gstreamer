@@ -1029,6 +1029,10 @@ gst_curl_http_src_create (GstPushSrc * psrc, GstBuffer ** outbuf)
   basesrc = GST_BASE_SRC_CAST (src);
 
 retry:
+  if (src->player_state == GST_PLAYER_STATUS_READY) {
+    GST_INFO_OBJECT(src, "stopping, cancel create");
+    return GST_FLOW_ERROR;
+  }
   ret = GST_FLOW_OK;
 
 #ifdef OHOS_EXT_FUNC
@@ -2553,7 +2557,8 @@ static void gst_curl_http_src_deal_sockets_timeout (GstCurlHttpSrcMultiTaskConte
 
 static gboolean gst_curl_http_src_reconnect_is_timeout (GstCurlHttpSrc *src)
 {
-  if (src->player_state == GST_PLAYER_STATUS_PAUSED || src->player_state == GST_PLAYER_STATUS_PLAYING) {
+  if (src->player_state == GST_PLAYER_STATUS_PAUSED || src->player_state == GST_PLAYER_STATUS_PLAYING ||
+    src->player_state == GST_PLAYER_STATUS_READY) {
     GST_INFO_OBJECT (src, "player_state is paused or playing, donot wait for reconnection");
     return FALSE;
   }
