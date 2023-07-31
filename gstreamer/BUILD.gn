@@ -135,7 +135,6 @@ ohos_source_set("gst_source") {
     "gst/gsturi.c",
     "gst/gstutils.c",
     "gst/gstvalue.c",
-    "gst/parse/grammar.tab.c",
     "gst/parse/lex.priv_gst_parse_yy.c",
   ]
 
