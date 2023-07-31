@@ -68,10 +68,10 @@ Note:If the text contains special characters, please escape them according to th
                 <policyitem type="compatibility" name="Apache-2.0" path=".*" rule="may" group="defaultGroup" desc="The files involved in compilation are the Apache-2.0 protocol.They are used in dynamic link mode."/>
                 <policyitem type="compatibility" name="MPL-1.1" path=".*" rule="may" group="defaultGroup" desc="The files involved in compilation are the MPL-1.1 protocol.They are used in dynamic link mode."/>
                 <policyitem type="compatibility" name="GPL" path="gstplugins_good/gst/monoscope/monoscope.c" rule="may" group="defaultGroup" desc="The file is not used."/>
-                <policyitem type="compatibility" name="GPL" path="gstreamer/gst/parse/grammar.tab.c" rule="may" group="defaultGroup" desc="The file is not used."/>
-                <policyitem type="compatibility" name="GPL" path="gstreamer/gst/parse/grammar.tab.h" rule="may" group="defaultGroup" desc="The file is not used."/>
-                <policyitem type="compatibility" name="GPL" path="gstplugins_bad/gst/mpegpsmux/bits.h" rule="may" group="defaultGroup" desc="The file is not used."/>
-                <policyitem type="compatibility" name="GPL" path="gstplugins_bad/sys/v4l2codecs/linux/media.h" rule="may" group="defaultGroup" desc="The file is not used."/>
+                <policyitem type="compatibility" name="GPL-3.0" path="gstreamer/gst/parse/grammar.tab.c" rule="may" group="defaultGroup" desc="The file is not used."/>
+                <policyitem type="compatibility" name="GPL-3.0" path="gstreamer/gst/parse/grammar.tab.h" rule="may" group="defaultGroup" desc="The file is not used."/>
+                <policyitem type="compatibility" name="GPL-2.0-or-later" path="gstplugins_bad/gst/mpegpsmux/bits.h" rule="may" group="defaultGroup" desc="The file is not used."/>
+                <policyitem type="compatibility" name="SPDX:GPL-2.0 WITH Linux-syscall-note" path="gstplugins_bad/sys/v4l2codecs/linux/media.h" rule="may" group="defaultGroup" desc="The file is not used."/>
             </policy>
         </policylist>
         <filefilterlist>
