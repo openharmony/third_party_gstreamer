@@ -100,7 +100,6 @@ ohos_source_set("gst_source") {
     "gst/gstpad.c",
     "gst/gstpadtemplate.c",
     "gst/gstparamspecs.c",
-    "gst/gstparse.c",
     "gst/gstpipeline.c",
     "gst/gstplugin.c",
     "gst/gstpluginfeature.c",
