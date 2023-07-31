@@ -73,12 +73,19 @@
  */
 #undef GST_DISABLE_GST_DEBUG
 
+#ifdef OHOS_OPT_COMPAT
+/* ohos.opt.compat.0064
+ * for remove GPL-3.0 files grammar.tab.c
+ */
+#define GST_DISABLE_PARSE
+#else
 /**
  * GST_DISABLE_PARSE:
  *
  * Configures the inclusion of the gst-launch parser
  */
 #undef GST_DISABLE_PARSE
+#endif
 
 /**
  * GST_DISABLE_REGISTRY:
