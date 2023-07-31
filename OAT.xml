@@ -59,16 +59,19 @@ Note:If the text contains special characters, please escape them according to th
         <policylist>
             <policy name="projectPolicy" desc="">
                 <policyitem type="compatibility" name="InvalidLicense" path=".*" rule="may" group="defaultGroup" desc="The files involved in compilation are the InvalidLicense protocol.They are used in dynamic link mode."/>
-                <policyitem type="compatibility" name="GPL" path=".*" rule="may" group="defaultGroup" desc="The files involved in compilation are the GPL protocol.They are used in dynamic link mode."/>
                 <policyitem type="compatibility" name="LGPL" path=".*" rule="may" group="defaultGroup" desc="The files involved in compilation are the LGPL protocol.They are used in dynamic link mode."/>
                 <policyitem type="compatibility" name="LGPL-2.0" path=".*" rule="may" group="defaultGroup" desc="The files involved in compilation are the LGPL-2.0 protocol.They are used in dynamic link mode."/>
                 <policyitem type="compatibility" name="LGPL-2.1" path=".*" rule="may" group="defaultGroup" desc="The files involved in compilation are the LGPL-2.1 protocol.They are used in dynamic link mode."/>
                 <policyitem type="compatibility" name="BSD" path=".*" rule="may" group="defaultGroup" desc="The files involved in compilation are the BSD protocol.They are used in dynamic link mode."/>
                 <policyitem type="compatibility" name="BSD-2-Clause" path=".*" rule="may" group="defaultGroup" desc="The files involved in compilation are the BSD-2-Clause protocol.They are used in dynamic link mode."/>
                 <policyitem type="compatibility" name="BSD-3-Clause" path=".*" rule="may" group="defaultGroup" desc="The files involved in compilation are the BSD-3-Clause protocol.They are used in dynamic link mode."/>
-                <policyitem type="compatibility" name="MIT" path=".*" rule="may" group="defaultGroup" desc="The files involved in compilation are the MIT protocol.They are used in dynamic link mode."/>
                 <policyitem type="compatibility" name="Apache-2.0" path=".*" rule="may" group="defaultGroup" desc="The files involved in compilation are the Apache-2.0 protocol.They are used in dynamic link mode."/>
                 <policyitem type="compatibility" name="MPL-1.1" path=".*" rule="may" group="defaultGroup" desc="The files involved in compilation are the MPL-1.1 protocol.They are used in dynamic link mode."/>
+                <policyitem type="compatibility" name="GPL" path="gstplugins_good/gst/monoscope/monoscope.c" rule="may" group="defaultGroup" desc="The file is not used."/>
+                <policyitem type="compatibility" name="GPL" path="gstreamer/gst/parse/grammar.tab.c" rule="may" group="defaultGroup" desc="The file is not used."/>
+                <policyitem type="compatibility" name="GPL" path="gstreamer/gst/parse/grammar.tab.h" rule="may" group="defaultGroup" desc="The file is not used."/>
+                <policyitem type="compatibility" name="GPL" path="gstplugins_bad/gst/mpegpsmux/bits.h" rule="may" group="defaultGroup" desc="The file is not used."/>
+                <policyitem type="compatibility" name="GPL" path="gstplugins_bad/sys/v4l2codecs/linux/media.h" rule="may" group="defaultGroup" desc="The file is not used."/>
             </policy>
         </policylist>
         <filefilterlist>
