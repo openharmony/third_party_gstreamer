@@ -5815,6 +5815,9 @@ autoplug_select_cb (GstElement * decodebin, GstPad * pad,
           *sinkp = NULL;
           created_sink = FALSE;
         } else {
+#ifdef OHOS_OPT_MEMLEAK
+          g_list_free (ave_list);
+#endif
           g_mutex_unlock (&playbin->elements_lock);
           GST_SOURCE_GROUP_UNLOCK (group);
           return GST_AUTOPLUG_SELECT_SKIP;
