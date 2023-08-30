@@ -1041,6 +1041,7 @@ void gst_m3u8_advance_fragment_by_position(GstM3U8 * m3u8, GstClockTime position
         m3u8->sequence_position -= m3u8->current_file_duration;
       }
     } else {
+      GST_M3U8_UNLOCK (m3u8);
       return;
     }
   }
