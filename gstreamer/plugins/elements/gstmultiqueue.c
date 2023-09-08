@@ -2375,8 +2375,8 @@ next:
     guint64 position;
     g_mutex_lock (&mq->m3u8_lock);
     gst_event_parse_tag(GST_EVENT_CAST (object), &tagList);
-    if (gst_tag_list_get_uint(tagList, GST_TAG_BANDWIDTH, &bandwidth) &&
-      gst_tag_list_get_uint64(tagList, GST_TAG_SLICE_POSITION, &position)) {
+    if (gst_tag_list_get_uint (tagList, GST_TAG_BANDWIDTH, &bandwidth) &&
+      gst_tag_list_get_uint64 (tagList, GST_TAG_SLICE_POSITION, &position)) {
       if (mq->allow_bitrate != -1) {
         GST_WARNING_OBJECT (mq, "bandwidth is %u", bandwidth);
         GST_WARNING_OBJECT (mq, "position is %" G_GUINT64_FORMAT, position);
@@ -2388,7 +2388,7 @@ next:
         } else {
           GST_WARNING_OBJECT (mq, "drop mode set to TRUE");
           sq->drop_mode = TRUE;
-          gst_object_unref(object);
+          gst_event_unref (GST_EVENT_CAST (object));
           g_mutex_unlock (&mq->m3u8_lock);
           return;
         }
