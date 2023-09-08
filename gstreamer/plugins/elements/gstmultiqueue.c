@@ -2899,8 +2899,8 @@ gst_multi_queue_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       g_mutex_lock (&mq->m3u8_lock);
       mq->position = GST_CLOCK_TIME_NONE;
       g_mutex_unlock (&mq->m3u8_lock);
-#endif
       GST_WARNING_OBJECT (mq, "Flush start, clean m3u8 position");
+#endif
       gst_single_queue_flush (mq, sq, TRUE, FALSE);
       gst_single_queue_pause (mq, sq);
       goto done;
