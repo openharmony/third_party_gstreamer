@@ -2382,7 +2382,7 @@ next:
         GST_WARNING_OBJECT (mq, "position is %" G_GUINT64_FORMAT, position);
         if (bandwidth == mq->allow_bitrate ||
           (bandwidth == mq->prev_allow_bitrate && mq->prev_position != GST_CLOCK_TIME_NONE &&
-           position == mq->prev_position)) {
+           position <= mq->prev_position)) {
           GST_WARNING_OBJECT (mq, "drop mode set to FALSE");
           sq->drop_mode = FALSE;
         } else {
