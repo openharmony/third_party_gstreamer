@@ -1144,28 +1144,28 @@ push_event (MpegTSBase * base, GstEvent * event)
     TSDemuxStream *stream = (TSDemuxStream *) tmp->data;
 
 #ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
-  gboolean pending_data = FALSE;
-  if (GST_EVENT_TYPE (event) == GST_EVENT_TAG) {
-    GstTagList *tagList;
-    guint64 position;
-    gst_event_parse_tag (event, &tagList);
-    if (gst_tag_list_get_uint64 (tagList, GST_TAG_SLICE_POSITION, &position)) {
-      pending_data = TRUE;
+    // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+    gboolean pending_data = FALSE;
+    if (GST_EVENT_TYPE (event) == GST_EVENT_TAG) {
+      GstTagList *tagList;
+      guint64 position;
+      gst_event_parse_tag (event, &tagList);
+      if (gst_tag_list_get_uint64 (tagList, GST_TAG_SLICE_POSITION, &position)) {
+        pending_data = TRUE;
+      }
     }
-  }
 
-  if (stream->pad) {
-    /* If we are pushing out EOS, flush out pending data first */
-    if ((GST_EVENT_TYPE (event) == GST_EVENT_EOS && gst_pad_is_active (stream->pad)) || pending_data)
-      gst_ts_demux_push_pending_data (demux, stream, NULL);
+    if (stream->pad) {
+      /* If we are pushing out EOS, flush out pending data first */
+      if ((GST_EVENT_TYPE (event) == GST_EVENT_EOS && gst_pad_is_active (stream->pad)) || pending_data)
+        gst_ts_demux_push_pending_data (demux, stream, NULL);
 
-    gst_event_ref (event);
-    if (pending_data) {
-      GST_WARNING_OBJECT (stream->pad, "bitrate switch pushing tag");
+      gst_event_ref (event);
+      if (pending_data) {
+        GST_WARNING_OBJECT (stream->pad, "bitrate switch pushing tag");
+      }
+      gst_pad_push_event (stream->pad, event);
     }
-    gst_pad_push_event (stream->pad, event);
-  }
 #else
     if (stream->pad) {
       /* If we are pushing out EOS, flush out pending data first */
