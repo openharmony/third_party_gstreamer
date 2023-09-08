@@ -1146,7 +1146,7 @@ push_event (MpegTSBase * base, GstEvent * event)
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
   gboolean pending_data = FALSE;
-  if (GST_EVNET_TYPE (event) == GST_EVENT_TAG) {
+  if (GST_EVENT_TYPE (event) == GST_EVENT_TAG) {
     GstTagList *tagList;
     guint64 position;
     gst_event_parse_tag (event, &tagList);

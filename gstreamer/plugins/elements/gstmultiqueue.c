@@ -1067,7 +1067,7 @@ gst_multi_queue_set_property (GObject * object, guint prop_id,
       recheck_buffering_status (mq);
       break;
 #ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0013
+    // ohos.ext.func.0013
     case PROP_MQ_NUM_ID:
       mq->mq_num_id = g_value_get_uint (value);
       break;
