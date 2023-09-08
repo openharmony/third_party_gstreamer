@@ -1157,7 +1157,7 @@ push_event (MpegTSBase * base, GstEvent * event)
 
     if (stream->pad) {
       /* If we are pushing out EOS, flush out pending data first */
-      if ((GST_EVENT_TYPE (event) == GST_EVENT_EOS && gst_pad_is_active (stream->pad)) || pending_data)
+      if ((GST_EVENT_TYPE (event) == GST_EVENT_EOS || pending_data) && gst_pad_is_active (stream->pad))
         gst_ts_demux_push_pending_data (demux, stream, NULL);
 
       gst_event_ref (event);
