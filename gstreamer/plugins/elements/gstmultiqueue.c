@@ -936,6 +936,7 @@ gst_multi_queue_init (GstMultiQueue * mqueue)
   mqueue->allow_bitrate = -1;
   mqueue->prev_position = GST_CLOCK_TIME_NONE;
   mqueue->position = GST_CLOCK_TIME_NONE;
+  g_mutex_init (&mqueue->m3u8_lock);
 #endif
 
   g_mutex_init (&mqueue->qlock);
@@ -954,6 +955,10 @@ gst_multi_queue_finalize (GObject * object)
   /* free/unref instance data */
   g_mutex_clear (&mqueue->qlock);
   g_mutex_clear (&mqueue->buffering_post_lock);
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+  g_mutex_clear (&mqueue->m3u8_lock);
+#endif
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -2888,8 +2893,13 @@ gst_multi_queue_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
 
       res = gst_pad_push_event (srcpad, event);
 
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
       // flush position
+      g_mutex_lock (&mq->m3u8_lock);
       mq->position = GST_CLOCK_TIME_NONE;
+      g_mutex_unlock (&mq->m3u8_lock);
+#endif
       GST_WARNING_OBJECT (mq, "Flush start, clean m3u8 position");
       gst_single_queue_flush (mq, sq, TRUE, FALSE);
       gst_single_queue_pause (mq, sq);
