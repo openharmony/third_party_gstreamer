@@ -1025,7 +1025,7 @@ void gst_m3u8_advance_fragment_by_position(GstM3U8 * m3u8, GstClockTime position
   GST_DEBUG ("Sequence position was %" GST_TIME_FORMAT,
     GST_TIME_ARGS (m3u8->sequence_position));
   GST_DEBUG ("Sequence sequence was %" G_GINT64_FORMAT, m3u8->sequence);
-  GST_DEBUG ("Sequence position set to %" GST_TIME_FORMAT, GST_TIME_ARGS (position));
+  GST_WARNING ("Sequence position set to %" GST_TIME_FORMAT, GST_TIME_ARGS (position));
   gboolean flag = m3u8->sequence_position < position;
   while (m3u8->sequence_position != position) {
     if (flag) {
@@ -1067,9 +1067,9 @@ void gst_m3u8_advance_fragment_by_position(GstM3U8 * m3u8, GstClockTime position
   if (!forward) {
     m3u8->sequence_position -= m3u8->current_file_duration;
   }
-  GST_DEBUG ("current Sequence position %" GST_TIME_FORMAT, GST_TIME_ARGS (m3u8->sequence_position));
-  GST_DEBUG ("current Sequence %" G_GINT64_FORMAT, m3u8->sequence);
-  GST_DEBUG ("current_file_duration %" GST_TIME_FORMAT, GST_TIME_ARGS (m3u8->current_file_duration));
+  GST_WARNING ("current Sequence position %" GST_TIME_FORMAT, GST_TIME_ARGS (m3u8->sequence_position));
+  GST_WARNING ("current Sequence %" G_GINT64_FORMAT, m3u8->sequence);
+  GST_WARNING ("current_file_duration %" GST_TIME_FORMAT, GST_TIME_ARGS (m3u8->current_file_duration));
   GST_M3U8_UNLOCK (m3u8);
 }
 #endif
