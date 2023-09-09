@@ -418,6 +418,7 @@ struct _GstAdaptiveDemuxClass
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0042 report selectBitrateDone
   gint          (*get_current_bandwidth) (GstAdaptiveDemuxStream * stream);
+  guint64       (*get_current_position) (GstAdaptiveDemuxStream * stream);
 #endif
 
   /**

@@ -470,7 +470,7 @@ gst_adaptive_demux_set_property (GObject * object, guint prop_id,
     // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
     case PROP_SLICE_POSITION:
       demux->slice_position = g_value_get_uint64 (value);
-      GST_DEBUG_OBJECT (demux, "slice_position set to %" G_GUINT64_FORMAT, demux->slice_position);
+      GST_WARNING_OBJECT (demux, "slice_position set to %" G_GUINT64_FORMAT, demux->slice_position);
       break;
 #endif
 #ifdef OHOS_EXT_FUNC
@@ -2911,8 +2911,12 @@ gst_adaptive_demux_stream_push_buffer (GstAdaptiveDemuxStream * stream,
       if (klass->get_current_bandwidth) {
         bandwidth = klass->get_current_bandwidth(stream);
       }
+      guint64 position = 0;
+      if (klass->get_current_position) {
+        position = klass->get_current_position(stream);
+      }
       gst_tag_list_add (tags, GST_TAG_MERGE_KEEP,
-          GST_TAG_NOMINAL_BITRATE, stream->fragment.bitrate, GST_TAG_BANDWIDTH, bandwidth, GST_TAG_SLICE_POSITION, stream->segment.position, NULL);
+          GST_TAG_NOMINAL_BITRATE, stream->fragment.bitrate, GST_TAG_BANDWIDTH, bandwidth, GST_TAG_SLICE_POSITION, position, NULL);
 #else
       gst_tag_list_add (tags, GST_TAG_MERGE_KEEP,
           GST_TAG_NOMINAL_BITRATE, stream->fragment.bitrate, NULL);
