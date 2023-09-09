@@ -936,6 +936,7 @@ gst_multi_queue_init (GstMultiQueue * mqueue)
   mqueue->allow_bitrate = -1;
   mqueue->prev_position = GST_CLOCK_TIME_NONE;
   mqueue->position = GST_CLOCK_TIME_NONE;
+  g_mutex_init (&mqueue->m3u8_lock);
 #endif
 
   g_mutex_init (&mqueue->qlock);
@@ -954,6 +955,10 @@ gst_multi_queue_finalize (GObject * object)
   /* free/unref instance data */
   g_mutex_clear (&mqueue->qlock);
   g_mutex_clear (&mqueue->buffering_post_lock);
+#ifdef OHOS_EXT_FUNC
+  // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+  g_mutex_clear (&mqueue->m3u8_lock);
+#endif
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -1062,7 +1067,7 @@ gst_multi_queue_set_property (GObject * object, guint prop_id,
       recheck_buffering_status (mq);
       break;
 #ifdef OHOS_EXT_FUNC
-// ohos.ext.func.0013
+    // ohos.ext.func.0013
     case PROP_MQ_NUM_ID:
       mq->mq_num_id = g_value_get_uint (value);
       break;
@@ -1201,9 +1206,11 @@ gst_multi_queue_get_property (GObject * object, guint prop_id,
 #ifdef OHOS_EXT_FUNC
     // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
     case PROP_SLICE_POSITION:
+      g_mutex_lock (&mq->m3u8_lock);
       mq->prev_position = mq->position;
       g_value_set_uint64 (value, mq->position);
-      GST_INFO_OBJECT (mq, "position is %" G_GUINT64_FORMAT, mq->position);
+      GST_INFO_OBJECT (mq, "get next bitrate position is %" G_GUINT64_FORMAT, mq->position);
+      g_mutex_unlock (&mq->m3u8_lock);
       break;
 #endif
     case PROP_STATS:
@@ -2112,9 +2119,11 @@ gst_single_queue_push_one (GstMultiQueue * mq, GstSingleQueue * sq,
 #ifdef OHOS_EXT_FUNC
     // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
     if (sq->drop_mode) {
-      GST_DEBUG_OBJECT (mq,
-        "SingleQueue %d : Dropping data %p with ts %" GST_TIME_FORMAT,
-        sq->id, buffer, GST_TIME_ARGS (timestamp));
+      if (mq->allow_bitrate != -1) {
+        GST_WARNING_OBJECT (mq,
+          "SingleQueue %d : Dropping data %p with ts %" GST_TIME_FORMAT,
+          sq->id, buffer, GST_TIME_ARGS (timestamp));
+      }
       gst_buffer_unref (buffer);
     } else if (G_UNLIKELY (*allow_drop)) {
       GST_DEBUG_OBJECT (mq,
@@ -2122,9 +2131,11 @@ gst_single_queue_push_one (GstMultiQueue * mq, GstSingleQueue * sq,
           sq->id, buffer, GST_TIME_ARGS (timestamp));
       gst_buffer_unref (buffer);
     } else {
-      GST_DEBUG_OBJECT (mq,
-          "SingleQueue %d : Pushing buffer %p with ts %" GST_TIME_FORMAT,
-          sq->id, buffer, GST_TIME_ARGS (timestamp));
+      if (mq->allow_bitrate != -1) {
+        GST_DEBUG_OBJECT (mq,
+            "SingleQueue %d : Pushing buffer %p with ts %" GST_TIME_FORMAT,
+            sq->id, buffer, GST_TIME_ARGS (timestamp));
+      }
       result = gst_pad_push (srcpad, buffer);
     }
 #else
@@ -2358,32 +2369,40 @@ next:
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
   if (GST_IS_EVENT (object) && GST_EVENT_TYPE (GST_EVENT_CAST (object)) == GST_EVENT_TAG) {
-    GST_DEBUG_OBJECT (mq, "SingleQueue %d pop tag: %" GST_PTR_FORMAT, sq->id, GST_EVENT_CAST (object));
+    GST_WARNING_OBJECT (mq, "SingleQueue %d pop tag: %" GST_PTR_FORMAT, sq->id, GST_EVENT_CAST (object));
     GstTagList *tagList;
     guint bandwidth;
     guint64 position;
+    g_mutex_lock (&mq->m3u8_lock);
     gst_event_parse_tag(GST_EVENT_CAST (object), &tagList);
-    if (gst_tag_list_get_uint(tagList, GST_TAG_BANDWIDTH, &bandwidth) &&
-      gst_tag_list_get_uint64(tagList, GST_TAG_SLICE_POSITION, &position)) {
+    if (gst_tag_list_get_uint (tagList, GST_TAG_BANDWIDTH, &bandwidth) &&
+      gst_tag_list_get_uint64 (tagList, GST_TAG_SLICE_POSITION, &position)) {
       if (mq->allow_bitrate != -1) {
-        GST_DEBUG_OBJECT (mq, "bandwidth is %u", bandwidth);
-        GST_DEBUG_OBJECT (mq, "position is %" G_GUINT64_FORMAT, position);
+        GST_WARNING_OBJECT (mq, "bandwidth is %u", bandwidth);
+        GST_WARNING_OBJECT (mq, "position is %" G_GUINT64_FORMAT, position);
         if (bandwidth == mq->allow_bitrate ||
-          (bandwidth == mq->prev_allow_bitrate && position == mq->prev_position)) {
-          GST_DEBUG_OBJECT (mq, "drop mode set to FALSE");
+          (bandwidth == mq->prev_allow_bitrate && mq->prev_position != GST_CLOCK_TIME_NONE &&
+           position <= mq->prev_position)) {
+          GST_WARNING_OBJECT (mq, "drop mode set to FALSE");
           sq->drop_mode = FALSE;
         } else {
-          GST_DEBUG_OBJECT (mq, "drop mode set to TRUE");
+          GST_WARNING_OBJECT (mq, "drop mode set to TRUE");
           sq->drop_mode = TRUE;
-          gst_object_unref(object);
+          gst_event_unref (GST_EVENT_CAST (object));
+          g_mutex_unlock (&mq->m3u8_lock);
           return;
         }
       }
       if (!sq->drop_mode) {
-        mq->position = position;
-        GST_DEBUG_OBJECT (mq, "slice-position is %" G_GUINT64_FORMAT, mq->position);
+        if (mq->position != GST_CLOCK_TIME_NONE) {
+          mq->position = position > mq->position ? position : mq->position;
+        } else {
+          mq->position = position;
+        }
+        GST_WARNING_OBJECT (mq, "slice-position is %" G_GUINT64_FORMAT, mq->position);
       }
     }
+    g_mutex_unlock (&mq->m3u8_lock);
   }
 #endif
 
@@ -2874,6 +2893,14 @@ gst_multi_queue_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
 
       res = gst_pad_push_event (srcpad, event);
 
+#ifdef OHOS_EXT_FUNC
+      // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
+      // flush position
+      g_mutex_lock (&mq->m3u8_lock);
+      mq->position = GST_CLOCK_TIME_NONE;
+      g_mutex_unlock (&mq->m3u8_lock);
+      GST_WARNING_OBJECT (mq, "Flush start, clean m3u8 position");
+#endif
       gst_single_queue_flush (mq, sq, TRUE, FALSE);
       gst_single_queue_pause (mq, sq);
       goto done;
