@@ -382,7 +382,13 @@ gst_hls_demux_seek (GstAdaptiveDemux * demux, GstEvent * seek)
     }
     //hlsdemux->discont = TRUE;
 
+#ifdef OHOS_EXT_FUNC
+    // ohos.ext.func.0042 when change bitrate, ongly change playlist, don't add new src and new pipeline
+    gst_hls_demux_change_playlist (hlsdemux, bitrate, NULL);
+#else
     gst_hls_demux_change_playlist (hlsdemux, bitrate / ABS (rate), NULL);
+#endif
+
   } else if (rate > -1.0 && rate <= 1.0 && (old_rate < -1.0 || old_rate > 1.0)) {
     GError *err = NULL;
     /* Switch to normal variant */
@@ -1249,11 +1255,7 @@ static gint
 gst_hls_demux_get_current_bandwidth (GstAdaptiveDemuxStream * stream)
 {
   GstHLSDemux *hlsdemux = GST_HLS_DEMUX_CAST (stream->demux);
-  if (hlsdemux->current_variant->raw_bandwidth) {
-    return hlsdemux->current_variant->raw_bandwidth;
-  } else {
-    return hlsdemux->current_variant->bandwidth;
-  }
+  return hlsdemux->current_variant->bandwidth;
 }
 
 static guint64
@@ -1414,7 +1416,9 @@ gst_hls_demux_update_fragment_info (GstAdaptiveDemuxStream * stream)
 static gboolean
 gst_hls_demux_select_bitrate (GstAdaptiveDemuxStream * stream, guint64 bitrate)
 {
+#ifndef OHOS_EXT_FUNC
   GstAdaptiveDemux *demux = GST_ADAPTIVE_DEMUX_CAST (stream->demux);
+#endif
   GstHLSDemux *hlsdemux = GST_HLS_DEMUX_CAST (stream->demux);
   GstHLSDemuxStream *hls_stream = GST_HLS_DEMUX_STREAM_CAST (stream);
 
@@ -1433,16 +1437,16 @@ gst_hls_demux_select_bitrate (GstAdaptiveDemuxStream * stream, guint64 bitrate)
     return FALSE;
   }
 
-  gst_hls_demux_change_playlist (hlsdemux, bitrate / MAX (1.0,
-          ABS (demux->segment.rate)), &changed);
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0042 when change bitrate, ongly change playlist, don't add new src and new pipeline
+  gst_hls_demux_change_playlist (hlsdemux, bitrate, &changed);
   if (changed) {
     hls_stream->playlist = hlsdemux->current_variant->m3u8;
   }
-  hlsdemux->current_variant->raw_bandwidth = bitrate;
   return FALSE;
 #else
+  gst_hls_demux_change_playlist (hlsdemux, bitrate / MAX (1.0,
+          ABS (demux->segment.rate)), &changed);
   if (changed)
     gst_hls_demux_setup_streams (GST_ADAPTIVE_DEMUX_CAST (hlsdemux));
   return changed;
