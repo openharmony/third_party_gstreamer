@@ -810,10 +810,6 @@ gst_fd_src_do_seek (GstBaseSrc * bsrc, GstSegment * segment)
     goto seek_failed;
 #endif
 
-  res = lseek (src->fd, offset, SEEK_SET);
-  if (G_UNLIKELY (res < 0 || res != offset))
-    goto seek_failed;
-
   segment->position = segment->start;
   segment->time = segment->start;
 
