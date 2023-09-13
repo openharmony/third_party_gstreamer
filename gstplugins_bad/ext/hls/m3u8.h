@@ -185,10 +185,6 @@ struct _GstHLSVariantStream {
   gchar *uri;
   gchar *codecs;
   gint bandwidth;
-#ifdef OHOS_EXT_FUNC
-  // ohos.ext.func.0042 report selectBitrateDone
-  gint raw_bandwidth;
-#endif
   gint program_id;
   gint width;
   gint height;
