@@ -933,6 +933,7 @@ gst_multi_queue_init (GstMultiQueue * mqueue)
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
   mqueue->prev_allow_bitrate = -1;
+  mqueue->first_bitrate = -1;
   mqueue->allow_bitrate = -1;
   mqueue->prev_position = GST_CLOCK_TIME_NONE;
   mqueue->position = GST_CLOCK_TIME_NONE;
@@ -1075,7 +1076,11 @@ gst_multi_queue_set_property (GObject * object, guint prop_id,
 #ifdef OHOS_EXT_FUNC
     // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
     case PROP_ALLOW_BITRATE:
-      mq->prev_allow_bitrate = mq->allow_bitrate;
+      if (mq->allow_bitrate == -1) {
+        mq->prev_allow_bitrate = mq->first_bitrate;
+      } else {
+        mq->prev_allow_bitrate = mq->allow_bitrate;
+      }
       mq->allow_bitrate = g_value_get_int (value);
       GST_WARNING_OBJECT (mq, "allow_bitrate is %d", mq->allow_bitrate);
       break;
@@ -2214,6 +2219,7 @@ gst_single_queue_push_one (GstMultiQueue * mq, GstSingleQueue * sq,
         }
         if (all_eos) {
           mq->prev_allow_bitrate = -1;
+          mq->first_bitrate = -1;
           mq->allow_bitrate = -1;
           mq->prev_position = GST_CLOCK_TIME_NONE;
           mq->position = GST_CLOCK_TIME_NONE;
@@ -2392,6 +2398,9 @@ next:
           g_mutex_unlock (&mq->m3u8_lock);
           return;
         }
+      } else {
+        GST_WARNING_OBJECT (mq, "first bandwidth is %u", bandwidth);
+        mq->first_bitrate = bandwidth;
       }
       if (!sq->drop_mode) {
         if (mq->position != GST_CLOCK_TIME_NONE) {
