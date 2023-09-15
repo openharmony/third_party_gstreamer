@@ -2392,6 +2392,8 @@ next:
           g_mutex_unlock (&mq->m3u8_lock);
           return;
         }
+      } else {
+        mq->allow_bitrate = bandwidth;
       }
       if (!sq->drop_mode) {
         if (mq->position != GST_CLOCK_TIME_NONE) {
