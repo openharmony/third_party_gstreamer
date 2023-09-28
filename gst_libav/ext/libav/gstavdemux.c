@@ -1186,7 +1186,7 @@ safe_utf8_copy (gchar * input)
 
   if (!(g_utf8_validate (input, -1, NULL))) {
     output = g_convert (input, strlen (input),
-        "UTF-8", "ISO-8859-1", NULL, NULL, NULL);
+        "UTF-8", "GB18030", NULL, NULL, NULL);
   } else {
     output = g_strdup (input);
   }
