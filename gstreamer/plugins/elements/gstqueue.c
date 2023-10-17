@@ -1248,6 +1248,7 @@ gst_queue_chain_buffer_or_list (GstPad * pad, GstObject * parent,
         /* don't leak. Instead, wait for space to be available */
         /* for as long as the queue is filled, wait till an item was deleted. */
         while (gst_queue_is_filled (queue)) {
+          GST_CAT_DEBUG_OBJECT (queue_dataflow, queue, "queue is full, waiting for item was deleted");
           GST_QUEUE_WAIT_DEL_CHECK (queue, out_flushing);
         };
 
