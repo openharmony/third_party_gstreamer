@@ -2425,6 +2425,12 @@ gst_ffmpegdemux_register (GstPlugin * plugin)
         !strcmp (in_plugin->name, "gif") ||
         !strcmp (in_plugin->name, "dsf") || !strcmp (in_plugin->name, "iff"))
       rank = GST_RANK_MARGINAL;
+#ifdef OHOS_OPT_COMPAT
+    /* enable to use avdemux_wav */
+    else if (!strcmp (in_plugin->name, "wav")) {
+      rank = GST_RANK_PRIMARY + 1;
+    }
+#endif
     else {
       GST_DEBUG ("ignoring %s", in_plugin->name);
       rank = GST_RANK_NONE;
