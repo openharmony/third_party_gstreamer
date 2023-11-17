@@ -16,6 +16,7 @@ import("//build/ohos.gni")
 group("gstplugins_bad_packages") {
   deps = [
     ":gstcurl",
+    ":gstdrmdec",
     ":gsthls",
     ":gstmpegtsdemux",
     ":gstvideoparsersbad",
@@ -127,6 +128,30 @@ config("gst_plugins_config") {
     "-DGST_USE_UNSTABLE_API",
     "-DG_LOG_DOMAIN=\"GStreamer\"",
   ]
+}
+
+ohos_source_set("drmdec_source") {
+  sources = [
+    "gst/drmdec/gstdrmdec.c",
+    "gst/drmdec/gstdrmelements.c",
+  ]
+
+  configs = [ ":gst_plugins_config" ]
+}
+
+ohos_shared_library("gstdrmdec") {
+  deps = [
+    ":drmdec_source",
+    "//third_party/glib:glib",
+    "//third_party/glib:gobject",
+    "//third_party/gstreamer/gstplugins_base:gsttag",
+    "//third_party/gstreamer/gstreamer:gstbase",
+    "//third_party/gstreamer/gstreamer:gstreamer",
+  ]
+
+  relative_install_dir = "media/plugins"
+  part_name = "gstreamer"
+  subsystem_name = "thirdparty"
 }
 
 ohos_source_set("hls_source") {
