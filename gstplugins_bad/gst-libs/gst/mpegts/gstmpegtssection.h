@@ -400,6 +400,8 @@ typedef enum {
   GST_MPEGTS_STREAM_TYPE_VIDEO_HEVC                   = 0x24,
   /* 0x24 - 0x7e : Rec. ITU-T H.222.0 | ISO/IEC 13818-1 Reserved */
   GST_MPEGTS_STREAM_TYPE_IPMP_STREAM                  = 0x7f,
+  GST_MPEGTS_STREAM_TYPE_VIDEO_AVS3                   = 0xd4,
+  GST_MPEGTS_STREAM_TYPE_VIDEO_AVS3_OLD               = 0xd6,
   /* 0x80 - 0xff : User Private (or defined in other specs) */
 
   /**

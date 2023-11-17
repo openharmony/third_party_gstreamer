@@ -114,6 +114,12 @@ struct _GstTSDemux
 
   /* This is to protect demux->segment_event */
   GMutex lock;
+
+  guint8 drm_algo_tag;
+
+  gboolean is_drm;
+
+  gpointer protection_scheme_info;
 };
 
 struct _GstTSDemuxClass
