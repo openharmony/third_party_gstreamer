@@ -234,6 +234,74 @@ struct _TSDemuxStream
   TSDemuxADTSParsingInfos atdsInfos;
 };
 
+#define DRM_KEY_ID_SIZE                    16
+#define DRM_IV_SIZE                        16
+#define DRM_USER_DATA_REGISTERED_UUID_SIZE 16
+#define DRM_VIDEO_FRAME_ARR_LEN            3
+#define DRM_MAX_SUB_SAMPLE_NUM             3
+#define DRM_H265_PAYLOAD_TYPE_OFFSET       5
+#define DRM_LEGACY_LEN                     3
+#define DRM_AVS_FLAG                       (0xb5)
+#define DRM_TS_FLAG_CRYPT_BYTE_BLOCK       (2)
+#define DRM_CRYPT_BYTE_BLOCK               (1 + 2) // 2: DRM_TS_FLAG_CRYPT_BYTE_BLOCK
+#define DRM_SKIP_BYTE_BLOCK                (9)
+#define DRM_SHIFT_LEFT_NUM                 (1)
+#define DRM_H264_VIDEO_NAL_TYPE_UMASK_NUM  (0x1f)
+#define DRM_H265_VIDEO_NAL_TYPE_UMASK_NUM  (0x3f)
+#define DRM_H264_VIDEO_START_NAL_TYPE      (1)
+#define DRM_H264_VIDEO_END_NAL_TYPE        (5)
+#define DRM_H265_VIDEO_END_NAL_TYPE        (31)
+#define DRM_USER_DATA_UNREGISTERED_TAG     (0x05)
+#define DRM_INVALID_START_POS              (0xffffffff)
+
+const guint8 g_video_frame_arr[DRM_VIDEO_FRAME_ARR_LEN] = { 0x00, 0x00, 0x01 };
+const guint8 g_user_registered_uuid[DRM_USER_DATA_REGISTERED_UUID_SIZE] = {
+    0x70, 0xc1, 0xdb, 0x9f, 0x66, 0xae, 0x41, 0x27, 0xbf, 0xc0, 0xbb, 0x19, 0x81, 0x69, 0x4b, 0x66
+};
+
+typedef struct _DRM_SubSample DRM_SubSample;
+typedef struct _DRMCencInfo DRMCencInfo;
+typedef struct _TsDemuxCencSampleSetInfo TsDemuxCencSampleSetInfo;
+
+typedef enum {
+  DRM_ALG_CENC_UNENCRYPTED = 0x0,
+  DRM_ALG_CENC_AES_CTR = 0x1,
+  DRM_ALG_CENC_AES_WV = 0x2,
+  DRM_ALG_CENC_AES_CBC = 0x3,
+  DRM_ALG_CENC_SM4_CBC = 0x4,
+  DRM_ALG_CENC_SM4_CTR,
+} DRM_CencAlgorithm;
+
+typedef enum {
+  DRM_ARR_SUBSCRIPT_ZERO = 0,
+  DRM_ARR_SUBSCRIPT_ONE,
+  DRM_ARR_SUBSCRIPT_TWO,
+  DRM_ARR_SUBSCRIPT_THREE,
+} DRM_ArrSubscriptCollection;
+
+struct _DRM_SubSample
+{
+  guint clear_header_len;
+  guint pay_load_len;
+};
+
+struct _DRMCencInfo
+{
+  DRM_CencAlgorithm algo;
+  guint8 key_id[DRM_KEY_ID_SIZE];
+  guint key_id_len;
+  guint8 iv[DRM_IV_SIZE];
+  guint iv_len;
+  guint first_encrypt_offset;
+  DRM_SubSample sub_sample[DRM_MAX_SUB_SAMPLE_NUM];
+  guint sub_sample_num;
+};
+
+struct _TsDemuxCencSampleSetInfo
+{
+  GstStructure *default_properties;
+};
+
 #define VIDEO_CAPS \
   GST_STATIC_CAPS (\
     "video/mpeg, " \
@@ -373,6 +441,371 @@ G_DEFINE_TYPE_WITH_CODE (GstTSDemux, gst_ts_demux, GST_TYPE_MPEGTS_BASE,
   init_pes_parser ();
 GST_ELEMENT_REGISTER_DEFINE_WITH_CODE (tsdemux, "tsdemux",
     GST_RANK_PRIMARY, GST_TYPE_TS_DEMUX, _do_element_init);
+
+static void
+gst_ts_demux_drm_get_sync_header_index (guint8 *data, guint data_size, guint *pos_index)
+{
+  guint i;
+  for (i = *pos_index; (i + (guint)DRM_LEGACY_LEN) < data_size; i++) {
+    if ((data[i] != g_video_frame_arr[DRM_ARR_SUBSCRIPT_ZERO]) ||
+        (data[i + DRM_ARR_SUBSCRIPT_ONE] != g_video_frame_arr[DRM_ARR_SUBSCRIPT_ONE]) ||
+        (data[i + DRM_ARR_SUBSCRIPT_TWO] != g_video_frame_arr[DRM_ARR_SUBSCRIPT_TWO])) {
+      continue;
+    }
+    *pos_index = i;
+    return;
+  }
+  *pos_index = data_size;
+  return;
+}
+
+static gint
+gst_ts_demux_drm_find_avs_cei_nal_unit (guint8 *data, guint data_size, guint *cei_start_pos,
+    guint index)
+{
+  guint i = index;
+  /*
+   * only squence_header allowed, cei is in first extension_and_user_data after squence_header.
+   * data[i + DRM_LEGACY_LEN] is the nal unit header(00~b8),
+   * 0xb0 means Squence header, 0xb5 means video extension, 0xb1 undefined, others are frames
+   */
+  if (((data[i + DRM_LEGACY_LEN] > 0) && (data[i + DRM_LEGACY_LEN] < 0xb8)) &&
+    (data[i + DRM_LEGACY_LEN] != 0xb0) && (data[i + DRM_LEGACY_LEN] != 0xb5) &&
+    (data[i + DRM_LEGACY_LEN] != 0xb1)) {
+    GST_DEBUG ("avs frame found\n");
+    return 0;
+  }
+  if ((data[i + DRM_LEGACY_LEN] == 0xb5) && (i + DRM_LEGACY_LEN + 1 < data_size)) {
+    /* extension_and_user_data found, 0xd0: extension user data tag, 0xf0: the higher 4 bits */
+    if ((data[i + DRM_LEGACY_LEN + 1] & 0xf0) == 0xd0) {
+      *cei_start_pos = i;
+      GST_DEBUG ("cei found, packet start pos:%d\n", *cei_start_pos);
+    }
+  }
+  return -1;
+}
+
+static gint
+gst_ts_demux_drm_find_hevc_cei_nal_unit (guint8 *data, guint data_size, guint *cei_start_pos,
+    guint index)
+{
+  guint i = index;
+  guint8 nal_type = (data[i + DRM_LEGACY_LEN] >> DRM_SHIFT_LEFT_NUM) & DRM_H265_VIDEO_NAL_TYPE_UMASK_NUM;
+  GST_DEBUG ("nal type=%x\n", nal_type);
+  if (nal_type <= DRM_H265_VIDEO_END_NAL_TYPE) { // nal type: 0 ~ 31 are slice nal units and reserved units
+    /* sei is not after frame data. */
+    GST_DEBUG ("h265 frame found\n");
+    return 0;
+  } else if (nal_type == 39) { // 39: SEI nal unit
+    if (data[i + DRM_H265_PAYLOAD_TYPE_OFFSET] == DRM_USER_DATA_UNREGISTERED_TAG) {
+      *cei_start_pos = i;
+    }
+  }
+  if (*cei_start_pos != DRM_INVALID_START_POS) {
+    guint start_pos = i + DRM_H265_PAYLOAD_TYPE_OFFSET;
+    guint end_pos = i + DRM_H265_PAYLOAD_TYPE_OFFSET;
+    *cei_start_pos = DRM_INVALID_START_POS;
+    gst_ts_demux_drm_get_sync_header_index (data, data_size, &end_pos);
+    for (; (start_pos + (guint)DRM_USER_DATA_REGISTERED_UUID_SIZE < end_pos); start_pos++) {
+      if (memcmp (data + start_pos, g_user_registered_uuid,
+          (guint)DRM_USER_DATA_REGISTERED_UUID_SIZE) == 0) {
+        *cei_start_pos = i;
+        GST_DEBUG ("cei found, packet start pos:%d\n", *cei_start_pos);
+        break;
+      }
+    }
+  }
+  return -1;
+}
+
+static gint
+gst_ts_demux_drm_find_h264_cei_nal_unit (guint8 *data, guint data_size, guint *cei_start_pos,
+    guint index)
+{
+  guint i = index;
+  guint8 nal_type = data[i + DRM_LEGACY_LEN] & DRM_H264_VIDEO_NAL_TYPE_UMASK_NUM;
+  GST_DEBUG ("nal type=%x\n", nal_type);
+  if ((nal_type >= DRM_H264_VIDEO_START_NAL_TYPE) && (nal_type <= DRM_H264_VIDEO_END_NAL_TYPE)) {
+    /* sei is not after frame data. */
+    GST_DEBUG ("h264 frame found\n");
+    return 0;
+  } else if ((nal_type == 39) || (nal_type == 6)) { // 39 or 6 is SEI nal unit tag
+    if ((i + DRM_LEGACY_LEN + 1 < data_size) &&
+        (data[i + DRM_LEGACY_LEN + 1] == DRM_USER_DATA_UNREGISTERED_TAG)) {
+      *cei_start_pos = i;
+    }
+  }
+  if (*cei_start_pos != DRM_INVALID_START_POS) {
+    guint start_pos = i + DRM_LEGACY_LEN + 1;
+    guint end_pos = i + DRM_LEGACY_LEN + 1;
+    *cei_start_pos = DRM_INVALID_START_POS;
+    gst_ts_demux_drm_get_sync_header_index (data, data_size, &end_pos);
+    for (; (start_pos + (guint)DRM_USER_DATA_REGISTERED_UUID_SIZE < end_pos); start_pos++) {
+      if (memcmp (data + start_pos, g_user_registered_uuid,
+          (guint)DRM_USER_DATA_REGISTERED_UUID_SIZE) == 0) {
+        *cei_start_pos = i;
+        GST_DEBUG ("cei found, packet start pos:%d\n", *cei_start_pos);
+        break;
+      }
+    }
+  }
+  return -1;
+}
+
+static gint
+gst_ts_demux_drm_find_cei_nal_unit (guint8 stream_type, guint8 *data, guint data_size, guint *cei_start_pos,
+    guint index)
+{
+  gint ret = 0;
+  if (stream_type == GST_MPEGTS_STREAM_TYPE_VIDEO_AVS3 || stream_type == GST_MPEGTS_STREAM_TYPE_VIDEO_AVS3_OLD) {
+    ret = gst_ts_demux_drm_find_avs_cei_nal_unit (data, data_size, cei_start_pos, index);
+  }
+  if (stream_type == GST_MPEGTS_STREAM_TYPE_VIDEO_HEVC) {
+    ret = gst_ts_demux_drm_find_hevc_cei_nal_unit (data, data_size, cei_start_pos, index);
+  }
+  if (stream_type == GST_MPEGTS_STREAM_TYPE_VIDEO_H264) {
+    ret = gst_ts_demux_drm_find_h264_cei_nal_unit (data, data_size, cei_start_pos, index);
+  }
+  return ret;
+}
+
+static gboolean
+gst_ts_demux_drm_find_cei_pos (guint8 stream_type, guint8 *data, guint data_size, guint *cei_start_pos,
+    guint *cei_end_pos)
+{
+  guint i;
+  for (i = 0; (i + (guint)DRM_LEGACY_LEN) < data_size; i++) {
+    /*the start code prefix is 0x000001*/
+    if ((data[i] == g_video_frame_arr[DRM_ARR_SUBSCRIPT_ZERO]) &&
+      (data[i + DRM_ARR_SUBSCRIPT_ONE] == g_video_frame_arr[DRM_ARR_SUBSCRIPT_ONE]) &&
+      (data[i + DRM_ARR_SUBSCRIPT_TWO] == g_video_frame_arr[DRM_ARR_SUBSCRIPT_TWO])) {
+      if (*cei_start_pos != (guint)DRM_INVALID_START_POS) {
+        *cei_end_pos = i;
+        GST_DEBUG ("cei found, packet start pos:%x end pos:%x\n", *cei_start_pos, *cei_end_pos);
+        break;
+      }
+      /* found a nal unit, process nal to find the cei.*/
+      if (!gst_ts_demux_drm_find_cei_nal_unit (stream_type, data, data_size, cei_start_pos, i)) {
+        break;
+      }
+      *cei_end_pos = (guint)DRM_INVALID_START_POS;
+      i += (guint)DRM_LEGACY_LEN;
+    }
+  }
+  if ((*cei_start_pos != (guint)DRM_INVALID_START_POS) && (*cei_end_pos != (guint)DRM_INVALID_START_POS)) {
+    return TRUE;
+  }
+  return FALSE;
+}
+
+static gboolean
+gst_ts_demux_drm_get_key_id (guint8 *data, guint data_size, guint *pos, DRMCencInfo *cenc_info)
+{
+    guint offset = *pos;
+    if (offset >= data_size) {
+        GST_ERROR ("cei data too short\n");
+        return FALSE;
+    }
+    guint8 encryption_flag = (data[offset] & 0x80) >> 7; // 0x80 get encryption_flag & 7 get bits
+    guint8 next_key_id_flag = (data[offset] & 0x40) >> 6; // 0x40 get next_key_id_flag & 6 get bits
+    offset += 1; // 1 skip flag
+    if (encryption_flag != 0) {
+        if ((offset + (guint)DRM_KEY_ID_SIZE) > data_size) {
+            GST_ERROR ("cei data too short\n");
+            return FALSE;
+        }
+        memcpy (cenc_info->key_id, data + offset, DRM_KEY_ID_SIZE);
+        cenc_info->key_id_len = (guint)DRM_KEY_ID_SIZE;
+        offset += (guint)DRM_KEY_ID_SIZE;
+    } else {
+        cenc_info->algo = DRM_ALG_CENC_UNENCRYPTED;
+    }
+    if (next_key_id_flag == 1) {
+        offset += (guint)DRM_KEY_ID_SIZE;
+    }
+    *pos = offset;
+    return TRUE;
+}
+
+static gboolean
+gst_ts_demux_drm_get_iv (guint8 *data, guint data_size, guint *pos, DRMCencInfo *cenc_info)
+{
+    guint offset = *pos;
+    if (offset >= data_size) {
+        GST_ERROR ("cei data too short\n");
+        return FALSE;
+    }
+    guint iv_len = (guint)(data[offset]);
+    offset += 1; // 1 skip iv len
+    if (offset + iv_len > data_size) {
+        GST_ERROR ("cei data too short\n");
+        return FALSE;
+    } else {
+        memcpy (cenc_info->iv, data + offset, iv_len);
+        cenc_info->iv_len = iv_len;
+        offset += iv_len;
+    }
+    *pos = offset;
+    return TRUE;
+}
+
+static gboolean
+gst_ts_demux_drm_set_key_info (guint8 *data, guint data_size, guint cei_start_pos, DRMCencInfo *cenc_info)
+{
+  guint total_size = data_size;
+  guint cei_pos = cei_start_pos;
+  guint8 *cei_data = NULL;
+
+  cei_data = (guint8 *)g_malloc (data_size);
+  if (cei_data == NULL) {
+    GST_ERROR ("g_malloc cei data failed\n");
+    return FALSE;
+  }
+  memcpy (cei_data, data, data_size);
+  if (cei_pos + DRM_LEGACY_LEN >= total_size) {
+    GST_ERROR ("cei data too short\n");
+    g_free (cei_data);
+    return FALSE;
+  }
+  if (cei_data[cei_pos + DRM_LEGACY_LEN] == (guint8)DRM_AVS_FLAG) {
+    cei_pos += DRM_LEGACY_LEN; //skip 0x00 0x00 0x01
+    cei_pos += 2; // 2 skip this flag
+  } else {
+    for (; (cei_pos + (guint)DRM_USER_DATA_REGISTERED_UUID_SIZE < total_size); cei_pos++) {
+      if (memcmp (cei_data + cei_pos, g_user_registered_uuid, (guint)DRM_USER_DATA_REGISTERED_UUID_SIZE) == 0) {
+        cei_pos += (guint)DRM_USER_DATA_REGISTERED_UUID_SIZE;
+        break;
+      }
+    }
+  }
+  gboolean ret = gst_ts_demux_drm_get_key_id (cei_data, total_size, &cei_pos, cenc_info);
+  if (ret == FALSE) {
+    g_free (cei_data);
+    return FALSE; // 0 key_id not found
+  }
+  ret = gst_ts_demux_drm_get_iv (cei_data, total_size, &cei_pos, cenc_info);
+  if (ret == FALSE) {
+    g_free (cei_data);
+    return FALSE; // 0 iv not found
+  }
+  g_free (cei_data);
+  return TRUE;
+}
+
+static gboolean
+gst_ts_demux_drm_get_cenc_info (guint8 stream_type, guint8 *data, guint data_size, DRMCencInfo *cenc_info)
+{
+  gboolean ret;
+  guint cei_start_pos = (guint)DRM_INVALID_START_POS;
+  guint cei_end_pos = (guint)DRM_INVALID_START_POS;
+
+  cenc_info->first_encrypt_offset = 0;
+  cenc_info->sub_sample[0].clear_header_len = data_size;
+  cenc_info->sub_sample[0].pay_load_len = 0;
+  cenc_info->sub_sample_num = 1;
+
+  if (stream_type != GST_MPEGTS_STREAM_TYPE_VIDEO_H264 && stream_type != GST_MPEGTS_STREAM_TYPE_VIDEO_HEVC &&
+    stream_type != GST_MPEGTS_STREAM_TYPE_VIDEO_AVS3 && stream_type != GST_MPEGTS_STREAM_TYPE_VIDEO_AVS3_OLD) {
+    cenc_info->algo = DRM_ALG_CENC_UNENCRYPTED;
+    return FALSE;
+  }
+  ret = gst_ts_demux_drm_find_cei_pos (stream_type, data, data_size, &cei_start_pos, &cei_end_pos);
+  if (ret == TRUE) {
+    (void)gst_ts_demux_drm_set_key_info (data, cei_end_pos, cei_start_pos, cenc_info);
+  }
+  return TRUE;
+}
+
+static void
+gst_ts_demux_drm_set_cenc_algo (GstTSDemux *demux, DRMCencInfo *cenc_info)
+{
+  if (demux->drm_algo_tag == 0x1) { // 0x1:SM4-SAMPL SM4S
+    cenc_info->algo = DRM_ALG_CENC_SM4_CBC;
+  } else if (demux->drm_algo_tag == 0x2) { // 0x2:AES CBCS
+    cenc_info->algo = DRM_ALG_CENC_AES_CBC;
+  } else if (demux->drm_algo_tag == 0x5) { // 0x5:AES CBC1
+    cenc_info->algo = DRM_ALG_CENC_AES_CBC;
+  } else if (demux->drm_algo_tag == 0x3) { // 0x3:SM4-CBC SM4C
+    cenc_info->algo = DRM_ALG_CENC_SM4_CBC;
+  } else if (demux->drm_algo_tag == 0x0) { // 0x0:NONE
+    cenc_info->algo = DRM_ALG_CENC_UNENCRYPTED;
+  }
+  return;
+}
+
+static void
+gst_ts_demux_drm_set_cenc_pattern_and_cipher_mode_properties (GstTSDemux *demux,
+    TsDemuxCencSampleSetInfo *cenc_sample_info)
+{
+  if (demux->drm_algo_tag == 0x1) { // 0x1:SM4-SAMPL SM4S
+    gst_structure_set (cenc_sample_info->default_properties, "crypt_byte_block",
+        G_TYPE_UINT, (guint)DRM_CRYPT_BYTE_BLOCK, "skip_byte_block", G_TYPE_UINT,
+        (guint)DRM_SKIP_BYTE_BLOCK, NULL);
+    gst_structure_set (cenc_sample_info->default_properties, "cipher-mode",
+        G_TYPE_STRING, "sm4s", NULL);
+  } else if (demux->drm_algo_tag == 0x2) { // 0x2:AES CBCS
+    gst_structure_set (cenc_sample_info->default_properties, "crypt_byte_block",
+        G_TYPE_UINT, (guint)DRM_CRYPT_BYTE_BLOCK, "skip_byte_block", G_TYPE_UINT,
+        (guint)DRM_SKIP_BYTE_BLOCK, NULL);
+    gst_structure_set (cenc_sample_info->default_properties, "cipher-mode",
+        G_TYPE_STRING, "cbcs", NULL);
+  } else if (demux->drm_algo_tag == 0x5) { // 0x5:AES CBC1
+    gst_structure_set (cenc_sample_info->default_properties, "crypt_byte_block",
+        G_TYPE_UINT, DRM_TS_FLAG_CRYPT_BYTE_BLOCK, "skip_byte_block", G_TYPE_UINT, 0, NULL);
+    gst_structure_set (cenc_sample_info->default_properties, "cipher-mode",
+        G_TYPE_STRING, "cbc1", NULL);
+  } else if (demux->drm_algo_tag == 0x3) { // 0x3:SM4-CBC SM4C
+    gst_structure_set (cenc_sample_info->default_properties, "crypt_byte_block",
+        G_TYPE_UINT, DRM_TS_FLAG_CRYPT_BYTE_BLOCK, "skip_byte_block", G_TYPE_UINT, 0, NULL);
+    gst_structure_set (cenc_sample_info->default_properties, "cipher-mode",
+        G_TYPE_STRING, "sm4c", NULL);
+  }
+  return;
+}
+
+static gint
+gst_ts_demux_drm_set_cenc_subsample_properties (TsDemuxCencSampleSetInfo *cenc_sample_info)
+{
+  gst_structure_set (cenc_sample_info->default_properties,
+      "subsample_count", G_TYPE_UINT, 0, NULL);
+  return 0;
+}
+
+static gint
+gst_ts_demux_drm_set_cenc_properties (GstTSDemux *demux, DRMCencInfo *cenc_info)
+{
+  gint ret = 0;
+  TsDemuxCencSampleSetInfo *cenc_sample_info = NULL;
+  GstBuffer *kid_buf = gst_buffer_new_allocate (NULL, DRM_KEY_ID_SIZE, NULL);
+  GstBuffer *iv_buf = gst_buffer_new_allocate (NULL, DRM_IV_SIZE, NULL);
+
+  gst_buffer_fill (kid_buf, 0, cenc_info->key_id, cenc_info->key_id_len);
+  gst_buffer_fill (iv_buf, 0, cenc_info->iv, cenc_info->iv_len);
+
+  if (demux->protection_scheme_info == NULL) {
+    demux->protection_scheme_info = g_new0 (TsDemuxCencSampleSetInfo, 1);
+  }
+
+  cenc_sample_info = (TsDemuxCencSampleSetInfo *) demux->protection_scheme_info;
+  if (cenc_sample_info->default_properties == NULL) {
+    cenc_sample_info->default_properties =
+        gst_structure_new ("application/x-cenc",
+        "iv_size", G_TYPE_UINT, cenc_info->iv_len, NULL);
+  }
+  gst_structure_set (cenc_sample_info->default_properties,
+      "encrypted", G_TYPE_BOOLEAN, (cenc_info->algo != DRM_ALG_CENC_UNENCRYPTED), NULL);
+  gst_structure_set (cenc_sample_info->default_properties,
+      "kid", GST_TYPE_BUFFER, kid_buf, NULL);
+  gst_structure_set (cenc_sample_info->default_properties,
+      "constant_iv_size", G_TYPE_UINT, cenc_info->iv_len, NULL);
+  gst_structure_set (cenc_sample_info->default_properties,
+      "iv", GST_TYPE_BUFFER, iv_buf, NULL);
+  gst_buffer_unref (kid_buf);
+  gst_buffer_unref (iv_buf);
+  gst_ts_demux_drm_set_cenc_pattern_and_cipher_mode_properties (demux, cenc_sample_info);
+  ret = gst_ts_demux_drm_set_cenc_subsample_properties (cenc_sample_info);
+  return ret;
+}
 
 static void
 gst_ts_demux_dispose (GObject * object)
@@ -1407,6 +1840,8 @@ create_pad_for_stream (MpegTSBase * base, MpegTSBaseStream * bstream,
   gboolean is_audio = FALSE, is_video = FALSE, is_subpicture = FALSE,
       is_private = FALSE;
 
+  demux->is_drm = base->is_drm;
+
   gst_ts_demux_create_tags (stream);
 
   GST_LOG_OBJECT (demux,
@@ -1774,9 +2209,17 @@ create_pad_for_stream (MpegTSBase * base, MpegTSBaseStream * bstream,
     case GST_MPEGTS_STREAM_TYPE_AUDIO_AAC_ADTS:
       is_audio = TRUE;
       /* prefer mpegversion 4 since it's more commonly supported one */
-      caps = gst_caps_new_simple ("audio/mpeg",
-          "mpegversion", G_TYPE_INT, 4,
-          "stream-format", G_TYPE_STRING, "adts", NULL);
+      if (base->is_drm == TRUE) {
+        caps = gst_caps_new_simple ("application/x-cenc",
+            "mpegversion", G_TYPE_INT, 4, // 4:mpegversion
+            "original-media-type", G_TYPE_STRING, "audio/mpeg",
+            "protection-system", G_TYPE_STRING, "3d5e6d35-9b9a-41e8-b843-dd3c6e72c42c",
+            "stream-format", G_TYPE_STRING, "adts", NULL);
+      } else {
+        caps = gst_caps_new_simple ("audio/mpeg",
+            "mpegversion", G_TYPE_INT, 4,
+            "stream-format", G_TYPE_STRING, "adts", NULL);
+      }
       /* we will set caps later once parsing adts header is done */
       stream->atdsInfos.mpegversion = 4;
       break;
@@ -1794,13 +2237,29 @@ create_pad_for_stream (MpegTSBase * base, MpegTSBaseStream * bstream,
       break;
     case GST_MPEGTS_STREAM_TYPE_VIDEO_H264:
       is_video = TRUE;
-      caps = gst_caps_new_simple ("video/x-h264",
-          "stream-format", G_TYPE_STRING, "byte-stream", NULL);
+      if (base->is_drm == TRUE) {
+        caps = gst_caps_new_simple ("application/x-cenc",
+            "format", G_TYPE_STRING, "H264",
+            "original-media-type", G_TYPE_STRING, "video/x-h264",
+            "protection-system", G_TYPE_STRING, "3d5e6d35-9b9a-41e8-b843-dd3c6e72c42c",
+            "stream-format", G_TYPE_STRING, "byte-stream", NULL);
+      } else {
+        caps = gst_caps_new_simple ("video/x-h264",
+            "stream-format", G_TYPE_STRING, "byte-stream", NULL);
+      }
       break;
     case GST_MPEGTS_STREAM_TYPE_VIDEO_HEVC:
       is_video = TRUE;
-      caps = gst_caps_new_simple ("video/x-h265",
-          "stream-format", G_TYPE_STRING, "byte-stream", NULL);
+      if (base->is_drm == TRUE) {
+        caps = gst_caps_new_simple ("application/x-cenc",
+            "format", G_TYPE_STRING, "HEVC",
+            "original-media-type", G_TYPE_STRING, "video/x-h265",
+            "protection-system", G_TYPE_STRING, "3d5e6d35-9b9a-41e8-b843-dd3c6e72c42c",
+            "stream-format", G_TYPE_STRING, "byte-stream", NULL);
+      } else {
+        caps = gst_caps_new_simple ("video/x-h265",
+            "stream-format", G_TYPE_STRING, "byte-stream", NULL);
+      }
       break;
     case GST_MPEGTS_STREAM_TYPE_VIDEO_JP2K:
       is_video = TRUE;
@@ -2116,6 +2575,7 @@ gst_ts_demux_stream_added (MpegTSBase * base, MpegTSBaseStream * bstream,
     /* Only wait for a valid timestamp if we have a PCR_PID */
     stream->pending_ts = program->pcr_pid < 0x1fff;
     stream->continuity_counter = CONTINUITY_UNSET;
+    demux->protection_scheme_info = NULL;
   }
 
   return (stream->pad != NULL);
@@ -2140,6 +2600,16 @@ gst_ts_demux_stream_removed (MpegTSBase * base, MpegTSBaseStream * bstream)
   TSDemuxStream *stream = (TSDemuxStream *) bstream;
 
   if (stream->pad) {
+    GstTSDemux *demux = (GstTSDemux *) base;
+    if (demux->protection_scheme_info) {
+      TsDemuxCencSampleSetInfo *info =
+          (TsDemuxCencSampleSetInfo *) demux->protection_scheme_info;
+      if (info->default_properties) {
+        gst_structure_free (info->default_properties);
+      }
+      g_free (demux->protection_scheme_info);
+      demux->protection_scheme_info = NULL;
+    }
     gst_flow_combiner_remove_pad (GST_TS_DEMUX_CAST (base)->flowcombiner,
         stream->pad);
     if (stream->active) {
@@ -3413,6 +3883,18 @@ gst_ts_demux_push_pending_data (GstTSDemux * demux, TSDemuxStream * stream,
     g_free (stream->data);
     goto beach;
   }
+  static DRMCencInfo cenc_info;
+  if (demux->is_drm == TRUE) {
+    gst_ts_demux_drm_set_cenc_algo (demux, &cenc_info);
+    gst_ts_demux_drm_get_cenc_info (bs->stream_type, stream->data, stream->current_size, &cenc_info);
+    if (cenc_info.algo != DRM_ALG_CENC_UNENCRYPTED) {
+      gint ret = gst_ts_demux_drm_set_cenc_properties (demux, &cenc_info);
+      if (ret != 0) {
+        res = GST_FLOW_ERROR;
+        goto beach;
+      }
+    }
+  }
 
   if (stream->needs_keyframe) {
     MpegTSBase *base = (MpegTSBase *) demux;
@@ -3615,6 +4097,17 @@ gst_ts_demux_push_pending_data (GstTSDemux * demux, TSDemuxStream * stream,
     // ohos.opt.performance.0005
     GstStartTraceExt("TSDemux:push buffer", GST_PAD_NAME (stream->pad));
 #endif
+    GstStructure *crypto_info = NULL;
+    TsDemuxCencSampleSetInfo *cenc_sample_info = NULL;
+    cenc_sample_info = (TsDemuxCencSampleSetInfo *) demux->protection_scheme_info;
+    if ((cenc_info.algo != DRM_ALG_CENC_UNENCRYPTED) && (demux->is_drm == TRUE) && (cenc_sample_info != NULL)) {
+      crypto_info = gst_structure_copy (cenc_sample_info->default_properties);
+      if ((crypto_info != NULL) && (!gst_buffer_add_protection_meta (buffer, crypto_info))) {
+        GST_ERROR_OBJECT (demux, "failed to attach cenc metadata to buffer");
+        res = GST_FLOW_ERROR;
+        goto beach;
+      }
+    }
     res = gst_pad_push (stream->pad, buffer);
 #ifdef OHOS_OPT_PERFORMANCE
     GstFinishTrace();
@@ -3769,6 +4262,9 @@ gst_ts_demux_push (MpegTSBase * base, MpegTSPacketizerPacket * packet,
   GstTSDemux *demux = GST_TS_DEMUX_CAST (base);
   TSDemuxStream *stream = NULL;
   GstFlowReturn res = GST_FLOW_OK;
+
+  demux->is_drm = base->is_drm;
+  demux->drm_algo_tag = base->drm_algo_tag;
 
   if (G_LIKELY (demux->program)) {
     stream = (TSDemuxStream *) demux->program->streams[packet->pid];

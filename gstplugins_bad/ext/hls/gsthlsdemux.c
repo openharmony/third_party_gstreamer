@@ -67,6 +67,14 @@ GST_DEBUG_CATEGORY (gst_hls_demux_debug);
 #define MAX_BITRATE_NUM 100
 #endif
 
+enum
+{
+  SIGNAL_ON_DRM_INFO_UPDATED,
+  NUM_SIGNALS
+};
+
+static guint signals[NUM_SIGNALS];
+
 /* GObject */
 static void gst_hls_demux_finalize (GObject * obj);
 
@@ -122,6 +130,23 @@ static gboolean gst_hls_demux_get_live_seek_range (GstAdaptiveDemux * demux,
 static GstM3U8 *gst_hls_demux_stream_get_m3u8 (GstHLSDemuxStream * hls_stream);
 static void gst_hls_demux_set_current_variant (GstHLSDemux * hlsdemux,
     GstHLSVariantStream * variant);
+
+void
+gst_hls_demux_set_drm_info (const DrmInfo *data, guint data_size, DrmInfoTsDemuxBase base)
+{
+  gint ret = 0;
+  g_signal_emit_by_name ((GstElement *) base, "drm-info-updated", data, data_size, &ret);
+}
+
+static void
+gst_hls_demux_set_drm_info_signal (GstHLSDemuxClass *klass)
+{
+  signals[SIGNAL_ON_DRM_INFO_UPDATED] =
+      g_signal_new ("drm-info-updated", G_TYPE_FROM_CLASS(klass),
+      G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS,
+      0, NULL, NULL, NULL,
+      G_TYPE_INT, 2, G_TYPE_POINTER, G_TYPE_UINT); // 2:represents two parameters
+}
 
 #ifdef OHOS_EXT_FUNC
 // ohos.ext.func.0028
@@ -211,6 +236,8 @@ gst_hls_demux_class_init (GstHLSDemuxClass * klass)
   adaptivedemux_class->get_current_position = gst_hls_demux_get_current_position;
 #endif
 
+  gst_hls_demux_set_drm_info_signal (klass);
+
   GST_DEBUG_CATEGORY_INIT (gst_hls_demux_debug, "hlsdemux", 0,
       "hlsdemux element");
 }
@@ -223,6 +250,7 @@ gst_hls_demux_init (GstHLSDemux * demux)
 
   demux->keys = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
   g_mutex_init (&demux->keys_lock);
+  gst_m3u8_set_drm_info_callback(gst_hls_demux_set_drm_info, (DrmInfoTsDemuxBase)demux);
 }
 
 static GstStateChangeReturn

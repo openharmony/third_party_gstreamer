@@ -61,6 +61,9 @@ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
 
 #define DEFAULT_IGNORE_PCR FALSE
 
+#define DRM_UUID_OFFSET             (12)
+#define DRM_MIN_DRM_DESCRIPTOR_LEN  (2)
+
 enum
 {
   PROP_0,
@@ -68,6 +71,14 @@ enum
   PROP_IGNORE_PCR,
   /* FILL ME */
 };
+
+enum
+{
+  SIGNAL_ON_DRM_INFO_UPDATED,
+  NUM_SIGNALS
+};
+
+static guint signals[NUM_SIGNALS];
 
 static void mpegts_base_dispose (GObject * object);
 static void mpegts_base_finalize (GObject * object);
@@ -143,6 +154,12 @@ mpegts_base_class_init (MpegTSBaseClass * klass)
   gobject_class->set_property = mpegts_base_set_property;
   gobject_class->get_property = mpegts_base_get_property;
 
+  signals[SIGNAL_ON_DRM_INFO_UPDATED] =
+      g_signal_new ("drm-info-updated", G_TYPE_FROM_CLASS(klass),
+      G_SIGNAL_RUN_LAST | G_SIGNAL_NO_RECURSE | G_SIGNAL_NO_HOOKS,
+      0, NULL, NULL, NULL,
+      G_TYPE_INT, 2, G_TYPE_POINTER, G_TYPE_UINT); // 2:represents two parameters
+
   g_object_class_install_property (gobject_class, PROP_PARSE_PRIVATE_SECTIONS,
       g_param_spec_boolean ("parse-private-sections", "Parse private sections",
           "Parse private sections", FALSE,
@@ -203,6 +220,19 @@ mpegts_base_get_property (GObject * object, guint prop_id,
   }
 }
 
+static void
+mpegts_base_reset_drm_info (MpegTSBase * base)
+{
+  base->is_drm = FALSE;
+  base->drm_algo_tag = 0;
+
+  if (base->drm_info != NULL) {
+    memset (base->drm_info, 0, (sizeof(DrmInfo) * DRM_MAX_TS_DRM_INFO_NUM));
+  }
+
+  base->drm_info_num = 0;
+  base->drm_info_total_num = 0;
+}
 
 static void
 mpegts_base_reset (MpegTSBase * base)
@@ -212,6 +242,8 @@ mpegts_base_reset (MpegTSBase * base)
   mpegts_packetizer_clear (base->packetizer);
   memset (base->is_pes, 0, 1024);
   memset (base->known_psi, 0, 1024);
+
+  mpegts_base_reset_drm_info (base);
 
   /* FIXME : Actually these are not *always* know SI streams
    * depending on the variant of mpeg-ts being used. */
@@ -281,6 +313,12 @@ mpegts_base_init (MpegTSBase * base)
   base->push_data = TRUE;
   base->push_section = TRUE;
   base->ignore_pcr = DEFAULT_IGNORE_PCR;
+  if (base->drm_info == NULL) {
+    base->drm_info = (DrmInfo *) g_malloc ((sizeof(DrmInfo) * DRM_MAX_TS_DRM_INFO_NUM));
+    if (base->drm_info == NULL) {
+      return;
+    }
+  }
 
   mpegts_base_reset (base);
 }
@@ -305,6 +343,11 @@ static void
 mpegts_base_finalize (GObject * object)
 {
   MpegTSBase *base = GST_MPEGTS_BASE (object);
+
+  if (base->drm_info != NULL) {
+    g_free (base->drm_info);
+    base->drm_info = NULL;
+  }
 
   if (base->pat) {
     g_ptr_array_unref (base->pat);
@@ -345,6 +388,69 @@ mpegts_get_descriptor_from_stream_with_extension (MpegTSBaseStream * stream,
 
   return gst_mpegts_find_descriptor_with_extension (pmt->descriptors, tag,
       tag_extension);
+}
+
+static void
+mpegts_add_drm_info (MpegTSBase *base, const GstMpegtsDescriptor *descriptor, guint offset)
+{
+  DrmInfo drm_info;
+  guint8 *descriptor_content = descriptor->data + 2; // 2:Skip tag and len
+
+  if (base->drm_info == NULL) {
+    GST_ERROR ("drm_info is NULL");
+    return;
+  }
+  drm_info.pssh_len = 0;
+  if (descriptor->length >= offset + DRM_UUID_OFFSET + DRM_MAX_TS_DRM_UUID_LEN) {
+    memcpy (drm_info.uuid, descriptor_content + offset + DRM_UUID_OFFSET, DRM_MAX_TS_DRM_UUID_LEN);
+  } else {
+    GST_ERROR ("uuid not found");
+    return;
+  }
+  if (descriptor->length - offset <= DRM_MAX_TS_DRM_PSSH_LEN) {
+    memcpy (drm_info.pssh, descriptor_content + offset, descriptor->length - offset);
+    drm_info.pssh_len = descriptor->length - offset;
+  } else {
+    GST_ERROR ("pssh not found");
+    return;
+  }
+  for (guint i = 0; i < base->drm_info_num; i++) {
+    if ((base->drm_info[i].pssh_len == drm_info.pssh_len) &&
+        (memcmp (base->drm_info[i].pssh, drm_info.pssh, drm_info.pssh_len) == 0) &&
+        (memcmp (base->drm_info[i].uuid, drm_info.uuid, DRM_MAX_TS_DRM_UUID_LEN) == 0)) {
+      return;
+    }
+  }
+  if (base->drm_info_num < DRM_MAX_TS_DRM_INFO_NUM) {
+    base->drm_info[base->drm_info_num].pssh_len = drm_info.pssh_len;
+    memcpy (base->drm_info[base->drm_info_num].pssh, drm_info.pssh, drm_info.pssh_len);
+    memcpy (base->drm_info[base->drm_info_num].uuid, drm_info.uuid, DRM_MAX_TS_DRM_UUID_LEN);
+    base->drm_info_num++;
+  }
+}
+
+static void
+mpegts_set_drm_info (MpegTSBase *base, GPtrArray *descriptors)
+{
+  if (descriptors == NULL) {
+    GST_ERROR ("descriptors is NULL\n");
+    return;
+  }
+  /* Get drm descriptor */
+  const GstMpegtsDescriptor *descriptor;
+  descriptor = gst_mpegts_find_descriptor (descriptors, 0xC0);
+  if ((descriptor != NULL) && (descriptor->length > DRM_MIN_DRM_DESCRIPTOR_LEN)) {
+    guint8 *descriptor_content = descriptor->data + 2; // 2:Skip tag and len
+    guint offset = 0;
+    base->is_drm = TRUE;
+    base->drm_algo_tag = (descriptor_content[offset]) & 0x0f;
+    offset++;
+    guint8 audio_algo = (descriptor_content[offset]) & 0x0f; // audio algo offset
+    GST_DEBUG ("audio_algo:%d\n", audio_algo);
+    offset++;
+    mpegts_add_drm_info (base, descriptor, offset);
+  }
+  return;
 }
 
 typedef struct
@@ -747,10 +853,15 @@ mpegts_base_update_program (MpegTSBase * base, MpegTSBaseProgram * program,
     }
   }
 
+  /* Set PMT drm info */
+  mpegts_set_drm_info (base, pmt->descriptors);
+
   /* Add new streams (will also create and add gststream to the collection) */
   nbstreams = pmt->streams->len;
   for (i = 0; i < nbstreams; i++) {
     GstMpegtsPMTStream *stream = g_ptr_array_index (pmt->streams, i);
+    /* Set stream drm info */
+    mpegts_set_drm_info (base, stream->descriptors);
     if (!_pmt_stream_in_program (program, stream))
       mpegts_base_program_add_stream (base, program, stream->pid,
           stream->stream_type, stream);
@@ -833,11 +944,16 @@ mpegts_base_is_same_program (MpegTSBase * base, MpegTSBaseProgram * oldprogram,
     return FALSE;
   }
 
+  /* Set PMT drm info */
+  mpegts_set_drm_info (base, new_pmt->descriptors);
+
   /* Check the streams */
   nbstreams = new_pmt->streams->len;
   for (i = 0; i < nbstreams; ++i) {
     GstMpegtsPMTStream *stream = g_ptr_array_index (new_pmt->streams, i);
 
+    /* Set stream drm info */
+    mpegts_set_drm_info (base, stream->descriptors);
     oldstream = oldprogram->streams[stream->pid];
     if (!oldstream) {
       GST_DEBUG ("New stream 0x%04x not present in old program", stream->pid);
@@ -902,11 +1018,16 @@ mpegts_base_is_program_update (MpegTSBase * base,
   /* Check if at least one stream from the previous program is still present
    * in the new program */
 
+  /* Set PMT drm info */
+  mpegts_set_drm_info (base, new_pmt->descriptors);
+
   /* Check the streams */
   nbstreams = new_pmt->streams->len;
   for (i = 0; i < nbstreams; ++i) {
     GstMpegtsPMTStream *stream = g_ptr_array_index (new_pmt->streams, i);
 
+    /* Set stream drm info */
+    mpegts_set_drm_info (base, stream->descriptors);
     oldstream = oldprogram->streams[stream->pid];
     if (!oldstream) {
       GST_DEBUG ("New stream 0x%04x not present in old program", stream->pid);
@@ -1005,8 +1126,13 @@ mpegts_base_activate_program (MpegTSBase * base, MpegTSBaseProgram * program,
   GST_DEBUG ("program 0x%04x, registration_id %" SAFE_FOURCC_FORMAT,
       program->program_number, SAFE_FOURCC_ARGS (program->registration_id));
 
+  /* Set PMT drm info */
+  mpegts_set_drm_info (base, pmt->descriptors);
+
   for (i = 0; i < pmt->streams->len; ++i) {
     GstMpegtsPMTStream *stream = g_ptr_array_index (pmt->streams, i);
+    /* Set stream drm info */
+    mpegts_set_drm_info (base, stream->descriptors);
     if (_stream_is_private_section (pmt, stream)) {
       if (base->parse_private_sections)
         MPEGTS_BIT_SET (base->known_psi, stream->pid);
@@ -1251,6 +1377,12 @@ mpegts_base_apply_pmt (MpegTSBase * base, GstMpegtsSection * section)
   /* Ownership of pmt_info is given to the program */
   mpegts_base_activate_program (base, program, section->pid, section, pmt,
       initial_program);
+
+  if ((base->drm_info_total_num != base->drm_info_num) && (base->drm_info_num != 0) && (base->drm_info != NULL)) {
+    gint ret;
+    g_signal_emit_by_name ((GstElement *) base, "drm-info-updated", base->drm_info, base->drm_info_num, &ret);
+    base->drm_info_total_num = base->drm_info_num;
+  }
 
 beach:
   GST_DEBUG ("Done activating program");

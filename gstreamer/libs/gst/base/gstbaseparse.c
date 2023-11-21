@@ -2701,7 +2701,9 @@ gst_base_parse_finish_frame (GstBaseParse * parse, GstBaseParseFrame * frame,
     gint size)
 {
   GstFlowReturn ret = GST_FLOW_OK;
-
+  const GstProtectionMeta *prot_meta_buf = NULL;
+  const GstProtectionMeta *prot_meta_tmp = NULL;
+  GstStructure *crypto_info = NULL;
   g_return_val_if_fail (frame != NULL, GST_FLOW_ERROR);
   g_return_val_if_fail (frame->buffer != NULL, GST_FLOW_ERROR);
   g_return_val_if_fail (size > 0 || frame->out_buffer, GST_FLOW_ERROR);
@@ -2710,7 +2712,10 @@ gst_base_parse_finish_frame (GstBaseParse * parse, GstBaseParseFrame * frame,
 
   GST_LOG_OBJECT (parse, "finished frame at offset %" G_GUINT64_FORMAT ", "
       "flushing size %d", frame->offset, size);
-
+  prot_meta_buf = (GstProtectionMeta*) gst_buffer_get_protection_meta (frame->buffer);
+  if (prot_meta_buf != NULL) {
+    crypto_info = gst_structure_copy (prot_meta_buf->info);
+  }
   /* some one-time start-up */
   if (G_UNLIKELY (parse->priv->framecount == 0)) {
     gst_base_parse_check_seekability (parse);
@@ -2748,6 +2753,12 @@ gst_base_parse_finish_frame (GstBaseParse * parse, GstBaseParseFrame * frame,
   gst_buffer_replace (&frame->buffer, frame->out_buffer);
   gst_buffer_unref (frame->out_buffer);
   frame->out_buffer = NULL;
+  prot_meta_tmp = (GstProtectionMeta*) gst_buffer_get_protection_meta (frame->buffer);
+  if (prot_meta_tmp == NULL) {
+    if (prot_meta_buf != NULL) {
+      gst_buffer_add_protection_meta (frame->buffer, crypto_info);
+    }
+  }
 
   /* mark input size consumed */
   frame->size = size;
