@@ -31,10 +31,151 @@
 
 #define GST_CAT_DEFAULT hls_debug
 
+#define DRM_UUID_OFFSET                         (12)
+#define DRM_INFO_BASE64_DATA_MULTIPLE           (4)
+#define DRM_INFO_BASE64_BASE_UNIT_OF_CONVERSION (3)
+
 static GstM3U8MediaFile *gst_m3u8_media_file_new (gchar * uri,
     gchar * title, GstClockTime duration, guint sequence);
 static void gst_m3u8_init_file_unref (GstM3U8InitFile * self);
 static gchar *uri_join (const gchar * uri, const gchar * path);
+
+gst_m3u8_set_drm_info g_drm_info_func = NULL;
+DrmInfoTsDemuxBase g_demux_base = NULL;
+
+void
+gst_m3u8_set_drm_info_callback (gst_m3u8_set_drm_info func, DrmInfoTsDemuxBase base)
+{
+  if (func == NULL || base == NULL) {
+    GST_ERROR ("parameter is NULL\n");
+    return;
+  }
+  g_drm_info_func = func;
+  g_demux_base = base;
+  return;
+}
+
+/**
+ * base64 decoding table
+ */
+static const guint8 g_base64_decode_table[] = {
+  // 16 per row
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // 1 - 16
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // 17 - 32
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 62, 0, 0, 0, 63,  // 33 - 48
+  52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 0, 0, 0, 0, 0, 0,  // 49 - 64
+  0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,  // 65 - 80
+  15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 0, 0, 0, 0, 0,  // 81 - 96
+  0, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,  // 97 - 112
+  41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 0, 0, 0, 0, 0  // 113 - 128
+};
+
+/**
+ * @brief base64_decode base64 decoding
+ * @param src data to be decoded
+ * @param src_size The size of the data to be decoded
+ * @param dest decoded output data
+ * @param dest_size The size of the output data after decoding
+ * @return gint 0: success -1: invalid parameter
+ * Note: The size of the decoded data must be greater than 4 and be a multiple of 4
+ */
+static gint
+gst_m3u8_base64_decode (const guint8 *src, guint src_size, guint8 *dest, guint *dest_size)
+{
+  if ((src == NULL) || (src_size == 0) || (dest == NULL) || (dest_size == NULL) || (src_size > *dest_size)) {
+    GST_ERROR ("parameter is err");
+    return -1;
+  }
+  if ((src_size < DRM_INFO_BASE64_DATA_MULTIPLE) || (src_size % DRM_INFO_BASE64_DATA_MULTIPLE != 0)) {
+    GST_ERROR ("src_size is err");
+    return -1;
+  }
+
+  guint i, j;
+
+  // Calculate decoded string length
+  guint len = src_size / DRM_INFO_BASE64_DATA_MULTIPLE * DRM_INFO_BASE64_BASE_UNIT_OF_CONVERSION;
+  if (src[src_size - 1] == '=') { // 1:last one
+    len--;
+  }
+  if (src[src_size - 2] == '=') { // 2:second to last
+    len--;
+  }
+
+  for (i = 0, j = 0; i < src_size;
+      i += DRM_INFO_BASE64_DATA_MULTIPLE, j += DRM_INFO_BASE64_BASE_UNIT_OF_CONVERSION) {
+    dest[j] = (g_base64_decode_table[src[i]] << 2) | (g_base64_decode_table[src[i + 1]] >> 4); // 2&4 bits moved
+    dest[j + 1] = (g_base64_decode_table[src[i + 1]] << 4) | // 4:4bits moved
+        (g_base64_decode_table[src[i + 2]] >> 2); // 2:index 2:2bits moved
+    dest[j + 2] = (g_base64_decode_table[src[i + 2]] << 6) | // 2:index 6:6bits moved
+        (g_base64_decode_table[src[i + 3]]); // 3:index
+  }
+  *dest_size = len;
+  return 0;
+}
+
+static void
+gst_m3u8_add_drm_info (GstM3U8 *m3u8, guint8 *pssh, guint pssh_size)
+{
+  DrmInfo drm_info;
+  drm_info.pssh_len = 0;
+
+  if (m3u8->drm_info == NULL) {
+    GST_ERROR ("drm_info is NULL");
+    return;
+  }
+  if (pssh_size >= DRM_UUID_OFFSET + DRM_MAX_M3U8_DRM_UUID_LEN) {
+    memcpy (drm_info.uuid, pssh + DRM_UUID_OFFSET, DRM_MAX_M3U8_DRM_UUID_LEN);
+  } else {
+    GST_ERROR ("uuid not found");
+    return;
+  }
+  if (pssh_size < DRM_MAX_M3U8_DRM_PSSH_LEN) {
+    memcpy (drm_info.pssh, pssh, pssh_size);
+    drm_info.pssh_len = pssh_size;
+  } else {
+    GST_ERROR ("pssh not found");
+    return;
+  }
+  for (guint i = 0; i < m3u8->drm_info_num; i++) {
+    if ((m3u8->drm_info[i].pssh_len == drm_info.pssh_len) &&
+        (memcmp (m3u8->drm_info[i].pssh, drm_info.pssh, drm_info.pssh_len) == 0) &&
+        (memcmp (m3u8->drm_info[i].uuid, drm_info.uuid, DRM_MAX_M3U8_DRM_UUID_LEN) == 0)) {
+      return;
+    }
+  }
+  if (m3u8->drm_info_num < DRM_MAX_M3U8_DRM_INFO_NUM) {
+    m3u8->drm_info[m3u8->drm_info_num].pssh_len = drm_info.pssh_len;
+    memcpy (m3u8->drm_info[m3u8->drm_info_num].pssh, drm_info.pssh, drm_info.pssh_len);
+    memcpy (m3u8->drm_info[m3u8->drm_info_num].uuid, drm_info.uuid, DRM_MAX_M3U8_DRM_UUID_LEN);
+    m3u8->drm_info_num++;
+  }
+}
+
+static void
+gst_m3u8_set_drm_ext_x_key_info (GstM3U8 *m3u8, const gchar *data)
+{
+  guint data_size = strlen (data);
+  guint8 pssh[DRM_MAX_M3U8_DRM_PSSH_LEN];
+  guint pssh_size = DRM_MAX_M3U8_DRM_PSSH_LEN;
+  gchar *uri_start_data = strstr (data, "URI=\"data:text/plain;base64,");
+  if (uri_start_data != NULL) {
+    guint pssh_pos = strlen ("URI=\"data:text/plain;base64,");
+    gchar *enc_pssh = uri_start_data + pssh_pos;
+    if (enc_pssh >= data + data_size) {
+      GST_ERROR ("base64 pssh not found");
+      return;
+    }
+    gchar *uri_end_data = g_utf8_strchr (enc_pssh, -1, '"');
+    if (uri_end_data != NULL) {
+      guint enc_pssh_size = uri_end_data - enc_pssh;
+      (void)gst_m3u8_base64_decode ((const guint8 *)enc_pssh, enc_pssh_size, pssh, &pssh_size);
+    }
+    if (pssh_size != DRM_MAX_M3U8_DRM_PSSH_LEN) {
+      gst_m3u8_add_drm_info (m3u8, pssh, pssh_size);
+    }
+  }
+}
 
 GstM3U8 *
 gst_m3u8_new (void)
@@ -49,6 +190,7 @@ gst_m3u8_new (void)
   m3u8->sequence_position = 0;
   m3u8->highest_sequence_number = -1;
   m3u8->duration = GST_CLOCK_TIME_NONE;
+  m3u8->drm_info = NULL;
 
   g_mutex_init (&m3u8->lock);
   m3u8->ref_count = 1;
@@ -81,6 +223,18 @@ gst_m3u8_set_uri (GstM3U8 * m3u8, const gchar * uri, const gchar * base_uri,
     const gchar * name)
 {
   GST_M3U8_LOCK (m3u8);
+
+  if (m3u8->drm_info == NULL) {
+    m3u8->drm_info = (DrmInfo *) g_malloc ((sizeof(DrmInfo) * DRM_MAX_M3U8_DRM_INFO_NUM));
+    if (m3u8->drm_info == NULL) {
+      GST_M3U8_UNLOCK (m3u8);
+      return;
+    }
+  }
+  memset (m3u8->drm_info, 0, (sizeof(DrmInfo) * DRM_MAX_M3U8_DRM_INFO_NUM));
+  m3u8->drm_info_num = 0;
+  m3u8->drm_info_total_num = 0;
+
   gst_m3u8_take_uri (m3u8, g_strdup (uri), g_strdup (base_uri),
       g_strdup (name));
   GST_M3U8_UNLOCK (m3u8);
@@ -101,6 +255,10 @@ gst_m3u8_unref (GstM3U8 * self)
   g_return_if_fail (self != NULL && self->ref_count > 0);
 
   if (g_atomic_int_dec_and_test (&self->ref_count)) {
+    if (self->drm_info != NULL) {
+      g_free (self->drm_info);
+      self->drm_info = NULL;
+    }
     g_free (self->uri);
     g_free (self->base_uri);
     g_free (self->name);
@@ -654,12 +812,16 @@ gst_m3u8_update (GstM3U8 * self, gchar * data)
       } else if (g_str_has_prefix (data_ext_x, "KEY:")) {
         gchar *v, *a;
 
-        data = data + 11;
-
         /* IV and KEY are only valid until the next #EXT-X-KEY */
         have_iv = FALSE;
         g_free (current_key);
         current_key = NULL;
+        if (data != NULL) {
+          gst_m3u8_set_drm_ext_x_key_info (self, (const gchar *) data);
+          goto next_line;
+        }
+        data = data + 11;
+
         while (data && parse_attributes (&data, &a, &v)) {
           if (g_str_equal (a, "URI")) {
             current_key =
@@ -699,6 +861,9 @@ gst_m3u8_update (GstM3U8 * self, gchar * data)
               GST_WARNING ("Encryption method %s not supported", v);
               continue;
             }
+          }
+          if (data == NULL) {
+            goto next_line;
           }
         }
       } else if (g_str_has_prefix (data_ext_x, "BYTERANGE:")) {
@@ -763,7 +928,12 @@ gst_m3u8_update (GstM3U8 * self, gchar * data)
       break;
     data = g_utf8_next_char (end);      /* skip \n */
   }
-
+  if ((self->drm_info_total_num != self->drm_info_num) && (self->drm_info_num != 0)) {
+    if ((g_demux_base != NULL) && (g_drm_info_func != NULL) && (self->drm_info != NULL)) {
+      g_drm_info_func ((const DrmInfo *)(self->drm_info), self->drm_info_num, g_demux_base);
+      self->drm_info_total_num = self->drm_info_num;
+    }
+  }
   g_free (current_key);
   current_key = NULL;
 

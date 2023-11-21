@@ -35,6 +35,10 @@
 
 G_BEGIN_DECLS
 
+#define DRM_MAX_TS_DRM_PSSH_LEN   2048
+#define DRM_MAX_TS_DRM_UUID_LEN   16
+#define DRM_MAX_TS_DRM_INFO_NUM   64
+
 #define GST_TYPE_MPEGTS_BASE \
   (mpegts_base_get_type())
 #define GST_MPEGTS_BASE(obj) \
@@ -54,6 +58,7 @@ typedef struct _MpegTSBase MpegTSBase;
 typedef struct _MpegTSBaseClass MpegTSBaseClass;
 typedef struct _MpegTSBaseStream MpegTSBaseStream;
 typedef struct _MpegTSBaseProgram MpegTSBaseProgram;
+typedef struct _DrmInfo DrmInfo;
 
 struct _MpegTSBaseStream
 {
@@ -109,6 +114,12 @@ typedef enum {
   /* PUSH MODE */
   BASE_MODE_PUSHING
 } MpegTSBaseMode;
+
+struct _DrmInfo {
+  guint8 uuid[DRM_MAX_TS_DRM_UUID_LEN];
+  guint8 pssh[DRM_MAX_TS_DRM_PSSH_LEN];
+  guint pssh_len;
+};
 
 struct _MpegTSBase {
   GstElement element;
@@ -176,6 +187,16 @@ struct _MpegTSBase {
 
   /* Used for delayed seek events */
   GstEvent *seek_event;
+
+  guint8 drm_algo_tag;
+
+  gboolean is_drm;
+
+  DrmInfo *drm_info;
+
+  guint drm_info_num;
+
+  guint drm_info_total_num;
 };
 
 struct _MpegTSBaseClass {

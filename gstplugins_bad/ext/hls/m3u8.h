@@ -35,6 +35,15 @@ typedef struct _GstHLSMedia GstHLSMedia;
 typedef struct _GstM3U8Client GstM3U8Client;
 typedef struct _GstHLSVariantStream GstHLSVariantStream;
 typedef struct _GstHLSMasterPlaylist GstHLSMasterPlaylist;
+typedef struct _DrmInfo DrmInfo;
+
+typedef void* DrmInfoTsDemuxBase;
+
+typedef void (*gst_m3u8_set_drm_info)(const DrmInfo *data, guint data_size, DrmInfoTsDemuxBase base);
+
+#define DRM_MAX_M3U8_DRM_PSSH_LEN   2048
+#define DRM_MAX_M3U8_DRM_UUID_LEN   16
+#define DRM_MAX_M3U8_DRM_INFO_NUM   64
 
 #define GST_M3U8(m) ((GstM3U8*)m)
 #define GST_M3U8_MEDIA_FILE(f) ((GstM3U8MediaFile*)f)
@@ -49,6 +58,12 @@ typedef struct _GstHLSMasterPlaylist GstHLSMasterPlaylist;
    "Playing the Playlist file" of the HLS draft states that this
    value is three fragments */
 #define GST_M3U8_LIVE_MIN_FRAGMENT_DISTANCE 3
+
+struct _DrmInfo {
+  guint8 uuid[DRM_MAX_M3U8_DRM_UUID_LEN];
+  guint8 pssh[DRM_MAX_M3U8_DRM_PSSH_LEN];
+  guint pssh_len;
+};
 
 struct _GstM3U8
 {
@@ -82,6 +97,10 @@ struct _GstM3U8
   GMutex lock;
 
   gint ref_count;               /* ATOMIC */
+
+  DrmInfo *drm_info;
+  guint drm_info_num;
+  guint drm_info_total_num;
 };
 
 GstM3U8 *          gst_m3u8_ref   (GstM3U8 * m3u8);
@@ -146,6 +165,9 @@ gboolean           gst_m3u8_is_live              (GstM3U8 * m3u8);
 gboolean           gst_m3u8_get_seek_range       (GstM3U8 * m3u8,
                                                   gint64  * start,
                                                   gint64  * stop);
+
+void               gst_m3u8_set_drm_info_callback (gst_m3u8_set_drm_info func,
+                                                    DrmInfoTsDemuxBase base);
 
 typedef enum
 {
