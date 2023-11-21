@@ -2752,7 +2752,7 @@ check_completed_gop (GstSplitMuxSink * splitmux, MqStreamCtx * ctx)
 // ohos.opt.compat.0042
 // Prevent the gap between video pts and audio pts from being too large, which will lead to waiting all the time
             GstClockTimeDiff diff = next_gop_start - tmpctx->in_running_time;
-            if (diff >= GST_SECOND) { // Error reported for more than 1s
+            if (diff >= 2 * GST_SECOND) { // Error reported for more than 2s
                 GST_ELEMENT_ERROR (splitmux, STREAM, FAILED, ("Timestamping error on input streams"),
                     ("Context %p sink pad %" GST_PTR_FORMAT " running time %" GST_STIME_FORMAT
                     ", next gop start: %" GST_STIME_FORMAT ", diff %" GST_STIME_FORMAT,
