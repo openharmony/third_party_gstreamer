@@ -13891,6 +13891,7 @@ qtdemux_parse_tree (GstQTDemux * qtdemux)
 
   /* Moving qt creation time (secs since 1904) to unix time */
   if (creation_time != 0) {
+    creation_time += 28800;
     /* Try to use epoch first as it should be faster and more commonly found */
     if (creation_time >= QTDEMUX_SECONDS_FROM_1904_TO_1970) {
       gint64 now_s;
