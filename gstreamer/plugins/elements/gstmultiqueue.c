@@ -2375,7 +2375,7 @@ next:
 #ifdef OHOS_EXT_FUNC
   // ohos.ext.func.0043 Clear data in the multiqueue to speed up switching bitrate
   if (GST_IS_EVENT (object) && GST_EVENT_TYPE (GST_EVENT_CAST (object)) == GST_EVENT_TAG) {
-    GST_WARNING_OBJECT (mq, "SingleQueue %d pop tag: %" GST_PTR_FORMAT, sq->id, GST_EVENT_CAST (object));
+    GST_DEBUG_OBJECT (mq, "SingleQueue %d pop tag: %" GST_PTR_FORMAT, sq->id, GST_EVENT_CAST (object));
     GstTagList *tagList;
     guint bandwidth;
     guint64 position;
@@ -2399,7 +2399,7 @@ next:
           return;
         }
       } else {
-        GST_WARNING_OBJECT (mq, "first bandwidth is %u", bandwidth);
+        GST_DEBUG_OBJECT (mq, "first bandwidth is %u", bandwidth);
         mq->first_bitrate = bandwidth;
       }
       if (!sq->drop_mode) {
@@ -2408,7 +2408,7 @@ next:
         } else {
           mq->position = position;
         }
-        GST_WARNING_OBJECT (mq, "slice-position is %" G_GUINT64_FORMAT, mq->position);
+        GST_DEBUG_OBJECT (mq, "slice-position is %" G_GUINT64_FORMAT, mq->position);
       }
     }
     g_mutex_unlock (&mq->m3u8_lock);
@@ -2908,7 +2908,7 @@ gst_multi_queue_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
       g_mutex_lock (&mq->m3u8_lock);
       mq->position = GST_CLOCK_TIME_NONE;
       g_mutex_unlock (&mq->m3u8_lock);
-      GST_WARNING_OBJECT (mq, "Flush start, clean m3u8 position");
+      GST_DEBUG_OBJECT (mq, "Flush start, clean m3u8 position");
 #endif
       gst_single_queue_flush (mq, sq, TRUE, FALSE);
       gst_single_queue_pause (mq, sq);

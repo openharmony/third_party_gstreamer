@@ -966,7 +966,7 @@ static void
 gst_curl_http_src_handle_seek (GstCurlHttpSrc * src)
 {
   if (src->curl_handle == NULL) {
-    GST_INFO_OBJECT (src, "parameter is invalid");
+    GST_DEBUG_OBJECT (src, "parameter is invalid");
     return;
   }
 
@@ -974,7 +974,7 @@ gst_curl_http_src_handle_seek (GstCurlHttpSrc * src)
   if (src->request_position == src->read_position) {
 #ifdef OHOS_OPT_COMPAT
     /* ohos.opt.compat.0044 */
-    GST_INFO_OBJECT (src, "request_position is equal to read_position, req = %"
+    GST_DEBUG_OBJECT (src, "request_position is equal to read_position, req = %"
       G_GUINT64_FORMAT, src->request_position);
 #endif
     /* not seek, just return */
@@ -1091,7 +1091,7 @@ retry:
         REQUEST_HEADERS_NAME, GST_TYPE_STRUCTURE, src->request_headers,
         RESPONSE_HEADERS_NAME, GST_TYPE_STRUCTURE, empty_headers, NULL);
     gst_structure_free (empty_headers);
-    GST_INFO_OBJECT (src, "Created a new headers object");
+    GST_DEBUG_OBJECT (src, "Created a new headers object");
   }
 
   g_mutex_unlock (&klass->multi_task_context.mutex);
@@ -1148,7 +1148,7 @@ retry:
         g_mutex_unlock (&src->buffer_mutex);
         return GST_FLOW_ERROR;  /* Don't attempt a retry, just bomb out */
       }
-      GST_INFO_OBJECT (src, "Attempting retry for URI %s", src->uri);
+      GST_DEBUG_OBJECT (src, "Attempting retry for URI %s", src->uri);
       src->state = GSTCURL_NONE;
       src->transfer_begun = FALSE;
       src->status_code = 0;
@@ -1195,7 +1195,7 @@ retry:
 
     /* ret should still be GST_FLOW_OK */
   } else if ((src->state == GSTCURL_DONE) && (src->buffer_len == 0)) {
-    GST_INFO_OBJECT (src, "Full body received, signalling EOS for URI %s.",
+    GST_DEBUG_OBJECT (src, "Full body received, signalling EOS for URI %s.",
         src->uri);
     src->state = GSTCURL_NONE;
     src->transfer_begun = FALSE;
@@ -1284,7 +1284,7 @@ gst_curl_http_src_create_easy_handle (GstCurlHttpSrc * s)
     GST_ERROR_OBJECT (s, "Couldn't init a curl easy handle!");
     return NULL;
   }
-  GST_INFO_OBJECT (s, "Creating a new handle for URI %s", s->uri);
+  GST_DEBUG_OBJECT (s, "Creating a new handle for URI %s", s->uri);
 
 #ifndef GST_DISABLE_GST_DEBUG
   if (curl_easy_setopt (handle, CURLOPT_VERBOSE, 1) != CURLE_OK) {
@@ -1575,7 +1575,7 @@ gst_curl_http_src_handle_response (GstCurlHttpSrc * src)
          of bytes requested, not the total size of the resource */
 #ifdef OHOS_EXT_FUNC
       /* ohos.ext.func.0025 */
-      GST_INFO_OBJECT (src, "orig req pos:%" G_GUINT64_FORMAT ", Content-Length was given as %" G_GUINT64_FORMAT,
+      GST_DEBUG_OBJECT (src, "orig req pos:%" G_GUINT64_FORMAT ", Content-Length was given as %" G_GUINT64_FORMAT,
           src->orig_request_pos, curl_info_offt);
       if (src->content_size == 0) {
         src->content_size = src->orig_request_pos + curl_info_offt;
@@ -1615,7 +1615,7 @@ gst_curl_http_src_handle_response (GstCurlHttpSrc * src)
     hdrs_event = gst_event_new_custom (GST_EVENT_CUSTOM_DOWNSTREAM_STICKY,
         gst_structure_copy (src->http_headers));
     gst_pad_push_event (GST_BASE_SRC_PAD (src), hdrs_event);
-    GST_INFO_OBJECT (src, "Pushed headers downstream");
+    GST_DEBUG_OBJECT (src, "Pushed headers downstream");
   }
 
   src->hdrs_updated = FALSE;
@@ -1636,7 +1636,7 @@ gst_curl_http_src_negotiate_caps (GstCurlHttpSrc * src)
   const GValue *response_headers;
   const GstStructure *response_struct;
 
-  GST_INFO_OBJECT (src, "Negotiating caps...");
+  GST_DEBUG_OBJECT (src, "Negotiating caps...");
   if (src->caps && src->http_headers) {
     response_headers =
         gst_structure_get_value (src->http_headers, RESPONSE_HEADERS_NAME);
@@ -1878,7 +1878,7 @@ gst_curl_http_src_do_seek (GstBaseSrc * bsrc, GstSegment * segment)
   g_mutex_lock (&src->buffer_mutex);
 #ifdef OHOS_EXT_FUNC
 /* ohos.ext.func.0025 support https seek: */
-  GST_INFO_OBJECT (src, "do_seek(%" G_GINT64_FORMAT ", %" G_GINT64_FORMAT
+  GST_DEBUG_OBJECT (src, "do_seek(%" G_GINT64_FORMAT ", %" G_GINT64_FORMAT
       ")", segment->start, segment->stop);
 #endif
   if (src->state == GSTCURL_UNLOCK) {
@@ -2271,7 +2271,7 @@ gst_curl_http_src_get_header (void *header, size_t size, size_t nmemb,
           (guint) g_ascii_strtoll (status_line_fields[1], NULL, 10);
       g_free (s->reason_phrase);
       s->reason_phrase = g_strdup (status_line_fields[2]);
-      GST_INFO_OBJECT (s, "Received status %u for request for URI %s: %s",
+      GST_DEBUG_OBJECT (s, "Received status %u for request for URI %s: %s",
           s->status_code, s->uri, s->reason_phrase);
       gst_structure_set (s->http_headers, HTTP_STATUS_CODE,
           G_TYPE_UINT, s->status_code, NULL);

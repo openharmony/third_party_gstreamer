@@ -3926,7 +3926,7 @@ kpi_log_fps(GstBaseSink *basesink)
   if (fps_time_diff >= GST_MSECOND) {
     gdouble time_sec = (gdouble)fps_time_diff / GST_MSECOND;
     gdouble fps = (priv->rendered - priv->tmp_render_nums_fps) / time_sec;
-    GST_WARNING_OBJECT (basesink, "KPI-TRACE: fps=%f, time=%f, render nums=%" G_GUINT64_FORMAT,
+    GST_DEBUG_OBJECT (basesink, "KPI-TRACE: fps=%f, time=%f, render nums=%" G_GUINT64_FORMAT,
       fps, time_sec, priv->rendered);
     priv->tmp_render_nums_fps = priv->rendered;
     priv->tmp_time_fps = curtime;
