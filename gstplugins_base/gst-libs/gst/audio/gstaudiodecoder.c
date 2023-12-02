@@ -1061,7 +1061,7 @@ gst_audio_decoder_push_forward (GstAudioDecoder * dec, GstBuffer * buf)
   // ohos.opt.performance.0006: the PTS segment of the first frame is calibrated to improve the performance.
   if (!priv->has_push_first_frame && GST_BUFFER_PTS (buf) != GST_CLOCK_TIME_NONE) {
     priv->has_push_first_frame = TRUE;
-    GST_WARNING_OBJECT (dec, "audiodecoder push first frame");
+    GST_DEBUG_OBJECT (dec, "audiodecoder push first frame");
     dec->output_segment.flags |= GST_SEGMENT_FLAG_FIRST_FRAME;
     dec->output_segment.start = GST_BUFFER_PTS (buf);
     GstEvent *event = gst_event_new_segment (&dec->output_segment);
