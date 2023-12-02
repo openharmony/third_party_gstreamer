@@ -1595,7 +1595,7 @@ push_event (MpegTSBase * base, GstEvent * event)
 
       gst_event_ref (event);
       if (pending_data) {
-        GST_WARNING_OBJECT (stream->pad, "bitrate switch pushing tag");
+        GST_DEBUG_OBJECT (stream->pad, "bitrate switch pushing tag");
       }
       gst_pad_push_event (stream->pad, event);
     }
