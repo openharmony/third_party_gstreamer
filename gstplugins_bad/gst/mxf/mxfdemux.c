@@ -172,18 +172,17 @@ gst_mxf_demux_partition_free (GstMXFDemuxPartition * partition)
 static void
 gst_mxf_demux_essence_track_free (GstMXFDemuxEssenceTrack * track)
 {
-  if (track->offsets){
-      g_array_free (track->offsets, TRUE);
+  if (track->offsets) {
+      g_array_free(track->offsets, TRUE);
   }
-  g_free (track->mapping_data);
-
-  if (track->tags){
-      gst_tag_list_unref (track->tags);
+  g_free(track->mapping_data);
+  if (track->tags) {
+      gst_tag_list_unref(track->tags);
   }
-  if (track->caps){
-      gst_caps_unref (track->caps);
+  if (track->caps) {
+      gst_caps_unref(track->caps);
   }
-  g_free (track);
+  g_free(track);
 }
 
 static void
