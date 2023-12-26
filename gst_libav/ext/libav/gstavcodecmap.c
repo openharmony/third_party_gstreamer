@@ -1967,6 +1967,8 @@ gst_ffmpeg_codecid_to_caps (enum AVCodecID codec_id,
 #ifdef OHOS_OPT_COMPAT
     /* ohos.opt.compat.xxxx enable s24le */
     case AV_CODEC_ID_PCM_S24LE:
+    /* ohos.opt.compat.xxxx enable s32le */
+    case AV_CODEC_ID_PCM_S32LE:
     /* ohos.opt.compat.xxxx enable f32le */
     case AV_CODEC_ID_PCM_F32LE:
 #endif
@@ -1996,6 +1998,10 @@ gst_ffmpeg_codecid_to_caps (enum AVCodecID codec_id,
        /* ohos.opt.compat.xxxx enable s24le */
         case AV_CODEC_ID_PCM_S24LE:
           format = GST_AUDIO_FORMAT_S24LE;
+          break;
+       /* ohos.opt.compat.xxxx enable s32le */
+        case AV_CODEC_ID_PCM_S32LE:
+          format = GST_AUDIO_FORMAT_S32LE;
           break;
         /* ohos.opt.compat.xxxx enable f32le */
         case AV_CODEC_ID_PCM_F32LE:
