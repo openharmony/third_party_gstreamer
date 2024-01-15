@@ -908,7 +908,7 @@ gst_h264_parser_parse_buffering_period (GstH264NalParser * nalparser,
   return GST_H264_PARSER_OK;
 
 error:
-  GST_WARNING ("error parsing \"Buffering period\"");
+  GST_DEBUG ("error parsing \"Buffering period\"");
   return GST_H264_PARSER_ERROR;
 }
 

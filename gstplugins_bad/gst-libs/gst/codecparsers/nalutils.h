@@ -160,7 +160,7 @@ gboolean nal_reader_get_se (NalReader * nr, gint32 * val);
 
 #define READ_UE(nr, val) { \
   if (!nal_reader_get_ue (nr, &val)) { \
-    GST_WARNING ("failed to read UE for '" G_STRINGIFY (val) "'"); \
+    GST_DEBUG ("failed to read UE for '" G_STRINGIFY (val) "'"); \
     goto error; \
   } \
 }
