@@ -825,7 +825,7 @@ gst_ffmpegaudenc_register (GstPlugin * plugin)
  * Enable flush audenc cap to flush.
  */
 #ifdef OHOS_OPT_COMPAT
-      in_plugin->capabilities |= AV_CODEC_CAP_ENCODER_FLUSH;
+      //in_plugin->capabilities |= AV_CODEC_CAP_ENCODER_FLUSH;
 #endif
       g_type_set_qdata (type, GST_FFENC_PARAMS_QDATA, (gpointer) in_plugin);
 
