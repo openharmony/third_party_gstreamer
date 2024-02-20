@@ -751,7 +751,7 @@ gst_element_factory_make_valist (const gchar * factoryname,
   /* ERRORS */
 no_factory:
   {
-    GST_WARNING ("no such element factory \"%s\"!", factoryname);
+    GST_DEBUG ("no such element factory \"%s\"!", factoryname);
     return NULL;
   }
 create_failed:
