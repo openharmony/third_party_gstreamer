@@ -246,7 +246,7 @@ qtdemux_type_get (guint32 fourcc)
       return qt_node_types + i;
   }
 
-  GST_WARNING ("unknown QuickTime node type %" GST_FOURCC_FORMAT,
+  GST_DEBUG ("unknown QuickTime node type %" GST_FOURCC_FORMAT,
       GST_FOURCC_ARGS (fourcc));
 
   return qt_node_types + n_qt_node_types - 1;
